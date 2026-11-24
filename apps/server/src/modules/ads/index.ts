@@ -31,7 +31,14 @@ export const adsModule: ServerModule<AdsDeps> = {
     const { db, masterKey, now } = services;
     app.route(
       '/api/workspaces',
-      adsRoutes({ db, masterKey, now, deps, limiter: createTestLimiter({ limit: 20, now }), syncLimiter: shared.appSyncLimiter }),
+      adsRoutes({
+        db,
+        masterKey,
+        now,
+        deps,
+        limiter: createTestLimiter({ limit: 20, now }),
+        syncLimiter: shared.appSyncLimiter,
+      }),
     );
   },
 };

@@ -72,7 +72,8 @@ export function screenshotSizes(value: unknown): BetaScreenshot[] {
 }
 
 const MAX_COMMENT = 5_000;
-const clip = (value: string, max: number): string => (value.length > max ? value.slice(0, max) : value);
+const clip = (value: string, max: number): string =>
+  value.length > max ? value.slice(0, max) : value;
 
 /** One submission resource as a `StoreBetaFeedback`; null when it has no id. `builds` are the included builds by id. */
 export function parseSubmission(
@@ -190,7 +191,8 @@ export class AppleTestFlightFeedbackConnector implements StoreTestFlightFeedback
   }
 
   async #list(kind: BetaFeedbackKind): Promise<{ items: StoreBetaFeedback[]; truncated: boolean }> {
-    const resource = kind === 'feedback' ? 'betaFeedbackScreenshotSubmissions' : 'betaFeedbackCrashSubmissions';
+    const resource =
+      kind === 'feedback' ? 'betaFeedbackScreenshotSubmissions' : 'betaFeedbackCrashSubmissions';
     const platform = this.#scope === 'macos' ? 'MAC_OS' : 'IOS';
     const list = await this.#api.list(
       `/v1/apps/${seg(this.#app)}/${resource}?sort=-createdDate&limit=200&include=build&fields[builds]=version,preReleaseVersion&filter[appPlatform]=${platform}`,
@@ -198,7 +200,9 @@ export class AppleTestFlightFeedbackConnector implements StoreTestFlightFeedback
       { maxPages: this.#maxPages },
     );
     const builds = new Map<string, Json>(
-      list.included.filter((r) => text(r.type) === 'builds' || text(r.type) === undefined).map((r) => [id(r), r]),
+      list.included
+        .filter((r) => text(r.type) === 'builds' || text(r.type) === undefined)
+        .map((r) => [id(r), r]),
     );
     const items: StoreBetaFeedback[] = [];
     const seen = new Set<string>();
@@ -217,7 +221,9 @@ export class AppleTestFlightFeedbackConnector implements StoreTestFlightFeedback
 
   /** Fills `version` from the prerelease version of each distinct build. A build whose version cannot be read keeps null (never a failed read). */
   async #versions(items: StoreBetaFeedback[], warnings: string[]): Promise<void> {
-    const buildIds = [...new Set(items.map((i) => i.buildId).filter((b): b is string => b !== null))];
+    const buildIds = [
+      ...new Set(items.map((i) => i.buildId).filter((b): b is string => b !== null)),
+    ];
     const wanted = buildIds.slice(0, this.#maxBuilds);
     if (buildIds.length > wanted.length) {
       warnings.push('Some builds are not named by version: too many distinct builds in one read.');
@@ -272,7 +278,13 @@ export class AppleTestFlightFeedbackConnector implements StoreTestFlightFeedback
       } catch {
         ok = false;
       }
-      if (ok) out.push({ url, width: int(s.width), height: int(s.height), expiresAt: dateMs(s.expirationDate) });
+      if (ok)
+        out.push({
+          url,
+          width: int(s.width),
+          height: int(s.height),
+          expiresAt: dateMs(s.expirationDate),
+        });
     }
     return out;
   }

@@ -35,7 +35,9 @@ export const providerHosts: Record<ChatProvider, readonly string[]> = {
 export function hostAllowed(provider: ChatProvider, hostname: string): boolean {
   const host = hostname.toLowerCase();
   return providerHosts[provider].some((rule) =>
-    rule.startsWith('*.') ? host.endsWith(rule.slice(1)) && host.length > rule.length - 1 : host === rule,
+    rule.startsWith('*.')
+      ? host.endsWith(rule.slice(1)) && host.length > rule.length - 1
+      : host === rule,
   );
 }
 
@@ -73,7 +75,12 @@ export type ChatMessage = {
 export type ChatDigest = {
   title: string;
   heading: string;
-  items: { severity: AlertSeverity; severityLabel: string; text: string; link?: { label: string; url: string } | undefined }[];
+  items: {
+    severity: AlertSeverity;
+    severityLabel: string;
+    text: string;
+    link?: { label: string; url: string } | undefined;
+  }[];
   more?: string | undefined;
   buttons: { label: string; url: string }[];
   footer: string;
@@ -83,12 +90,28 @@ export type ChatPayloadKind = 'alert' | 'digest' | 'test';
 
 /** Limits of the providers, checked by the renderers and their tests. */
 export const limits = {
-  slack: { blocks: 50, header: 150, sectionText: 3000, fields: 10, fieldText: 2000, buttonText: 75, buttonUrl: 3000, items: 40 },
+  slack: {
+    blocks: 50,
+    header: 150,
+    sectionText: 3000,
+    fields: 10,
+    fieldText: 2000,
+    buttonText: 75,
+    buttonUrl: 3000,
+    items: 40,
+  },
   teams: { bytes: 28 * 1024 },
 } as const;
 
 /** The statuses of a chat delivery. */
-export const chatStatuses = ['queued', 'retrying', 'sent', 'failed', 'skipped', 'deferred'] as const;
+export const chatStatuses = [
+  'queued',
+  'retrying',
+  'sent',
+  'failed',
+  'skipped',
+  'deferred',
+] as const;
 
 /**
  * The fixed vocabulary of the delivery log: a screen can explain each one, and nothing a provider said is ever stored. (The web app's

@@ -1,4 +1,13 @@
-import { type AnalyticsSource, type Role, analyticsSources, can, isAnalyticsSource, needsStoreAppId, parsePlatform, supports } from '@kiln/core';
+import {
+  type AnalyticsSource,
+  type Role,
+  analyticsSources,
+  can,
+  isAnalyticsSource,
+  needsStoreAppId,
+  parsePlatform,
+  supports,
+} from '@kiln/core';
 import type { Database } from '@kiln/db';
 import { enqueue } from '../jobs.ts';
 import { ADS_SYNC_QUEUE } from '../modules/ads/sync.ts';
@@ -23,23 +32,55 @@ export type SyncKind = 'app' | 'reviews' | 'eas' | 'analytics' | 'ads';
 
 export const SYNC_KIND_ORDER: readonly SyncKind[] = ['app', 'reviews', 'eas', 'analytics', 'ads'];
 
-export type SyncAllQuery = { without: SyncKind[]; kinds: SyncKind[] | undefined; sources: AnalyticsSource[] | undefined };
+export type SyncAllQuery = {
+  without: SyncKind[];
+  kinds: SyncKind[] | undefined;
+  sources: AnalyticsSource[] | undefined;
+};
 
 /**
  * The query of `POST /apps/:id/sync-all`: `without=app`, `kinds=reviews,analytics` (only these; default all) and `sources=play_vitals,...`
  * (only these analytics sources; needs the analytics kind). A page-scoped Sync asks for the kinds it needs. Pure; a bad value says which.
  */
-export function parseSyncAllQuery(raw: { without?: string | undefined; kinds?: string | undefined; sources?: string | undefined }): { ok: true; query: SyncAllQuery } | { ok: false; message: string } {
-  const list = (v: string | undefined): string[] | undefined => (v === undefined || v === '' ? undefined : [...new Set(v.split(',').map((s) => s.trim()).filter((s) => s !== ''))]);
-  if (raw.without !== undefined && raw.without !== 'app') return { ok: false, message: '`without` can only be `app`.' };
+export function parseSyncAllQuery(raw: {
+  without?: string | undefined;
+  kinds?: string | undefined;
+  sources?: string | undefined;
+}): { ok: true; query: SyncAllQuery } | { ok: false; message: string } {
+  const list = (v: string | undefined): string[] | undefined =>
+    v === undefined || v === ''
+      ? undefined
+      : [
+          ...new Set(
+            v
+              .split(',')
+              .map((s) => s.trim())
+              .filter((s) => s !== ''),
+          ),
+        ];
+  if (raw.without !== undefined && raw.without !== 'app')
+    return { ok: false, message: '`without` can only be `app`.' };
   const kinds = list(raw.kinds);
   const bad = kinds?.find((k) => !(SYNC_KIND_ORDER as readonly string[]).includes(k));
-  if (bad !== undefined) return { ok: false, message: `Unknown kind \`${bad}\`. Use ${SYNC_KIND_ORDER.join(', ')}.` };
+  if (bad !== undefined)
+    return { ok: false, message: `Unknown kind \`${bad}\`. Use ${SYNC_KIND_ORDER.join(', ')}.` };
   const sources = list(raw.sources);
   const badSource = sources?.find((s) => !isAnalyticsSource(s));
-  if (badSource !== undefined) return { ok: false, message: `Unknown analytics source \`${badSource}\`. Use ${analyticsSources.join(', ')}.` };
-  if (sources !== undefined && kinds !== undefined && !kinds.includes('analytics')) return { ok: false, message: '`sources` needs the `analytics` kind.' };
-  return { ok: true, query: { without: raw.without === 'app' ? ['app'] : [], kinds: kinds as SyncKind[] | undefined, sources: sources as AnalyticsSource[] | undefined } };
+  if (badSource !== undefined)
+    return {
+      ok: false,
+      message: `Unknown analytics source \`${badSource}\`. Use ${analyticsSources.join(', ')}.`,
+    };
+  if (sources !== undefined && kinds !== undefined && !kinds.includes('analytics'))
+    return { ok: false, message: '`sources` needs the `analytics` kind.' };
+  return {
+    ok: true,
+    query: {
+      without: raw.without === 'app' ? ['app'] : [],
+      kinds: kinds as SyncKind[] | undefined,
+      sources: sources as AnalyticsSource[] | undefined,
+    },
+  };
 }
 
 export type SyncSkipReason = 'forbidden' | 'not_linked' | 'off' | 'not_ready' | 'already_queued';
@@ -62,11 +103,18 @@ export type SyncFacts = {
   queued: ReadonlySet<SyncKind>;
 };
 
-export type SyncDecision = { kind: SyncKind } & ({ run: true } | { run: false; reason: SyncSkipReason });
+export type SyncDecision = { kind: SyncKind } & (
+  | { run: true }
+  | { run: false; reason: SyncSkipReason }
+);
 
 /** Which kinds to queue, in order. Pure. */
 export function planKinds(role: Role, facts: SyncFacts): SyncDecision[] {
-  const skip = (kind: SyncKind, reason: SyncSkipReason): SyncDecision => ({ kind, run: false, reason });
+  const skip = (kind: SyncKind, reason: SyncSkipReason): SyncDecision => ({
+    kind,
+    run: false,
+    reason,
+  });
   const run = (kind: SyncKind): SyncDecision => ({ kind, run: true });
   const decide = (kind: SyncKind): SyncDecision => {
     if (facts.queued.has(kind)) return skip(kind, 'already_queued');
@@ -77,7 +125,8 @@ export function planKinds(role: Role, facts: SyncFacts): SyncDecision[] {
         if (!can(role, 'reviews.sync')) return skip(kind, 'forbidden');
         const platform = facts.platform === undefined ? undefined : parsePlatform(facts.platform);
         if (platform === undefined) return skip(kind, 'not_ready');
-        if ((needsStoreAppId(platform) && !facts.hasStoreAppId) || facts.reviewsOwnedByIos) return skip(kind, 'not_ready');
+        if ((needsStoreAppId(platform) && !facts.hasStoreAppId) || facts.reviewsOwnedByIos)
+          return skip(kind, 'not_ready');
         return run(kind);
       }
       case 'eas':
@@ -88,7 +137,9 @@ export function planKinds(role: Role, facts: SyncFacts): SyncDecision[] {
         if (!facts.analyticsEnabled) return skip(kind, 'off');
         const platform = facts.platform === undefined ? undefined : parsePlatform(facts.platform);
         if (platform === undefined) return skip(kind, 'not_ready');
-        return supports(platform, 'appleAnalyticsReports') && !facts.analyticsAppleReady ? skip(kind, 'not_ready') : run(kind);
+        return supports(platform, 'appleAnalyticsReports') && !facts.analyticsAppleReady
+          ? skip(kind, 'not_ready')
+          : run(kind);
       }
       case 'ads':
         if (!can(role, 'apps.sync')) return skip(kind, 'forbidden');
@@ -108,13 +159,24 @@ const QUEUES: Record<SyncKind, string> = {
 
 const needle = (appId: string): string => `%"appId":"${appId.replace(/[%_"\\]/g, '')}"%`;
 
-async function readFacts(db: Database, workspaceId: string, appId: string): Promise<SyncFacts | null> {
-  const [app] = await db.query('SELECT platform, store_app_id FROM apps WHERE id = ? AND workspace_id = ?', [appId, workspaceId]);
+async function readFacts(
+  db: Database,
+  workspaceId: string,
+  appId: string,
+): Promise<SyncFacts | null> {
+  const [app] = await db.query(
+    'SELECT platform, store_app_id FROM apps WHERE id = ? AND workspace_id = ?',
+    [appId, workspaceId],
+  );
   if (!app) return null;
-  const storeAppId = app.store_app_id === null || app.store_app_id === undefined ? '' : String(app.store_app_id);
+  const storeAppId =
+    app.store_app_id === null || app.store_app_id === undefined ? '' : String(app.store_app_id);
   const [ios] =
     String(app.platform) === 'macos' && storeAppId !== ''
-      ? await db.query("SELECT id FROM apps WHERE workspace_id = ? AND platform = 'ios' AND store_app_id = ?", [workspaceId, storeAppId])
+      ? await db.query(
+          "SELECT id FROM apps WHERE workspace_id = ? AND platform = 'ios' AND store_app_id = ?",
+          [workspaceId, storeAppId],
+        )
       : [];
   const [eas] = await db.query(
     "SELECT 1 AS ok FROM app_expo_links l JOIN credentials c ON c.id = l.credential_id AND c.workspace_id = l.workspace_id AND c.kind = 'expo' WHERE l.app_id = ? AND l.workspace_id = ?",
@@ -129,11 +191,19 @@ async function readFacts(db: Database, workspaceId: string, appId: string): Prom
     [workspaceId],
   );
   const setting = (key: string) => settings.find((s) => String(s.key) === key);
-  const vendor = /^"[0-9]{5,12}"$/.test(String(setting('analytics.appleVendorNumber')?.value_json ?? ''));
-  const [request] = await db.query("SELECT 1 AS ok FROM analytics_report_requests WHERE app_id = ? AND status = 'active'", [appId]);
+  const vendor = /^"[0-9]{5,12}"$/.test(
+    String(setting('analytics.appleVendorNumber')?.value_json ?? ''),
+  );
+  const [request] = await db.query(
+    "SELECT 1 AS ok FROM analytics_report_requests WHERE app_id = ? AND status = 'active'",
+    [appId],
+  );
   const queued = new Set<SyncKind>();
   for (const kind of SYNC_KIND_ORDER) {
-    const [job] = await db.query("SELECT 1 AS ok FROM jobs WHERE queue = ? AND status IN ('queued', 'running') AND payload LIKE ?", [QUEUES[kind], needle(appId)]);
+    const [job] = await db.query(
+      "SELECT 1 AS ok FROM jobs WHERE queue = ? AND status IN ('queued', 'running') AND payload LIKE ?",
+      [QUEUES[kind], needle(appId)],
+    );
     if (job) queued.add(kind);
   }
   return {
@@ -181,7 +251,9 @@ export async function enqueueAppSyncAll(
         workspaceId: input.workspaceId,
         appId: input.appId,
         requestedBy: input.requestedBy,
-        ...(d.kind === 'analytics' && input.sources && input.sources.length > 0 ? { sources: [...input.sources] } : {}),
+        ...(d.kind === 'analytics' && input.sources && input.sources.length > 0
+          ? { sources: [...input.sources] }
+          : {}),
       },
       { now },
     );

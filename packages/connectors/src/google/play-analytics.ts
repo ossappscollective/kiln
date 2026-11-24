@@ -129,7 +129,10 @@ function dateOf(value: unknown): string | undefined {
  * Rows of a `...MetricSet:query` answer as points. Field names are UNVERIFIED (see above). A row without a date, a metric this
  * server maps or a number is skipped. The `versionCode` dimension becomes the `app_version` dimension.
  */
-export function parseVitalsRows(json: unknown, set?: 'crashRate' | 'anrRate'): {
+export function parseVitalsRows(
+  json: unknown,
+  set?: 'crashRate' | 'anrRate',
+): {
   points: AnalyticsPoint[];
   rows: number;
   skipped: number;

@@ -68,7 +68,10 @@ test('the section drawn is the one named when allowed, else the first allowed; a
 
 test('withSettingsSection writes the section, drops the old view and keeps other query parts', () => {
   assert.equal(withSettingsSection('#/settings', 'reviews'), '#/settings?section=reviews');
-  assert.equal(withSettingsSection('#/settings?view=ai&x=1', 'mail'), '#/settings?x=1&section=mail');
+  assert.equal(
+    withSettingsSection('#/settings?view=ai&x=1', 'mail'),
+    '#/settings?x=1&section=mail',
+  );
   assert.equal(withSettingsSection('#/settings', 'nope'), '#/settings');
 });
 
@@ -94,7 +97,9 @@ test('search matches a section name or its group name, ignoring case and accents
     filterSettingsGroups(groups, 'smtp').flatMap((g) => g.items.map((i) => i.id)),
     ['mail'],
   );
-  assert.ok(filterSettingsGroups(groups, 'deepl').some((g) => g.items.some((i) => i.id === 'translation')));
+  assert.ok(
+    filterSettingsGroups(groups, 'deepl').some((g) => g.items.some((i) => i.id === 'translation')),
+  );
   assert.deepEqual(filterSettingsGroups(groups, 'zzz'), []);
   assert.equal(filterSettingsGroups(groups, '  ').length, groups.length);
 });

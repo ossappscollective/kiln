@@ -14,20 +14,20 @@ the experiment resource is `appStoreVersionExperiments` v2: it is tied to the ap
 version. The v1 endpoints (`/v1/appStoreVersionExperiments...`) and `GET /v1/appStoreVersions/{id}/appStoreVersionExperiments` are DEPRECATED.
 Endpoint list ([Managing App Store version experiments](https://developer.apple.com/documentation/appstoreconnectapi/app-store-version-experiments)), VERIFIED:
 
-| Method and path | Use |
-| --- | --- |
-| `GET /v1/apps/{id}/appStoreVersionExperimentsV2` | list an app's experiments. `filter[state]`, `include` = `app`, `latestControlVersion`, `controlVersions`, `appStoreVersionExperimentTreatments`; `limit` max 200, `limit[appStoreVersionExperimentTreatments]` max 50 |
-| `GET /v1/appStoreVersions/{id}/appStoreVersionExperimentsV2` | the same per version |
-| `GET /v2/appStoreVersionExperiments/{id}` | one experiment |
-| `GET /v2/appStoreVersionExperiments/{id}/appStoreVersionExperimentTreatments` | its treatments |
-| `POST /v2/appStoreVersionExperiments` | create: attributes `name`, `platform`, `trafficProportion` (all required), relationship `app` (required) |
-| `PATCH /v2/appStoreVersionExperiments/{id}` | attributes `name`, `started` (boolean), `trafficProportion` |
-| `DELETE /v2/appStoreVersionExperiments/{id}` | "before it starts" |
-| `POST /v1/appStoreVersionExperimentTreatments` | attributes `name` (required), `appIconName` |
-| `PATCH /v1/appStoreVersionExperimentTreatments/{id}`, `DELETE` | name and icon name; delete |
-| `GET /v1/appStoreVersionExperimentTreatments/{id}/appStoreVersionExperimentTreatmentLocalizations` | treatment locales; `include` = `appScreenshotSets`, `appPreviewSets`, `placements` (limits max 50), `filter[locale]`, `limit` max 200 |
-| `POST /v1/appStoreVersionExperimentTreatmentLocalizations`, `DELETE .../{id}` | add and remove a treatment locale |
-| `GET /v1/appStoreVersionExperimentTreatmentLocalizations/{id}/placements` | the asset-library placements of a locale |
+| Method and path                                                                                    | Use                                                                                                                                                                                                                   |
+| -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/apps/{id}/appStoreVersionExperimentsV2`                                                   | list an app's experiments. `filter[state]`, `include` = `app`, `latestControlVersion`, `controlVersions`, `appStoreVersionExperimentTreatments`; `limit` max 200, `limit[appStoreVersionExperimentTreatments]` max 50 |
+| `GET /v1/appStoreVersions/{id}/appStoreVersionExperimentsV2`                                       | the same per version                                                                                                                                                                                                  |
+| `GET /v2/appStoreVersionExperiments/{id}`                                                          | one experiment                                                                                                                                                                                                        |
+| `GET /v2/appStoreVersionExperiments/{id}/appStoreVersionExperimentTreatments`                      | its treatments                                                                                                                                                                                                        |
+| `POST /v2/appStoreVersionExperiments`                                                              | create: attributes `name`, `platform`, `trafficProportion` (all required), relationship `app` (required)                                                                                                              |
+| `PATCH /v2/appStoreVersionExperiments/{id}`                                                        | attributes `name`, `started` (boolean), `trafficProportion`                                                                                                                                                           |
+| `DELETE /v2/appStoreVersionExperiments/{id}`                                                       | "before it starts"                                                                                                                                                                                                    |
+| `POST /v1/appStoreVersionExperimentTreatments`                                                     | attributes `name` (required), `appIconName`                                                                                                                                                                           |
+| `PATCH /v1/appStoreVersionExperimentTreatments/{id}`, `DELETE`                                     | name and icon name; delete                                                                                                                                                                                            |
+| `GET /v1/appStoreVersionExperimentTreatments/{id}/appStoreVersionExperimentTreatmentLocalizations` | treatment locales; `include` = `appScreenshotSets`, `appPreviewSets`, `placements` (limits max 50), `filter[locale]`, `limit` max 200                                                                                 |
+| `POST /v1/appStoreVersionExperimentTreatmentLocalizations`, `DELETE .../{id}`                      | add and remove a treatment locale                                                                                                                                                                                     |
+| `GET /v1/appStoreVersionExperimentTreatmentLocalizations/{id}/placements`                          | the asset-library placements of a locale                                                                                                                                                                              |
 
 Attributes (VERIFIED, names and types from the schema pages; no descriptions):
 
@@ -45,14 +45,14 @@ Attributes (VERIFIED, names and types from the schema pages; no descriptions):
 
 All VERIFIED unless noted ([Custom Product Pages and Localizations](https://developer.apple.com/documentation/appstoreconnectapi/custom-product-pages-and-localizations)):
 
-| Method and path | Use |
-| --- | --- |
-| `GET /v1/apps/{id}/appCustomProductPages` | list. `include` = `app`, `appCustomProductPageVersions`; `limit` max 200, `limit[appCustomProductPageVersions]` max 50; `filter[visible]` |
-| `POST /v1/appCustomProductPages`, `PATCH .../{id}` (name, visibility), `DELETE` | page |
-| `GET /v1/appCustomProductPages/{id}/appCustomProductPageVersions`, `POST /v1/appCustomProductPageVersions`, `PATCH` | versions |
-| `GET /v1/appCustomProductPageVersions/{id}/appCustomProductPageLocalizations` | locales; `include` = `appScreenshotSets`, `appPreviewSets`, `searchKeywords`, `placements`; `filter[locale]`; limit max 200 |
-| `POST /v1/appCustomProductPageLocalizations`, `PATCH` (promotional text), `DELETE` | locale |
-| `GET /v1/appCustomProductPageLocalizations/{id}/placements` | asset-library placements (screenshots, previews) of a locale |
+| Method and path                                                                                                     | Use                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/apps/{id}/appCustomProductPages`                                                                           | list. `include` = `app`, `appCustomProductPageVersions`; `limit` max 200, `limit[appCustomProductPageVersions]` max 50; `filter[visible]` |
+| `POST /v1/appCustomProductPages`, `PATCH .../{id}` (name, visibility), `DELETE`                                     | page                                                                                                                                      |
+| `GET /v1/appCustomProductPages/{id}/appCustomProductPageVersions`, `POST /v1/appCustomProductPageVersions`, `PATCH` | versions                                                                                                                                  |
+| `GET /v1/appCustomProductPageVersions/{id}/appCustomProductPageLocalizations`                                       | locales; `include` = `appScreenshotSets`, `appPreviewSets`, `searchKeywords`, `placements`; `filter[locale]`; limit max 200               |
+| `POST /v1/appCustomProductPageLocalizations`, `PATCH` (promotional text), `DELETE`                                  | locale                                                                                                                                    |
+| `GET /v1/appCustomProductPageLocalizations/{id}/placements`                                                         | asset-library placements (screenshots, previews) of a locale                                                                              |
 
 - Page attributes: `name`, `url` (the shareable address), `visible`. Version attributes: `version`, `state` (`PREPARE_FOR_SUBMISSION`, `READY_FOR_REVIEW`,
   `WAITING_FOR_REVIEW`, `IN_REVIEW`, `ACCEPTED`, `APPROVED`, `REPLACED_WITH_NEW_VERSION`, `REJECTED`), `deepLink` (uri). Localization: `locale`, `promotionalText`.

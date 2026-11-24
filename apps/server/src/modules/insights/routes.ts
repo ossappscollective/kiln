@@ -6,7 +6,14 @@ import { type AppEnv, parseBody } from '../../http.ts';
 import { memberRole } from '../../services/accounts.ts';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
-import { countriesFor, dismissCard, insightsFor, listingChecksFor, restoreCards, visibleCount } from './service.ts';
+import {
+  countriesFor,
+  dismissCard,
+  insightsFor,
+  listingChecksFor,
+  restoreCards,
+  visibleCount,
+} from './service.ts';
 
 /**
  * Insights of an app (docs/api/insights.md, docs/adr/0051-insights.md). Reads compute the cards from stored data and ask no store; the only
@@ -39,7 +46,9 @@ export function insightsRoutes(ctx: InsightsRoutesContext) {
   routes.get(base, needs('analytics.read'), async (c) => {
     const o = await open(c);
     if (!o) return c.json({ error: 'not_found' }, 404);
-    return c.json(await insightsFor(db, { ...o, includeHidden: c.req.query('includeHidden') === '1' }));
+    return c.json(
+      await insightsFor(db, { ...o, includeHidden: c.req.query('includeHidden') === '1' }),
+    );
   });
 
   routes.get(`${base}/count`, needs('analytics.read'), async (c) => {
@@ -83,7 +92,11 @@ export function insightsRoutes(ctx: InsightsRoutesContext) {
     if (!app) return c.json({ error: 'not_found' }, 404);
     const body = await parseBody(c, restoreBody);
     if (!body.ok) return body.response;
-    const restored = await restoreCards(db, { workspaceId: ws(c), appId: app.id, ...(body.data.cardId ? { cardId: body.data.cardId } : {}) });
+    const restored = await restoreCards(db, {
+      workspaceId: ws(c),
+      appId: app.id,
+      ...(body.data.cardId ? { cardId: body.data.cardId } : {}),
+    });
     if (restored > 0) {
       await recordAudit(db, {
         workspaceId: ws(c),

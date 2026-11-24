@@ -8,7 +8,13 @@ import type { RailGroup } from './section-rail.ts';
  *   Automation       Workflows
  * The old `?view=builds|tests|workflows` addresses are the same ids, so they keep opening the same section.
  */
-export type BuildsSectionId = 'builds' | 'tests' | 'submissions' | 'eas-config' | 'eas-updates' | 'workflows';
+export type BuildsSectionId =
+  | 'builds'
+  | 'tests'
+  | 'submissions'
+  | 'eas-config'
+  | 'eas-updates'
+  | 'workflows';
 
 export type BuildsSectionsInput = {
   /** Some app in scope is linked to an Expo project (the stored EAS status names a project). */
@@ -23,8 +29,14 @@ export type BuildsSectionsInput = {
 
 export function buildsGroups(input: BuildsSectionsInput): RailGroup[] {
   const expo: RailGroup['entries'] = [];
-  if (input.expoLinked) expo.push({ id: 'submissions', label: t(k('app:builds.section.submissions')), count: input.submissions });
-  if (input.configReadable) expo.push({ id: 'eas-config', label: t(k('app:builds.section.config')) });
+  if (input.expoLinked)
+    expo.push({
+      id: 'submissions',
+      label: t(k('app:builds.section.submissions')),
+      count: input.submissions,
+    });
+  if (input.configReadable)
+    expo.push({ id: 'eas-config', label: t(k('app:builds.section.config')) });
   if (input.expoLinked) expo.push({ id: 'eas-updates', label: t(k('app:builds.section.updates')) });
   return [
     {
@@ -36,6 +48,10 @@ export function buildsGroups(input: BuildsSectionsInput): RailGroup[] {
       ],
     },
     { id: 'expo', label: t(k('app:builds.group.expo')), entries: expo },
-    { id: 'automation', label: t(k('app:builds.group.automation')), entries: [{ id: 'workflows', label: t(k('app:builds.section.workflows')) }] },
+    {
+      id: 'automation',
+      label: t(k('app:builds.group.automation')),
+      entries: [{ id: 'workflows', label: t(k('app:builds.section.workflows')) }],
+    },
   ];
 }

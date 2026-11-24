@@ -14,17 +14,57 @@ import { AsoError, checkStatus, getCapped } from '../aso-common.ts';
  * Search terms never appear in an error message, and nothing is logged here.
  */
 
-export const APPLE_HINTS_URL = 'https://search.itunes.apple.com/WebObjects/MZSearchHints.woa/wa/hints';
+export const APPLE_HINTS_URL =
+  'https://search.itunes.apple.com/WebObjects/MZSearchHints.woa/wa/hints';
 export const APPLE_HINTS_HOST = 'search.itunes.apple.com';
 export const APPLE_HINTS_MAX = 10;
 const MAX_BYTES = 256 * 1024;
 
 const STOREFRONTS: Record<string, number> = {
-  us: 143441, gb: 143444, ca: 143455, au: 143460, nz: 143461, ie: 143449, de: 143443, at: 143445, ch: 143459, fr: 143442,
-  be: 143446, nl: 143452, es: 143454, pt: 143453, it: 143450, se: 143456, no: 143457, dk: 143458, fi: 143447, pl: 143478,
-  gr: 143448, tr: 143480, ru: 143469, jp: 143462, kr: 143466, cn: 143465, hk: 143463, tw: 143470, sg: 143464, in: 143467,
-  th: 143475, id: 143476, my: 143473, ph: 143474, vn: 143471, br: 143503, mx: 143468, ar: 143505, cl: 143483, co: 143501,
-  za: 143472, ae: 143481, sa: 143479, il: 143491,
+  us: 143441,
+  gb: 143444,
+  ca: 143455,
+  au: 143460,
+  nz: 143461,
+  ie: 143449,
+  de: 143443,
+  at: 143445,
+  ch: 143459,
+  fr: 143442,
+  be: 143446,
+  nl: 143452,
+  es: 143454,
+  pt: 143453,
+  it: 143450,
+  se: 143456,
+  no: 143457,
+  dk: 143458,
+  fi: 143447,
+  pl: 143478,
+  gr: 143448,
+  tr: 143480,
+  ru: 143469,
+  jp: 143462,
+  kr: 143466,
+  cn: 143465,
+  hk: 143463,
+  tw: 143470,
+  sg: 143464,
+  in: 143467,
+  th: 143475,
+  id: 143476,
+  my: 143473,
+  ph: 143474,
+  vn: 143471,
+  br: 143503,
+  mx: 143468,
+  ar: 143505,
+  cl: 143483,
+  co: 143501,
+  za: 143472,
+  ae: 143481,
+  sa: 143479,
+  il: 143491,
 };
 
 /** The storefront id of a two letter country, or undefined when it is not one of the known ones. */
@@ -42,7 +82,9 @@ const decode = (text: string): string =>
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
-    .replace(/&#(\d{1,6});/g, (_m, n: string) => String.fromCodePoint(Math.min(Number(n), 0x10ffff)))
+    .replace(/&#(\d{1,6});/g, (_m, n: string) =>
+      String.fromCodePoint(Math.min(Number(n), 0x10ffff)),
+    )
     .replace(/&amp;/g, '&');
 
 /** The suggestions of a hints answer: lower case, trimmed, each once, in order, at most `APPLE_HINTS_MAX`. Pure. */
@@ -50,7 +92,10 @@ export function parseAppleHints(text: string): string[] {
   const out: string[] = [];
   const pattern = /<key>\s*term\s*<\/key>\s*<string>([^<]{0,200})<\/string>/g;
   for (let m = pattern.exec(text); m !== null; m = pattern.exec(text)) {
-    const term = decode(m[1] ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+    const term = decode(m[1] ?? '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLowerCase();
     if (term !== '' && !out.includes(term)) out.push(term);
     if (out.length >= APPLE_HINTS_MAX) break;
   }

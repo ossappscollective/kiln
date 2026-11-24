@@ -3,7 +3,12 @@ import { ASSET_SYNC_LIMITS, type AssetSlot, sniffImageFormat } from '@kiln/core'
 import type { ManagedApp } from '../../services/apps.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { gitBlobOid } from '../publish/staged-asset-blobs.ts';
-import { type SetEntry, type SetSeed, safeUploadName, uploadPathOf } from '../publish/staged-sets.ts';
+import {
+  type SetEntry,
+  type SetSeed,
+  safeUploadName,
+  uploadPathOf,
+} from '../publish/staged-sets.ts';
 import { getStoreImages, type StoreImagesContext, storeImageBytes } from './store-images.ts';
 
 import { coded } from '../../i18n/problem.ts';
@@ -34,9 +39,7 @@ export function storeSeed(
       (s) =>
         s.locale === input.locale && s.kind === input.slot.kind && s.device === input.slot.device,
     );
-    const files = sets
-      .flatMap((s) => s.files)
-      .sort((a, b) => a.position - b.position);
+    const files = sets.flatMap((s) => s.files).sort((a, b) => a.position - b.position);
     const entries: SetEntry[] = [];
     for (const file of files) {
       const got = await storeImageBytes(ctx, {

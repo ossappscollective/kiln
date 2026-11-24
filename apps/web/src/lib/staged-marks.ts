@@ -15,18 +15,30 @@ export function clipText(text: string, max = LIMIT): string {
 
 /** `Staged: <before> → <after>`; an unknown or empty before reads as "nothing". */
 export function stagedChangeText(before: string | null, after: string): string {
-  const b = before === null || before.trim() === '' ? t('listing:matrixView.stagedNothing') : clipText(before);
+  const b =
+    before === null || before.trim() === ''
+      ? t('listing:matrixView.stagedNothing')
+      : clipText(before);
   const a = after.trim() === '' ? t('listing:matrixView.stagedNothing') : clipText(after);
   return t('listing:matrixView.stagedChange', { before: b, after: a });
 }
 
-export type StagedCellInput = { platform: string; platformName: string; view: StagedChangesView | null; locale: string; field: string };
+export type StagedCellInput = {
+  platform: string;
+  platformName: string;
+  view: StagedChangesView | null;
+  locale: string;
+  field: string;
+};
 
 /**
  * The staged text behind ONE grid cell (one field of one locale on the platforms of the column). `count` is how many platforms have one;
  * `text` is the tooltip and aria text: one `Staged: before → after` per platform, the platform named when there are several.
  */
-export function stagedCellMark(inputs: readonly StagedCellInput[]): { count: number; text: string } {
+export function stagedCellMark(inputs: readonly StagedCellInput[]): {
+  count: number;
+  text: string;
+} {
   const parts: string[] = [];
   for (const i of inputs) {
     const staged = findStagedText(i.view, i.locale, i.field);
@@ -38,7 +50,10 @@ export function stagedCellMark(inputs: readonly StagedCellInput[]): { count: num
 }
 
 /** How many staged items (listing texts and graphics sets) the given views hold for one locale. */
-export function stagedCountForLocale(views: readonly (StagedChangesView | null)[], locale: string): number {
+export function stagedCountForLocale(
+  views: readonly (StagedChangesView | null)[],
+  locale: string,
+): number {
   let n = 0;
   for (const v of views) {
     if (v === null) continue;

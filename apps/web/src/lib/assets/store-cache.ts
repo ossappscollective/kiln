@@ -26,7 +26,11 @@ export type StoreCachePlan =
 export const storeCacheKey = (workspaceId: string, appId: string, platform: string): string =>
   `${workspaceId}|${appId}|${platform}`;
 
-export function planFor(entry: StoreCacheEntry | undefined, now: number, freshMs: number = FRESH_MS): StoreCachePlan {
+export function planFor(
+  entry: StoreCacheEntry | undefined,
+  now: number,
+  freshMs: number = FRESH_MS,
+): StoreCachePlan {
   if (!entry) return 'load';
   return now - entry.at < freshMs ? 'show' : 'show_and_refresh';
 }
@@ -41,7 +45,10 @@ export type StoreCache = {
   size(): number;
 };
 
-export function createStoreCache(now: () => number = Date.now, max: number = MAX_ENTRIES): StoreCache {
+export function createStoreCache(
+  now: () => number = Date.now,
+  max: number = MAX_ENTRIES,
+): StoreCache {
   const kept = new Map<string, StoreCacheEntry>();
   return {
     get(key) {

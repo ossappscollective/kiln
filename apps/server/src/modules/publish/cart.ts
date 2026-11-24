@@ -5,12 +5,32 @@ import { getApp, listApps, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { getPolicy } from '../../services/step-up.ts';
-import { deleteReplyDraft, REPLY_ENV, type ReviewReplyContext, sendReviewReply } from '../reviews/replies.ts';
+import {
+  deleteReplyDraft,
+  REPLY_ENV,
+  type ReviewReplyContext,
+  sendReviewReply,
+} from '../reviews/replies.ts';
 import { storeFor } from '../reviews/sync.ts';
 import { lastStoreImages } from '../listing/store-images.ts';
-import { listStagedPrices, unstagePrice, viewOf, type StagedPriceView } from '../monetization/price-stage.ts';
-import { confirmationFailure, phraseMatches, sendPrices, type PriceItemResult } from '../monetization/price-publish.ts';
-import { PRICE_ENV, priceSwitch, type PriceContext, type StagedPrice } from '../monetization/price-shared.ts';
+import {
+  listStagedPrices,
+  unstagePrice,
+  viewOf,
+  type StagedPriceView,
+} from '../monetization/price-stage.ts';
+import {
+  confirmationFailure,
+  phraseMatches,
+  sendPrices,
+  type PriceItemResult,
+} from '../monetization/price-publish.ts';
+import {
+  PRICE_ENV,
+  priceSwitch,
+  type PriceContext,
+  type StagedPrice,
+} from '../monetization/price-shared.ts';
 import { loadPendingFacts } from './pending.ts';
 import { buildStagedView, type StagedContext, unstage } from './staged-changes.ts';
 import { metadataLock } from './metadata-lock.ts';
@@ -36,7 +56,15 @@ export const CART_KINDS = ['listing', 'graphics', 'release', 'price', 'review_re
 export type CartKind = (typeof CART_KINDS)[number];
 
 export type CartReason = {
-  code: 'no_right' | 'switch_off' | 'workspace_off' | 'metadata_locked' | 'invalid' | 'bundle_blocked' | 'in_progress' | 'outcome_unknown';
+  code:
+    | 'no_right'
+    | 'switch_off'
+    | 'workspace_off'
+    | 'metadata_locked'
+    | 'invalid'
+    | 'bundle_blocked'
+    | 'in_progress'
+    | 'outcome_unknown';
   /** The right the caller lacks. */
   action?: string;
   /** The switch that is off. */
@@ -79,7 +107,13 @@ export type CartItem = {
   /** Price items: before and after per territory (minor units), percent change, date, what happens to existing subscribers. */
   price?: StagedPriceView;
   /** Reply items: the review it answers. */
-  review?: { rating: number; excerpt: string; language: string | null; territory: string | null; status: string };
+  review?: {
+    rating: number;
+    excerpt: string;
+    language: string | null;
+    territory: string | null;
+    status: string;
+  };
 };
 
 export type CartRights = {
@@ -109,13 +143,16 @@ const excerpt = (value: string | null | undefined): string | null => {
   if (flat === '') return null;
   return flat.length > EXCERPT ? `${flat.slice(0, EXCERPT - 1)}…` : flat;
 };
-const sha = (parts: readonly string[]) => createHash('sha256').update(parts.join('\u0000')).digest('hex').slice(0, 32);
+const sha = (parts: readonly string[]) =>
+  createHash('sha256').update(parts.join('\u0000')).digest('hex').slice(0, 32);
 
 type Raw = { kind: CartKind; rawId: string; reviewId?: string };
 export type LoadedCart = { items: CartItem[]; raw: Map<string, Raw> };
 
 const order = (a: CartItem, b: CartItem) =>
-  CART_KINDS.indexOf(a.kind) - CART_KINDS.indexOf(b.kind) || a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1);
+  CART_KINDS.indexOf(a.kind) - CART_KINDS.indexOf(b.kind) ||
+  a.createdAt - b.createdAt ||
+  (a.id < b.id ? -1 : 1);
 
 async function authorsOf(db: Database, ids: readonly string[]): Promise<Map<string, string>> {
   const unique = [...new Set(ids)].filter((id) => id !== '');
@@ -139,7 +176,8 @@ export async function loadCart(
   const platform = app.platform;
   const store = storeFor(platform);
   const policy = await getPolicy(db, workspaceId);
-  const pushApproval = policy.mode === 'hard_actions' && policy.actions.includes('store.push_draft');
+  const pushApproval =
+    policy.mode === 'hard_actions' && policy.actions.includes('store.push_draft');
   const items: CartItem[] = [];
   const raw = new Map<string, Raw>();
   const authorIds: string[] = [];
@@ -176,7 +214,13 @@ export async function loadCart(
         version: sha(['listing', t.id, t.valueHash]),
         counts: { length: t.value.length },
         thumbs: [],
-        problems: t.problems.filter((p) => p.severity !== 'info').map((p) => ({ code: p.code, severity: p.severity as 'error' | 'warning', message: p.message })),
+        problems: t.problems
+          .filter((p) => p.severity !== 'info')
+          .map((p) => ({
+            code: p.code,
+            severity: p.severity as 'error' | 'warning',
+            message: p.message,
+          })),
         ref: { locale: t.locale, field: t.field },
       });
     }
@@ -184,7 +228,9 @@ export async function loadCart(
     for (const a of view.assets.filter((x) => !x.pushed)) {
       const before = lastStore
         ? lastStore.sets
-            .filter((s) => s.locale === a.locale && s.kind === a.slot.kind && s.device === a.slot.device)
+            .filter(
+              (s) => s.locale === a.locale && s.kind === a.slot.kind && s.device === a.slot.device,
+            )
             .reduce((n, s) => n + s.files.length, 0)
         : null;
       raw.set(`graphics:${a.id}`, { kind: 'graphics', rawId: a.id });
@@ -207,8 +253,17 @@ export async function loadCart(
         thumbs: a.files
           .filter((f) => f.upload)
           .slice(0, 4)
-          .map((f) => `/api/workspaces/${encodeURIComponent(workspaceId)}/apps/${encodeURIComponent(app.id)}/staged/assets/blob?oid=${f.oid}`),
-        problems: a.problems.filter((p) => p.severity !== 'info').map((p) => ({ code: p.code, severity: p.severity as 'error' | 'warning', message: p.message })),
+          .map(
+            (f) =>
+              `/api/workspaces/${encodeURIComponent(workspaceId)}/apps/${encodeURIComponent(app.id)}/staged/assets/blob?oid=${f.oid}`,
+          ),
+        problems: a.problems
+          .filter((p) => p.severity !== 'info')
+          .map((p) => ({
+            code: p.code,
+            severity: p.severity as 'error' | 'warning',
+            message: p.message,
+          })),
         ref: { locale: a.locale, slot: a.slotKey },
       });
     }
@@ -228,7 +283,13 @@ export async function loadCart(
         version: sha(['release', r.id, r.valueHash]),
         counts: {},
         thumbs: [],
-        problems: r.problems.filter((p) => p.severity !== 'info').map((p) => ({ code: p.code, severity: p.severity as 'error' | 'warning', message: p.message })),
+        problems: r.problems
+          .filter((p) => p.severity !== 'info')
+          .map((p) => ({
+            code: p.code,
+            severity: p.severity as 'error' | 'warning',
+            message: p.message,
+          })),
         ref: { field: r.field, ...(r.locale ? { locale: r.locale } : {}) },
       });
     }
@@ -259,17 +320,32 @@ export async function loadCart(
   const stagedPrices = await listStagedPrices(db, workspaceId, app.id);
   if (stagedPrices.length > 0) {
     const sw = await priceSwitch(ctx.price, workspaceId);
-    const snapshot = await db.query('SELECT product_id, plan_id, territory, currency, amount FROM store_product_prices WHERE app_id = ? AND workspace_id = ?', [app.id, workspaceId]);
-    const [claim] = await db.query('SELECT status FROM store_price_claims WHERE app_id = ?', [app.id]);
+    const snapshot = await db.query(
+      'SELECT product_id, plan_id, territory, currency, amount FROM store_product_prices WHERE app_id = ? AND workspace_id = ?',
+      [app.id, workspaceId],
+    );
+    const [claim] = await db.query('SELECT status FROM store_price_claims WHERE app_id = ?', [
+      app.id,
+    ]);
     for (const p of stagedPrices) {
       authorIds.push(p.createdBy);
       raw.set(`price:${p.id}`, { kind: 'price', rawId: p.id });
       const view = viewOf(p);
       const current = snapshot
-        .filter((r) => String(r.product_id) === p.change.productId && String(r.plan_id) === (p.change.planId ?? ''))
-        .map((r) => ({ territory: String(r.territory), currency: String(r.currency), amount: String(r.amount) }));
+        .filter(
+          (r) =>
+            String(r.product_id) === p.change.productId &&
+            String(r.plan_id) === (p.change.planId ?? ''),
+        )
+        .map((r) => ({
+          territory: String(r.territory),
+          currency: String(r.currency),
+          amount: String(r.amount),
+        }));
       // The synced price moved since this was staged: the cart says so, and a send would refuse it anyway.
-      const moved = p.change.lines.some((l) => current.find((c) => c.territory === l.territory)?.amount !== l.currentAmount);
+      const moved = p.change.lines.some(
+        (l) => current.find((c) => c.territory === l.territory)?.amount !== l.currentAmount,
+      );
       const reason: CartReason | null = !ctx.price.enabled
         ? { code: 'switch_off', envName: PRICE_ENV }
         : !sw.workspaceEnabled
@@ -301,7 +377,16 @@ export async function loadCart(
         version: p.valueHash,
         counts: { territories: p.change.lines.length },
         thumbs: [],
-        problems: moved ? [{ code: 'stale_price', severity: 'error', message: 'The synced price changed since this was staged. Discard it and stage it again.' }] : [],
+        problems: moved
+          ? [
+              {
+                code: 'stale_price',
+                severity: 'error',
+                message:
+                  'The synced price changed since this was staged. Discard it and stage it again.',
+              },
+            ]
+          : [],
         ref: { field: p.change.productId },
         price: view,
       });
@@ -375,7 +460,11 @@ export async function getCart(
 ): Promise<{ ok: true; items: CartItem[]; generatedAt: number } | Failure> {
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
-  const { items } = await loadCart(ctx, { workspaceId: input.workspaceId, app, rights: input.rights });
+  const { items } = await loadCart(ctx, {
+    workspaceId: input.workspaceId,
+    app,
+    rights: input.rights,
+  });
   return { ok: true, items, generatedAt: ctx.now() };
 }
 
@@ -403,19 +492,41 @@ export type CartDetail = {
   /** The item's `version`: a client keeps a detail only while it is the version of the listed item. */
   version: string;
   /** Listing text and release field: the text now in the store (null: not known here) and the staged text. */
-  text?: { field: string; locale: string | null; before: string | null; after: string; limit: number | null; unit: 'characters' | 'bytes'; truncated: boolean };
+  text?: {
+    field: string;
+    locale: string | null;
+    before: string | null;
+    after: string;
+    limit: number | null;
+    unit: 'characters' | 'bytes';
+    truncated: boolean;
+  };
   /** Graphics: the images of the set the last store read held (null: there was no read) and the staged files, in order. */
-  graphics?: { before: CartImageRef[] | null; beforeReadAt: number | null; after: CartImageRef[]; truncated: boolean };
+  graphics?: {
+    before: CartImageRef[] | null;
+    beforeReadAt: number | null;
+    after: CartImageRef[];
+    truncated: boolean;
+  };
   /** Review reply: the draft and the review it answers. */
   reply?: {
     text: string;
     truncated: boolean;
-    review: { rating: number; title: string | null; body: string; language: string | null; territory: string | null; truncated: boolean };
+    review: {
+      rating: number;
+      title: string | null;
+      body: string;
+      language: string | null;
+      territory: string | null;
+      truncated: boolean;
+    };
   };
 };
 
 const cut = (value: string): { text: string; truncated: boolean } =>
-  value.length > DETAIL_TEXT_MAX ? { text: value.slice(0, DETAIL_TEXT_MAX), truncated: true } : { text: value, truncated: false };
+  value.length > DETAIL_TEXT_MAX
+    ? { text: value.slice(0, DETAIL_TEXT_MAX), truncated: true }
+    : { text: value, truncated: false };
 const baseName = (path: string): string | null => path.split('/').pop() || null;
 
 /**
@@ -456,7 +567,15 @@ export async function cartItemDetail(
       const r = (view.release ?? []).find((x) => x.id === ref.rawId);
       if (!r) return failure(404, 'not_found');
       const after = cut(r.value);
-      detail.text = { field: r.field, locale: r.locale === '' ? null : r.locale, before: null, after: after.text, limit: r.maxLength, unit: 'characters', truncated: after.truncated };
+      detail.text = {
+        field: r.field,
+        locale: r.locale === '' ? null : r.locale,
+        before: null,
+        after: after.text,
+        limit: r.maxLength,
+        unit: 'characters',
+        truncated: after.truncated,
+      };
     } else {
       const a = view.assets.find((x) => x.id === ref.rawId);
       if (!a) return failure(404, 'not_found');
@@ -473,7 +592,9 @@ export async function cartItemDetail(
       const last = lastStoreImages(workspaceId, app.id);
       const before = last
         ? last.sets
-            .filter((s) => s.locale === a.locale && s.kind === a.slot.kind && s.device === a.slot.device)
+            .filter(
+              (s) => s.locale === a.locale && s.kind === a.slot.kind && s.device === a.slot.device,
+            )
             .flatMap((s) => s.files)
             .sort((x, y) => x.position - y.position)
             .slice(0, DETAIL_IMAGES_MAX)
@@ -486,7 +607,12 @@ export async function cartItemDetail(
               url: `${base}/assets/store/thumb?ref=${encodeURIComponent(f.ref)}&size=640`,
             }))
         : null;
-      detail.graphics = { before, beforeReadAt: last?.readAt ?? null, after: files, truncated: a.files.length > DETAIL_IMAGES_MAX };
+      detail.graphics = {
+        before,
+        beforeReadAt: last?.readAt ?? null,
+        after: files,
+        truncated: a.files.length > DETAIL_IMAGES_MAX,
+      };
     }
   } else if (item.kind === 'review_reply') {
     const [d] = await db.query(
@@ -573,7 +699,10 @@ export async function cartSummary(
       kinds,
     });
   }
-  lines.sort((a, b) => b.count - a.count || a.app.name.localeCompare(b.app.name) || a.appId.localeCompare(b.appId));
+  lines.sort(
+    (a, b) =>
+      b.count - a.count || a.app.name.localeCompare(b.app.name) || a.appId.localeCompare(b.appId),
+  );
   return {
     apps: lines,
     totals: { apps: lines.length, count: lines.reduce((n, l) => n + l.count, 0) },
@@ -596,11 +725,23 @@ export type CartResult = {
 
 export type CartRequestItem = { id: string; version: string };
 
-const failed = (id: string, f: Failure): CartResult => ({ id, status: 'failed', reason: f.body.error, httpStatus: f.status });
+const failed = (id: string, f: Failure): CartResult => ({
+  id,
+  status: 'failed',
+  reason: f.body.error,
+  httpStatus: f.status,
+});
 
 export async function publishCart(
   ctx: CartContext,
-  input: { workspaceId: string; appId: string; items: CartRequestItem[]; rights: CartRights; actor: Actor; confirmation?: string | undefined },
+  input: {
+    workspaceId: string;
+    appId: string;
+    items: CartRequestItem[];
+    rights: CartRights;
+    actor: Actor;
+    confirmation?: string | undefined;
+  },
 ): Promise<{ ok: true; results: CartResult[]; remaining: number } | Failure> {
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
@@ -609,7 +750,10 @@ export async function publishCart(
   const asked = new Map<string, string>();
   for (const i of input.items) if (!asked.has(i.id)) asked.set(i.id, i.version);
   const results = new Map<string, CartResult>();
-  const bundles = new Map<string, { status: CartResult['status']; reason: string | null; httpStatus?: number }>();
+  const bundles = new Map<
+    string,
+    { status: CartResult['status']; reason: string | null; httpStatus?: number }
+  >();
 
   // Prices: the typed phrase is checked for exactly the price items that would be sent, BEFORE anything is sent (a mismatch sends nothing at all,
   // not even a reply). Each product is independent, so any subset may be named; a product's territories always go together.
@@ -623,9 +767,18 @@ export async function publishCart(
       const row = all.find((r) => `price:${r.id}` === s.id);
       if (row) priceRows.push(row);
     }
-    if (priceRows.length > 0 && !phraseMatches(input.confirmation, priceRows)) return confirmationFailure();
+    if (priceRows.length > 0 && !phraseMatches(input.confirmation, priceRows))
+      return confirmationFailure();
   }
-  const priceResults = priceRows.length > 0 ? await sendPrices(ctx.price, { workspaceId: input.workspaceId, app, rows: priceRows, actor: input.actor }) : new Map<string, PriceItemResult>();
+  const priceResults =
+    priceRows.length > 0
+      ? await sendPrices(ctx.price, {
+          workspaceId: input.workspaceId,
+          app,
+          rows: priceRows,
+          actor: input.actor,
+        })
+      : new Map<string, PriceItemResult>();
 
   for (const [id, version] of asked) {
     const item = byId.get(id);
@@ -644,9 +797,18 @@ export async function publishCart(
     if (item.kind === 'price') {
       const rowId = item.id.slice('price:'.length);
       const sent = priceResults.get(rowId);
-      results.set(id, sent
-        ? { id, status: sent.status, reason: sent.reason, ...(sent.httpStatus !== undefined ? { httpStatus: sent.httpStatus } : {}), price: sent.detail }
-        : { id, status: 'skipped', reason: 'not_pending' });
+      results.set(
+        id,
+        sent
+          ? {
+              id,
+              status: sent.status,
+              reason: sent.reason,
+              ...(sent.httpStatus !== undefined ? { httpStatus: sent.httpStatus } : {}),
+              price: sent.detail,
+            }
+          : { id, status: 'skipped', reason: 'not_pending' },
+      );
       continue;
     }
     if (item.kind === 'review_reply') {
@@ -675,7 +837,8 @@ export async function publishCart(
           appId: app.id,
           actor: input.actor,
         });
-        if (!preview.ok) outcome = { status: 'failed', reason: preview.body.error, httpStatus: preview.status };
+        if (!preview.ok)
+          outcome = { status: 'failed', reason: preview.body.error, httpStatus: preview.status };
         else {
           const pushed = await applyDraftPush(ctx.draft, {
             workspaceId: input.workspaceId,
@@ -735,20 +898,25 @@ export async function discardCart(
     }
     const done =
       item.kind === 'price'
-        ? await unstagePrice(ctx.price, { workspaceId: input.workspaceId, appId: app.id, id: raw.rawId, actor: input.actor })
-        : item.kind === 'review_reply'
-        ? await deleteReplyDraft(ctx.reply, {
-            workspaceId: input.workspaceId,
-            appId: app.id,
-            reviewId: raw.rawId,
-            actor: input.actor,
-          })
-        : await unstage(ctx.staged, {
+        ? await unstagePrice(ctx.price, {
             workspaceId: input.workspaceId,
             appId: app.id,
             id: raw.rawId,
             actor: input.actor,
-          });
+          })
+        : item.kind === 'review_reply'
+          ? await deleteReplyDraft(ctx.reply, {
+              workspaceId: input.workspaceId,
+              appId: app.id,
+              reviewId: raw.rawId,
+              actor: input.actor,
+            })
+          : await unstage(ctx.staged, {
+              workspaceId: input.workspaceId,
+              appId: app.id,
+              id: raw.rawId,
+              actor: input.actor,
+            });
     results.push(done.ok ? { id, status: 'ok', reason: null } : failed(id, done));
   }
   await recordAudit(ctx.db, {

@@ -110,7 +110,12 @@ export type SectionViewDef = Omit<SectionView, 'label'> & { labelKey: string };
 export const sectionViews: Readonly<Partial<Record<AppSection, readonly SectionViewDef[]>>> = {
   reviews: [
     { id: 'reviews', labelKey: k('app:view.reviews') },
-    { id: 'testflight', labelKey: k('app:view.testflight'), requires: 'reviews.read', appleOnly: true },
+    {
+      id: 'testflight',
+      labelKey: k('app:view.testflight'),
+      requires: 'reviews.read',
+      appleOnly: true,
+    },
   ],
   listing: [
     { id: 'text', labelKey: k('app:view.text') },
@@ -135,7 +140,10 @@ export const sectionViews: Readonly<Partial<Record<AppSection, readonly SectionV
 };
 
 /** What the views of a page may depend on besides the role: whether a Google Play app is in scope (default: yes). */
-export type ViewContext = { androidInScope?: boolean; /** Whether an App Store Connect app is in scope (default: yes). */ appleInScope?: boolean };
+export type ViewContext = {
+  androidInScope?: boolean /** Whether an App Store Connect app is in scope (default: yes). */;
+  appleInScope?: boolean;
+};
 
 const openViews = (
   section: AppSection,
@@ -168,7 +176,16 @@ export function viewsFor(
  */
 export function insightsViewOf(
   asked: string | null | undefined,
-): 'overview' | 'highlights' | 'countries' | 'ratings' | 'timeline' | 'keywords' | 'terms' | 'ads' | 'experiments' {
+):
+  | 'overview'
+  | 'highlights'
+  | 'countries'
+  | 'ratings'
+  | 'timeline'
+  | 'keywords'
+  | 'terms'
+  | 'ads'
+  | 'experiments' {
   if (asked === 'highlights') return 'highlights';
   if (asked === 'ratings') return 'ratings';
   if (asked === 'timeline') return 'timeline';

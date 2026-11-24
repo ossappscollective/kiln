@@ -132,7 +132,9 @@ export function candidateLabel(c: PlanCandidate, withProject: boolean): string {
     name: c.revenueCatAppName,
     details: c.identifier === null ? c.type : `${c.type}, ${c.identifier}`,
   });
-  return withProject ? t('connect:rc.choiceInProject', { project: c.projectName, choice: base }) : base;
+  return withProject
+    ? t('connect:rc.choiceInProject', { project: c.projectName, choice: base })
+    : base;
 }
 
 /** The rows of the review from the server plan: a proposal is checked, everything else waits for the person. */
@@ -146,13 +148,21 @@ export function rcRows(plan: RevenueCatPlan, only: readonly string[] | null = nu
         label: candidateLabel(c, showProject),
         suggested: c.suggested,
       }));
-      const proposed = r.proposal ? choiceValue(r.proposal.projectId, r.proposal.revenueCatAppId) : '';
+      const proposed = r.proposal
+        ? choiceValue(r.proposal.projectId, r.proposal.revenueCatAppId)
+        : '';
       return {
         appId: r.appId,
         name: r.name,
         platform: r.platform,
         identifier: r.identifier,
-        status: r.linked ? 'linked' : proposed !== '' ? 'proposed' : r.ambiguous ? 'ambiguous' : 'none',
+        status: r.linked
+          ? 'linked'
+          : proposed !== ''
+            ? 'proposed'
+            : r.ambiguous
+              ? 'ambiguous'
+              : 'none',
         choices,
         value: proposed,
         checked: proposed !== '',
@@ -180,7 +190,8 @@ export function expoRows(
     .filter((a) => eligible('expo', a))
     .map((a): ConnectRow => {
       const linked = links.expo.indexOf(a.id) >= 0;
-      const found = linked || a.repositoryId === null ? '' : detectionProject(detections[a.repositoryId]);
+      const found =
+        linked || a.repositoryId === null ? '' : detectionProject(detections[a.repositoryId]);
       return {
         appId: a.id,
         name: a.name,
@@ -265,12 +276,19 @@ export function missingLinkText(
 ): string {
   const first = keys?.[0];
   if (keys === null) {
-    return kind === 'revenuecat' ? t('connect:missing.rc.unknown') : t('connect:missing.expo.unknown');
+    return kind === 'revenuecat'
+      ? t('connect:missing.rc.unknown')
+      : t('connect:missing.expo.unknown');
   }
-  if (!first) return kind === 'revenuecat' ? t('connect:missing.rc.noKey') : t('connect:missing.expo.noKey');
+  if (!first)
+    return kind === 'revenuecat' ? t('connect:missing.rc.noKey') : t('connect:missing.expo.noKey');
   const params = { label: first.label };
   if (kind === 'revenuecat') {
-    return mayWrite ? t('connect:missing.rc.keyFound', params) : t('connect:missing.rc.keyFoundAsk', params);
+    return mayWrite
+      ? t('connect:missing.rc.keyFound', params)
+      : t('connect:missing.rc.keyFoundAsk', params);
   }
-  return mayWrite ? t('connect:missing.expo.keyFound', params) : t('connect:missing.expo.keyFoundAsk', params);
+  return mayWrite
+    ? t('connect:missing.expo.keyFound', params)
+    : t('connect:missing.expo.keyFoundAsk', params);
 }

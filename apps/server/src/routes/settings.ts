@@ -23,7 +23,11 @@ export type SettingsRoutesContext = SettingsContext & {
 };
 
 /** The settings that switch a feature on. Turning one on is a hard action when step-up is on. */
-export const FEATURE_SWITCHES = ['analytics.enabled', 'translation.enabled', 'prices.writeEnabled'] as const;
+export const FEATURE_SWITCHES = [
+  'analytics.enabled',
+  'translation.enabled',
+  'prices.writeEnabled',
+] as const;
 
 const ws = (c: Context<AppEnv>) => c.req.param('workspaceId') ?? '';
 

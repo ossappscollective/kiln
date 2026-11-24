@@ -19,7 +19,10 @@ export type ProposalSummary = {
 };
 
 /** Drawn only for an app with a repository, when the repository was compared, the proposal was not skipped for this release and something is proposed. */
-export function proposalHint(summary: ProposalSummary | null, hasRepository: boolean): { count: number; texts: number; graphics: number } | null {
+export function proposalHint(
+  summary: ProposalSummary | null,
+  hasRepository: boolean,
+): { count: number; texts: number; graphics: number } | null {
   if (!hasRepository || summary === null || !summary.available) return null;
   if (summary.state === 'skipped' || summary.count <= 0) return null;
   return { count: summary.count, texts: summary.texts, graphics: summary.graphics };

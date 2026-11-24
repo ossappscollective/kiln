@@ -22,7 +22,11 @@ const LABELS = {
 const size = (bytes) => `${(bytes / 1048576).toFixed(1)} MB`;
 
 export function notes({ version, tag, repo, dist, meta, prerelease, image, dockerDigest }) {
-  const files = existsSync(dist) ? readdirSync(dist).filter((n) => n.startsWith('kiln_')).sort() : [];
+  const files = existsSync(dist)
+    ? readdirSync(dist)
+        .filter((n) => n.startsWith('kiln_'))
+        .sort()
+    : [];
   const metas = existsSync(meta)
     ? readdirSync(meta)
         .filter((n) => n.endsWith('.json'))
@@ -30,7 +34,8 @@ export function notes({ version, tag, repo, dist, meta, prerelease, image, docke
     : [];
   const out = [];
 
-  if (prerelease) out.push(`> Pre-release ${version}. Not tagged \`latest\` on Docker; expect rough edges.\n`);
+  if (prerelease)
+    out.push(`> Pre-release ${version}. Not tagged \`latest\` on Docker; expect rough edges.\n`);
 
   out.push('## Downloads\n', '| Platform | File | Size |', '| --- | --- | --- |');
   for (const name of files) {
@@ -52,17 +57,27 @@ export function notes({ version, tag, repo, dist, meta, prerelease, image, docke
   if (image) {
     const base = `${image}:${version}`;
     out.push('## Docker', '', '```sh', `docker pull ${base}`, '```', '');
-    if (dockerDigest) out.push(`Image digest: \`${dockerDigest}\` (linux/amd64 and linux/arm64).`, '');
-    out.push(`Setup: [docs/deployment.md](https://github.com/${repo}/blob/${tag}/docs/deployment.md).`, '');
+    if (dockerDigest)
+      out.push(`Image digest: \`${dockerDigest}\` (linux/amd64 and linux/arm64).`, '');
+    out.push(
+      `Setup: [docs/deployment.md](https://github.com/${repo}/blob/${tag}/docs/deployment.md).`,
+      '',
+    );
   }
 
   const unsignedMac = metas.filter((m) => m.os === 'macos' && m.signing !== 'notarized');
   const unsignedWin = metas.filter((m) => m.os === 'windows' && m.signing !== 'signed');
-  if (unsignedMac.length > 0 || unsignedWin.length > 0 || files.some((n) => n.endsWith('.AppImage'))) {
+  if (
+    unsignedMac.length > 0 ||
+    unsignedWin.length > 0 ||
+    files.some((n) => n.endsWith('.AppImage'))
+  ) {
     out.push('## Opening the apps', '');
   }
   if (unsignedMac.length > 0) {
-    const state = unsignedMac.every((m) => m.signing === 'unsigned') ? 'not signed or notarized' : 'signed but not notarized';
+    const state = unsignedMac.every((m) => m.signing === 'unsigned')
+      ? 'not signed or notarized'
+      : 'signed but not notarized';
     out.push(
       `**macOS.** The macOS app in this release is ${state} by Apple, so Gatekeeper blocks the first launch ("Kiln is damaged" or "cannot be opened"). Either:`,
       '',

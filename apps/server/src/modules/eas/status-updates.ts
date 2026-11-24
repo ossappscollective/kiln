@@ -1,4 +1,9 @@
-import { type ExpoClient, expoUpdateChannels, type StoredUpdate, storedUpdatesOf } from '@kiln/connectors';
+import {
+  type ExpoClient,
+  expoUpdateChannels,
+  type StoredUpdate,
+  storedUpdatesOf,
+} from '@kiln/connectors';
 import { nullableNumber, nullableString, type Sql } from '@kiln/db';
 import { emitEvent } from '../../services/events.ts';
 import { alertDef, resolveParams } from '../alerts/catalog.ts';
@@ -132,7 +137,10 @@ export async function storeUpdates(
   rows: readonly StoredUpdate[],
   at: number,
 ): Promise<void> {
-  const before = new Map<string, { percentage: number | null; since: number | null; stuck: number | null }>();
+  const before = new Map<
+    string,
+    { percentage: number | null; since: number | null; stuck: number | null }
+  >();
   for (const r of await tx.query(
     'SELECT channel, update_id, rollout_percentage, rollout_since, stuck_event_at FROM eas_updates WHERE app_id = ? AND workspace_id = ?',
     [appId, workspaceId],
@@ -144,12 +152,22 @@ export async function storeUpdates(
     });
   }
   const def = alertDef(STUCK_ALERT_ID);
-  const hours = def ? (resolveParams(def, (await loadRules(tx, workspaceId)).get(STUCK_ALERT_ID)?.params).hours ?? 48) : 48;
-  await tx.execute('DELETE FROM eas_updates WHERE app_id = ? AND workspace_id = ?', [appId, workspaceId]);
+  const hours = def
+    ? (resolveParams(def, (await loadRules(tx, workspaceId)).get(STUCK_ALERT_ID)?.params).hours ??
+      48)
+    : 48;
+  await tx.execute('DELETE FROM eas_updates WHERE app_id = ? AND workspace_id = ?', [
+    appId,
+    workspaceId,
+  ]);
   for (const u of rows) {
     const prev = before.get(`${u.channel}\u0000${u.updateId}`);
     const mid = u.rolloutPercentage !== null;
-    const since = mid ? (prev && prev.percentage === u.rolloutPercentage && prev.since !== null ? prev.since : at) : null;
+    const since = mid
+      ? prev && prev.percentage === u.rolloutPercentage && prev.since !== null
+        ? prev.since
+        : at
+      : null;
     let stuck = prev?.stuck ?? null;
     if (mid && stuck === null && since !== null && at - since >= hours * HOUR) {
       stuck = at;

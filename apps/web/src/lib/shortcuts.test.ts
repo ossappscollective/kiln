@@ -162,6 +162,9 @@ test('Cmd or Ctrl + B toggles the left panel, but not while typing', () => {
   const b = stepShortcut(idleChord, press('b', { ctrlKey: true }), 0, 'app');
   assert.deepEqual(b.action, { type: 'toggle-sidebar' });
   assert.equal(b.consume, true);
-  assert.equal(stepShortcut(idleChord, press('b', { ctrlKey: true, typing: true }), 0, 'app').action, null);
+  assert.equal(
+    stepShortcut(idleChord, press('b', { ctrlKey: true, typing: true }), 0, 'app').action,
+    null,
+  );
   assert.equal(stepShortcut(idleChord, press('b'), 0, 'app').action, null);
 });

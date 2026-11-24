@@ -19,7 +19,10 @@ export type AppleAdsVerifyOptions = VerifyOptions & {
 
 const MAX_SHOWN = 5;
 
-export async function verifyAppleAdsCredential(secret: string, options: AppleAdsVerifyOptions = {}): Promise<VerifyResult> {
+export async function verifyAppleAdsCredential(
+  secret: string,
+  options: AppleAdsVerifyOptions = {},
+): Promise<VerifyResult> {
   const known = secretStrings(secret);
   const clean = (value: string) => redactSecrets(value, known);
   try {
@@ -37,8 +40,14 @@ export async function verifyAppleAdsCredential(secret: string, options: AppleAds
     await client.authenticate();
     const accounts = await listAppleAdsAccounts(client);
     if (accounts.length === 0) throw new AppleAdsError('no_account');
-    const details = accounts.slice(0, MAX_SHOWN).map((a) => `Ad account: ${clean(a.name)} (${a.id})${a.roles.length ? `, role ${a.roles.map(clean).join(', ')}` : ''}`);
-    if (accounts.length > MAX_SHOWN) details.push(`and ${accounts.length - MAX_SHOWN} more ad accounts`);
+    const details = accounts
+      .slice(0, MAX_SHOWN)
+      .map(
+        (a) =>
+          `Ad account: ${clean(a.name)} (${a.id})${a.roles.length ? `, role ${a.roles.map(clean).join(', ')}` : ''}`,
+      );
+    if (accounts.length > MAX_SHOWN)
+      details.push(`and ${accounts.length - MAX_SHOWN} more ad accounts`);
     return {
       ok: true,
       message: `Connected to Apple Ads. The key can read ${accounts.length} ad account${accounts.length === 1 ? '' : 's'}.`,
@@ -47,7 +56,11 @@ export async function verifyAppleAdsCredential(secret: string, options: AppleAds
   } catch (error) {
     if (error instanceof AppleAdsError) {
       const status = error.status !== undefined ? [`HTTP status: ${error.status}`] : [];
-      return { ok: false, message: clean(error.message), ...(status.length ? { details: status } : {}) };
+      return {
+        ok: false,
+        message: clean(error.message),
+        ...(status.length ? { details: status } : {}),
+      };
     }
     return { ok: false, message: 'The Apple Ads key could not be checked. Try again in a moment.' };
   }

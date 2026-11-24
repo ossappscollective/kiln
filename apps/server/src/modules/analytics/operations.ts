@@ -203,7 +203,10 @@ const statusSchema = z.object({
         .describe(
           'Whose vendor number is used: the one of the app’s Apple credential (one Apple team), or the workspace default.',
         ),
-      vendorNumber: z.string().nullable().describe('The digits App Store Connect shows (not a secret).'),
+      vendorNumber: z
+        .string()
+        .nullable()
+        .describe('The digits App Store Connect shows (not a secret).'),
     })
     .nullable()
     .describe('Null for an Android app.'),
@@ -213,14 +216,20 @@ const statusSchema = z.object({
       bucketId: z
         .string()
         .nullable()
-        .describe('`pubsite_prod_rev_<developer account number>` the app reads (a name, not a secret).'),
+        .describe(
+          '`pubsite_prod_rev_<developer account number>` the app reads (a name, not a secret).',
+        ),
       severalPlayAccounts: z
         .boolean()
-        .describe('The workspace holds more than one Play credential: set the bucket per Play account.'),
+        .describe(
+          'The workspace holds more than one Play credential: set the bucket per Play account.',
+        ),
       serviceAccountEmail: z
         .string()
         .nullable()
-        .describe('The address to invite in Play Console (the `client_email` of the service account; not a secret).'),
+        .describe(
+          'The address to invite in Play Console (the `client_email` of the service account; not a secret).',
+        ),
       bucketSource: z
         .enum(['app', 'account', 'workspace'])
         .nullable()

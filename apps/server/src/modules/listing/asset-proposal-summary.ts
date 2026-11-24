@@ -1,7 +1,13 @@
 import { getApp, listAppReleases, type ManagedApp } from '../../services/apps.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import type { Sql } from '@kiln/db';
-import { EDITABLE_STATES, getAssetProposal, type ProposalContext, type ProposalQuery, readProposalState } from './asset-proposal.ts';
+import {
+  EDITABLE_STATES,
+  getAssetProposal,
+  type ProposalContext,
+  type ProposalQuery,
+  readProposalState,
+} from './asset-proposal.ts';
 
 /**
  * The count-only form of the release asset proposal (docs/api/release-asset-proposal.md "Summary", ADR 0064): "3 store asset changes proposed" on
@@ -10,7 +16,13 @@ import { EDITABLE_STATES, getAssetProposal, type ProposalContext, type ProposalQ
  * once at a time per app, at most a few at a time overall, and cut off after a time limit (the computation then finishes in the background and
  * fills the cache for the next read).
  */
-export type SummaryReason = 'no_repository' | 'no_repo_metadata' | 'target_unreadable' | 'busy' | 'computing' | 'unreadable';
+export type SummaryReason =
+  | 'no_repository'
+  | 'no_repo_metadata'
+  | 'target_unreadable'
+  | 'busy'
+  | 'computing'
+  | 'unreadable';
 export type ProposalSummary = {
   /** True when the repository was compared; false says why not in `reason`. */
   available: boolean;
@@ -49,7 +61,11 @@ export const resetProposalSummaryCache = (): void => {
 };
 
 /** The release the Releases list is about: the editable release of the app, newest first (a Google Play draft names its track). */
-async function releaseOf(sql: Sql, workspaceId: string, app: ManagedApp): Promise<{ version: string | null; track: string | null; stamp: string }> {
+async function releaseOf(
+  sql: Sql,
+  workspaceId: string,
+  app: ManagedApp,
+): Promise<{ version: string | null; track: string | null; stamp: string }> {
   const releases = await listAppReleases(sql, workspaceId, app.id);
   const editable = releases.filter((r) => r.status !== null && EDITABLE_STATES.includes(r.status));
   const mine = editable[0];
@@ -58,14 +74,29 @@ async function releaseOf(sql: Sql, workspaceId: string, app: ManagedApp): Promis
 }
 
 /** What the answer depends on, from our own tables only: the repository as Kiln last read it, the store as Kiln last read it, the cart, the decision. */
-async function fingerprintOf(sql: Sql, workspaceId: string, app: ManagedApp, stamp: string, state: { state: string; at: number | null }): Promise<string> {
+async function fingerprintOf(
+  sql: Sql,
+  workspaceId: string,
+  app: ManagedApp,
+  stamp: string,
+  state: { state: string; at: number | null },
+): Promise<string> {
   const [repo] = await sql.query(
     "SELECT source_ref, observed_at FROM listing_snapshots WHERE workspace_id = ? AND app_id = ? AND source = 'repo' ORDER BY observed_at DESC LIMIT 1",
     [workspaceId, app.id],
   );
-  const [snaps] = await sql.query('SELECT COUNT(*) AS n, MAX(observed_at) AS at FROM listing_snapshots WHERE workspace_id = ? AND app_id = ?', [workspaceId, app.id]);
-  const [staged] = await sql.query('SELECT COUNT(*) AS n, MAX(updated_at) AS at FROM staged_changes WHERE workspace_id = ? AND app_id = ?', [workspaceId, app.id]);
-  const [builds] = await sql.query('SELECT COUNT(*) AS n, MAX(head_sha) AS sha FROM build_links WHERE workspace_id = ? AND app_id = ?', [workspaceId, app.id]);
+  const [snaps] = await sql.query(
+    'SELECT COUNT(*) AS n, MAX(observed_at) AS at FROM listing_snapshots WHERE workspace_id = ? AND app_id = ?',
+    [workspaceId, app.id],
+  );
+  const [staged] = await sql.query(
+    'SELECT COUNT(*) AS n, MAX(updated_at) AS at FROM staged_changes WHERE workspace_id = ? AND app_id = ?',
+    [workspaceId, app.id],
+  );
+  const [builds] = await sql.query(
+    'SELECT COUNT(*) AS n, MAX(head_sha) AS sha FROM build_links WHERE workspace_id = ? AND app_id = ?',
+    [workspaceId, app.id],
+  );
   return [
     app.repositoryId,
     app.lastSyncedAt,
@@ -78,7 +109,12 @@ async function fingerprintOf(sql: Sql, workspaceId: string, app: ManagedApp, sta
   ].join('|');
 }
 
-const none = (query: ProposalQuery, state: ProposalSummary['state'], reason: SummaryReason, now: number): Omit<ProposalSummary, 'cached'> => ({
+const none = (
+  query: ProposalQuery,
+  state: ProposalSummary['state'],
+  reason: SummaryReason,
+  now: number,
+): Omit<ProposalSummary, 'cached'> => ({
   available: false,
   reason,
   version: query.version,
@@ -93,7 +129,12 @@ const none = (query: ProposalQuery, state: ProposalSummary['state'], reason: Sum
 
 export async function getProposalSummary(
   ctx: ProposalContext,
-  input: { workspaceId: string; appId: string; actor: { type: 'user' | 'token' | 'system'; id: string }; gate?: () => Failure | undefined },
+  input: {
+    workspaceId: string;
+    appId: string;
+    actor: { type: 'user' | 'token' | 'system'; id: string };
+    gate?: () => Failure | undefined;
+  },
 ): Promise<{ ok: true; summary: ProposalSummary } | Failure> {
   const sql = ctx.staged.db;
   const now = ctx.staged.now();
@@ -102,30 +143,60 @@ export async function getProposalSummary(
   const release = await releaseOf(sql, input.workspaceId, app);
   const query: ProposalQuery = { version: release.version, track: release.track, build: null };
   // No repository: nothing to compare, nothing is read, nothing is cached.
-  if (!app.repositoryId) return { ok: true, summary: { ...none(query, 'open', 'no_repository', now), cached: false } };
+  if (!app.repositoryId)
+    return { ok: true, summary: { ...none(query, 'open', 'no_repository', now), cached: false } };
   const state = await readProposalState(sql, input.workspaceId, app.id, query.version, query.track);
   // Dismissed (skip): the list shows nothing, and the repository is not read for it.
-  if (state.state === 'skipped') return { ok: true, summary: { ...none(query, 'skipped', 'no_repository', now), available: true, reason: null, cached: false } };
+  if (state.state === 'skipped')
+    return {
+      ok: true,
+      summary: {
+        ...none(query, 'skipped', 'no_repository', now),
+        available: true,
+        reason: null,
+        cached: false,
+      },
+    };
 
   const key = `${input.workspaceId}|${app.id}|${query.version ?? '-'}|${query.track ?? '-'}`;
   const fingerprint = await fingerprintOf(sql, input.workspaceId, app, release.stamp, state);
   const hit = cache.get(key);
-  if (hit && hit.fingerprint === fingerprint && now - hit.at < SUMMARY_TTL_MS) return { ok: true, summary: { ...hit.value, cached: true } };
+  if (hit && hit.fingerprint === fingerprint && now - hit.at < SUMMARY_TTL_MS)
+    return { ok: true, summary: { ...hit.value, cached: true } };
 
   let work = inflight.get(key);
   if (!work) {
-    if (running >= SUMMARY_MAX_CONCURRENT) return { ok: true, summary: { ...none(query, state.state, 'busy', now), cached: false } };
+    if (running >= SUMMARY_MAX_CONCURRENT)
+      return { ok: true, summary: { ...none(query, state.state, 'busy', now), cached: false } };
     running += 1;
     work = (async (): Promise<Entry> => {
       try {
-        const done = await getAssetProposal(ctx, { workspaceId: input.workspaceId, appId: app.id, query, actor: input.actor, ...(input.gate ? { gate: input.gate } : {}) });
+        const done = await getAssetProposal(ctx, {
+          workspaceId: input.workspaceId,
+          appId: app.id,
+          query,
+          actor: input.actor,
+          ...(input.gate ? { gate: input.gate } : {}),
+        });
         const at = ctx.staged.now();
         let value: Omit<ProposalSummary, 'cached'>;
         if (!done.ok) value = none(query, state.state, 'unreadable', at);
-        else if (done.view.unavailable !== null) value = none(query, state.state, done.view.unavailable as SummaryReason, at);
+        else if (done.view.unavailable !== null)
+          value = none(query, state.state, done.view.unavailable as SummaryReason, at);
         else {
           const { texts, graphics } = done.view.summary;
-          value = { available: true, reason: null, version: query.version, track: query.track, state: done.view.state.state, count: texts + graphics, texts, graphics, locked: done.view.locked.locked, computedAt: at };
+          value = {
+            available: true,
+            reason: null,
+            version: query.version,
+            track: query.track,
+            state: done.view.state.state,
+            count: texts + graphics,
+            texts,
+            graphics,
+            locked: done.view.locked.locked,
+            computedAt: at,
+          };
         }
         const entry: Entry = { fingerprint, at, value };
         // A rate limit or a failed read is not remembered: the next read tries again.
@@ -141,8 +212,11 @@ export async function getProposalSummary(
     })();
     inflight.set(key, work);
   }
-  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), SUMMARY_TIMEOUT_MS).unref?.());
+  const timeout = new Promise<null>((resolve) =>
+    setTimeout(() => resolve(null), SUMMARY_TIMEOUT_MS).unref?.(),
+  );
   const entry = await Promise.race([work, timeout]);
-  if (entry === null) return { ok: true, summary: { ...none(query, state.state, 'computing', now), cached: false } };
+  if (entry === null)
+    return { ok: true, summary: { ...none(query, state.state, 'computing', now), cached: false } };
   return { ok: true, summary: { ...entry.value, cached: false } };
 }

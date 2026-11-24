@@ -797,11 +797,10 @@ export async function stageAssets(
   let chosen = candidates;
   if (input.paths !== undefined) {
     if (new Set(input.paths).size !== input.paths.length)
-      return invalid(
-        'invalid_staged',
-        'A path is listed twice.',
-        { field: 'paths', ...coded('staged.pathTwice') },
-      );
+      return invalid('invalid_staged', 'A path is listed twice.', {
+        field: 'paths',
+        ...coded('staged.pathTwice'),
+      });
     const byPath = new Map(candidates.map((a) => [a.path, a]));
     const picked = [];
     for (const path of input.paths) {

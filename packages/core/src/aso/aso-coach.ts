@@ -921,7 +921,9 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       title: `${count(missingLines.length, 'tracked keyword is', 'tracked keywords are')} not in the listing`,
       detail: `None of their words appear in the ${where}, so the store has little reason to show the app for them.`,
       titleText: coreText('coach.notInListing.title', { count: missingLines.length }),
-      detailText: coreText(isApple ? 'coach.notInListing.detailApple' : 'coach.notInListing.detailPlay'),
+      detailText: coreText(
+        isApple ? 'coach.notInListing.detailApple' : 'coach.notInListing.detailPlay',
+      ),
       all: missingLines.map((m) => m.line),
       allText: missingLines.map((m) =>
         coreText('coach.item.keywordLocale', { term: m.term, locale: m.keywordLocale }),
@@ -1078,7 +1080,9 @@ export function buildCoach(input: CoachInput): CoachAction[] {
         room.push({
           line: `${l.locale} ${f.label.toLowerCase()}: ${f.used} of ${f.limit} ${f.unit} used`,
           text: coreText(
-            f.unit === 'bytes' ? 'coach.unusedCharacters.itemBytes' : 'coach.unusedCharacters.itemCharacters',
+            f.unit === 'bytes'
+              ? 'coach.unusedCharacters.itemBytes'
+              : 'coach.unusedCharacters.itemCharacters',
             { locale: l.locale, field: f.field, used: f.used, limit: f.limit },
           ),
           locale: l.locale,
@@ -1165,13 +1169,15 @@ export function buildCoach(input: CoachInput): CoachAction[] {
   }
 
   drafts.sort((a, b) => COACH_ORDER.indexOf(a.kind) - COACH_ORDER.indexOf(b.kind));
-  return drafts.slice(0, Math.max(1, input.limit ?? 8)).map(({ all, allText, link, ...rest }, i) => ({
-    ...rest,
-    link,
-    linkText: linkLabelText(link),
-    position: i + 1,
-    items: all.slice(0, MAX_ITEMS),
-    itemTexts: allText.slice(0, MAX_ITEMS),
-    more: Math.max(0, all.length - MAX_ITEMS),
-  }));
+  return drafts
+    .slice(0, Math.max(1, input.limit ?? 8))
+    .map(({ all, allText, link, ...rest }, i) => ({
+      ...rest,
+      link,
+      linkText: linkLabelText(link),
+      position: i + 1,
+      items: all.slice(0, MAX_ITEMS),
+      itemTexts: allText.slice(0, MAX_ITEMS),
+      more: Math.max(0, all.length - MAX_ITEMS),
+    }));
 }

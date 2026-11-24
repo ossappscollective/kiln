@@ -272,12 +272,13 @@ export async function fixupChangeSet(
   const localOutcome = parseOutcome(row);
   const mode: FixupResult['mode'] = localOutcome ? 'local_branch' : 'github_pr';
   const repository = await getRepository(db, workspaceId, String(row.repository_id));
-  if (!repository) return failure(
-    404,
-    'not_found',
-    'The repository of this change set is gone.',
-    coded('changeSet.repositoryGone'),
-  );
+  if (!repository)
+    return failure(
+      404,
+      'not_found',
+      'The repository of this change set is gone.',
+      coded('changeSet.repositoryGone'),
+    );
   const push = input.push === true;
   const openPr = input.openPr === true;
   if (mode === 'github_pr' && (push || openPr)) {

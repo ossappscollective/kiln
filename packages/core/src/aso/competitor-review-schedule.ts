@@ -56,15 +56,27 @@ export function normalizeReviewSchedule(
   }
   if (raw.weekday !== undefined) {
     if (raw.weekday === null) value.weekday = null;
-    else if (typeof raw.weekday === 'number' && Number.isInteger(raw.weekday) && raw.weekday >= 0 && raw.weekday <= 6) value.weekday = raw.weekday;
+    else if (
+      typeof raw.weekday === 'number' &&
+      Number.isInteger(raw.weekday) &&
+      raw.weekday >= 0 &&
+      raw.weekday <= 6
+    )
+      value.weekday = raw.weekday;
     else issues.push({ path: 'weekday', message: 'A whole number from 0 (Sunday) to 6.' });
   }
   if (raw.timezone !== undefined) {
     if (raw.timezone === null || raw.timezone === '') value.timezone = null;
-    else if (typeof raw.timezone === 'string' && zoneOk(raw.timezone)) value.timezone = raw.timezone;
-    else issues.push({ path: 'timezone', message: 'An IANA time zone such as Europe/Paris, or null for UTC.' });
+    else if (typeof raw.timezone === 'string' && zoneOk(raw.timezone))
+      value.timezone = raw.timezone;
+    else
+      issues.push({
+        path: 'timezone',
+        message: 'An IANA time zone such as Europe/Paris, or null for UTC.',
+      });
   }
-  if (issues.length === 0 && value.mode === 'weekly' && value.weekday === null) issues.push({ path: 'weekday', message: 'A weekly schedule needs a weekday.' });
+  if (issues.length === 0 && value.mode === 'weekly' && value.weekday === null)
+    issues.push({ path: 'weekday', message: 'A weekly schedule needs a weekday.' });
   if (issues.length === 0 && value.mode !== 'weekly') value.weekday = null;
   return issues.length > 0 ? { ok: false, issues } : { ok: true, value };
 }
@@ -73,10 +85,18 @@ export function normalizeReviewSchedule(
  * The schedule of one competitor: its own override when it has one (off, daily or weekly), else the app's. `override` null follows the app.
  * An override has its own weekday and keeps the time zone of the app.
  */
-export function effectiveReviewSchedule(app: ReviewSchedule, override: { mode: ReviewScheduleMode; weekday: number | null } | null): ReviewSchedule {
+export function effectiveReviewSchedule(
+  app: ReviewSchedule,
+  override: { mode: ReviewScheduleMode; weekday: number | null } | null,
+): ReviewSchedule {
   if (override === null) return app;
-  if (override.mode === 'weekly' && override.weekday === null) return { ...app, mode: 'weekly', weekday: app.weekday === null ? 1 : app.weekday };
-  return { mode: override.mode, weekday: override.mode === 'weekly' ? override.weekday : null, timezone: app.timezone };
+  if (override.mode === 'weekly' && override.weekday === null)
+    return { ...app, mode: 'weekly', weekday: app.weekday === null ? 1 : app.weekday };
+  return {
+    mode: override.mode,
+    weekday: override.mode === 'weekly' ? override.weekday : null,
+    timezone: app.timezone,
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -135,7 +155,8 @@ function hash(key: string): number {
 }
 
 /** Minutes after the base time at which this competitor runs: 0 to `jitterMinutes - 1`, the same every day. */
-export const reviewJitterMinutes = (key: string): number => hash(key) % competitorReviewLimits.jitterMinutes;
+export const reviewJitterMinutes = (key: string): number =>
+  hash(key) % competitorReviewLimits.jitterMinutes;
 
 /** The run instants of a schedule around `at`: from two days before to nine days after, oldest first. */
 function slotsAround(s: ReviewSchedule, key: string, at: number): number[] {
@@ -147,7 +168,15 @@ function slotsAround(s: ReviewSchedule, key: string, at: number): number[] {
     const noon = Date.UTC(now.year, now.month - 1, now.day + delta, 12);
     const day = new Date(noon);
     if (s.mode === 'weekly' && day.getUTCDay() !== s.weekday) continue;
-    out.push(zonedInstant(s.timezone, day.getUTCFullYear(), day.getUTCMonth() + 1, day.getUTCDate(), offset));
+    out.push(
+      zonedInstant(
+        s.timezone,
+        day.getUTCFullYear(),
+        day.getUTCMonth() + 1,
+        day.getUTCDate(),
+        offset,
+      ),
+    );
   }
   return out.sort((a, b) => a - b);
 }
@@ -192,15 +221,26 @@ export function reviewReadDue(i: ReviewDueInput): ReviewDue {
 
 /** The time to wait after `failures` failures in a row: 15 minutes, doubled each time, at most 6 hours (the ASO refresh uses the same). */
 export const reviewReadBackoffMs = (failures: number): number =>
-  Math.min(competitorReviewLimits.backoffMinMs * 2 ** Math.max(0, failures - 1), competitorReviewLimits.backoffMaxMs);
+  Math.min(
+    competitorReviewLimits.backoffMinMs * 2 ** Math.max(0, failures - 1),
+    competitorReviewLimits.backoffMaxMs,
+  );
 
 /** When the next scheduled read happens: after a backoff if there is one, never in the past, null when off or paused. */
-export function nextReviewRunAt(i: Omit<ReviewDueInput, 'lastAttemptAt' | 'changedAt'> & { lastAttemptAt: number | null; changedAt: number }): number | null {
+export function nextReviewRunAt(
+  i: Omit<ReviewDueInput, 'lastAttemptAt' | 'changedAt'> & {
+    lastAttemptAt: number | null;
+    changedAt: number;
+  },
+): number | null {
   if (i.schedule.mode === 'off' || i.paused) return null;
   const since = Math.max(i.lastAttemptAt === null ? 0 : i.lastAttemptAt, i.changedAt);
   const latest = latestReviewSlot(i.schedule, i.key, i.now);
   // A slot that already passed and was not served is due now (or when the backoff ends).
-  const pending = latest !== null && latest > since ? Math.max(i.now, i.backoffUntil === null ? 0 : i.backoffUntil) : null;
+  const pending =
+    latest !== null && latest > since
+      ? Math.max(i.now, i.backoffUntil === null ? 0 : i.backoffUntil)
+      : null;
   if (pending !== null) return pending;
   const next = nextReviewSlot(i.schedule, i.key, i.now);
   if (next === null) return null;

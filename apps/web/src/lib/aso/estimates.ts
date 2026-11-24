@@ -7,7 +7,12 @@ import { k } from '../i18n/t.ts';
  */
 
 export type Confidence = 'low' | 'medium' | 'high';
-export type EstimateReason = { code: string; params: Record<string, string | number>; points: number | null; weight: number };
+export type EstimateReason = {
+  code: string;
+  params: Record<string, string | number>;
+  points: number | null;
+  weight: number;
+};
 export type EstimateMeasure = {
   score: number | null;
   confidence: Confidence | null;
@@ -48,13 +53,24 @@ export type EstimateDetail = {
   /** Apple's own numbers, beside the estimate and never merged into it (docs/adr/0058-apple-ads.md); null for a Google Play keyword. */
   appleAds?: AppleAdsDetail | null | undefined;
 };
-export type AppleAdsPopularity = { genre: string; period: string | null; popularity100: number | null; popularity5: number | null; rankInGenre: number | null; fetchedAt: number };
+export type AppleAdsPopularity = {
+  genre: string;
+  period: string | null;
+  popularity100: number | null;
+  popularity5: number | null;
+  rankInGenre: number | null;
+  fetchedAt: number;
+};
 export type AppleAdsDetail = {
   campaigns: { impressions: number; taps: number; installs: number; days: number } | null;
   popularity: AppleAdsPopularity[];
 };
 export type KeywordSuggestion = { term: string; country: string; locale: string; from: string[] };
-export type SuggestionsResponse = { appId: string; store: 'app_store' | 'google_play'; suggestions: KeywordSuggestion[] };
+export type SuggestionsResponse = {
+  appId: string;
+  store: 'app_store' | 'google_play';
+  suggestions: KeywordSuggestion[];
+};
 
 export type EstimateSort = 'opportunity' | 'popularity' | 'difficulty' | 'term';
 export const estimateSorts: { id: EstimateSort; labelKey: string }[] = [
@@ -72,15 +88,23 @@ export const estimateFilters: { id: EstimateFilter; labelKey: string }[] = [
   { id: 'none', labelKey: k('aso:est.filter.none') },
 ];
 
-const hasEstimate = (r: EstimateRow): boolean => r.estimate.popularity.score !== null || r.estimate.difficulty.score !== null;
+const hasEstimate = (r: EstimateRow): boolean =>
+  r.estimate.popularity.score !== null || r.estimate.difficulty.score !== null;
 
-export function filterEstimates(rows: readonly EstimateRow[], query: string, filter: EstimateFilter): EstimateRow[] {
+export function filterEstimates(
+  rows: readonly EstimateRow[],
+  query: string,
+  filter: EstimateFilter,
+): EstimateRow[] {
   const q = query.trim().toLowerCase();
   return rows.filter((r) => {
     if (q !== '' && r.term.toLowerCase().indexOf(q) === -1) return false;
     if (filter === 'estimated') return hasEstimate(r);
     if (filter === 'none') return !hasEstimate(r);
-    if (filter === 'own') return r.estimate.popularity.origin === 'own_data' || r.estimate.popularity.origin === 'ads_data';
+    if (filter === 'own')
+      return (
+        r.estimate.popularity.origin === 'own_data' || r.estimate.popularity.origin === 'ads_data'
+      );
     return true;
   });
 }
@@ -88,7 +112,13 @@ export function filterEstimates(rows: readonly EstimateRow[], query: string, fil
 /** Numbers descending (or ascending); "no estimate" always last, so it never looks like the best or the worst. */
 export function sortEstimates<T extends EstimateRow>(rows: readonly T[], sort: EstimateSort): T[] {
   const value = (r: T): number | null =>
-    sort === 'opportunity' ? r.estimate.opportunity.score : sort === 'popularity' ? r.estimate.popularity.score : sort === 'difficulty' ? r.estimate.difficulty.score : null;
+    sort === 'opportunity'
+      ? r.estimate.opportunity.score
+      : sort === 'popularity'
+        ? r.estimate.popularity.score
+        : sort === 'difficulty'
+          ? r.estimate.difficulty.score
+          : null;
   const byTerm = (a: T, b: T) => a.term.localeCompare(b.term) || a.country.localeCompare(b.country);
   return rows.slice().sort((a, b) => {
     if (sort === 'term') return byTerm(a, b);
@@ -102,7 +132,8 @@ export function sortEstimates<T extends EstimateRow>(rows: readonly T[], sort: E
 }
 
 /** How many of three dots are filled: the confidence without colour. 0 when there is no estimate. */
-export const confidenceDots = (c: Confidence | null): number => (c === 'high' ? 3 : c === 'medium' ? 2 : c === 'low' ? 1 : 0);
+export const confidenceDots = (c: Confidence | null): number =>
+  c === 'high' ? 3 : c === 'medium' ? 2 : c === 'low' ? 1 : 0;
 
 /** The label of where a measure came from. */
 export const originKeys: Record<'own_data' | 'ads_data' | 'public_signals', string> = {
@@ -142,11 +173,17 @@ export const reasonKey = (code: string): string => reasonKeys[code] ?? unknownRe
 export function reasonShares(m: EstimateMeasure): number[] {
   let total = 0;
   for (const r of m.reasons) total += r.points === null ? 0 : r.weight;
-  return m.reasons.map((r) => (total > 0 && r.points !== null ? Math.round((r.weight / total) * 100) : 0));
+  return m.reasons.map((r) =>
+    total > 0 && r.points !== null ? Math.round((r.weight / total) * 100) : 0,
+  );
 }
 
 /** The line of a trend as an SVG path in a width x height box, 0 at the bottom and 100 at the top; breaks at a missing day. */
-export function trendPath(values: ReadonlyArray<number | null>, width: number, height: number): { path: string; samples: number } {
+export function trendPath(
+  values: ReadonlyArray<number | null>,
+  width: number,
+  height: number,
+): { path: string; samples: number } {
   const n = values.length;
   let path = '';
   let samples = 0;

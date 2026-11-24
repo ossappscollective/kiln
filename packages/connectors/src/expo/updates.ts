@@ -283,13 +283,17 @@ export function storedUpdatesOf(
             isCurrent: false,
           };
           if (row.rolloutPercentage !== null) out.set(`${channel.name}\u0000${u.id}`, row);
-          if ((!useServed || served.has(branch.id)) && (current === null || (row.createdAt ?? 0) > (current.createdAt ?? 0))) {
+          if (
+            (!useServed || served.has(branch.id)) &&
+            (current === null || (row.createdAt ?? 0) > (current.createdAt ?? 0))
+          ) {
             current = row;
           }
         }
       }
     }
-    if (current !== null) out.set(`${channel.name}\u0000${current.updateId}`, { ...current, isCurrent: true });
+    if (current !== null)
+      out.set(`${channel.name}\u0000${current.updateId}`, { ...current, isCurrent: true });
   }
   return [...out.values()];
 }

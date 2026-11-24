@@ -98,9 +98,7 @@ export function releasesOfVersion(
   return releases
     .filter((r) => r.version === version)
     .sort(
-      (a, b) =>
-        compareTracks(a.track, b.track) ||
-        compareVersions(b.build ?? '', a.build ?? ''),
+      (a, b) => compareTracks(a.track, b.track) || compareVersions(b.build ?? '', a.build ?? ''),
     );
 }
 

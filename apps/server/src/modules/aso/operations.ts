@@ -38,13 +38,20 @@ const reviewScheduleSchema = z.object({
       competitorId: z.string(),
       name: z.string(),
       store: z.string(),
-      supported: z.boolean().describe('false: Google Play, which has no official API for the reviews of another app.'),
-      override: z.object({ mode: z.enum(['off', 'daily', 'weekly']), weekday: z.number().int().nullable() }).nullable(),
+      supported: z
+        .boolean()
+        .describe('false: Google Play, which has no official API for the reviews of another app.'),
+      override: z
+        .object({ mode: z.enum(['off', 'daily', 'weekly']), weekday: z.number().int().nullable() })
+        .nullable(),
       effective: reviewScheduleShape,
       lastReadAt: timestamp.nullable(),
       newCount: z.number().int(),
       failures: z.number().int(),
-      lastError: z.string().nullable().describe('A code of the last failed read, such as timeout, rate_limited or failed.'),
+      lastError: z
+        .string()
+        .nullable()
+        .describe('A code of the last failed read, such as timeout, rate_limited or failed.'),
       backoffUntil: timestamp.nullable(),
       nextRunAt: timestamp.nullable(),
     }),
@@ -437,9 +444,10 @@ export const asoOperations: Draft[] = [
     method: 'get',
     path: `${W}/apps/{id}/aso/competitor-reviews`,
     tags: ['aso'],
-    summary: 'Reviews of the followed App Store competitors: average, trend, latest, and our own app beside them',
+    summary:
+      'Reviews of the followed App Store competitors: average, trend, latest, and our own app beside them',
     description:
-      'Reads what Kiln stored from Apple\'s public customer-reviews feed (no store is called). `days` 1 to 90, default 28. A Google Play competitor is listed with `state: unavailable`: Google Play has no official way to read the reviews of an app you do not own, and Kiln does not scrape it. `own` (the same figures for this app, from its stored reviews) is null without `reviews.read`. Docs: docs/api/competitor-reviews.md.',
+      "Reads what Kiln stored from Apple's public customer-reviews feed (no store is called). `days` 1 to 90, default 28. A Google Play competitor is listed with `state: unavailable`: Google Play has no official way to read the reviews of an app you do not own, and Kiln does not scrape it. `own` (the same figures for this app, from its stored reviews) is null without `reviews.read`. Docs: docs/api/competitor-reviews.md.",
     risk: 'read',
     access: { action: 'aso.read' },
     appScope: { kind: 'param', name: 'id' },
@@ -494,7 +502,7 @@ export const asoOperations: Draft[] = [
     tags: ['aso'],
     summary: 'Read the newest public reviews of an App Store competitor',
     description:
-      'READS APPLE\'S PUBLIC CUSTOMER-REVIEWS FEED once for the competitor and its storefront (SSRF-safe, rate limited, at most once per 15 minutes per competitor: a read inside that window returns `state: recent` and calls nothing). Stores what the feed gives (id, stars, title, text, version, day; never the author), keeps 90 days and 200 reviews per competitor. `409 play_reviews_not_available` for a Google Play competitor. Audited with counts, never text.',
+      "READS APPLE'S PUBLIC CUSTOMER-REVIEWS FEED once for the competitor and its storefront (SSRF-safe, rate limited, at most once per 15 minutes per competitor: a read inside that window returns `state: recent` and calls nothing). Stores what the feed gives (id, stars, title, text, version, day; never the author), keeps 90 days and 200 reviews per competitor. `409 play_reviews_not_available` for a Google Play competitor. Audited with counts, never text.",
     risk: 'write',
     access: { action: 'aso.write' },
     appScope: { kind: 'param', name: 'id' },
@@ -524,7 +532,9 @@ export const asoOperations: Draft[] = [
     risk: 'read',
     access: { action: 'aso.read' },
     appScope: { kind: 'param', name: 'id' },
-    responses: { '200': { description: 'The schedule and the state.', schema: reviewScheduleSchema } },
+    responses: {
+      '200': { description: 'The schedule and the state.', schema: reviewScheduleSchema },
+    },
   },
   {
     id: 'updateAsoCompetitorReviewSchedule',
@@ -537,7 +547,16 @@ export const asoOperations: Draft[] = [
     risk: 'write',
     access: { action: 'aso.write' },
     appScope: { kind: 'param', name: 'id' },
-    body: z.object({ mode: z.enum(['off', 'daily', 'weekly']).optional(), weekday: z.number().int().min(0).max(6).nullable().optional(), timezone: z.string().max(64).nullable().optional(), paused: z.boolean().optional(), maxCompetitors: z.number().int().min(1).max(10).optional(), maxReviews: z.number().int().min(1).max(50).optional() }).strict(),
+    body: z
+      .object({
+        mode: z.enum(['off', 'daily', 'weekly']).optional(),
+        weekday: z.number().int().min(0).max(6).nullable().optional(),
+        timezone: z.string().max(64).nullable().optional(),
+        paused: z.boolean().optional(),
+        maxCompetitors: z.number().int().min(1).max(10).optional(),
+        maxReviews: z.number().int().min(1).max(50).optional(),
+      })
+      .strict(),
     responses: { '200': { description: 'The schedule now.', schema: reviewScheduleSchema } },
   },
   {
@@ -551,7 +570,12 @@ export const asoOperations: Draft[] = [
     risk: 'write',
     access: { action: 'aso.write' },
     appScope: { kind: 'param', name: 'id' },
-    body: z.object({ mode: z.enum(['off', 'daily', 'weekly']).nullable(), weekday: z.number().int().min(0).max(6).nullable().optional() }).strict(),
+    body: z
+      .object({
+        mode: z.enum(['off', 'daily', 'weekly']).nullable(),
+        weekday: z.number().int().min(0).max(6).nullable().optional(),
+      })
+      .strict(),
     responses: { '200': { description: 'The schedule now.', schema: reviewScheduleSchema } },
   },
   {
@@ -561,7 +585,7 @@ export const asoOperations: Draft[] = [
     tags: ['aso'],
     summary: 'Search the App Store by name for an app to follow as a competitor',
     description:
-      'READS THE PUBLIC STORE (Apple\'s public search, through the shared cache, rate limit and cool-down); nothing is stored. `q` is 2 to 100 characters, `country` two letters (default us). At most 10 results with plain, capped text and an https icon; `state` says whether the app is this app itself (`own`) or already followed in that storefront (`followed`). `409 search_app_store_only` for an Android app: Google Play has no official search and Kiln does not scrape it, so paste the package name or the play.google.com address to `addAsoCompetitor`. Rate limited per workspace.',
+      "READS THE PUBLIC STORE (Apple's public search, through the shared cache, rate limit and cool-down); nothing is stored. `q` is 2 to 100 characters, `country` two letters (default us). At most 10 results with plain, capped text and an https icon; `state` says whether the app is this app itself (`own`) or already followed in that storefront (`followed`). `409 search_app_store_only` for an Android app: Google Play has no official search and Kiln does not scrape it, so paste the package name or the play.google.com address to `addAsoCompetitor`. Rate limited per workspace.",
     risk: 'read',
     access: { action: 'aso.write' },
     appScope: { kind: 'param', name: 'id' },
@@ -580,7 +604,12 @@ export const asoOperations: Draft[] = [
               developer: z.string().nullable(),
               category: z.string().nullable(),
               iconUrl: z.string().nullable().describe('An https address.'),
-              iconRef: z.string().nullable().describe('An opaque ref for `GET .../competitors/search-image` (the browser cannot load Apple\'s image CDN itself).'),
+              iconRef: z
+                .string()
+                .nullable()
+                .describe(
+                  "An opaque ref for `GET .../competitors/search-image` (the browser cannot load Apple's image CDN itself).",
+                ),
               ratingAverage: z.number().nullable(),
               ratingCount: z.number().int().nullable(),
               price: z.string().nullable(),
@@ -630,17 +659,24 @@ export const asoOperations: Draft[] = [
     summary: 'The listing changes Kiln found on an App Store competitor, newest first',
     description:
       asoNote +
-      'Newest first, paged with `before` (the `detectedAt` of the last change you have) and `limit` (1 to 50, default 10). Reads what Kiln stored: no store is called. History starts when the competitor was followed (`watching.since`); a Google Play competitor is `watching.state: not_watched` because Kiln does not read Google Play pages. Kept 180 days and 200 changes per competitor. Each change has `before` and `after` (image addresses of Apple\'s CDN and short texts, all public); show images through `getAsoCompetitorImage` with the refs `c.<id>.<b|a>.<icon|p|i>.<n>`. Docs: docs/api/aso.md.',
+      "Newest first, paged with `before` (the `detectedAt` of the last change you have) and `limit` (1 to 50, default 10). Reads what Kiln stored: no store is called. History starts when the competitor was followed (`watching.since`); a Google Play competitor is `watching.state: not_watched` because Kiln does not read Google Play pages. Kept 180 days and 200 changes per competitor. Each change has `before` and `after` (image addresses of Apple's CDN and short texts, all public); show images through `getAsoCompetitorImage` with the refs `c.<id>.<b|a>.<icon|p|i>.<n>`. Docs: docs/api/aso.md.",
     risk: 'read',
     access: { action: 'aso.read' },
     appScope: { kind: 'param', name: 'id' },
-    query: z.object({ limit: z.number().int().min(1).max(50).optional(), before: z.number().int().optional() }),
+    query: z.object({
+      limit: z.number().int().min(1).max(50).optional(),
+      before: z.number().int().optional(),
+    }),
     responses: {
       '200': {
         description: 'The changes, newest first.',
         schema: z.object({
           competitorId: z.string(),
-          watching: z.object({ state: z.enum(['watched', 'not_watched']), since: timestamp.optional(), reason: z.literal('play_pages_not_read').optional() }),
+          watching: z.object({
+            state: z.enum(['watched', 'not_watched']),
+            since: timestamp.optional(),
+            reason: z.literal('play_pages_not_read').optional(),
+          }),
           lastCheckedAt: timestamp.nullable(),
           retentionDays: z.number().int(),
           hasMore: z.boolean(),
@@ -650,7 +686,11 @@ export const asoOperations: Draft[] = [
               competitorId: z.string(),
               detectedAt: timestamp,
               kinds: z.array(z.string()),
-              changes: z.array(z.record(z.string(), z.unknown())).describe('`kind` screenshots (`device` iphone or ipad, `added`, `removed`, `replaced`, `reordered`, `before[]`, `after[]`), icon, name, description, releaseNotes, version, price, category (`before`, `after` text) and rating, ratingCount (thousandths of a star, a count).'),
+              changes: z
+                .array(z.record(z.string(), z.unknown()))
+                .describe(
+                  '`kind` screenshots (`device` iphone or ipad, `added`, `removed`, `replaced`, `reordered`, `before[]`, `after[]`), icon, name, description, releaseNotes, version, price, category (`before`, `after` text) and rating, ratingCount (thousandths of a star, a count).',
+                ),
             }),
           ),
         }),
@@ -664,7 +704,7 @@ export const asoOperations: Draft[] = [
     tags: ['aso'],
     summary: 'Check an App Store competitor now (Check now)',
     description:
-      'READS APPLE\'S PUBLIC LOOKUP once for the competitor (the shared cache, rate limit and cool-down of the refresh; the same recording, so a change is in the list, the Timeline and the alerts). A competitor read in the last 5 minutes returns `state: recent` and calls nothing. `409 play_listing_not_watched` for a Google Play competitor: Kiln does not read Google Play pages. `429` with `Retry-After` when limited.',
+      "READS APPLE'S PUBLIC LOOKUP once for the competitor (the shared cache, rate limit and cool-down of the refresh; the same recording, so a change is in the list, the Timeline and the alerts). A competitor read in the last 5 minutes returns `state: recent` and calls nothing. `409 play_listing_not_watched` for a Google Play competitor: Kiln does not read Google Play pages. `429` with `Retry-After` when limited.",
     risk: 'write',
     access: { action: 'aso.write' },
     appScope: { kind: 'param', name: 'id' },
@@ -672,7 +712,12 @@ export const asoOperations: Draft[] = [
     responses: {
       '200': {
         description: 'What was read.',
-        schema: z.object({ competitorId: z.string(), state: z.enum(['checked', 'recent', 'not_found']), changes: z.number().int(), checkedAt: timestamp }),
+        schema: z.object({
+          competitorId: z.string(),
+          state: z.enum(['checked', 'recent', 'not_found']),
+          changes: z.number().int(),
+          checkedAt: timestamp,
+        }),
       },
     },
   },
@@ -681,15 +726,22 @@ export const asoOperations: Draft[] = [
     method: 'get',
     path: `${W}/apps/{id}/aso/competitors/{competitorId}/image`,
     tags: ['aso'],
-    summary: 'A thumbnail of a stored competitor screenshot or icon (a proxy: the browser never contacts Apple\'s CDN)',
+    summary:
+      "A thumbnail of a stored competitor screenshot or icon (a proxy: the browser never contacts Apple's CDN)",
     description:
       'The client sends a `ref` into what Kiln stored (`icon`, `s.p.<n>` iPhone and `s.i.<n>` iPad of the latest read, `c.<changeId>.<b|a>.<icon|p|i>.<n>` of a change), never an address. Fetches from `mzstatic.com` only (https, redirects checked, resolved addresses checked, 2 MiB cap, type sniffed from the bytes, per workspace limit) and serves it with the safe image headers, `Cache-Control: private` with `ETag` and stale-while-revalidate. `404` for a ref that names nothing stored.',
     risk: 'read',
     access: { action: 'aso.read' },
     appScope: { kind: 'param', name: 'id' },
     rateLimited: true,
-    query: z.object({ ref: z.string(), size: z.string().optional().describe('96, 160 (default), 320 or 640: the long side.') }),
-    responses: { '200': { description: 'The image.', contentType: 'image/jpeg' }, '304': { description: 'Not modified.' } },
+    query: z.object({
+      ref: z.string(),
+      size: z.string().optional().describe('96, 160 (default), 320 or 640: the long side.'),
+    }),
+    responses: {
+      '200': { description: 'The image.', contentType: 'image/jpeg' },
+      '304': { description: 'Not modified.' },
+    },
   },
   {
     id: 'getAsoCompetitorSearchImage',
@@ -697,13 +749,17 @@ export const asoOperations: Draft[] = [
     path: `${W}/apps/{id}/aso/competitors/search-image`,
     tags: ['aso'],
     summary: 'The icon of a competitor search result (the same proxy)',
-    description: 'The `iconRef` of a result of `searchAsoCompetitors` (kept in memory for 15 minutes); `404` when it is not known any more. Same host allowlist, caps and headers as `getAsoCompetitorImage`. Needs `aso.write` like the search.',
+    description:
+      'The `iconRef` of a result of `searchAsoCompetitors` (kept in memory for 15 minutes); `404` when it is not known any more. Same host allowlist, caps and headers as `getAsoCompetitorImage`. Needs `aso.write` like the search.',
     risk: 'read',
     access: { action: 'aso.write' },
     appScope: { kind: 'param', name: 'id' },
     rateLimited: true,
     query: z.object({ ref: z.string(), size: z.string().optional() }),
-    responses: { '200': { description: 'The image.', contentType: 'image/jpeg' }, '304': { description: 'Not modified.' } },
+    responses: {
+      '200': { description: 'The image.', contentType: 'image/jpeg' },
+      '304': { description: 'Not modified.' },
+    },
   },
   {
     id: 'getAsoCompetitorHistory',

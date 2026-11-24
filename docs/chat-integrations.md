@@ -53,14 +53,14 @@ target's markup, so a name such as `<!channel>` cannot ping a channel. v1 has no
 - Deliveries are kept 30 days. Each has a status (`queued`, `retrying`, `sent`, `failed`, `deferred`), the HTTP status, the number of attempts
   and an **outcome code** from a fixed list, explained in the screen; nothing a provider answered is stored.
 
-| Outcome | Meaning |
-| ------- | ------- |
-| `ok` | Delivered. |
-| `queued`, `in_digest`, `digest_sent` | Waiting to be sent; held for / sent in the daily summary. |
-| `rate_limited`, `server_error`, `timeout`, `dns_failed`, `network_error` | Retried later. |
-| `blocked_address`, `host_not_allowed` | The address points inside a network, or is not a provider host and the destination does not allow others. Not sent. |
-| `webhook_gone`, `webhook_rejected`, `payload_rejected`, `rejected`, `redirected` | The service said no. Not retried. |
-| `disabled`, `secret_unreadable` | The destination is off; the stored address cannot be decrypted (paste it again). |
+| Outcome                                                                          | Meaning                                                                                                             |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `ok`                                                                             | Delivered.                                                                                                          |
+| `queued`, `in_digest`, `digest_sent`                                             | Waiting to be sent; held for / sent in the daily summary.                                                           |
+| `rate_limited`, `server_error`, `timeout`, `dns_failed`, `network_error`         | Retried later.                                                                                                      |
+| `blocked_address`, `host_not_allowed`                                            | The address points inside a network, or is not a provider host and the destination does not allow others. Not sent. |
+| `webhook_gone`, `webhook_rejected`, `payload_rejected`, `rejected`, `redirected` | The service said no. Not retried.                                                                                   |
+| `disabled`, `secret_unreadable`                                                  | The destination is off; the stored address cannot be decrypted (paste it again).                                    |
 
 ## Operating notes
 

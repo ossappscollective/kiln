@@ -41,7 +41,14 @@ export type PriceItemResult = {
   httpStatus?: number | undefined;
   detail: {
     productId: string;
-    lines: { territory: string; currency: string; before: string; after: string; outcome: PriceLineOutcome['outcome']; code?: string | undefined }[];
+    lines: {
+      territory: string;
+      currency: string;
+      before: string;
+      after: string;
+      outcome: PriceLineOutcome['outcome'];
+      code?: string | undefined;
+    }[];
     /** `confirmed`: the re-read shows the asked prices. `store_shows`: it shows other prices (`mismatches`). `unverified`: it could not be read. */
     verification: 'confirmed' | 'store_shows' | 'unverified' | 'not_sent';
     mismatches: { territory: string; expected: string; actual: string | null }[];
@@ -59,26 +66,50 @@ export const phraseMatches = (typed: string | undefined, rows: readonly StagedPr
   typeof typed === 'string' && samePhrase(typed, phraseFor(rows));
 
 export const confirmationFailure = (): Failure =>
-  failure(422, 'confirmation_mismatch', 'The confirmation phrase is not the one for these price changes. Nothing was sent.', coded('prices.confirmationMismatch'));
+  failure(
+    422,
+    'confirmation_mismatch',
+    'The confirmation phrase is not the one for these price changes. Nothing was sent.',
+    coded('prices.confirmationMismatch'),
+  );
 
 // ---------------------------------------------------------------------------------------------
 // The claim: one price write in flight per app
 
 type Claim = { appId: string; at: number };
 
-async function takeClaim(ctx: PriceContext, workspaceId: string, appId: string, actor: Actor): Promise<{ ok: true; claim: Claim } | Failure> {
+async function takeClaim(
+  ctx: PriceContext,
+  workspaceId: string,
+  appId: string,
+  actor: Actor,
+): Promise<{ ok: true; claim: Claim } | Failure> {
   const claim: Claim = { appId, at: ctx.now() };
   const insert = () =>
     ctx.db.execute(
       "INSERT INTO store_price_claims (app_id, workspace_id, status, claimed_by, claim_at) VALUES (?, ?, 'writing', ?, ?) ON CONFLICT (app_id) DO NOTHING",
       [appId, workspaceId, actor.id, claim.at],
     );
-  const busy = () => failure(409, 'write_in_progress', 'A price change for this app is in progress. Wait for it to finish.', coded('prices.busy'));
+  const busy = () =>
+    failure(
+      409,
+      'write_in_progress',
+      'A price change for this app is in progress. Wait for it to finish.',
+      coded('prices.busy'),
+    );
   if ((await insert()) === 1) return { ok: true, claim };
-  const [existing] = await ctx.db.query('SELECT status, claim_at FROM store_price_claims WHERE app_id = ?', [appId]);
+  const [existing] = await ctx.db.query(
+    'SELECT status, claim_at FROM store_price_claims WHERE app_id = ?',
+    [appId],
+  );
   if (!existing) return (await insert()) === 1 ? { ok: true, claim } : busy();
   if (String(existing.status) === 'unknown') {
-    return failure(409, 'outcome_unknown', 'It is not known whether the last price change of this app reached the store. Run a dry run: it reads the store and shows where it stands. Nothing was sent.', coded('prices.unknownState'));
+    return failure(
+      409,
+      'outcome_unknown',
+      'It is not known whether the last price change of this app reached the store. Run a dry run: it reads the store and shows where it stands. Nothing was sent.',
+      coded('prices.unknownState'),
+    );
   }
   const startedAt = Number(existing.claim_at);
   if (claim.at - startedAt < ctx.claimTtlMs) return busy();
@@ -88,17 +119,33 @@ async function takeClaim(ctx: PriceContext, workspaceId: string, appId: string, 
   );
   return taken === 1 ? { ok: true, claim } : busy();
 }
-const releaseClaim = (sql: Sql, c: Claim) => sql.execute("DELETE FROM store_price_claims WHERE app_id = ? AND claim_at = ? AND status = 'writing'", [c.appId, c.at]);
-const markUnknown = (sql: Sql, c: Claim) => sql.execute("UPDATE store_price_claims SET status = 'unknown' WHERE app_id = ? AND claim_at = ? AND status = 'writing'", [c.appId, c.at]);
+const releaseClaim = (sql: Sql, c: Claim) =>
+  sql.execute(
+    "DELETE FROM store_price_claims WHERE app_id = ? AND claim_at = ? AND status = 'writing'",
+    [c.appId, c.at],
+  );
+const markUnknown = (sql: Sql, c: Claim) =>
+  sql.execute(
+    "UPDATE store_price_claims SET status = 'unknown' WHERE app_id = ? AND claim_at = ? AND status = 'writing'",
+    [c.appId, c.at],
+  );
 /** A successful live read settles an unknown outcome: the person sees where the store stands. */
-const clearUnknown = (sql: Sql, appId: string) => sql.execute("DELETE FROM store_price_claims WHERE app_id = ? AND status = 'unknown'", [appId]);
+const clearUnknown = (sql: Sql, appId: string) =>
+  sql.execute("DELETE FROM store_price_claims WHERE app_id = ? AND status = 'unknown'", [appId]);
 
 // ---------------------------------------------------------------------------------------------
 
 const lineDetail = (change: PriceChange, outcomes: readonly PriceLineOutcome[]) =>
   change.lines.map((l) => {
     const o = outcomes.find((x) => x.territory === l.territory);
-    return { territory: l.territory, currency: l.currency, before: l.currentAmount, after: l.newAmount, outcome: o?.outcome ?? ('not_sent' as const), ...(o?.code ? { code: o.code } : {}) };
+    return {
+      territory: l.territory,
+      currency: l.currency,
+      before: l.currentAmount,
+      after: l.newAmount,
+      outcome: o?.outcome ?? ('not_sent' as const),
+      ...(o?.code ? { code: o.code } : {}),
+    };
   });
 
 const emptyDetail = (row: StagedPrice, issues?: PriceIssue[]): PriceItemResult['detail'] => ({
@@ -118,15 +165,30 @@ async function validateLive(
   change: PriceChange,
 ): Promise<{ live: LivePrices; issues: PriceIssue[] }> {
   const live = await connector.readPrices(ref, change.planId);
-  const points = needsPoints(change) ? await connector.pricePoints(ref, [...new Set(change.lines.map((l) => l.territory))]) : undefined;
-  const issues = validatePriceChange(change, { current: live.current, pricePoints: points, today: utcDate(ctx.now()), limits: ctx.limits });
+  const points = needsPoints(change)
+    ? await connector.pricePoints(ref, [...new Set(change.lines.map((l) => l.territory))])
+    : undefined;
+  const issues = validatePriceChange(change, {
+    current: live.current,
+    pricePoints: points,
+    today: utcDate(ctx.now()),
+    limits: ctx.limits,
+  });
   return { live, issues };
 }
 
 /** The first problem of a validation as a reason code the cart shows (a store-neutral sentence is looked up by the web). */
 const reasonOf = (issues: readonly PriceIssue[]): string => {
   const first = issues[0]?.code ?? 'invalid';
-  return first === 'stale_price' ? 'stale_price' : first === 'currency_mismatch' ? 'currency_mismatch' : first.startsWith('price_point') || first === 'amount_not_price_point' ? 'price_point_invalid' : first === 'ack_required' ? 'acknowledgement_required' : 'invalid_price';
+  return first === 'stale_price'
+    ? 'stale_price'
+    : first === 'currency_mismatch'
+      ? 'currency_mismatch'
+      : first.startsWith('price_point') || first === 'amount_not_price_point'
+        ? 'price_point_invalid'
+        : first === 'ack_required'
+          ? 'acknowledgement_required'
+          : 'invalid_price';
 };
 
 export async function sendPrices(
@@ -134,8 +196,17 @@ export async function sendPrices(
   input: { workspaceId: string; app: ManagedApp; rows: StagedPrice[]; actor: Actor },
 ): Promise<Map<string, PriceItemResult>> {
   const out = new Map<string, PriceItemResult>();
-  const failAll = (f: Failure, detail: (r: StagedPrice) => PriceItemResult['detail'] = (r) => emptyDetail(r)) => {
-    for (const row of input.rows) out.set(row.id, { status: 'failed', reason: f.body.error, httpStatus: f.status, detail: detail(row) });
+  const failAll = (
+    f: Failure,
+    detail: (r: StagedPrice) => PriceItemResult['detail'] = (r) => emptyDetail(r),
+  ) => {
+    for (const row of input.rows)
+      out.set(row.id, {
+        status: 'failed',
+        reason: f.body.error,
+        httpStatus: f.status,
+        detail: detail(row),
+      });
     return out;
   };
   const claimed = await takeClaim(ctx, input.workspaceId, input.app.id, input.actor);
@@ -163,18 +234,59 @@ export async function sendPrices(
 async function sendOne(
   ctx: PriceContext,
   input: { workspaceId: string; app: ManagedApp; actor: Actor },
-  connection: { input: Parameters<typeof withConnector<StorePriceWriteConnector, unknown>>[1]; secret: string },
+  connection: {
+    input: Parameters<typeof withConnector<StorePriceWriteConnector, unknown>>[1];
+    secret: string;
+  },
   row: StagedPrice,
   onUnknown: () => void,
 ): Promise<PriceItemResult> {
   const { change } = row;
   const audit = (action: string, detail: Record<string, unknown>) =>
-    recordAudit(ctx.db, { workspaceId: input.workspaceId, actor: input.actor, action, target: { type: 'app', id: input.app.id }, detail: { appId: input.app.id, productId: change.productId, store: change.store, planId: change.planId, effectiveDate: change.effectiveDate, existingSubscribers: change.existingSubscribers, ...detail }, at: ctx.now() });
-  const refused = async (code: string, status: number, extra: Partial<PriceItemResult['detail']> = {}): Promise<PriceItemResult> => {
-    await audit('price.change_failed', { outcome: 'refused', code, lines: change.lines.map((l) => ({ territory: l.territory, currency: l.currency, before: l.currentAmount, after: l.newAmount })) });
-    return { status: 'failed', reason: code, httpStatus: status, detail: { ...emptyDetail(row), ...extra } };
+    recordAudit(ctx.db, {
+      workspaceId: input.workspaceId,
+      actor: input.actor,
+      action,
+      target: { type: 'app', id: input.app.id },
+      detail: {
+        appId: input.app.id,
+        productId: change.productId,
+        store: change.store,
+        planId: change.planId,
+        effectiveDate: change.effectiveDate,
+        existingSubscribers: change.existingSubscribers,
+        ...detail,
+      },
+      at: ctx.now(),
+    });
+  const refused = async (
+    code: string,
+    status: number,
+    extra: Partial<PriceItemResult['detail']> = {},
+  ): Promise<PriceItemResult> => {
+    await audit('price.change_failed', {
+      outcome: 'refused',
+      code,
+      lines: change.lines.map((l) => ({
+        territory: l.territory,
+        currency: l.currency,
+        before: l.currentAmount,
+        after: l.newAmount,
+      })),
+    });
+    return {
+      status: 'failed',
+      reason: code,
+      httpStatus: status,
+      detail: { ...emptyDetail(row), ...extra },
+    };
   };
-  const stored = await readStoredProductRef(ctx.db, input.workspaceId, input.app.id, change.productId);
+  const stored = await readStoredProductRef(
+    ctx.db,
+    input.workspaceId,
+    input.app.id,
+    change.productId,
+  );
   if (!stored) return refused('product_not_found', 404);
   const ref = { productId: stored.productId, kind: stored.kind, storeRef: stored.storeRef };
   try {
@@ -182,11 +294,17 @@ async function sendOne(
       // 1. The live prices, and every rule again against them.
       const { issues } = await validateLive(ctx, connector, ref, change);
       await clearUnknown(ctx.db, input.app.id);
-      if (issues.length > 0) return refused(reasonOf(issues), issues[0]?.code === 'stale_price' ? 409 : 422, { issues });
+      if (issues.length > 0)
+        return refused(reasonOf(issues), issues[0]?.code === 'stale_price' ? 409 : 422, { issues });
       // 2. The write, only if the store still shows what the person saw (the connector reads again and calls the guard).
       let applied: PriceApplyResult;
       try {
-        applied = await connector.apply(ref, change, (l) => staleLines(change, l.current).length === 0, ctx.now());
+        applied = await connector.apply(
+          ref,
+          change,
+          (l) => staleLines(change, l.current).length === 0,
+          ctx.now(),
+        );
       } catch (error) {
         if (error instanceof PriceDriftError) return refused('stale_price', 409);
         throw error;
@@ -201,12 +319,25 @@ async function sendOne(
       const mismatches = after ? priceMismatches(change, after, utcDate(ctx.now())) : [];
       const outcomes = applied.lines.map((o): PriceLineOutcome => {
         // A line the store did not confirm is no longer "applied"; one with an unknown answer that the store shows is applied.
-        if (o.outcome === 'unknown' && after && !mismatches.some((m) => m.territory === o.territory)) return { ...o, outcome: 'applied' };
+        if (
+          o.outcome === 'unknown' &&
+          after &&
+          !mismatches.some((m) => m.territory === o.territory)
+        )
+          return { ...o, outcome: 'applied' };
         return o;
       });
-      const okLines = outcomes.filter((o) => o.outcome === 'applied' || o.outcome === 'already_applied');
-      const verification: PriceItemResult['detail']['verification'] = !after ? 'unverified' : mismatches.length === 0 ? 'confirmed' : 'store_shows';
-      const stillUnknown = outcomes.some((o) => o.outcome === 'unknown') || (outcomes.some((o) => o.outcome === 'applied') && !after);
+      const okLines = outcomes.filter(
+        (o) => o.outcome === 'applied' || o.outcome === 'already_applied',
+      );
+      const verification: PriceItemResult['detail']['verification'] = !after
+        ? 'unverified'
+        : mismatches.length === 0
+          ? 'confirmed'
+          : 'store_shows';
+      const stillUnknown =
+        outcomes.some((o) => o.outcome === 'unknown') ||
+        (outcomes.some((o) => o.outcome === 'applied') && !after);
       if (stillUnknown) onUnknown();
       const allOk = okLines.length === change.lines.length && verification === 'confirmed';
       const detail: PriceItemResult['detail'] = {
@@ -214,25 +345,49 @@ async function sendOne(
         lines: lineDetail(change, outcomes),
         verification,
         mismatches,
-        ...(applied.migration ? { migration: { requested: applied.migration.requested, outcome: applied.migration.outcome, ...(applied.migration.code ? { code: applied.migration.code } : {}) } } : {}),
+        ...(applied.migration
+          ? {
+              migration: {
+                requested: applied.migration.requested,
+                outcome: applied.migration.outcome,
+                ...(applied.migration.code ? { code: applied.migration.code } : {}),
+              },
+            }
+          : {}),
       };
       const summary = summarizePriceChange(change);
       await audit(allOk ? 'price.changed' : 'price.change_failed', {
-        outcome: allOk ? 'confirmed' : stillUnknown ? 'unknown' : okLines.length > 0 ? 'partial' : 'failed',
+        outcome: allOk
+          ? 'confirmed'
+          : stillUnknown
+            ? 'unknown'
+            : okLines.length > 0
+              ? 'partial'
+              : 'failed',
         verification,
         largestBp: summary.largestBp,
-        lines: detail.lines.map((l, i) => ({ ...l, percentBp: summary.lines[i]?.percentBp ?? null })),
+        lines: detail.lines.map((l, i) => ({
+          ...l,
+          percentBp: summary.lines[i]?.percentBp ?? null,
+        })),
         mismatches,
         ...(detail.migration ? { migration: detail.migration } : {}),
       });
       if (allOk) {
-        await ctx.db.execute('DELETE FROM staged_price_changes WHERE id = ? AND value_hash = ?', [row.id, row.valueHash]);
+        await ctx.db.execute('DELETE FROM staged_price_changes WHERE id = ? AND value_hash = ?', [
+          row.id,
+          row.valueHash,
+        ]);
         return { status: 'ok', reason: null, detail };
       }
       const firstCode = outcomes.find((o) => o.outcome === 'failed')?.code;
       return {
         status: 'failed',
-        reason: stillUnknown ? 'outcome_unknown' : okLines.length > 0 ? 'partial' : (firstCode ?? 'store_rejected'),
+        reason: stillUnknown
+          ? 'outcome_unknown'
+          : okLines.length > 0
+            ? 'partial'
+            : (firstCode ?? 'store_rejected'),
         httpStatus: stillUnknown ? 409 : 422,
         detail,
       };
@@ -241,11 +396,21 @@ async function sendOne(
     if (error instanceof StoreTimeout) {
       onUnknown();
       await audit('price.change_failed', { outcome: 'unknown', code: 'timeout' });
-      return { status: 'failed', reason: 'outcome_unknown', httpStatus: 504, detail: emptyDetail(row) };
+      return {
+        status: 'failed',
+        reason: 'outcome_unknown',
+        httpStatus: 504,
+        detail: emptyDetail(row),
+      };
     }
     const mapped = mapStoreError(error, connection.secret);
     await audit('price.change_failed', { outcome: 'failed', code: mapped.code });
-    return { status: 'failed', reason: mapped.code, httpStatus: mapped.failure.status, detail: emptyDetail(row) };
+    return {
+      status: 'failed',
+      reason: mapped.code,
+      httpStatus: mapped.failure.status,
+      detail: emptyDetail(row),
+    };
   }
 }
 
@@ -272,25 +437,56 @@ export async function dryRunPrices(
   if (!conn.ok) return conn;
   const items: DryRunItem[] = [];
   for (const row of input.rows) {
-    const base = { id: row.id, productId: row.change.productId, summary: summarizePriceChange(row.change) };
-    const stored = await readStoredProductRef(ctx.db, input.workspaceId, input.app.id, row.change.productId);
+    const base = {
+      id: row.id,
+      productId: row.change.productId,
+      summary: summarizePriceChange(row.change),
+    };
+    const stored = await readStoredProductRef(
+      ctx.db,
+      input.workspaceId,
+      input.app.id,
+      row.change.productId,
+    );
     if (!stored) {
-      items.push({ ...base, issues: [], preview: null, error: { code: 'product_not_found', message: 'No such product. Sync the app first.' } });
+      items.push({
+        ...base,
+        issues: [],
+        preview: null,
+        error: { code: 'product_not_found', message: 'No such product. Sync the app first.' },
+      });
       continue;
     }
     const ref = { productId: stored.productId, kind: stored.kind, storeRef: stored.storeRef };
     try {
-      const item = await withConnector(ctx.factory, conn.connection.input, ctx.timeoutMs, async (connector) => {
-        const { issues } = await validateLive(ctx, connector, ref, row.change);
-        await clearUnknown(ctx.db, input.app.id);
-        // The store's validation runs only for a change that passes ours: never ask a store about a change Kiln would refuse.
-        const preview = issues.length === 0 ? await connector.preview(ref, row.change, ctx.now()) : null;
-        return { ...base, issues, preview, error: null };
-      });
+      const item = await withConnector(
+        ctx.factory,
+        conn.connection.input,
+        ctx.timeoutMs,
+        async (connector) => {
+          const { issues } = await validateLive(ctx, connector, ref, row.change);
+          await clearUnknown(ctx.db, input.app.id);
+          // The store's validation runs only for a change that passes ours: never ask a store about a change Kiln would refuse.
+          const preview =
+            issues.length === 0 ? await connector.preview(ref, row.change, ctx.now()) : null;
+          return { ...base, issues, preview, error: null };
+        },
+      );
       items.push(item);
     } catch (error) {
-      const mapped = error instanceof StoreTimeout ? { code: 'timeout', failure: failure(504, 'timeout', 'The store did not answer in time.') } : mapStoreError(error, conn.connection.secret);
-      items.push({ ...base, issues: [], preview: null, error: { code: mapped.code, message: String(mapped.failure.body.message ?? '') } });
+      const mapped =
+        error instanceof StoreTimeout
+          ? {
+              code: 'timeout',
+              failure: failure(504, 'timeout', 'The store did not answer in time.'),
+            }
+          : mapStoreError(error, conn.connection.secret);
+      items.push({
+        ...base,
+        issues: [],
+        preview: null,
+        error: { code: mapped.code, message: String(mapped.failure.body.message ?? '') },
+      });
     }
   }
   await recordAudit(ctx.db, {
@@ -298,7 +494,15 @@ export async function dryRunPrices(
     actor: input.actor,
     action: 'price.dry_run',
     target: { type: 'app', id: input.app.id },
-    detail: { appId: input.app.id, items: items.map((i) => ({ productId: i.productId, issues: i.issues.map((x) => x.code), mode: i.preview?.mode ?? null, error: i.error?.code ?? null })) },
+    detail: {
+      appId: input.app.id,
+      items: items.map((i) => ({
+        productId: i.productId,
+        issues: i.issues.map((x) => x.code),
+        mode: i.preview?.mode ?? null,
+        error: i.error?.code ?? null,
+      })),
+    },
     at: ctx.now(),
   });
   return { ok: true, items };

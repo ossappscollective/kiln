@@ -220,6 +220,9 @@ export function coachHref(
       return asoViewHref(appId, link.to, platform);
     default:
       // A deliberate deep link: it picks the locale and opens its panel (`panel` is not carried by tab links).
-      return withPanel(withHeaderParams(appAddress(appId, 'listing', platform), { locale: link.locale ?? null }), link.locale ?? null);
+      return withPanel(
+        withHeaderParams(appAddress(appId, 'listing', platform), { locale: link.locale ?? null }),
+        link.locale ?? null,
+      );
   }
 }

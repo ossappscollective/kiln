@@ -51,7 +51,14 @@ const parse = (text: unknown): StoredSignals => {
 /** Merges `patch` into the row of `now`'s day (a result read and a hints read of one day share it). */
 export async function saveSignals(
   db: Database,
-  input: { workspaceId: string; store: EstimateStore; country: string; termKey: string; term: string; now: number },
+  input: {
+    workspaceId: string;
+    store: EstimateStore;
+    country: string;
+    termKey: string;
+    term: string;
+    now: number;
+  },
   patch: StoredSignals,
 ): Promise<void> {
   const day = dayOf(input.now);
@@ -128,7 +135,11 @@ export async function termsNeedingHints(
   );
   const out: SignalTarget[] = [];
   for (const r of rows) {
-    if (String(r.last_day ?? '') === today && (await hasHintsToday(db, workspaceId, String(r.country), String(r.term_key), today))) continue;
+    if (
+      String(r.last_day ?? '') === today &&
+      (await hasHintsToday(db, workspaceId, String(r.country), String(r.term_key), today))
+    )
+      continue;
     if (appleStorefrontId(String(r.country)) === undefined) continue;
     out.push({ country: String(r.country), termKey: String(r.term_key), term: String(r.term) });
     if (out.length >= limit) break;
@@ -136,7 +147,13 @@ export async function termsNeedingHints(
   return out;
 }
 
-async function hasHintsToday(db: Sql, workspaceId: string, country: string, termKey: string, day: string): Promise<boolean> {
+async function hasHintsToday(
+  db: Sql,
+  workspaceId: string,
+  country: string,
+  termKey: string,
+  day: string,
+): Promise<boolean> {
   const [row] = await db.query(
     "SELECT signals FROM aso_keyword_signals WHERE workspace_id = ? AND store = 'app_store' AND country = ? AND term_key = ? AND day = ?",
     [workspaceId, country, termKey, day],
@@ -160,7 +177,11 @@ export async function readSignalDays(
       WHERE workspace_id = ? AND store = ? AND country = ? AND term_key = ? ORDER BY day DESC LIMIT ?`,
     [workspaceId, store, country, termKey, days],
   );
-  return rows.map((r) => ({ day: String(r.day), fetchedAt: Number(r.fetched_at), signals: parse(r.signals) }));
+  return rows.map((r) => ({
+    day: String(r.day),
+    fetchedAt: Number(r.fetched_at),
+    signals: parse(r.signals),
+  }));
 }
 
 /** The newest hints and the newest results among the days (they may come from different days). */
@@ -185,7 +206,12 @@ export type EstimateView = KeywordEstimate & {
 export function buildSignals(
   term: string,
   stored: StoredSignals,
-  extra: { own?: OwnSignal | null; ads?: AdsSignal | null; ranks?: Array<number | null>; currentRank?: number | null | undefined },
+  extra: {
+    own?: OwnSignal | null;
+    ads?: AdsSignal | null;
+    ranks?: Array<number | null>;
+    currentRank?: number | null | undefined;
+  },
 ): KeywordSignals {
   return {
     term,
@@ -210,7 +236,11 @@ export function estimateView(
     ...estimate,
     signalsAt: at > 0 ? at : null,
     hints: stored.hints?.list ?? [],
-    top: (stored.results?.top ?? []).map((a) => ({ id: a.id, name: a.name ?? null, ratingCount: a.ratingCount ?? null })),
+    top: (stored.results?.top ?? []).map((a) => ({
+      id: a.id,
+      name: a.name ?? null,
+      ratingCount: a.ratingCount ?? null,
+    })),
   };
 }
 

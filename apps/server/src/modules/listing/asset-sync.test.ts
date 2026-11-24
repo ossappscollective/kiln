@@ -885,7 +885,10 @@ dbTest(
   async (db) => {
     const one = rgbPng(1242, 2688, () => [1, 1, 1]);
     const two = rgbPng(1242, 2688, () => [2, 2, 2]);
-    const net = cdn({ '/image/thumb/Pic1/1242x2688bb.png': one, '/image/thumb/Pic2/1242x2688bb.png': two });
+    const net = cdn({
+      '/image/thumb/Pic1/1242x2688bb.png': one,
+      '/image/thumb/Pic2/1242x2688bb.png': two,
+    });
     const t = await boot(db, net);
     const app = await t.addApp('ios');
     t.stores.ios.imageRecords = [apple(1), apple(2)];
@@ -896,12 +899,20 @@ dbTest(
     assert.ok(set.files.every((f: { upload?: boolean }) => f.upload === true));
     assert.equal(added.body.position, 3);
     const moved = await t.call(t.owner, 'POST', `/apps/${app}/staged/assets/move`, {
-      locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5', from: 3, to: 1,
+      locale: 'en-US',
+      kind: 'screenshot',
+      device: 'iphone_6_5',
+      from: 3,
+      to: 1,
     });
     assert.equal(moved.status, 200, moved.text);
     assert.equal(moved.body.staged.assets[0].files[0].oid, set.files[2].oid);
     const bad = await t.call(t.owner, 'POST', `/apps/${app}/staged/assets/move`, {
-      locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5', from: 1, to: 9,
+      locale: 'en-US',
+      kind: 'screenshot',
+      device: 'iphone_6_5',
+      from: 1,
+      to: 9,
     });
     assert.equal(bad.status, 422);
     const removed = await raw(t, 'DELETE', `/apps/${app}/staged/assets/file?${slot}&position=1`);

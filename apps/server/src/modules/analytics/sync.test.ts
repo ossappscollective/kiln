@@ -417,7 +417,10 @@ dbTest(
     const appId = await t.addApp('android');
     await t.setSettings({ 'analytics.playBucketId': BUCKET });
     const none = await sync(t, appId, { sources: ['play_reports'] });
-    assert.deepEqual([none.body.sync.sources[0].status, none.body.sync.sources[0].errorCode], ['ok', undefined]);
+    assert.deepEqual(
+      [none.body.sync.sources[0].status, none.body.sync.sources[0].errorCode],
+      ['ok', undefined],
+    );
     t.reports.error = new AnalyticsError('bucket_forbidden');
     const forbidden = await sync(t, appId, { sources: ['play_reports'] });
     assert.equal(forbidden.body.status.sources[1].setup.code, 'bucket_forbidden');

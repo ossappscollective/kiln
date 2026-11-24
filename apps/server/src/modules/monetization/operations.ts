@@ -139,7 +139,10 @@ export const stagedPriceSchema = z.object({
   planId: z.string().nullable(),
   store: z.string(),
   kind: productKind,
-  effectiveDate: z.string().nullable().describe('`YYYY-MM-DD`, or null for as soon as the store allows.'),
+  effectiveDate: z
+    .string()
+    .nullable()
+    .describe('`YYYY-MM-DD`, or null for as soon as the store allows.'),
   existingSubscribers: z.enum(['preserve', 'apply', 'opt_in', 'opt_out', 'not_applicable']),
   acknowledgements: z.array(z.enum(['large_change', 'large_absolute', 'existing_subscribers'])),
   lines: z.array(
@@ -148,7 +151,11 @@ export const stagedPriceSchema = z.object({
       currency: z.string(),
       before: z.string().describe('Minor units, as text.'),
       after: z.string().describe('Minor units, as text.'),
-      percentBp: z.number().int().nullable().describe('Change in basis points of the current price (2004 is +20.04%).'),
+      percentBp: z
+        .number()
+        .int()
+        .nullable()
+        .describe('Change in basis points of the current price (2004 is +20.04%).'),
       direction: z.enum(['increase', 'decrease', 'same']),
       pricePointId: z.string().nullable(),
     }),
@@ -171,18 +178,44 @@ const productsViewSchema = z.object({
   }),
   priceWrite: z
     .object({
-      enabled: z.boolean().describe('Both switches are on: the server (`KILN_PRICE_WRITES_ENABLED`) and the workspace setting `prices.writeEnabled`.'),
+      enabled: z
+        .boolean()
+        .describe(
+          'Both switches are on: the server (`KILN_PRICE_WRITES_ENABLED`) and the workspace setting `prices.writeEnabled`.',
+        ),
       envName: z.string(),
       workspaceEnabled: z.boolean(),
-      reason: z.enum(['server_switch', 'workspace_setting']).nullable().describe('Which switch is off (the server first), null when both are on.'),
-      limits: z.object({ relativeChangePercent: z.number(), absoluteChangeMajor: z.number(), maxTerritories: z.number().int() }),
-      staged: z.array(stagedPriceSchema).describe('Price changes staged for this app and not yet sent (they are also in the cart).'),
+      reason: z
+        .enum(['server_switch', 'workspace_setting'])
+        .nullable()
+        .describe('Which switch is off (the server first), null when both are on.'),
+      limits: z.object({
+        relativeChangePercent: z.number(),
+        absoluteChangeMajor: z.number(),
+        maxTerritories: z.number().int(),
+      }),
+      staged: z
+        .array(stagedPriceSchema)
+        .describe(
+          'Price changes staged for this app and not yet sent (they are also in the cart).',
+        ),
     })
-    .describe('Price changes (ADR 0062). Prices are changed only by staging here and sending from the cart.'),
+    .describe(
+      'Price changes (ADR 0062). Prices are changed only by staging here and sending from the cart.',
+    ),
 });
 
-const pricePointSchema = z.object({ id: z.string(), territory: z.string(), currency: z.string(), amount: z.string().describe('Minor units, as text.') });
-const priceIssueSchema = z.object({ code: z.string(), territory: z.string().optional(), detail: z.record(z.string(), z.unknown()).optional() });
+const pricePointSchema = z.object({
+  id: z.string(),
+  territory: z.string(),
+  currency: z.string(),
+  amount: z.string().describe('Minor units, as text.'),
+});
+const priceIssueSchema = z.object({
+  code: z.string(),
+  territory: z.string().optional(),
+  detail: z.record(z.string(), z.unknown()).optional(),
+});
 
 const textsSchema = z.object({ name: z.string(), description: z.string() });
 const changesSchema = z.object({ name: z.boolean(), description: z.boolean() });
@@ -347,7 +380,11 @@ export const monetizationOperations: Draft[] = [
     responses: {
       '200': {
         description: 'The price points.',
-        schema: z.object({ pricePoints: z.array(pricePointSchema), currency: z.string().nullable(), applicable: z.boolean() }),
+        schema: z.object({
+          pricePoints: z.array(pricePointSchema),
+          currency: z.string().nullable(),
+          applicable: z.boolean(),
+        }),
       },
     },
   },
@@ -362,12 +399,23 @@ export const monetizationOperations: Draft[] = [
     risk: 'read',
     access: { action: 'monetization.price' },
     appScope: { kind: 'param', name: 'appId' },
-    body: z.object({ planId: z.string().nullable(), baseTerritory: z.string().length(2), amount: z.string().regex(/^\d{1,15}$/) }),
+    body: z.object({
+      planId: z.string().nullable(),
+      baseTerritory: z.string().length(2),
+      amount: z.string().regex(/^\d{1,15}$/),
+    }),
     responses: {
       '200': {
         description: 'Converted prices.',
         schema: z.object({
-          prices: z.array(z.object({ territory: z.string(), currency: z.string(), amount: z.string(), current: z.string().nullable() })),
+          prices: z.array(
+            z.object({
+              territory: z.string(),
+              currency: z.string(),
+              amount: z.string(),
+              current: z.string().nullable(),
+            }),
+          ),
           regionsVersion: z.string().nullable(),
         }),
       },
@@ -385,14 +433,46 @@ export const monetizationOperations: Draft[] = [
     access: { action: 'monetization.price' },
     appScope: { kind: 'param', name: 'appId' },
     body: z.object({
-      planId: z.string().nullable().describe('Google Play: the base plan or purchase option. Apple subscription: the plan type of the price row (`MONTHLY`, `UPFRONT`) or null. Apple in-app purchase: null.'),
-      lines: z.array(z.object({ territory: z.string(), newAmount: z.string().regex(/^\d{1,15}$/).describe('Minor units, digits only.'), pricePointId: z.string().optional().describe('Apple only: the price point that carries the amount.') })).min(1).max(250),
-      effectiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().describe('Apple only; null means as soon as the store allows.'),
-      existingSubscribers: z.enum(['preserve', 'apply', 'opt_in', 'opt_out', 'not_applicable']).describe('`preserve` is the default and the safe choice.'),
+      planId: z
+        .string()
+        .nullable()
+        .describe(
+          'Google Play: the base plan or purchase option. Apple subscription: the plan type of the price row (`MONTHLY`, `UPFRONT`) or null. Apple in-app purchase: null.',
+        ),
+      lines: z
+        .array(
+          z.object({
+            territory: z.string(),
+            newAmount: z
+              .string()
+              .regex(/^\d{1,15}$/)
+              .describe('Minor units, digits only.'),
+            pricePointId: z
+              .string()
+              .optional()
+              .describe('Apple only: the price point that carries the amount.'),
+          }),
+        )
+        .min(1)
+        .max(250),
+      effectiveDate: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .nullable()
+        .describe('Apple only; null means as soon as the store allows.'),
+      existingSubscribers: z
+        .enum(['preserve', 'apply', 'opt_in', 'opt_out', 'not_applicable'])
+        .describe('`preserve` is the default and the safe choice.'),
       acknowledgements: z.array(z.enum(['large_change', 'large_absolute', 'existing_subscribers'])),
-      seenSyncedAt: z.number().int().min(0).describe('The `syncedAt` of the product as the screen showed it.'),
+      seenSyncedAt: z
+        .number()
+        .int()
+        .min(0)
+        .describe('The `syncedAt` of the product as the screen showed it.'),
     }),
-    responses: { '200': { description: 'The staged change.', schema: z.object({ staged: stagedPriceSchema }) } },
+    responses: {
+      '200': { description: 'The staged change.', schema: z.object({ staged: stagedPriceSchema }) },
+    },
   },
   {
     id: 'dryRunStagedPrices',
@@ -405,7 +485,13 @@ export const monetizationOperations: Draft[] = [
     risk: 'read',
     access: { action: 'monetization.price' },
     appScope: { kind: 'param', name: 'appId' },
-    body: z.object({ ids: z.array(z.string()).max(200).optional().describe('Cart item ids (`price:\u2026`); all staged changes when omitted.') }),
+    body: z.object({
+      ids: z
+        .array(z.string())
+        .max(200)
+        .optional()
+        .describe('Cart item ids (`price:\u2026`); all staged changes when omitted.'),
+    }),
     responses: {
       '200': {
         description: 'Per item: issues against the live prices and the preview.',
@@ -415,9 +501,30 @@ export const monetizationOperations: Draft[] = [
               z.object({
                 id: z.string(),
                 productId: z.string(),
-                summary: z.object({ lines: z.array(z.record(z.string(), z.unknown())), currencies: z.array(z.string()), largestBp: z.number().int(), largestSignedBp: z.number().int(), increases: z.number().int(), decreases: z.number().int() }),
+                summary: z.object({
+                  lines: z.array(z.record(z.string(), z.unknown())),
+                  currencies: z.array(z.string()),
+                  largestBp: z.number().int(),
+                  largestSignedBp: z.number().int(),
+                  increases: z.number().int(),
+                  decreases: z.number().int(),
+                }),
                 issues: z.array(priceIssueSchema),
-                preview: z.object({ mode: z.enum(['store', 'local']), lines: z.array(z.object({ territory: z.string(), changeType: z.string().optional(), note: z.string().optional() })), requests: z.array(z.object({ method: z.string(), path: z.string(), summary: z.string() })) }).nullable(),
+                preview: z
+                  .object({
+                    mode: z.enum(['store', 'local']),
+                    lines: z.array(
+                      z.object({
+                        territory: z.string(),
+                        changeType: z.string().optional(),
+                        note: z.string().optional(),
+                      }),
+                    ),
+                    requests: z.array(
+                      z.object({ method: z.string(), path: z.string(), summary: z.string() }),
+                    ),
+                  })
+                  .nullable(),
                 error: z.object({ code: z.string(), message: z.string() }).nullable(),
               }),
             ),

@@ -96,7 +96,6 @@ internal and simulator builds never match; the submission is the one of that bui
 update of the build's channel is for the same platform and has exactly the build's runtime version (`matchOta`); a build without a channel or runtime
 version, a channel with no stored update or an update of another runtime version shows nothing.
 
-
 "Builds to test" lists EAS builds next to CI artifacts and store builds (source filter "EAS builds"), with profile, channel, runtime,
 distribution and commit; a failed build shows Expo's reason. A section "EAS submissions" lists submissions with their store, state and
 reason. While something runs the page reloads the stored status every minute. "Read again" also asks Expo.

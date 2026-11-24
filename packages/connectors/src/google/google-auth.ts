@@ -226,7 +226,9 @@ export function enableSharedGoogleTokens(on = true): void {
 
 const sharedKey = (account: ServiceAccount, scope: string) =>
   createHash('sha256')
-    .update(`${account.clientEmail}\0${account.privateKeyId ?? ''}\0${account.privateKey}\0${scope}`)
+    .update(
+      `${account.clientEmail}\0${account.privateKeyId ?? ''}\0${account.privateKey}\0${scope}`,
+    )
     .digest('hex');
 
 /**

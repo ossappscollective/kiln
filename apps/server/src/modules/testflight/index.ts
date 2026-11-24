@@ -60,7 +60,11 @@ export function createTestflightAfterReviews(ctx: Omit<TestflightContext, 'limit
     if (!hasIds(payload)) return;
     await syncTestflight(
       { ...ctx, limiter: { take: () => 0 } },
-      { workspaceId: payload.workspaceId, appId: payload.appId, actor: { type: 'system', id: 'testflight.sync' } },
+      {
+        workspaceId: payload.workspaceId,
+        appId: payload.appId,
+        actor: { type: 'system', id: 'testflight.sync' },
+      },
     ).catch(() => undefined);
   };
 }

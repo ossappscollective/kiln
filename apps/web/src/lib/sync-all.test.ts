@@ -6,7 +6,10 @@ import { clientKinds, syncRest } from './sync-all.ts';
 const allowedFor = (set: string[]) => (a: string) => set.includes(a);
 
 test('the browser runs products for a role that may sync, and TestFlight only for iOS', () => {
-  assert.deepEqual(clientKinds('ios', allowedFor(['apps.sync']) as never), ['products', 'testflight']);
+  assert.deepEqual(clientKinds('ios', allowedFor(['apps.sync']) as never), [
+    'products',
+    'testflight',
+  ]);
   assert.deepEqual(clientKinds('android', allowedFor(['apps.sync']) as never), ['products']);
   assert.deepEqual(clientKinds('ios', allowedFor([]) as never), []);
 });
@@ -14,8 +17,14 @@ test('the browser runs products for a role that may sync, and TestFlight only fo
 const fake = (over: Record<string, unknown> = {}) => {
   const calls: string[] = [];
   const api = {
-    syncAppAll: async (_w: string, id: string, opts: { without?: string; kinds?: string[]; sources?: string[] } = {}) => {
-      calls.push(`all:${id}:${opts.without ?? opts.kinds?.join('+') ?? ''}${opts.sources ? `:${opts.sources.join('+')}` : ''}`);
+    syncAppAll: async (
+      _w: string,
+      id: string,
+      opts: { without?: string; kinds?: string[]; sources?: string[] } = {},
+    ) => {
+      calls.push(
+        `all:${id}:${opts.without ?? opts.kinds?.join('+') ?? ''}${opts.sources ? `:${opts.sources.join('+')}` : ''}`,
+      );
       return { plan: [{ kind: 'reviews', state: 'queued', jobId: 'j' }] };
     },
     syncAppProducts: async () => {
@@ -34,10 +43,17 @@ const fake = (over: Record<string, unknown> = {}) => {
 test('the queue goes first (without the app kind), then products, then TestFlight', async () => {
   const { api, calls } = fake();
   const seen: string[] = [];
-  const r = await syncRest(api, 'w', { id: 'a', platform: 'ios' }, 'owner', (k, s) => seen.push(`${k}:${s}`));
+  const r = await syncRest(api, 'w', { id: 'a', platform: 'ios' }, 'owner', (k, s) =>
+    seen.push(`${k}:${s}`),
+  );
   assert.deepEqual(calls, ['all:a:app', 'products', 'testflight']);
   assert.deepEqual(r.extra, { products: 'done', testflight: 'done' });
-  assert.deepEqual(seen, ['products:running', 'products:done', 'testflight:running', 'testflight:done']);
+  assert.deepEqual(seen, [
+    'products:running',
+    'products:done',
+    'testflight:running',
+    'testflight:done',
+  ]);
 });
 
 test('one failure never stops the rest: 4xx is "does not apply", other errors are failures', async () => {
@@ -65,17 +81,24 @@ test('a failed queue request is reported and the browser kinds still run', async
   assert.deepEqual(r.extra, { products: 'done' });
 });
 
-test('a page\'s Sync asks for its kinds only: no queue call for a browser-only page, the queue kinds and sources otherwise', async () => {
+test("a page's Sync asks for its kinds only: no queue call for a browser-only page, the queue kinds and sources otherwise", async () => {
   const one = fake();
-  const r1 = await syncRest(one.api, 'w', { id: 'a', platform: 'ios' }, 'owner', undefined, { kinds: ['products'] });
+  const r1 = await syncRest(one.api, 'w', { id: 'a', platform: 'ios' }, 'owner', undefined, {
+    kinds: ['products'],
+  });
   assert.deepEqual(one.calls, ['products']);
   assert.deepEqual(r1.extra, { products: 'done' });
 
   const two = fake();
-  await syncRest(two.api, 'w', { id: 'a', platform: 'ios' }, 'owner', undefined, { kinds: ['eas', 'testflight'] });
+  await syncRest(two.api, 'w', { id: 'a', platform: 'ios' }, 'owner', undefined, {
+    kinds: ['eas', 'testflight'],
+  });
   assert.deepEqual(two.calls, ['all:a:eas', 'testflight']);
 
   const three = fake();
-  await syncRest(three.api, 'w', { id: 'a', platform: 'android' }, 'owner', undefined, { kinds: ['analytics'], sources: ['play_vitals'] });
+  await syncRest(three.api, 'w', { id: 'a', platform: 'android' }, 'owner', undefined, {
+    kinds: ['analytics'],
+    sources: ['play_vitals'],
+  });
   assert.deepEqual(three.calls, ['all:a:analytics:play_vitals']);
 });

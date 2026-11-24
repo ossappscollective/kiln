@@ -142,13 +142,23 @@ export const timelineMetricDefs: readonly Def[] = [
   { id: 'product_page_views', kind: 'count', num: 'product_page_views' },
   { id: 'downloads_first_time', kind: 'count', num: 'downloads_first_time' },
   { id: 'download_rate', kind: 'ratio', num: 'downloads_first_time', den: 'impressions' },
-  { id: 'product_page_conversion', kind: 'ratio', num: 'downloads_first_time', den: 'product_page_views' },
+  {
+    id: 'product_page_conversion',
+    kind: 'ratio',
+    num: 'downloads_first_time',
+    den: 'product_page_views',
+  },
   { id: 'downloads_redownload', kind: 'count', num: 'downloads_redownload' },
   { id: 'installs_user', kind: 'count', num: 'installs_user' },
   { id: 'store_listing_visitors', kind: 'count', num: 'store_listing_visitors' },
   { id: 'store_listing_acquisitions', kind: 'count', num: 'store_listing_acquisitions' },
   // On Google Play the page download rate is acquisitions over visitors.
-  { id: 'product_page_conversion', kind: 'ratio', num: 'store_listing_acquisitions', den: 'store_listing_visitors' },
+  {
+    id: 'product_page_conversion',
+    kind: 'ratio',
+    num: 'store_listing_acquisitions',
+    den: 'store_listing_visitors',
+  },
   { id: 'sales_units', kind: 'count', num: 'sales_units' },
   { id: 'sales_proceeds', kind: 'level', num: 'sales_proceeds', money: true },
   { id: 'sales_gross', kind: 'level', num: 'sales_gross', money: true },
@@ -174,7 +184,8 @@ export type TimelineMetric = {
 
 const dayMap = (s: SeriesLike | undefined): Map<string, number> => {
   const m = new Map<string, number>();
-  if (s && s.cadence !== 'monthly') for (const p of s.points) if (p.value !== null) m.set(p.date, p.value);
+  if (s && s.cadence !== 'monthly')
+    for (const p of s.points) if (p.value !== null) m.set(p.date, p.value);
   return m;
 };
 
@@ -193,7 +204,15 @@ export function timelineMetricsFrom(series: ReadonlyArray<SeriesLike>): Timeline
         if (s.id.indexOf(`${def.num}:`) !== 0) continue;
         const values = dayMap(s);
         if (values.size === 0) continue;
-        out.push({ id: s.id, metric: def.id, currency: s.id.slice(def.num.length + 1), kind: def.kind, values, denominators: undefined, days: values.size });
+        out.push({
+          id: s.id,
+          metric: def.id,
+          currency: s.id.slice(def.num.length + 1),
+          kind: def.kind,
+          values,
+          denominators: undefined,
+          days: values.size,
+        });
       }
       continue;
     }
@@ -202,13 +221,24 @@ export function timelineMetricsFrom(series: ReadonlyArray<SeriesLike>): Timeline
     const denominators = def.den ? dayMap(byId.get(def.den)) : undefined;
     if (values.size === 0 || (denominators && denominators.size === 0)) continue;
     have.add(def.id);
-    out.push({ id: def.id, metric: def.id, currency: null, kind: def.kind, values, denominators, days: values.size });
+    out.push({
+      id: def.id,
+      metric: def.id,
+      currency: null,
+      kind: def.kind,
+      values,
+      denominators,
+      days: values.size,
+    });
   }
   return out;
 }
 
 /** A rate's chart value for a day: numerator over denominator, null where either is missing or the denominator is zero. */
-export function dailyValue(m: Pick<TimelineMetric, 'values' | 'denominators' | 'kind'>, day: string): number | null {
+export function dailyValue(
+  m: Pick<TimelineMetric, 'values' | 'denominators' | 'kind'>,
+  day: string,
+): number | null {
   const v = m.values.get(day);
   if (v === undefined) return null;
   if (m.kind !== 'ratio') return v;

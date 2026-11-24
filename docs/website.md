@@ -4,15 +4,15 @@ The site at <https://ossappscollective.github.io/kiln/> is built from the `site/
 
 ## Layout
 
-| Path | What it is |
-| --- | --- |
-| `site/build.mjs` | The generator: `node site/build.mjs` writes `site/dist` (git-ignored). |
-| `site/lib/` | The Markdown renderer, link rewriting, search index, page templates and `config.mjs` (site settings and the list of docs pages). |
-| `site/pages/home.html` | The body of the home page. `{{name}}` placeholders are filled by the build, and an unknown name fails the build. |
-| `site/content/` | Docs pages written for the site (getting started, self-hosting, configuration, FAQ, API overview). |
-| `site/static/` | Copied to `dist` as is: `css/`, `js/` and `assets/` (logo, favicon, social image). |
-| `site/test/` | Tests, run with `node --test`. |
-| `site/tools/render-og.py` | Renders `assets/og.png` (needs Python with Pillow and numpy). |
+| Path                      | What it is                                                                                                                       |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `site/build.mjs`          | The generator: `node site/build.mjs` writes `site/dist` (git-ignored).                                                           |
+| `site/lib/`               | The Markdown renderer, link rewriting, search index, page templates and `config.mjs` (site settings and the list of docs pages). |
+| `site/pages/home.html`    | The body of the home page. `{{name}}` placeholders are filled by the build, and an unknown name fails the build.                 |
+| `site/content/`           | Docs pages written for the site (getting started, self-hosting, configuration, FAQ, API overview).                               |
+| `site/static/`            | Copied to `dist` as is: `css/`, `js/` and `assets/` (logo, favicon, social image).                                               |
+| `site/test/`              | Tests, run with `node --test`.                                                                                                   |
+| `site/tools/render-og.py` | Renders `assets/og.png` (needs Python with Pillow and numpy).                                                                    |
 
 ## Build and test
 

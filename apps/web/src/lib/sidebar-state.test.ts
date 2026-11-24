@@ -1,10 +1,19 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { loadCollapsed, parseCollapsed, railApplies, saveCollapsed, sidebarStorageKey } from './sidebar-state.ts';
+import {
+  loadCollapsed,
+  parseCollapsed,
+  railApplies,
+  saveCollapsed,
+  sidebarStorageKey,
+} from './sidebar-state.ts';
 
 const memory = () => {
   const m = new Map<string, string>();
-  return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };
+  return {
+    getItem: (k: string) => m.get(k) ?? null,
+    setItem: (k: string, v: string) => void m.set(k, v),
+  };
 };
 
 test('parseCollapsed reads only the two stored values', () => {

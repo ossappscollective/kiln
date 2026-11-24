@@ -3,7 +3,13 @@
  * lives inside the app page. PendingCart writes it, the button in the top bar reads it; leaving the app clears it, so the
  * button exists only inside an app and only while changes wait.
  */
-export const cartButton = $state<{ visible: boolean; count: number; expanded: boolean; pulse: boolean; press: (() => void) | null }>({
+export const cartButton = $state<{
+  visible: boolean;
+  count: number;
+  expanded: boolean;
+  pulse: boolean;
+  press: (() => void) | null;
+}>({
   visible: false,
   count: 0,
   expanded: false,

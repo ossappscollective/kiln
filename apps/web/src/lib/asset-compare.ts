@@ -32,7 +32,13 @@ export type CompareState =
 /** Most rows the step shows; the Graphics tab has the rest. */
 export const MAX_COMPARE_ROWS = 60;
 
-const ORDER: Record<CompareStatus, number> = { changed: 0, missing: 1, extra: 2, probably: 3, same: 4 };
+const ORDER: Record<CompareStatus, number> = {
+  changed: 0,
+  missing: 1,
+  extra: 2,
+  probably: 3,
+  same: 4,
+};
 
 export function statusOf(set: Pick<AssetDiffSet, 'totals'>): CompareStatus {
   const { totals } = set;
@@ -62,8 +68,10 @@ function detailOf(set: AssetDiffSet): string {
   const { totals } = set;
   const parts: string[] = [];
   if (totals.differs > 0) parts.push(t('release-stepper:sa.row.changed', { n: totals.differs }));
-  if (totals.only_repo > 0) parts.push(t('release-stepper:sa.row.missing', { n: totals.only_repo }));
-  if (totals.only_store > 0) parts.push(t('release-stepper:sa.row.extra', { n: totals.only_store }));
+  if (totals.only_repo > 0)
+    parts.push(t('release-stepper:sa.row.missing', { n: totals.only_repo }));
+  if (totals.only_store > 0)
+    parts.push(t('release-stepper:sa.row.extra', { n: totals.only_store }));
   return formatList(parts);
 }
 
@@ -74,7 +82,10 @@ export function compareRow(set: AssetDiffSet): CompareRow {
     key: `${set.locale}|${set.kind}|${set.device ?? ''}`,
     locale: set.locale,
     language: localeName(set.locale),
-    what: set.kind === 'screenshot' && set.deviceLabel !== '' ? set.deviceLabel : ASSET_KIND_LABELS[set.kind],
+    what:
+      set.kind === 'screenshot' && set.deviceLabel !== ''
+        ? set.deviceLabel
+        : ASSET_KIND_LABELS[set.kind],
     repoCount,
     storeCount,
     status: statusOf(set),
@@ -87,7 +98,19 @@ export function compareState(diff: AssetDiffView): CompareState {
   if (diff.repoStatus === 'no_repository') return { kind: 'no_repository' };
   const rows = diff.sets.map(compareRow).filter((r) => r.repoCount + r.storeCount > 0);
   if (rows.length === 0) return { kind: 'nothing' };
-  rows.sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.locale.localeCompare(b.locale) || a.what.localeCompare(b.what));
-  const needsAttention = rows.filter((r) => r.status === 'changed' || r.status === 'missing').length;
-  return { kind: 'table', rows: rows.slice(0, MAX_COMPARE_ROWS), hidden: Math.max(0, rows.length - MAX_COMPARE_ROWS), needsAttention };
+  rows.sort(
+    (a, b) =>
+      ORDER[a.status] - ORDER[b.status] ||
+      a.locale.localeCompare(b.locale) ||
+      a.what.localeCompare(b.what),
+  );
+  const needsAttention = rows.filter(
+    (r) => r.status === 'changed' || r.status === 'missing',
+  ).length;
+  return {
+    kind: 'table',
+    rows: rows.slice(0, MAX_COMPARE_ROWS),
+    hidden: Math.max(0, rows.length - MAX_COMPARE_ROWS),
+    needsAttention,
+  };
 }

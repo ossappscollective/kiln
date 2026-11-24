@@ -17,10 +17,12 @@ export type RailEntry = {
 export type RailGroup = { id: string; label: string; entries: RailEntry[] };
 
 /** Groups with their empty ones left out. */
-export const nonEmptyGroups = (groups: readonly RailGroup[]): RailGroup[] => groups.filter((g) => g.entries.length > 0);
+export const nonEmptyGroups = (groups: readonly RailGroup[]): RailGroup[] =>
+  groups.filter((g) => g.entries.length > 0);
 
 /** Every entry of the groups, in order. */
-export const railEntries = (groups: readonly RailGroup[]): RailEntry[] => groups.flatMap((g) => g.entries);
+export const railEntries = (groups: readonly RailGroup[]): RailEntry[] =>
+  groups.flatMap((g) => g.entries);
 
 /**
  * The section to draw. The address names one with `?section=`; an older address that named a `?view=` opens the section `aliases` maps it
@@ -55,7 +57,8 @@ export function stepRail(ids: readonly string[], current: string, key: string): 
   if (ids.length === 0) return null;
   const at = Math.max(0, ids.indexOf(current));
   if (key === 'ArrowDown' || key === 'ArrowRight') return ids[(at + 1) % ids.length] ?? null;
-  if (key === 'ArrowUp' || key === 'ArrowLeft') return ids[(at - 1 + ids.length) % ids.length] ?? null;
+  if (key === 'ArrowUp' || key === 'ArrowLeft')
+    return ids[(at - 1 + ids.length) % ids.length] ?? null;
   if (key === 'Home') return ids[0] ?? null;
   if (key === 'End') return ids[ids.length - 1] ?? null;
   return null;

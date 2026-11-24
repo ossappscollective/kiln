@@ -427,6 +427,10 @@ test('monetization.price: owners and admins only, a separate right from the text
   assert.equal(can('viewer', 'monetization.price'), false);
   assert.ok(tokenExplicitOnlyActions.includes('monetization.price'));
   assert.equal(canToken('admin', null, 'monetization.price'), false, 'no list: never');
-  assert.equal(canToken('admin', ['monetization.write'], 'monetization.price'), false, 'the text right is not the price right');
+  assert.equal(
+    canToken('admin', ['monetization.write'], 'monetization.price'),
+    false,
+    'the text right is not the price right',
+  );
   assert.equal(canToken('admin', ['monetization.price'], 'monetization.price'), true);
 });

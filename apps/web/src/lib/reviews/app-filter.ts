@@ -20,10 +20,19 @@ export type AppOption = {
   newCount: number | null;
 };
 
-type AppLike = { id: string; name: string; identifier: string; platform: Platform; iconUrl?: string | null | undefined };
+type AppLike = {
+  id: string;
+  name: string;
+  identifier: string;
+  platform: Platform;
+  iconUrl?: string | null | undefined;
+};
 
 /** The apps the person can see, with their counts from the summary (`GET /reviews/summary`), by name. */
-export function appOptions(apps: readonly AppLike[], summary: readonly SummaryApp[] | null | undefined): AppOption[] {
+export function appOptions(
+  apps: readonly AppLike[],
+  summary: readonly SummaryApp[] | null | undefined,
+): AppOption[] {
   const counts = new Map((summary ?? []).map((s) => [s.app.id, s] as const));
   return apps
     .map((a) => {
@@ -38,13 +47,20 @@ export function appOptions(apps: readonly AppLike[], summary: readonly SummaryAp
         newCount: c ? c.new : null,
       };
     })
-    .sort((x, y) => x.name.localeCompare(y.name) || x.identifier.localeCompare(y.identifier) || x.id.localeCompare(y.id));
+    .sort(
+      (x, y) =>
+        x.name.localeCompare(y.name) ||
+        x.identifier.localeCompare(y.identifier) ||
+        x.id.localeCompare(y.id),
+    );
 }
 
 /** Options whose name or bundle id contains the words typed (case and accents ignored, every word must match). */
 export function matchApps(options: readonly AppOption[], query: string): AppOption[] {
   const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const words = fold(query).split(/\s+/).filter((w) => w !== '');
+  const words = fold(query)
+    .split(/\s+/)
+    .filter((w) => w !== '');
   if (words.length === 0) return [...options];
   return options.filter((o) => {
     const hay = `${fold(o.name)} ${fold(o.identifier)}`;
@@ -55,13 +71,17 @@ export function matchApps(options: readonly AppOption[], query: string): AppOpti
 /** The ids with this one added or removed. */
 export const toggleApp = (ids: readonly string[], id: string): string[] => toggleIn(ids, id);
 
-export const removeApp = (ids: readonly string[], id: string): string[] => ids.filter((x) => x !== id);
+export const removeApp = (ids: readonly string[], id: string): string[] =>
+  ids.filter((x) => x !== id);
 
 /** "All apps": the reset. */
 export const allApps = (): string[] => [];
 
 /** The chosen options, in the order they were chosen; an id that is not a visible app is not a chip. */
-export function selectedOptions(options: readonly AppOption[], ids: readonly string[]): AppOption[] {
+export function selectedOptions(
+  options: readonly AppOption[],
+  ids: readonly string[],
+): AppOption[] {
   const byId = new Map(options.map((o) => [o.id, o] as const));
   return ids.map((id) => byId.get(id)).filter((o): o is AppOption => o !== undefined);
 }
@@ -70,7 +90,11 @@ export function selectedOptions(options: readonly AppOption[], ids: readonly str
  * Ids of the address that are not apps this person can see (another workspace, a deleted app, a token limited to other apps) are dropped,
  * so a shared link never shows a phantom chip and never asks the server for an app the person cannot see. Only once the apps are known.
  */
-export function pruneAppIds(ids: readonly string[], options: readonly AppOption[], known: boolean): string[] {
+export function pruneAppIds(
+  ids: readonly string[],
+  options: readonly AppOption[],
+  known: boolean,
+): string[] {
   if (!known) return [...ids];
   const visible = new Set(options.map((o) => o.id));
   return ids.filter((id) => visible.has(id));

@@ -361,12 +361,14 @@ The one **Sync** of the app in the web app (header button). Needs `apps.sync`; n
 It reads no store itself: it queues one job per kind the app has, in the order the worker ranks them (critical first), and answers `202` at once:
 
 ```json
-{ "plan": [
-  { "kind": "app", "state": "queued", "jobId": "…" },
-  { "kind": "reviews", "state": "queued", "jobId": "…" },
-  { "kind": "eas", "state": "skipped", "reason": "not_linked" },
-  { "kind": "analytics", "state": "skipped", "reason": "forbidden" }
-] }
+{
+  "plan": [
+    { "kind": "app", "state": "queued", "jobId": "…" },
+    { "kind": "reviews", "state": "queued", "jobId": "…" },
+    { "kind": "eas", "state": "skipped", "reason": "not_linked" },
+    { "kind": "analytics", "state": "skipped", "reason": "forbidden" }
+  ]
+}
 ```
 
 Kinds: `app` (store listing and release state, queue `app.sync`), `reviews` (`review.sync`, needs `reviews.sync`), `eas` (`eas.status`, only for an app

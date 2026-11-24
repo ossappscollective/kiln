@@ -19,13 +19,24 @@ const parseDay = (v: string) => Date.parse(`${v}T00:00:00Z`);
 const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 /** A valid window of at most a year, or null. */
-export function parseWindow(from: string | undefined, to: string | undefined, fallbackEnd: string, defaultDays = 30): AdsWindow | null {
+export function parseWindow(
+  from: string | undefined,
+  to: string | undefined,
+  fallbackEnd: string,
+  defaultDays = 30,
+): AdsWindow | null {
   const end = to ?? fallbackEnd;
   const start = from ?? isoDay(parseDay(end) - (defaultDays - 1) * DAY_MS);
   if (!ISO.test(start) || !ISO.test(end)) return null;
   const a = parseDay(start);
   const b = parseDay(end);
-  if (!Number.isFinite(a) || !Number.isFinite(b) || a > b || (b - a) / DAY_MS + 1 > ADS_MAX_QUERY_DAYS) return null;
+  if (
+    !Number.isFinite(a) ||
+    !Number.isFinite(b) ||
+    a > b ||
+    (b - a) / DAY_MS + 1 > ADS_MAX_QUERY_DAYS
+  )
+    return null;
   return { from: start, to: end };
 }
 
@@ -72,11 +83,14 @@ function totalsOf(r: Record<string, unknown> | undefined): AdsTotals {
   };
 }
 
-const SUMS = 'SUM(impressions) AS impressions, SUM(taps) AS taps, SUM(installs) AS installs, SUM(tap_installs) AS tap_installs, SUM(spend_micros) AS spend_micros';
+const SUMS =
+  'SUM(impressions) AS impressions, SUM(taps) AS taps, SUM(installs) AS installs, SUM(tap_installs) AS tap_installs, SUM(spend_micros) AS spend_micros';
 
 /** `AND (currency = ? OR currency IS NULL)` for a link with a currency. */
 const currencyClause = (link: AdsLinkView): { sql: string; args: string[] } =>
-  link.currency ? { sql: ' AND (currency = ? OR currency IS NULL)', args: [link.currency] } : { sql: '', args: [] };
+  link.currency
+    ? { sql: ' AND (currency = ? OR currency IS NULL)', args: [link.currency] }
+    : { sql: '', args: [] };
 
 export type AdsSyncView = {
   lastAttemptAt: number | null;
@@ -92,15 +106,24 @@ export type AdsSyncView = {
   warnings: string[];
 };
 
-const optionalNumber = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
+const optionalNumber = (v: unknown): number | null =>
+  v === null || v === undefined ? null : Number(v);
 
-export async function getAdsSync(sql: Sql, workspaceId: string, appId: string): Promise<AdsSyncView | null> {
-  const [r] = await sql.query('SELECT * FROM ads_sync WHERE app_id = ? AND workspace_id = ?', [appId, workspaceId]);
+export async function getAdsSync(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<AdsSyncView | null> {
+  const [r] = await sql.query('SELECT * FROM ads_sync WHERE app_id = ? AND workspace_id = ?', [
+    appId,
+    workspaceId,
+  ]);
   if (!r) return null;
   let warnings: string[] = [];
   try {
     const parsed: unknown = JSON.parse(String(r.warnings ?? '[]'));
-    if (Array.isArray(parsed)) warnings = parsed.filter((w): w is string => typeof w === 'string').slice(0, 20);
+    if (Array.isArray(parsed))
+      warnings = parsed.filter((w): w is string => typeof w === 'string').slice(0, 20);
   } catch {
     warnings = [];
   }
@@ -119,7 +142,13 @@ export async function getAdsSync(sql: Sql, workspaceId: string, appId: string): 
   };
 }
 
-export type AdsDailyPoint = { day: string; impressions: number; taps: number; installs: number; spendMicros: number };
+export type AdsDailyPoint = {
+  day: string;
+  impressions: number;
+  taps: number;
+  installs: number;
+  spendMicros: number;
+};
 
 export type AdsOverview = {
   currency: string | null;
@@ -133,28 +162,64 @@ export type AdsOverview = {
   campaigns: number;
 };
 
-export async function adsOverview(sql: Sql, workspaceId: string, appId: string, link: AdsLinkView, window: AdsWindow): Promise<AdsOverview> {
+export async function adsOverview(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+  link: AdsLinkView,
+  window: AdsWindow,
+): Promise<AdsOverview> {
   const cur = currencyClause(link);
   const prev = previousWindow(window);
   const base = `FROM ads_campaign_daily WHERE workspace_id = ? AND app_id = ? AND day >= ? AND day <= ?${cur.sql}`;
-  const sum = async (w: AdsWindow) => (await sql.query(`SELECT ${SUMS} ${base}`, [workspaceId, appId, w.from, w.to, ...cur.args]))[0];
-  const daily = await sql.query(`SELECT day, ${SUMS} ${base} GROUP BY day ORDER BY day`, [workspaceId, appId, window.from, window.to, ...cur.args]);
-  const [count] = await sql.query(`SELECT COUNT(DISTINCT campaign_id) AS campaigns ${base}`, [workspaceId, appId, window.from, window.to, ...cur.args]);
+  const sum = async (w: AdsWindow) =>
+    (await sql.query(`SELECT ${SUMS} ${base}`, [workspaceId, appId, w.from, w.to, ...cur.args]))[0];
+  const daily = await sql.query(`SELECT day, ${SUMS} ${base} GROUP BY day ORDER BY day`, [
+    workspaceId,
+    appId,
+    window.from,
+    window.to,
+    ...cur.args,
+  ]);
+  const [count] = await sql.query(`SELECT COUNT(DISTINCT campaign_id) AS campaigns ${base}`, [
+    workspaceId,
+    appId,
+    window.from,
+    window.to,
+    ...cur.args,
+  ]);
   return {
     currency: link.currency,
     window,
     previousWindow: prev,
     totals: totalsOf(await sum(window)),
     previous: totalsOf(await sum(prev)),
-    daily: daily.map((d) => ({ day: String(d.day), impressions: num(d.impressions), taps: num(d.taps), installs: num(d.installs), spendMicros: num(d.spend_micros) })),
+    daily: daily.map((d) => ({
+      day: String(d.day),
+      impressions: num(d.impressions),
+      taps: num(d.taps),
+      installs: num(d.installs),
+      spendMicros: num(d.spend_micros),
+    })),
     daysWithData: daily.length,
     campaigns: num(count?.campaigns),
   };
 }
 
-export type AdsCampaignRow = AdsTotals & { campaignId: string; name: string; status: string | null; daysWithData: number };
+export type AdsCampaignRow = AdsTotals & {
+  campaignId: string;
+  name: string;
+  status: string | null;
+  daysWithData: number;
+};
 
-export async function adsCampaigns(sql: Sql, workspaceId: string, appId: string, link: AdsLinkView, window: AdsWindow): Promise<AdsCampaignRow[]> {
+export async function adsCampaigns(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+  link: AdsLinkView,
+  window: AdsWindow,
+): Promise<AdsCampaignRow[]> {
   const cur = currencyClause(link);
   const rows = await sql.query(
     `SELECT campaign_id, MAX(name) AS name, MAX(status) AS status, COUNT(DISTINCT day) AS days, ${SUMS}
@@ -162,10 +227,25 @@ export async function adsCampaigns(sql: Sql, workspaceId: string, appId: string,
       GROUP BY campaign_id ORDER BY SUM(spend_micros) DESC, campaign_id`,
     [workspaceId, appId, window.from, window.to, ...cur.args],
   );
-  return rows.map((r) => ({ ...totalsOf(r), campaignId: String(r.campaign_id), name: String(r.name), status: nullableString(r.status), daysWithData: num(r.days) }));
+  return rows.map((r) => ({
+    ...totalsOf(r),
+    campaignId: String(r.campaign_id),
+    name: String(r.name),
+    status: nullableString(r.status),
+    daysWithData: num(r.days),
+  }));
 }
 
-export const TERM_SORTS = ['impressions', 'taps', 'installs', 'spend', 'cpt', 'cpi', 'ttr', 'term'] as const;
+export const TERM_SORTS = [
+  'impressions',
+  'taps',
+  'installs',
+  'spend',
+  'cpt',
+  'cpi',
+  'ttr',
+  'term',
+] as const;
 export type TermSort = (typeof TERM_SORTS)[number];
 
 const SORT_SQL: Record<TermSort, string> = {
@@ -206,10 +286,25 @@ export type AdsTermRow = AdsTotals & {
 
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (m) => `\\${m}`);
 
-export async function adsTerms(sql: Sql, workspaceId: string, appId: string, link: AdsLinkView, query: AdsTermQuery) {
+export async function adsTerms(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+  link: AdsLinkView,
+  query: AdsTermQuery,
+) {
   const cur = currencyClause(link);
-  const where = [`workspace_id = ? AND app_id = ? AND kind = ? AND day >= ? AND day <= ?${cur.sql}`];
-  const args: unknown[] = [workspaceId, appId, query.kind, query.window.from, query.window.to, ...cur.args];
+  const where = [
+    `workspace_id = ? AND app_id = ? AND kind = ? AND day >= ? AND day <= ?${cur.sql}`,
+  ];
+  const args: unknown[] = [
+    workspaceId,
+    appId,
+    query.kind,
+    query.window.from,
+    query.window.to,
+    ...cur.args,
+  ];
   if (query.country !== undefined) {
     where.push('country = ?');
     args.push(query.country);
@@ -223,7 +318,10 @@ export async function adsTerms(sql: Sql, workspaceId: string, appId: string, lin
     args.push(`%${escapeLike(query.q.trim().toLowerCase())}%`);
   }
   const from = `FROM ads_term_daily WHERE ${where.join(' AND ')} GROUP BY term_key, country`;
-  const [count] = await sql.query(`SELECT COUNT(*) AS n FROM (SELECT 1 ${from}) x`, args as never[]);
+  const [count] = await sql.query(
+    `SELECT COUNT(*) AS n FROM (SELECT 1 ${from}) x`,
+    args as never[],
+  );
   const order = `${SORT_SQL[query.sort]} ${query.dir === 'asc' ? 'ASC' : 'DESC'}, MAX(term) ASC, country ASC`;
   const rows = await sql.query(
     `SELECT term_key, country, MAX(term) AS term, MAX(match_type) AS match_type, MAX(keyword_text) AS keyword_text, ${SUMS} ${from} ORDER BY ${order} LIMIT ? OFFSET ?`,
@@ -237,7 +335,10 @@ export async function adsTerms(sql: Sql, workspaceId: string, appId: string, lin
       trackedKeys.add(k.key);
     }
   }
-  const [totals] = await sql.query(`SELECT ${SUMS} FROM ads_term_daily WHERE ${where.join(' AND ')}`, args as never[]);
+  const [totals] = await sql.query(
+    `SELECT ${SUMS} FROM ads_term_daily WHERE ${where.join(' AND ')}`,
+    args as never[],
+  );
   return {
     total: num(count?.n),
     totals: totalsOf(totals),
@@ -250,7 +351,10 @@ export async function adsTerms(sql: Sql, workspaceId: string, appId: string, lin
         country: String(r.country),
         matchType: nullableString(r.match_type),
         keywordText: nullableString(r.keyword_text),
-        tracked: query.kind === 'term' && (tracked.has(`${String(r.country)}|${String(r.term_key)}`) || (String(r.country) === '' && trackedKeys.has(String(r.term_key)))),
+        tracked:
+          query.kind === 'term' &&
+          (tracked.has(`${String(r.country)}|${String(r.term_key)}`) ||
+            (String(r.country) === '' && trackedKeys.has(String(r.term_key)))),
       }),
     ),
   };
@@ -270,14 +374,29 @@ export async function adsSignalFor(
     [workspaceId, appId, termKey, country],
   );
   if (!r || num(r.n) === 0) return null;
-  const days = Math.max(1, Math.round((parseDay(String(r.last)) - parseDay(String(r.first))) / DAY_MS) + 1);
+  const days = Math.max(
+    1,
+    Math.round((parseDay(String(r.last)) - parseDay(String(r.first))) / DAY_MS) + 1,
+  );
   return { impressions: num(r.impressions), taps: num(r.taps), installs: num(r.installs), days };
 }
 
-export type AdsPopularityView = { genre: string; period: string | null; popularity100: number | null; popularity5: number | null; rankInGenre: number | null; fetchedAt: number };
+export type AdsPopularityView = {
+  genre: string;
+  period: string | null;
+  popularity100: number | null;
+  popularity5: number | null;
+  rankInGenre: number | null;
+  fetchedAt: number;
+};
 
 /** Apple's own popularity rows of a term in a storefront, highest score first. Never merged into an estimate. */
-export async function adsPopularityFor(sql: Sql, workspaceId: string, termKey: string, country: string): Promise<AdsPopularityView[]> {
+export async function adsPopularityFor(
+  sql: Sql,
+  workspaceId: string,
+  termKey: string,
+  country: string,
+): Promise<AdsPopularityView[]> {
   const rows = await sql.query(
     'SELECT genre, period, popularity_100, popularity_5, rank_in_genre, fetched_at FROM ads_term_popularity WHERE workspace_id = ? AND country = ? AND term_key = ? ORDER BY popularity_100 DESC',
     [workspaceId, country, termKey],

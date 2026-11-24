@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { complaintThemes, foldText, themesOf } from './review-themes.ts';
 
 test('folds case, accents, umlauts and punctuation', () => {
-  assert.equal(foldText("Ça PLANTE, Stürzt ab!"), ' ca plante sturzt ab ');
+  assert.equal(foldText('Ça PLANTE, Stürzt ab!'), ' ca plante sturzt ab ');
   assert.equal(foldText('Straße'), ' strasse ');
 });
 
@@ -34,7 +34,7 @@ test('bugs, sign in, lost data, price, ads, speed and updates in the four langua
   assert.ok(themesOf('Muchos anuncios').includes('ads'));
   assert.ok(themesOf('Viel zu viel Werbung').includes('ads'));
   assert.ok(themesOf('So slow and drains my battery').includes('performance'));
-  assert.ok(themesOf("Très lent, la batterie fond").includes('performance'));
+  assert.ok(themesOf('Très lent, la batterie fond').includes('performance'));
   assert.ok(themesOf('Seit dem Update geht nichts mehr').includes('update'));
   assert.ok(themesOf('Depuis la mise à jour, tout est cassé').includes('update'));
 });

@@ -126,13 +126,23 @@ test('a 429 with Retry-After pauses every request to that host, and only that ho
 
 test('the pause is capped, and an aborted caller does not wait it out', async () => {
   let clock = 0;
-  const gate = createHostGate({ now: () => clock, sleep: async (ms) => void (clock += ms), maxCooldownMs: 3_000 });
-  const f = gate.wrap((async () => new Response('', { status: 429, headers: { 'retry-after': '600' } })) as typeof fetch);
+  const gate = createHostGate({
+    now: () => clock,
+    sleep: async (ms) => void (clock += ms),
+    maxCooldownMs: 3_000,
+  });
+  const f = gate.wrap(
+    (async () =>
+      new Response('', { status: 429, headers: { 'retry-after': '600' } })) as typeof fetch,
+  );
   await f('https://api.appstoreconnect.apple.com/a');
   assert.equal(gate.stats().apple.pausedUntil, 3_000);
   const controller = new AbortController();
   controller.abort();
-  await assert.rejects(f('https://api.appstoreconnect.apple.com/b', { signal: controller.signal }), /stopped/);
+  await assert.rejects(
+    f('https://api.appstoreconnect.apple.com/b', { signal: controller.signal }),
+    /stopped/,
+  );
 });
 
 test('credentialLane lets perCredential reads of one key run at once and other keys run freely', async () => {
@@ -156,7 +166,10 @@ test('credentialLane lets perCredential reads of one key run at once and other k
 test('syncActivity lists the feeds being read in one workspace until they end', () => {
   const end = syncActivity.begin('ws-act', 'app-1', 'reviews', 5);
   const other = syncActivity.begin('ws-other', 'app-2', 'analytics', 5);
-  assert.deepEqual(syncActivity.list('ws-act').map((e) => [e.appId, e.feed]), [['app-1', 'reviews']]);
+  assert.deepEqual(
+    syncActivity.list('ws-act').map((e) => [e.appId, e.feed]),
+    [['app-1', 'reviews']],
+  );
   end();
   other();
   assert.deepEqual(syncActivity.list('ws-act'), []);

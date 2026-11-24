@@ -243,7 +243,11 @@ dbTest(
     );
     assert.equal(sales.setup.code, 'play_sales_forbidden');
     assert.equal(sales.setup.nextStep, 'grant_play_financial_permission');
-    assert.equal(sales.setup.optional, false, 'a configured source that is refused is a fault to fix, not an option');
+    assert.equal(
+      sales.setup.optional,
+      false,
+      'a configured source that is refused is a fault to fix, not an option',
+    );
     assert.match(sales.setup.message, /View financial data/);
     assert.match(sales.lastError.message, /Global/);
     const product = await t.call(t.owner, 'GET', `/apps/${appId}/analytics/product-sales`);

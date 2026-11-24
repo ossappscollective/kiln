@@ -54,7 +54,11 @@ import type { ReportApi } from './timeline/report.ts';
 import type { AssetProposalView, ManualEventKind, ProposalState } from '@kiln/core';
 import type { TimelineApi } from './timeline/timeline.ts';
 import type { ListingFixesView } from './listing/fixes.ts';
-import type { CountriesView as InsightsCountriesView, InsightsView, ListingChecksView } from './insights/insights.ts';
+import type {
+  CountriesView as InsightsCountriesView,
+  InsightsView,
+  ListingChecksView,
+} from './insights/insights.ts';
 import type {
   AsoAddResult,
   AsoCoachResponse,
@@ -209,7 +213,12 @@ import type {
   TriageInput,
 } from './testflight.ts';
 import type { VersionPreview, VersionResult } from './store-version.ts';
-import { announceCartAdded, type CartDetail, type CartResponse, type CartResultResponse } from './pending-cart.ts';
+import {
+  announceCartAdded,
+  type CartDetail,
+  type CartResponse,
+  type CartResultResponse,
+} from './pending-cart.ts';
 import type { PendingItemDetail } from './pending-preview.ts';
 import { announceStagedChanged, type StagedChangeReason } from './staged-sync.ts';
 import type { ProposalSummary } from './asset-proposal-hint.ts';
@@ -588,7 +597,11 @@ function uploadQueryText(q: UploadQuery): string {
 }
 
 /** Which release the asset proposal is for: the version (App Store), the track (Google Play) and the chosen build number. */
-export type ReleaseAssetRef = { version?: string | null; track?: string | null; build?: string | null };
+export type ReleaseAssetRef = {
+  version?: string | null;
+  track?: string | null;
+  build?: string | null;
+};
 const releaseAssetQuery = (r: ReleaseAssetRef): string => {
   const parts: string[] = [];
   if (r.version) parts.push(`version=${encodeURIComponent(r.version)}`);
@@ -739,8 +752,7 @@ export function createApi(options: ApiOptions = {}) {
     logout: () => request<void>('POST', '/api/auth/logout'),
     me: () => request<Me>('GET', '/api/me'),
     /** The language of emails the server sends without a request (alerts, the digest); null clears it. */
-    setMyLocale: (locale: string | null) =>
-      request<{ user: User }>('PATCH', '/api/me', { locale }),
+    setMyLocale: (locale: string | null) => request<{ user: User }>('PATCH', '/api/me', { locale }),
     credentials: (workspaceId: string) =>
       request<{ credentials: CredentialSummary[] }>('GET', `${workspace(workspaceId)}/credentials`),
     addCredential: (workspaceId: string, input: { kind: string; label: string; secret: string }) =>
@@ -1010,13 +1022,20 @@ export function createApi(options: ApiOptions = {}) {
         `${workspace(workspaceId)}/sync/activity`,
       ),
     /** The one "Sync" of an app: queues its jobs (critical first) and answers at once with the plan (docs/api/apps.md). `without: 'app'` when the caller ran the app sync itself; `kinds` (and, for analytics, `sources`) when only those are wanted (the page-scoped Sync). */
-    syncAppAll: (workspaceId: string, id: string, opts: { without?: 'app'; kinds?: readonly string[]; sources?: readonly string[] } = {}) => {
+    syncAppAll: (
+      workspaceId: string,
+      id: string,
+      opts: { without?: 'app'; kinds?: readonly string[]; sources?: readonly string[] } = {},
+    ) => {
       const query = new URLSearchParams();
       if (opts.without) query.set('without', opts.without);
       if (opts.kinds && opts.kinds.length > 0) query.set('kinds', opts.kinds.join(','));
       if (opts.sources && opts.sources.length > 0) query.set('sources', opts.sources.join(','));
       const qs = query.toString();
-      return request<{ plan: SyncPlanEntry[] }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(id)}/sync-all${qs ? `?${qs}` : ''}`);
+      return request<{ plan: SyncPlanEntry[] }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(id)}/sync-all${qs ? `?${qs}` : ''}`,
+      );
     },
     /** Reads the store with the app's credential and replaces the stored snapshot. Can take seconds. */
     syncApp: (workspaceId: string, id: string) =>
@@ -1536,9 +1555,16 @@ export function createApi(options: ApiOptions = {}) {
       ),
     // Chat destinations (Slack, Teams). The webhook address is sent when saving and never comes back (only its last four characters).
     chatDestinations: (workspaceId: string) =>
-      request<{ destinations: ChatDestination[] }>('GET', `${workspace(workspaceId)}/chat/destinations`),
+      request<{ destinations: ChatDestination[] }>(
+        'GET',
+        `${workspace(workspaceId)}/chat/destinations`,
+      ),
     createChatDestination: (workspaceId: string, input: Record<string, unknown>) =>
-      request<{ destination: ChatDestination }>('POST', `${workspace(workspaceId)}/chat/destinations`, input),
+      request<{ destination: ChatDestination }>(
+        'POST',
+        `${workspace(workspaceId)}/chat/destinations`,
+        input,
+      ),
     updateChatDestination: (workspaceId: string, id: string, patch: Record<string, unknown>) =>
       request<{ destination: ChatDestination }>(
         'PATCH',
@@ -1552,7 +1578,10 @@ export function createApi(options: ApiOptions = {}) {
         { routes },
       ),
     deleteChatDestination: (workspaceId: string, id: string) =>
-      request<void>('DELETE', `${workspace(workspaceId)}/chat/destinations/${encodeURIComponent(id)}`),
+      request<void>(
+        'DELETE',
+        `${workspace(workspaceId)}/chat/destinations/${encodeURIComponent(id)}`,
+      ),
     testChatDestination: (workspaceId: string, id: string) =>
       request<{ deliveryId: string }>(
         'POST',
@@ -1591,7 +1620,10 @@ export function createApi(options: ApiOptions = {}) {
         body,
       ).then(addedToCart(appId)),
     listingFixes: (workspaceId: string, appId: string) =>
-      request<ListingFixesView>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing/fixes`),
+      request<ListingFixesView>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing/fixes`,
+      ),
     stageListingFix: (
       workspaceId: string,
       appId: string,
@@ -1603,7 +1635,12 @@ export function createApi(options: ApiOptions = {}) {
         body,
       ).then(addedToCart(appId)),
     /** The store assets that changed in the repository since the previous release (docs/api/release-asset-proposal.md). Reads; stages nothing. */
-    releaseAssetProposal: (workspaceId: string, appId: string, release: ReleaseAssetRef, signal?: AbortSignal) =>
+    releaseAssetProposal: (
+      workspaceId: string,
+      appId: string,
+      release: ReleaseAssetRef,
+      signal?: AbortSignal,
+    ) =>
       request<{ proposal: AssetProposalView }>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/asset-proposal${releaseAssetQuery(release)}`,
@@ -1624,7 +1661,10 @@ export function createApi(options: ApiOptions = {}) {
       body: ReleaseAssetRef & { itemIds: string[]; acceptIssues?: boolean },
       signal?: AbortSignal,
     ) =>
-      request<{ results: { id: string; status: string; code?: string }[]; proposal?: AssetProposalView }>(
+      request<{
+        results: { id: string; status: string; code?: string }[];
+        proposal?: AssetProposalView;
+      }>(
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/asset-proposal/stage`,
         body,
@@ -1632,7 +1672,12 @@ export function createApi(options: ApiOptions = {}) {
         undefined,
         signal,
       ).then(addedToCart(appId)),
-    decideReleaseAssetProposal: (workspaceId: string, appId: string, body: { version?: string | null; track?: string | null; mode: 'skip' | 'later' | 'reopen' }, signal?: AbortSignal) =>
+    decideReleaseAssetProposal: (
+      workspaceId: string,
+      appId: string,
+      body: { version?: string | null; track?: string | null; mode: 'skip' | 'later' | 'reopen' },
+      signal?: AbortSignal,
+    ) =>
       request<{ state: ProposalState }>(
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/asset-proposal/dismiss`,
@@ -1707,7 +1752,14 @@ export function createApi(options: ApiOptions = {}) {
     moveStagedAssetFile: (
       workspaceId: string,
       appId: string,
-      body: { locale: string; kind: string; device: string | null; from: number; to: number; base?: 'store' },
+      body: {
+        locale: string;
+        kind: string;
+        device: string | null;
+        from: number;
+        to: number;
+        base?: 'store';
+      },
     ) =>
       request<{ staged: StagedChangesView }>(
         'POST',
@@ -2295,7 +2347,11 @@ export function createApi(options: ApiOptions = {}) {
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing-settings`,
       ),
-    updateAppListingSettings: (workspaceId: string, appId: string, changes: Partial<AppListingSettings>) =>
+    updateAppListingSettings: (
+      workspaceId: string,
+      appId: string,
+      changes: Partial<AppListingSettings>,
+    ) =>
       request<{ settings: AppListingSettings; changed: string[] }>(
         'PUT',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing-settings`,
@@ -2303,7 +2359,10 @@ export function createApi(options: ApiOptions = {}) {
       ),
     // How the interface is tinted per app (docs/adr/0068-app-tint.md): the overrides of the workspace in one read, and one app's value.
     appAppearances: (workspaceId: string) =>
-      request<{ apps: Record<string, AppAppearance> }>('GET', `${workspace(workspaceId)}/apps/appearance`),
+      request<{ apps: Record<string, AppAppearance> }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/appearance`,
+      ),
     updateAppAppearance: (workspaceId: string, appId: string, value: AppAppearance) =>
       request<{ appearance: AppAppearance; changed: boolean }>(
         'PUT',
@@ -2360,15 +2419,32 @@ export function createApi(options: ApiOptions = {}) {
       ),
     /** What reviews of this app may be sent to the AI provider, the workspace ceiling and what is in force (docs/adr/0065). */
     appAiReviewPrivacy: (workspaceId: string, appId: string) =>
-      request<ReviewPrivacyView>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/review-privacy`),
-    updateAppAiReviewPrivacy: (workspaceId: string, appId: string, changes: Record<string, unknown>) =>
-      request<ReviewPrivacyView>('PUT', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/review-privacy`, changes),
+      request<ReviewPrivacyView>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/review-privacy`,
+      ),
+    updateAppAiReviewPrivacy: (
+      workspaceId: string,
+      appId: string,
+      changes: Record<string, unknown>,
+    ) =>
+      request<ReviewPrivacyView>(
+        'PUT',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/review-privacy`,
+        changes,
+      ),
     /** The first three reviews as they would be sent under the policy in force. Contacts no provider. */
     previewAppAiReviewPrivacy: (workspaceId: string, appId: string) =>
-      request<{ preview: ReviewPayloadPreview }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/review-privacy/preview`),
+      request<{ preview: ReviewPayloadPreview }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/review-privacy/preview`,
+      ),
     /** Deletes the stored review summaries and what-to-fix reports of the app. */
     deleteAppAiSummaries: (workspaceId: string, appId: string) =>
-      request<{ deleted: number }>('DELETE', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/summaries`),
+      request<{ deleted: number }>(
+        'DELETE',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/summaries`,
+      ),
     /** The tags the assistant gave reviews earlier (advisory). Reads our own database: no provider is contacted. */
     reviewAiTags: (workspaceId: string, appId: string, reviewIds: string[]) =>
       request<{ tags: AiReviewTagView[] }>(
@@ -2437,12 +2513,21 @@ export function createApi(options: ApiOptions = {}) {
     asoKeywordEstimates: (workspaceId: string, appId: string) =>
       request<EstimatesResponse>('GET', `${asoPath(workspaceId, appId)}/keyword-estimates`),
     asoKeywordEstimate: (workspaceId: string, appId: string, keywordId: string) =>
-      request<EstimateDetail>('GET', `${asoPath(workspaceId, appId)}/keywords/${encodeURIComponent(keywordId)}/estimate`),
+      request<EstimateDetail>(
+        'GET',
+        `${asoPath(workspaceId, appId)}/keywords/${encodeURIComponent(keywordId)}/estimate`,
+      ),
     asoKeywordSuggestions: (workspaceId: string, appId: string, limit = 30) =>
-      request<SuggestionsResponse>('GET', `${asoPath(workspaceId, appId)}/keyword-suggestions?limit=${limit}`),
+      request<SuggestionsResponse>(
+        'GET',
+        `${asoPath(workspaceId, appId)}/keyword-suggestions?limit=${limit}`,
+      ),
     /** Reviews of the followed App Store competitors, from what is stored (no store is called). */
     asoCompetitorReviews: (workspaceId: string, appId: string, days = 28) =>
-      request<CompetitorReviewsView>('GET', `${asoPath(workspaceId, appId)}/competitor-reviews?days=${days}`),
+      request<CompetitorReviewsView>(
+        'GET',
+        `${asoPath(workspaceId, appId)}/competitor-reviews?days=${days}`,
+      ),
     /** Reads Apple's public reviews feed once for a competitor (at most once per 15 minutes). */
     refreshAsoCompetitorReviews: (workspaceId: string, appId: string, competitorId: string) =>
       request<CompetitorReviewsRefresh>(
@@ -2451,11 +2536,31 @@ export function createApi(options: ApiOptions = {}) {
       ),
     /** The schedule of the reads of competitor reviews and the state of each competitor (Apple only; docs/adr/0065). */
     asoCompetitorReviewSchedule: (workspaceId: string, appId: string) =>
-      request<ReviewScheduleView>('GET', `${asoPath(workspaceId, appId)}/competitor-review-schedule`),
-    updateAsoCompetitorReviewSchedule: (workspaceId: string, appId: string, changes: Record<string, unknown>) =>
-      request<ReviewScheduleView>('PUT', `${asoPath(workspaceId, appId)}/competitor-review-schedule`, changes),
-    updateAsoCompetitorReviewOverride: (workspaceId: string, appId: string, competitorId: string, body: { mode: 'off' | 'daily' | 'weekly' | null; weekday?: number | null }) =>
-      request<ReviewScheduleView>('PUT', `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}/review-schedule`, body),
+      request<ReviewScheduleView>(
+        'GET',
+        `${asoPath(workspaceId, appId)}/competitor-review-schedule`,
+      ),
+    updateAsoCompetitorReviewSchedule: (
+      workspaceId: string,
+      appId: string,
+      changes: Record<string, unknown>,
+    ) =>
+      request<ReviewScheduleView>(
+        'PUT',
+        `${asoPath(workspaceId, appId)}/competitor-review-schedule`,
+        changes,
+      ),
+    updateAsoCompetitorReviewOverride: (
+      workspaceId: string,
+      appId: string,
+      competitorId: string,
+      body: { mode: 'off' | 'daily' | 'weekly' | null; weekday?: number | null },
+    ) =>
+      request<ReviewScheduleView>(
+        'PUT',
+        `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}/review-schedule`,
+        body,
+      ),
     asoCompetitors: (workspaceId: string, appId: string) =>
       request<{ competitors: AsoCompetitor[]; limits: { maxCompetitorsPerApp: number } }>(
         'GET',
@@ -2499,7 +2604,13 @@ export function createApi(options: ApiOptions = {}) {
         `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}/history?limit=${limit}`,
       ),
     /** The listing changes Kiln found on an App Store competitor, newest first (reads what is stored). `before` is the `detectedAt` of the last one you have. */
-    asoCompetitorChanges: (workspaceId: string, appId: string, competitorId: string, limit = 10, before?: number) =>
+    asoCompetitorChanges: (
+      workspaceId: string,
+      appId: string,
+      competitorId: string,
+      limit = 10,
+      before?: number,
+    ) =>
       request<CompetitorChangesPage>(
         'GET',
         `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}/changes?limit=${limit}${before === undefined ? '' : `&before=${before}`}`,
@@ -2649,11 +2760,15 @@ export function createApi(options: ApiOptions = {}) {
       ),
     // "Test access": ONE cheap call for one source, answered with a classified code (never the store's text). Needs `analytics.manage`.
     testAnalyticsAccess: (workspaceId: string, appId: string, source: string) =>
-      request<{ result: { source: string; ok: boolean; code: string; message: string; serviceAccountEmail?: string } }>(
-        'POST',
-        `${analyticsPath(workspaceId, appId)}/access-test`,
-        { source },
-      ),
+      request<{
+        result: {
+          source: string;
+          ok: boolean;
+          code: string;
+          message: string;
+          serviceAccountEmail?: string;
+        };
+      }>('POST', `${analyticsPath(workspaceId, appId)}/access-test`, { source }),
     previewAppleEnable: (workspaceId: string, appId: string, backfill = false) =>
       request<EnablePreview>(
         'GET',
@@ -2740,19 +2855,38 @@ export function createApi(options: ApiOptions = {}) {
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo/detect`,
       ),
     // Apple Ads, read only (docs/api/apple-ads.md). The state, the views and the sync need `apps.read`, `aso.read` and `apps.sync`; linking needs `apps.write`.
-    adsState: (workspaceId: string, appId: string) => request<AdsState>('GET', `${adsPath(workspaceId, appId)}`),
+    adsState: (workspaceId: string, appId: string) =>
+      request<AdsState>('GET', `${adsPath(workspaceId, appId)}`),
     adsAccounts: (workspaceId: string, appId: string, credentialId: string) =>
-      request<{ accounts: AdsAccount[] }>('GET', `${adsPath(workspaceId, appId)}/accounts?credentialId=${encodeURIComponent(credentialId)}`),
-    setAdsLink: (workspaceId: string, appId: string, body: SetAdsLinkBody) => request<{ link: AdsLinkView }>('PUT', adsPath(workspaceId, appId), body),
-    removeAdsLink: (workspaceId: string, appId: string) => request<void>('DELETE', adsPath(workspaceId, appId)),
+      request<{ accounts: AdsAccount[] }>(
+        'GET',
+        `${adsPath(workspaceId, appId)}/accounts?credentialId=${encodeURIComponent(credentialId)}`,
+      ),
+    setAdsLink: (workspaceId: string, appId: string, body: SetAdsLinkBody) =>
+      request<{ link: AdsLinkView }>('PUT', adsPath(workspaceId, appId), body),
+    removeAdsLink: (workspaceId: string, appId: string) =>
+      request<void>('DELETE', adsPath(workspaceId, appId)),
     syncAds: (workspaceId: string, appId: string) =>
-      request<{ queued: boolean; jobId?: string; reason?: string }>('POST', `${adsPath(workspaceId, appId)}/sync`, {}),
+      request<{ queued: boolean; jobId?: string; reason?: string }>(
+        'POST',
+        `${adsPath(workspaceId, appId)}/sync`,
+        {},
+      ),
     adsOverview: (workspaceId: string, appId: string, query = '') =>
-      request<AdsOverviewResponse>('GET', `${adsPath(workspaceId, appId)}/overview${query === '' ? '' : `?${query}`}`),
+      request<AdsOverviewResponse>(
+        'GET',
+        `${adsPath(workspaceId, appId)}/overview${query === '' ? '' : `?${query}`}`,
+      ),
     adsCampaigns: (workspaceId: string, appId: string, query = '') =>
-      request<AdsCampaignsResponse>('GET', `${adsPath(workspaceId, appId)}/campaigns${query === '' ? '' : `?${query}`}`),
+      request<AdsCampaignsResponse>(
+        'GET',
+        `${adsPath(workspaceId, appId)}/campaigns${query === '' ? '' : `?${query}`}`,
+      ),
     adsTerms: (workspaceId: string, appId: string, query = '') =>
-      request<AdsTermsResponse>('GET', `${adsPath(workspaceId, appId)}/terms${query === '' ? '' : `?${query}`}`),
+      request<AdsTermsResponse>(
+        'GET',
+        `${adsPath(workspaceId, appId)}/terms${query === '' ? '' : `?${query}`}`,
+      ),
     // EAS Workflows as a CI provider (docs/api/eas-workflows.md). Starting needs `ci.dispatch`; the runs are read with `apps.read`;
     // `refresh` asks Expo and needs `apps.sync`.
     easWorkflowRuns: (workspaceId: string, appId: string) =>
@@ -2834,18 +2968,33 @@ export function createApi(options: ApiOptions = {}) {
       ),
     // Price changes (docs/adr/0062-price-writes.md). Price points, the conversion and the dry run READ the store; staging writes only Kiln's own table.
     // Sending is the pending cart's publish, with the typed phrase in `confirmation`.
-    productPricePoints: (workspaceId: string, appId: string, productId: string, territory: string) =>
+    productPricePoints: (
+      workspaceId: string,
+      appId: string,
+      productId: string,
+      territory: string,
+    ) =>
       request<{ pricePoints: PricePointOption[]; currency: string | null; applicable: boolean }>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/products/${encodeURIComponent(productId)}/price-points?territory=${encodeURIComponent(territory)}`,
       ),
-    convertProductPrices: (workspaceId: string, appId: string, productId: string, body: { planId: string | null; baseTerritory: string; amount: string }) =>
+    convertProductPrices: (
+      workspaceId: string,
+      appId: string,
+      productId: string,
+      body: { planId: string | null; baseTerritory: string; amount: string },
+    ) =>
       request<{ prices: ConvertedPrice[]; regionsVersion: string | null }>(
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/products/${encodeURIComponent(productId)}/price-convert`,
         body,
       ),
-    stageProductPrice: (workspaceId: string, appId: string, productId: string, body: PriceStageRequest) =>
+    stageProductPrice: (
+      workspaceId: string,
+      appId: string,
+      productId: string,
+      body: PriceStageRequest,
+    ) =>
       request<{ staged: StagedPriceChange }>(
         'PUT',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/products/${encodeURIComponent(productId)}/prices/staged`,
@@ -2897,21 +3046,47 @@ export function createApi(options: ApiOptions = {}) {
     // Insights of an app (docs/api/insights.md): computed on read from stored data, no store is asked. Reads need `analytics.read` (the store page
     // checks `listing.read`); dismissing and restoring a card are Kiln's own record and need `aso.write`.
     appInsights: (workspaceId: string, appId: string, includeHidden = false) =>
-      request<InsightsView>('GET', `${insightsPath(workspaceId, appId)}${includeHidden ? '?includeHidden=1' : ''}`),
+      request<InsightsView>(
+        'GET',
+        `${insightsPath(workspaceId, appId)}${includeHidden ? '?includeHidden=1' : ''}`,
+      ),
     // Timeline and reports (docs/api/timeline.md, docs/api/reports.md): stored data only. `days` is the impact window the server wants (7), the events are what is read.
     appTimeline: (workspaceId: string, appId: string, from: string, to: string) =>
-      request<TimelineApi>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/timeline?from=${from}&to=${to}&days=7`),
-    createTimelineEvent: (workspaceId: string, appId: string, body: { kind: ManualEventKind; day: string; title: string; note?: string }) =>
-      request<{ event: TimelineApi['events'][number] }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/timeline/events`, body),
+      request<TimelineApi>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/timeline?from=${from}&to=${to}&days=7`,
+      ),
+    createTimelineEvent: (
+      workspaceId: string,
+      appId: string,
+      body: { kind: ManualEventKind; day: string; title: string; note?: string },
+    ) =>
+      request<{ event: TimelineApi['events'][number] }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/timeline/events`,
+        body,
+      ),
     deleteTimelineEvent: (workspaceId: string, appId: string, eventId: string) =>
-      request<{ ok: true }>('DELETE', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/timeline/events/${encodeURIComponent(eventId)}`),
+      request<{ ok: true }>(
+        'DELETE',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/timeline/events/${encodeURIComponent(eventId)}`,
+      ),
     appReport: (workspaceId: string, appId: string, kind: string, day?: string) =>
-      request<ReportApi>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reports?kind=${kind}${day ? `&day=${day}` : ''}`),
+      request<ReportApi>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reports?kind=${kind}${day ? `&day=${day}` : ''}`,
+      ),
     // Ratings and health (docs/api/ratings.md): stored data only, `reviews.read`. `days` is counted back from today (7 to 730).
     appRatings: (workspaceId: string, appId: string, days: number) =>
-      request<RatingsView>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ratings?days=${days}&granularity=day`),
+      request<RatingsView>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ratings?days=${days}&granularity=day`,
+      ),
     appHealth: (workspaceId: string, appId: string, days: number) =>
-      request<HealthView>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/health?days=${days}`),
+      request<HealthView>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/health?days=${days}`,
+      ),
     appInsightsCount: (workspaceId: string, appId: string) =>
       request<{ count: number }>('GET', `${insightsPath(workspaceId, appId)}/count`),
     appInsightsCountries: (workspaceId: string, appId: string) =>
@@ -2919,9 +3094,16 @@ export function createApi(options: ApiOptions = {}) {
     appListingChecks: (workspaceId: string, appId: string) =>
       request<ListingChecksView>('GET', `${insightsPath(workspaceId, appId)}/listing-checks`),
     dismissInsight: (workspaceId: string, appId: string, cardId: string) =>
-      request<{ ok: true }>('POST', `${insightsPath(workspaceId, appId)}/cards/${encodeURIComponent(cardId)}/dismiss`),
+      request<{ ok: true }>(
+        'POST',
+        `${insightsPath(workspaceId, appId)}/cards/${encodeURIComponent(cardId)}/dismiss`,
+      ),
     restoreInsights: (workspaceId: string, appId: string, cardId?: string) =>
-      request<{ restored: number }>('POST', `${insightsPath(workspaceId, appId)}/restore`, cardId ? { cardId } : {}),
+      request<{ restored: number }>(
+        'POST',
+        `${insightsPath(workspaceId, appId)}/restore`,
+        cardId ? { cardId } : {},
+      ),
     // Store experiments and custom product pages (docs/api/experiments.md). Reads and the sync never change a store; notes are the manual tracker.
     appExperiments: (workspaceId: string, appId: string) =>
       request<ExperimentsView>(

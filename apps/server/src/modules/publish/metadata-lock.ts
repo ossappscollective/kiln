@@ -15,10 +15,16 @@ export async function metadataLock(
   workspaceId: string,
   app: Pick<ManagedApp, 'id' | 'platform'>,
 ): Promise<MetadataLock> {
-  const rows = await sql.query('SELECT version, status FROM app_releases WHERE app_id = ? AND workspace_id = ?', [app.id, workspaceId]);
+  const rows = await sql.query(
+    'SELECT version, status FROM app_releases WHERE app_id = ? AND workspace_id = ?',
+    [app.id, workspaceId],
+  );
   return computeMetadataLock(
     app.platform,
-    rows.map((r) => ({ version: String(r.version), status: r.status === null || r.status === undefined ? null : String(r.status) })),
+    rows.map((r) => ({
+      version: String(r.version),
+      status: r.status === null || r.status === undefined ? null : String(r.status),
+    })),
   );
 }
 
@@ -34,6 +40,10 @@ export async function metadataLockedFailure(
     409,
     'metadata_locked',
     `Version ${lock.liveVersion ?? ''} is ${lock.reason === 'in_review' || lock.reason === 'approved' ? 'waiting in App Review' : 'live'} and its listing can no longer be changed. Prepare a new version first, then stage the change.`,
-    { reason: lock.reason, liveVersion: lock.liveVersion, ...coded('staged.metadataLocked', { version: lock.liveVersion ?? '' }) },
+    {
+      reason: lock.reason,
+      liveVersion: lock.liveVersion,
+      ...coded('staged.metadataLocked', { version: lock.liveVersion ?? '' }),
+    },
   );
 }

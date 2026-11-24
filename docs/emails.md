@@ -6,14 +6,14 @@ unchanged. All sentences come from the `email`, `alerts` and `digest` catalogs (
 
 ## Where things live
 
-| What | Where |
-| --- | --- |
-| Tokens (colours per scheme, brand colours, fonts, radii, width) | `emailTokens` at the top of `mail/layout.ts` |
-| Helpers: `emailShell`, `emailHeading`, `emailParagraph`, `emailButton`, `emailCodeBox`, `emailKeyValueRows`, `emailCalloutHtml`, `emailChip`, `emailDivider`, `emailFooter`, `emailItemRow` | `mail/layout.ts` |
-| Link origin (`KILN_PUBLIC_ORIGIN`) and `escapeHtml` | `services/mail-template.ts` |
-| Alert emails and digest | `modules/alerts/email.ts` |
-| Codes | `codeMessage` in `services/two-factor.ts` |
-| SMTP test | `testMessageHtml` in `routes/mail.ts` |
+| What                                                                                                                                                                                        | Where                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| Tokens (colours per scheme, brand colours, fonts, radii, width)                                                                                                                             | `emailTokens` at the top of `mail/layout.ts` |
+| Helpers: `emailShell`, `emailHeading`, `emailParagraph`, `emailButton`, `emailCodeBox`, `emailKeyValueRows`, `emailCalloutHtml`, `emailChip`, `emailDivider`, `emailFooter`, `emailItemRow` | `mail/layout.ts`                             |
+| Link origin (`KILN_PUBLIC_ORIGIN`) and `escapeHtml`                                                                                                                                         | `services/mail-template.ts`                  |
+| Alert emails and digest                                                                                                                                                                     | `modules/alerts/email.ts`                    |
+| Codes                                                                                                                                                                                       | `codeMessage` in `services/two-factor.ts`    |
+| SMTP test                                                                                                                                                                                   | `testMessageHtml` in `routes/mail.ts`        |
 
 Helpers take plain text and escape it; a name ending in `Html` takes HTML the caller already escaped with `escapeHtml`.
 

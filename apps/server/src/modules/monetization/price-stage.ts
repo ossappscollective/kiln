@@ -71,7 +71,15 @@ export type StagedPriceView = {
   effectiveDate: string | null;
   existingSubscribers: SubscriberRule;
   acknowledgements: PriceAck[];
-  lines: { territory: string; currency: string; before: string; after: string; percentBp: number | null; direction: 'increase' | 'decrease' | 'same'; pricePointId: string | null }[];
+  lines: {
+    territory: string;
+    currency: string;
+    before: string;
+    after: string;
+    percentBp: number | null;
+    direction: 'increase' | 'decrease' | 'same';
+    pricePointId: string | null;
+  }[];
   currencies: string[];
   largestBp: number;
   createdAt: number;
@@ -113,13 +121,24 @@ const parseRow = (r: Record<string, unknown>): StagedPrice | undefined => {
   try {
     const change = JSON.parse(String(r.payload_json)) as PriceChange;
     if (!change || !Array.isArray(change.lines)) return undefined;
-    return { id: String(r.id), change, syncedAt: Number(r.synced_at), createdBy: String(r.created_by), createdAt: Number(r.created_at), valueHash: String(r.value_hash) };
+    return {
+      id: String(r.id),
+      change,
+      syncedAt: Number(r.synced_at),
+      createdBy: String(r.created_by),
+      createdAt: Number(r.created_at),
+      valueHash: String(r.value_hash),
+    };
   } catch {
     return undefined;
   }
 };
 
-export async function listStagedPrices(db: Database, workspaceId: string, appId: string): Promise<StagedPrice[]> {
+export async function listStagedPrices(
+  db: Database,
+  workspaceId: string,
+  appId: string,
+): Promise<StagedPrice[]> {
   const rows = await db.query(
     'SELECT * FROM staged_price_changes WHERE workspace_id = ? AND app_id = ? ORDER BY created_at, id',
     [workspaceId, appId],
@@ -132,7 +151,10 @@ export async function unstagePrice(
   ctx: Pick<PriceContext, 'db' | 'now'>,
   input: { workspaceId: string; appId: string; id: string; actor: Actor },
 ): Promise<{ ok: true } | Failure> {
-  const [row] = await ctx.db.query('SELECT * FROM staged_price_changes WHERE id = ? AND workspace_id = ? AND app_id = ?', [input.id, input.workspaceId, input.appId]);
+  const [row] = await ctx.db.query(
+    'SELECT * FROM staged_price_changes WHERE id = ? AND workspace_id = ? AND app_id = ?',
+    [input.id, input.workspaceId, input.appId],
+  );
   const staged = row ? parseRow(row) : undefined;
   if (!row || !staged) return failure(404, 'not_found');
   await ctx.db.execute('DELETE FROM staged_price_changes WHERE id = ?', [input.id]);
@@ -141,7 +163,13 @@ export async function unstagePrice(
     actor: input.actor,
     action: 'price.discarded',
     target: { type: 'app', id: input.appId },
-    detail: { appId: input.appId, productId: staged.change.productId, store: staged.change.store, planId: staged.change.planId, territories: staged.change.lines.map((l) => l.territory) },
+    detail: {
+      appId: input.appId,
+      productId: staged.change.productId,
+      store: staged.change.store,
+      planId: staged.change.planId,
+      territories: staged.change.lines.map((l) => l.territory),
+    },
     at: ctx.now(),
   });
   return { ok: true };
@@ -162,9 +190,17 @@ async function resolve(
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
   if (!supports(app.platform, 'priceWrite')) return notSupportedFailure();
-  const notFound = () => failure(404, 'product_not_found', 'No such product. Sync the app first.', coded('notFound.product'));
+  const notFound = () =>
+    failure(
+      404,
+      'product_not_found',
+      'No such product. Sync the app first.',
+      coded('notFound.product'),
+    );
   const ref = await readStoredProductRef(ctx.db, input.workspaceId, app.id, input.productId);
-  const detail = ref ? await getStoredProduct(ctx.db, input.workspaceId, app.id, input.productId) : undefined;
+  const detail = ref
+    ? await getStoredProduct(ctx.db, input.workspaceId, app.id, input.productId)
+    : undefined;
   if (!ref || !detail) return notFound();
   return {
     ok: true,
@@ -173,7 +209,12 @@ async function resolve(
       ref: { productId: ref.productId, kind: ref.kind, storeRef: ref.storeRef },
       baseTerritory: detail.baseTerritory,
       syncedAt: detail.syncedAt,
-      rows: detail.prices.map((p) => ({ planId: p.planId, territory: p.territory, currency: p.currency, amount: p.amount })),
+      rows: detail.prices.map((p) => ({
+        planId: p.planId,
+        territory: p.territory,
+        currency: p.currency,
+        amount: p.amount,
+      })),
     },
   };
 }
@@ -192,7 +233,9 @@ async function readPoints(
   const conn = await connect(ctx, workspaceId, app, PRICE_PURPOSE, actor);
   if (!conn.ok) return conn;
   try {
-    const points = await withConnector(ctx.factory, conn.connection.input, ctx.timeoutMs, (c) => c.pricePoints(ref, territories));
+    const points = await withConnector(ctx.factory, conn.connection.input, ctx.timeoutMs, (c) =>
+      c.pricePoints(ref, territories),
+    );
     return { ok: true, points };
   } catch (error) {
     if (error instanceof StoreTimeout) return timeoutFailure();
@@ -204,15 +247,25 @@ async function readPoints(
 export async function listPricePoints(
   ctx: PriceContext,
   input: { workspaceId: string; appId: string; productId: string; territory: string; actor: Actor },
-): Promise<{ ok: true; pricePoints: PricePoint[]; currency: string | null; applicable: boolean } | Failure> {
+): Promise<
+  { ok: true; pricePoints: PricePoint[]; currency: string | null; applicable: boolean } | Failure
+> {
   const r = await resolve(ctx, input);
   if (!r.ok) return r;
   const { app, ref, rows } = r.resolved;
-  if (storeFor(app.platform) !== 'appstoreconnect') return { ok: true, pricePoints: [], currency: null, applicable: false };
-  if (!/^[A-Z]{3}$/.test(input.territory)) return failure(422, 'invalid_price', 'Not a territory of this store.', coded('prices.badTerritory'));
+  if (storeFor(app.platform) !== 'appstoreconnect')
+    return { ok: true, pricePoints: [], currency: null, applicable: false };
+  if (!/^[A-Z]{3}$/.test(input.territory))
+    return failure(
+      422,
+      'invalid_price',
+      'Not a territory of this store.',
+      coded('prices.badTerritory'),
+    );
   const got = await readPoints(ctx, input.workspaceId, app, ref, [input.territory], input.actor);
   if (!got.ok) return got;
-  const currency = rows.find((x) => x.territory === input.territory)?.currency ?? got.points[0]?.currency ?? null;
+  const currency =
+    rows.find((x) => x.territory === input.territory)?.currency ?? got.points[0]?.currency ?? null;
   const sorted = got.points.slice().sort((a, b) => (BigInt(a.amount) < BigInt(b.amount) ? -1 : 1));
   return { ok: true, pricePoints: sorted, currency, applicable: true };
 }
@@ -220,21 +273,51 @@ export async function listPricePoints(
 /** `POST .../price-convert`: Google Play's regional prices derived from one base price (a read; the person still reviews and stages them). */
 export async function convertPrices(
   ctx: PriceContext,
-  input: { workspaceId: string; appId: string; productId: string; planId: string | null; baseTerritory: string; amount: string; actor: Actor },
-): Promise<{ ok: true; prices: { territory: string; currency: string; amount: string; current: string | null }[]; regionsVersion: string | null } | Failure> {
+  input: {
+    workspaceId: string;
+    appId: string;
+    productId: string;
+    planId: string | null;
+    baseTerritory: string;
+    amount: string;
+    actor: Actor;
+  },
+): Promise<
+  | {
+      ok: true;
+      prices: { territory: string; currency: string; amount: string; current: string | null }[];
+      regionsVersion: string | null;
+    }
+  | Failure
+> {
   const r = await resolve(ctx, input);
   if (!r.ok) return r;
   const { app, rows } = r.resolved;
-  if (storeFor(app.platform) !== 'googleplay') return failure(422, 'not_applicable', 'Only Google Play converts one price to other regions.', coded('prices.convertNotApplicable'));
-  const base = rows.find((x) => samePlan(x.planId, input.planId) && x.territory === input.baseTerritory);
+  if (storeFor(app.platform) !== 'googleplay')
+    return failure(
+      422,
+      'not_applicable',
+      'Only Google Play converts one price to other regions.',
+      coded('prices.convertNotApplicable'),
+    );
+  const base = rows.find(
+    (x) => samePlan(x.planId, input.planId) && x.territory === input.baseTerritory,
+  );
   if (!base || !/^\d{1,15}$/.test(input.amount) || BigInt(input.amount) <= BigInt(0)) {
-    return failure(422, 'invalid_price', 'Name a base territory the plan has a price in, and an amount in minor units.', coded('prices.convertBase'));
+    return failure(
+      422,
+      'invalid_price',
+      'Name a base territory the plan has a price in, and an amount in minor units.',
+      coded('prices.convertBase'),
+    );
   }
   const conn = await connect(ctx, input.workspaceId, app, PRICE_PURPOSE, input.actor);
   if (!conn.ok) return conn;
   try {
     const out = await withConnector(ctx.factory, conn.connection.input, ctx.timeoutMs, async (c) =>
-      c.convertFromBase ? c.convertFromBase({ currency: base.currency, amount: input.amount }) : { prices: [], regionsVersion: null },
+      c.convertFromBase
+        ? c.convertFromBase({ currency: base.currency, amount: input.amount })
+        : { prices: [], regionsVersion: null },
     );
     const own = rows.filter((x) => samePlan(x.planId, input.planId));
     return {
@@ -244,9 +327,19 @@ export async function convertPrices(
       prices: out.prices
         .map((p) => {
           const mine = own.find((x) => x.territory === p.territory);
-          return mine && mine.currency === p.currency ? { territory: p.territory, currency: p.currency, amount: p.amount, current: mine.amount } : undefined;
+          return mine && mine.currency === p.currency
+            ? {
+                territory: p.territory,
+                currency: p.currency,
+                amount: p.amount,
+                current: mine.amount,
+              }
+            : undefined;
         })
-        .filter((p): p is { territory: string; currency: string; amount: string; current: string } => p !== undefined),
+        .filter(
+          (p): p is { territory: string; currency: string; amount: string; current: string } =>
+            p !== undefined,
+        ),
     };
   } catch (error) {
     if (error instanceof StoreTimeout) return timeoutFailure();
@@ -265,7 +358,12 @@ export async function stagePrice(
   if (!r.ok) return r;
   const { app, ref, baseTerritory, syncedAt, rows } = r.resolved;
   if (input.seenSyncedAt !== syncedAt) {
-    return failure(409, 'stale_snapshot', 'The product was synced again since you opened it. Reload it and review the prices again.', coded('prices.staleSnapshot'));
+    return failure(
+      409,
+      'stale_snapshot',
+      'The product was synced again since you opened it. Reload it and review the prices again.',
+      coded('prices.staleSnapshot'),
+    );
   }
   const store = storeFor(app.platform);
   const own = rows.filter((x) => samePlan(x.planId, input.planId));
@@ -273,7 +371,13 @@ export async function stagePrice(
   for (const l of input.lines) {
     const now = own.find((x) => x.territory === l.territory);
     // Territory and currency come from the snapshot: a territory the product has no price in is reported by the validation below.
-    lines.push({ territory: l.territory, currency: now?.currency ?? '', currentAmount: now?.amount ?? '', newAmount: l.newAmount, ...(l.pricePointId ? { pricePointId: l.pricePointId } : {}) });
+    lines.push({
+      territory: l.territory,
+      currency: now?.currency ?? '',
+      currentAmount: now?.amount ?? '',
+      newAmount: l.newAmount,
+      ...(l.pricePointId ? { pricePointId: l.pricePointId } : {}),
+    });
   }
   const change: PriceChange = {
     store,
@@ -286,20 +390,43 @@ export async function stagePrice(
     existingSubscribers: input.existingSubscribers,
     acknowledgements: input.acknowledgements,
   };
-  if (!(SUBSCRIBER_RULES as readonly string[]).includes(change.existingSubscribers) || change.acknowledgements.some((a) => !(PRICE_ACKS as readonly string[]).includes(a))) {
-    return failure(422, 'invalid_price', 'Not a known choice for existing subscribers or acknowledgement.', coded('prices.badChoice'));
+  if (
+    !(SUBSCRIBER_RULES as readonly string[]).includes(change.existingSubscribers) ||
+    change.acknowledgements.some((a) => !(PRICE_ACKS as readonly string[]).includes(a))
+  ) {
+    return failure(
+      422,
+      'invalid_price',
+      'Not a known choice for existing subscribers or acknowledgement.',
+      coded('prices.badChoice'),
+    );
   }
   // Rows that are not in the snapshot have no currency: report the territory instead of a currency error.
   const missing = lines.filter((l) => l.currentAmount === '');
-  if (missing.length > 0) return issueFailure(missing.map((l) => ({ code: 'unknown_territory' as const, territory: l.territory })));
+  if (missing.length > 0)
+    return issueFailure(
+      missing.map((l) => ({ code: 'unknown_territory' as const, territory: l.territory })),
+    );
   let points: PricePoint[] | undefined;
   if (store === 'appstoreconnect') {
-    const got = await readPoints(ctx, input.workspaceId, app, ref, [...new Set(lines.map((l) => l.territory))], input.actor);
+    const got = await readPoints(
+      ctx,
+      input.workspaceId,
+      app,
+      ref,
+      [...new Set(lines.map((l) => l.territory))],
+      input.actor,
+    );
     if (!got.ok) return got;
     points = got.points;
   }
   const current: CurrentPrice[] = currentOf(own);
-  const issues = validatePriceChange(change, { current, pricePoints: points, today: utcDate(ctx.now()), limits: ctx.limits });
+  const issues = validatePriceChange(change, {
+    current,
+    pricePoints: points,
+    today: utcDate(ctx.now()),
+    limits: ctx.limits,
+  });
   if (issues.length > 0) return issueFailure(issues);
 
   const now = ctx.now();
@@ -307,14 +434,37 @@ export async function stagePrice(
   const valueHash = hashOf(change);
   const planKey = input.planId ?? '';
   await ctx.db.transaction(async (tx) => {
-    await tx.execute('DELETE FROM staged_price_changes WHERE app_id = ? AND product_id = ? AND plan_id = ?', [app.id, ref.productId, planKey]);
+    await tx.execute(
+      'DELETE FROM staged_price_changes WHERE app_id = ? AND product_id = ? AND plan_id = ?',
+      [app.id, ref.productId, planKey],
+    );
     await tx.execute(
       `INSERT INTO staged_price_changes (id, workspace_id, app_id, product_id, plan_id, store, payload_json, value_hash, synced_at, created_by, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, input.workspaceId, app.id, ref.productId, planKey, store, JSON.stringify(change), valueHash, syncedAt, input.actor.id, now, now],
+      [
+        id,
+        input.workspaceId,
+        app.id,
+        ref.productId,
+        planKey,
+        store,
+        JSON.stringify(change),
+        valueHash,
+        syncedAt,
+        input.actor.id,
+        now,
+        now,
+      ],
     );
   });
-  const staged: StagedPrice = { id, change, syncedAt, createdBy: input.actor.id, createdAt: now, valueHash };
+  const staged: StagedPrice = {
+    id,
+    change,
+    syncedAt,
+    createdBy: input.actor.id,
+    createdAt: now,
+    valueHash,
+  };
   const view = viewOf(staged);
   await recordAudit(ctx.db, {
     workspaceId: input.workspaceId,
@@ -329,7 +479,13 @@ export async function stagePrice(
       effectiveDate: change.effectiveDate,
       existingSubscribers: change.existingSubscribers,
       acknowledgements: change.acknowledgements,
-      lines: view.lines.map((l) => ({ territory: l.territory, currency: l.currency, before: l.before, after: l.after, percentBp: l.percentBp })),
+      lines: view.lines.map((l) => ({
+        territory: l.territory,
+        currency: l.currency,
+        before: l.before,
+        after: l.after,
+        percentBp: l.percentBp,
+      })),
     },
     at: now,
   });

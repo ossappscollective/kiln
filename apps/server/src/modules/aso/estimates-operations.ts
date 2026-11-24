@@ -12,15 +12,27 @@ const note =
 
 const confidence = z.enum(['low', 'medium', 'high']);
 const reason = z.object({
-  code: z.string().describe('The input: hints_position, hints_absent, hints_empty, results_demand, own_visitors, ads_impressions, results_strength, results_title_match, results_crowding, rank_volatility, or why there is no estimate (no_signal, play_needs_own_data, play_no_competition_data, results_empty, too_few_results).'),
+  code: z
+    .string()
+    .describe(
+      'The input: hints_position, hints_absent, hints_empty, results_demand, own_visitors, ads_impressions, results_strength, results_title_match, results_crowding, rank_volatility, or why there is no estimate (no_signal, play_needs_own_data, play_no_competition_data, results_empty, too_few_results).',
+    ),
   params: z.record(z.string(), z.union([z.string(), z.number()])),
-  points: z.number().nullable().describe('What this input alone suggests, 0 to 100; null: it only explains.'),
+  points: z
+    .number()
+    .nullable()
+    .describe('What this input alone suggests, 0 to 100; null: it only explains.'),
   weight: z.number().describe('Its share in the blend; 0: not part of the score.'),
 });
 const measure = z.object({
   score: z.number().int().min(0).max(100).nullable().describe('null: no estimate (never 0).'),
   confidence: confidence.nullable(),
-  origin: z.enum(['own_data', 'ads_data', 'public_signals']).nullable().describe('`own_data`: the team’s own Google Play numbers; `ads_data`: the team’s own Apple Ads campaigns; `public_signals`: public signals only.'),
+  origin: z
+    .enum(['own_data', 'ads_data', 'public_signals'])
+    .nullable()
+    .describe(
+      '`own_data`: the team’s own Google Play numbers; `ads_data`: the team’s own Apple Ads campaigns; `public_signals`: public signals only.',
+    ),
   reasons: z.array(reason),
 });
 const estimate = z.object({
@@ -34,7 +46,13 @@ const estimate = z.object({
   }),
   signalsAt: timestamp.nullable(),
   hints: z.array(z.string()),
-  top: z.array(z.object({ id: z.string(), name: z.string().nullable(), ratingCount: z.number().int().nullable() })),
+  top: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string().nullable(),
+      ratingCount: z.number().int().nullable(),
+    }),
+  ),
 });
 const keywordRef = z.object({
   id: z.string(),
@@ -66,7 +84,14 @@ export const estimateOperations: Draft[] = [
           model: z.string(),
           store,
           estimates: z.array(
-            z.object({ keywordId: z.string(), term: z.string(), country: z.string(), locale: z.string(), platform: z.string(), estimate }),
+            z.object({
+              keywordId: z.string(),
+              term: z.string(),
+              country: z.string(),
+              locale: z.string(),
+              platform: z.string(),
+              estimate,
+            }),
           ),
         }),
       },
@@ -91,14 +116,41 @@ export const estimateOperations: Draft[] = [
           model: z.string(),
           keyword: keywordRef,
           estimate,
-          trend: z.array(z.object({ day: z.string(), popularity: z.number().int().nullable(), difficulty: z.number().int().nullable() })),
+          trend: z.array(
+            z.object({
+              day: z.string(),
+              popularity: z.number().int().nullable(),
+              difficulty: z.number().int().nullable(),
+            }),
+          ),
           retentionDays: z.number().int(),
           appleAds: z
             .object({
-              campaigns: z.object({ impressions: z.number().int(), taps: z.number().int(), installs: z.number().int(), days: z.number().int() }).nullable().describe('What the team’s own Apple Ads campaigns showed for the term; null when it never appeared in a report.'),
+              campaigns: z
+                .object({
+                  impressions: z.number().int(),
+                  taps: z.number().int(),
+                  installs: z.number().int(),
+                  days: z.number().int(),
+                })
+                .nullable()
+                .describe(
+                  'What the team’s own Apple Ads campaigns showed for the term; null when it never appeared in a report.',
+                ),
               popularity: z
-                .array(z.object({ genre: z.string(), period: z.string().nullable(), popularity100: z.number().int().nullable(), popularity5: z.number().int().nullable(), rankInGenre: z.number().int().nullable(), fetchedAt: timestamp }))
-                .describe('Apple’s own 1 to 100 popularity of the term, per genre, highest first. Beside the estimate, never merged into it. Empty unless Apple Ads is linked and the term is tracked.'),
+                .array(
+                  z.object({
+                    genre: z.string(),
+                    period: z.string().nullable(),
+                    popularity100: z.number().int().nullable(),
+                    popularity5: z.number().int().nullable(),
+                    rankInGenre: z.number().int().nullable(),
+                    fetchedAt: timestamp,
+                  }),
+                )
+                .describe(
+                  'Apple’s own 1 to 100 popularity of the term, per genre, highest first. Beside the estimate, never merged into it. Empty unless Apple Ads is linked and the term is tracked.',
+                ),
             })
             .nullable()
             .describe('null for a Google Play app.'),
@@ -128,7 +180,14 @@ export const estimateOperations: Draft[] = [
         schema: z.object({
           appId: z.string(),
           store,
-          suggestions: z.array(z.object({ term: z.string(), country: z.string(), locale: z.string(), from: z.array(z.string()) })),
+          suggestions: z.array(
+            z.object({
+              term: z.string(),
+              country: z.string(),
+              locale: z.string(),
+              from: z.array(z.string()),
+            }),
+          ),
         }),
       },
     },

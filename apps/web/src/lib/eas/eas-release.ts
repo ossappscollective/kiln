@@ -1,5 +1,10 @@
 import type { ReleaseSummary } from '../types.ts';
-import type { EasBuildView, EasStatusView, EasSubmissionView, EasUpdateView } from './eas-status.ts';
+import type {
+  EasBuildView,
+  EasStatusView,
+  EasSubmissionView,
+  EasUpdateView,
+} from './eas-status.ts';
 
 /**
  * The EAS build and store submission of a release (docs/ux-ia.md, docs/api/eas-builds.md): which stored EAS build is the one of a store
@@ -10,7 +15,11 @@ import type { EasBuildView, EasStatusView, EasSubmissionView, EasUpdateView } fr
 
 export type ReleaseEasStepId = 'built' | 'submitted' | 'review';
 export type ReleaseEasStepState = 'done' | 'current' | 'failed' | 'todo';
-export type ReleaseEasStep = { id: ReleaseEasStepId; state: ReleaseEasStepState; at: number | null };
+export type ReleaseEasStep = {
+  id: ReleaseEasStepId;
+  state: ReleaseEasStepState;
+  at: number | null;
+};
 
 export type ReleaseEasMatch = {
   build: EasBuildView;
@@ -20,10 +29,18 @@ export type ReleaseEasMatch = {
   ota: EasUpdateView | null;
 };
 
-type ReleaseLike = Pick<ReleaseSummary, 'platform' | 'version' | 'build' | 'versionCodes' | 'status'>;
+type ReleaseLike = Pick<
+  ReleaseSummary,
+  'platform' | 'version' | 'build' | 'versionCodes' | 'status'
+>;
 
 const same = (a: string | null | undefined, b: string | null | undefined): boolean =>
-  a !== null && a !== undefined && b !== null && b !== undefined && a.trim() !== '' && a.trim() === b.trim();
+  a !== null &&
+  a !== undefined &&
+  b !== null &&
+  b !== undefined &&
+  a.trim() !== '' &&
+  a.trim() === b.trim();
 
 const newest = <T extends { createdAt: number | null }>(list: readonly T[]): T | null =>
   list.slice().sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))[0] ?? null;
@@ -50,7 +67,10 @@ const releaseNumbers = (release: ReleaseLike): string[] => {
 };
 
 /** The one EAS build of the release, or null when none is certain. */
-export function matchBuild(release: ReleaseLike, builds: readonly EasBuildView[]): EasBuildView | null {
+export function matchBuild(
+  release: ReleaseLike,
+  builds: readonly EasBuildView[],
+): EasBuildView | null {
   const list = candidates(release, builds);
   const numbers = releaseNumbers(release);
   if (numbers.length > 0) {
@@ -80,7 +100,13 @@ export function matchSubmission(
   return newest(done.length > 0 ? done : mine);
 }
 
-const IN_REVIEW_DONE: readonly string[] = ['approved', 'propagating', 'rolling_out', 'live', 'halted'];
+const IN_REVIEW_DONE: readonly string[] = [
+  'approved',
+  'propagating',
+  'rolling_out',
+  'live',
+  'halted',
+];
 
 /** The three steps. Review comes from the store state of the release (read by the sync), not from Expo. */
 export function releaseSteps(
@@ -89,7 +115,11 @@ export function releaseSteps(
   submission: EasSubmissionView | null,
 ): ReleaseEasStep[] {
   const built: ReleaseEasStepState =
-    build.status === 'finished' ? 'done' : build.status === 'errored' || build.status === 'canceled' ? 'failed' : 'current';
+    build.status === 'finished'
+      ? 'done'
+      : build.status === 'errored' || build.status === 'canceled'
+        ? 'failed'
+        : 'current';
   let submitted: ReleaseEasStepState = 'todo';
   if (submission) {
     submitted =
@@ -105,7 +135,11 @@ export function releaseSteps(
   else if (release.status !== null && IN_REVIEW_DONE.indexOf(release.status) >= 0) review = 'done';
   return [
     { id: 'built', state: built, at: build.completedAt ?? build.createdAt },
-    { id: 'submitted', state: submitted, at: submission ? (submission.completedAt ?? submission.createdAt) : null },
+    {
+      id: 'submitted',
+      state: submitted,
+      at: submission ? (submission.completedAt ?? submission.createdAt) : null,
+    },
     { id: 'review', state: review, at: null },
   ];
 }
@@ -116,11 +150,22 @@ export function releaseSteps(
  * an update of another runtime version (it reaches no binary of this release) give null: nothing is shown rather than a guess.
  */
 export function matchOta(build: EasBuildView, status: EasStatusView): EasUpdateView | null {
-  if (!build.channel || build.channel.trim() === '' || !build.runtimeVersion || build.runtimeVersion.trim() === '') return null;
+  if (
+    !build.channel ||
+    build.channel.trim() === '' ||
+    !build.runtimeVersion ||
+    build.runtimeVersion.trim() === ''
+  )
+    return null;
   const channel = (status.updates?.channels ?? []).filter((c) => same(c.channel, build.channel));
   if (channel.length !== 1) return null;
   const update = channel[0]?.current ?? null;
-  if (update === null || update.platform !== build.platform || !same(update.runtimeVersion, build.runtimeVersion)) return null;
+  if (
+    update === null ||
+    update.platform !== build.platform ||
+    !same(update.runtimeVersion, build.runtimeVersion)
+  )
+    return null;
   return update;
 }
 
@@ -128,11 +173,19 @@ export function matchOta(build: EasBuildView, status: EasStatusView): EasUpdateV
  * The match of a release in a stored snapshot, or null: no snapshot, an app that is not linked to Expo, an unsupported platform, or no
  * single confident build.
  */
-export function matchRelease(release: ReleaseLike, status: EasStatusView | null | undefined): ReleaseEasMatch | null {
+export function matchRelease(
+  release: ReleaseLike,
+  status: EasStatusView | null | undefined,
+): ReleaseEasMatch | null {
   if (!status || status.project === null || !status.supported) return null;
   if (release.platform !== 'ios' && release.platform !== 'android') return null;
   const build = matchBuild(release, status.builds);
   if (build === null) return null;
   const submission = matchSubmission(build, status.submissions);
-  return { build, submission, steps: releaseSteps(release, build, submission), ota: matchOta(build, status) };
+  return {
+    build,
+    submission,
+    steps: releaseSteps(release, build, submission),
+    ota: matchOta(build, status),
+  };
 }

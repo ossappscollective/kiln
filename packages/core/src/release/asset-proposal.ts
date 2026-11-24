@@ -30,10 +30,24 @@ export type ProposalIssue = {
   message: string | null;
 };
 
-export type ProposalFile = { path: string; oid: string | null; width: number | null; height: number | null; bytes: number | null; format: string | null };
+export type ProposalFile = {
+  path: string;
+  oid: string | null;
+  width: number | null;
+  height: number | null;
+  bytes: number | null;
+  format: string | null;
+};
 
 /** An image the store holds for a set: `ref` is the opaque id of the store thumbnail proxy (`GET .../assets/store/thumb?ref=`), never a store address. */
-export type ProposalStoreFile = { ref: string; position: number; name: string | null; width: number | null; height: number | null; bytes: number | null };
+export type ProposalStoreFile = {
+  ref: string;
+  position: number;
+  name: string | null;
+  width: number | null;
+  height: number | null;
+  bytes: number | null;
+};
 
 export type ProposalText = {
   id: string;
@@ -67,9 +81,18 @@ export type ProposalGraphics = {
 export type ProposalItem = ProposalText | ProposalGraphics;
 
 /** An item that is in the cart already: `same` holds the value of the repository, `edited` was changed by a person and is never overwritten. */
-export type ProposalStaged = { id: string; kind: 'text' | 'graphics'; locale: string; field: string; state: 'same' | 'edited' };
+export type ProposalStaged = {
+  id: string;
+  kind: 'text' | 'graphics';
+  locale: string;
+  field: string;
+  state: 'same' | 'edited';
+};
 
-export type ProposalRef = { sha: string; source: 'build' | 'default_branch' | 'previous_build' | 'repo_snapshot' };
+export type ProposalRef = {
+  sha: string;
+  source: 'build' | 'default_branch' | 'previous_build' | 'repo_snapshot';
+};
 
 export type ProposalState = { state: 'open' | 'skipped' | 'later'; at: number | null };
 
@@ -98,10 +121,18 @@ export type AssetProposalView = {
   notes: string[];
 };
 
-export type ProposalSummary = { texts: number; locales: number; graphics: number; errors: number; warnings: number; tips: number };
+export type ProposalSummary = {
+  texts: number;
+  locales: number;
+  graphics: number;
+  errors: number;
+  warnings: number;
+  tips: number;
+};
 
 export const textItemId = (locale: string, field: string): string => `text:${locale}:${field}`;
-export const graphicsItemId = (locale: string, slot: string): string => `graphics:${locale}:${slot}`;
+export const graphicsItemId = (locale: string, slot: string): string =>
+  `graphics:${locale}:${slot}`;
 
 const ORDER: Record<ProposalSeverity, number> = { error: 0, warning: 1, tip: 2 };
 
@@ -113,7 +144,10 @@ export function orderIssues(issues: readonly ProposalIssue[]): ProposalIssue[] {
     .map((x) => x.issue);
 }
 
-export function summarizeProposal(changes: readonly ProposalItem[], issues: readonly ProposalIssue[]): ProposalSummary {
+export function summarizeProposal(
+  changes: readonly ProposalItem[],
+  issues: readonly ProposalIssue[],
+): ProposalSummary {
   const locales: Record<string, true> = {};
   let texts = 0;
   let graphics = 0;
@@ -134,10 +168,14 @@ export function summarizeProposal(changes: readonly ProposalItem[], issues: read
 }
 
 /** The items checked when the card opens: those without errors. An item with errors can be selected, after an explicit confirmation. */
-export const defaultSelection = (changes: readonly ProposalItem[]): string[] => changes.filter((c) => !c.hasErrors).map((c) => c.id);
+export const defaultSelection = (changes: readonly ProposalItem[]): string[] =>
+  changes.filter((c) => !c.hasErrors).map((c) => c.id);
 
 /** Of the selected ids, those that have errors (the person confirms these before they are staged). */
-export function selectedWithErrors(changes: readonly ProposalItem[], selected: readonly string[]): string[] {
+export function selectedWithErrors(
+  changes: readonly ProposalItem[],
+  selected: readonly string[],
+): string[] {
   const picked: Record<string, true> = {};
   for (const id of selected) picked[id] = true;
   return changes.filter((c) => c.hasErrors && picked[c.id]).map((c) => c.id);

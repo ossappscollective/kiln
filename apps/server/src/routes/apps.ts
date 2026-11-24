@@ -42,7 +42,13 @@ const respond = (c: Context<AppEnv>, f: Failure) => {
 };
 
 const appearanceBody = z
-  .object({ tint: z.enum(['auto', 'off', 'custom']), color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional() })
+  .object({
+    tint: z.enum(['auto', 'off', 'custom']),
+    color: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/)
+      .optional(),
+  })
   .strict();
 
 const registerBody = z
@@ -130,7 +136,10 @@ export function appRoutes(ctx: AppRoutesContext) {
   app.get('/:workspaceId/sync/activity', needs('apps.read'), async (c) => {
     const byApp = new Map<string, { feed: string; since: number }[]>();
     for (const entry of syncActivity.list(ws(c))) {
-      byApp.set(entry.appId, [...(byApp.get(entry.appId) ?? []), { feed: entry.feed, since: entry.since }]);
+      byApp.set(entry.appId, [
+        ...(byApp.get(entry.appId) ?? []),
+        { feed: entry.feed, since: entry.since },
+      ]);
     }
     const [waiting] = await db.query(
       `SELECT COUNT(*) AS n FROM jobs WHERE status = 'queued' AND run_at <= ? AND payload LIKE ?
@@ -151,7 +160,9 @@ export function appRoutes(ctx: AppRoutesContext) {
   app.get('/:workspaceId/apps/appearance', needs('apps.read'), async (c) => {
     const all = await readAppearances(db, ws(c));
     const allowed = c.get('token')?.appIds ?? undefined;
-    const apps = allowed ? Object.fromEntries(Object.entries(all).filter(([id]) => allowed.includes(id))) : all;
+    const apps = allowed
+      ? Object.fromEntries(Object.entries(all).filter(([id]) => allowed.includes(id)))
+      : all;
     c.header('Cache-Control', 'no-store');
     return c.json({ apps });
   });
@@ -164,7 +175,9 @@ export function appRoutes(ctx: AppRoutesContext) {
       { workspaceId: ws(c), appId: param(c, 'id'), value: body.data, actor: actor(c) },
       ctx.now(),
     );
-    return done.ok ? c.json({ appearance: done.appearance, changed: done.changed }) : respond(c, done);
+    return done.ok
+      ? c.json({ appearance: done.appearance, changed: done.changed })
+      : respond(c, done);
   });
 
   app.post('/:workspaceId/apps', needs('apps.write'), async (c) => {
@@ -250,7 +263,11 @@ export function appRoutes(ctx: AppRoutesContext) {
   app.post('/:workspaceId/apps/:id/sync-all', needs('apps.sync'), async (c) => {
     const id = param(c, 'id');
     if (!(await getApp(db, ws(c), id))) return notFound(c);
-    const parsed = parseSyncAllQuery({ without: c.req.query('without'), kinds: c.req.query('kinds'), sources: c.req.query('sources') });
+    const parsed = parseSyncAllQuery({
+      without: c.req.query('without'),
+      kinds: c.req.query('kinds'),
+      sources: c.req.query('sources'),
+    });
     if (!parsed.ok) return c.json({ error: 'invalid_request', message: parsed.message }, 400);
     const wait = ctx.limiter.take(ws(c));
     if (wait > 0) {

@@ -41,7 +41,9 @@ dbTest('migration 55 adds the dismissed Insights cards; earlier data is untouche
     'fingerprint',
     'workspace_id',
   ]);
-  assert.ok((await tableIndexes(db, 'insight_dismissals')).includes('insight_dismissals_workspace_idx'));
+  assert.ok(
+    (await tableIndexes(db, 'insight_dismissals')).includes('insight_dismissals_workspace_idx'),
+  );
 
   const row = (app: string, card: string, workspace = 'w1') =>
     db.execute(

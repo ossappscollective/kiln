@@ -45,22 +45,46 @@ export type ListingFixesView = {
   locales: LocaleFixes[];
 };
 
-type Base = { app: ManagedApp; store: ListingStore; locales: CheckLocaleText[]; staged: Map<string, { id: string; value: string }> };
+type Base = {
+  app: ManagedApp;
+  store: ListingStore;
+  locales: CheckLocaleText[];
+  staged: Map<string, { id: string; value: string }>;
+};
 
 const stagedKey = (locale: string, field: string) => `${locale}\u0000${field}`;
 
-async function readBase(ctx: StagedContext, workspaceId: string, appId: string): Promise<Base | undefined> {
+async function readBase(
+  ctx: StagedContext,
+  workspaceId: string,
+  appId: string,
+): Promise<Base | undefined> {
   const app = await getApp(ctx.db, workspaceId, appId);
   if (!app) return undefined;
-  const live = await getLiveListing(ctx.db, workspaceId, { id: app.id, platform: app.platform, identifier: app.identifier });
-  const channel = live.channels.find((c) => c.channel === 'live') ?? live.channels.find((c) => c.channel === 'editable');
-  const locales: CheckLocaleText[] = channel ? Object.keys(channel.locales).map((locale) => ({ locale, fields: { ...(channel.locales[locale] ?? {}) } })) : [];
+  const live = await getLiveListing(ctx.db, workspaceId, {
+    id: app.id,
+    platform: app.platform,
+    identifier: app.identifier,
+  });
+  const channel =
+    live.channels.find((c) => c.channel === 'live') ??
+    live.channels.find((c) => c.channel === 'editable');
+  const locales: CheckLocaleText[] = channel
+    ? Object.keys(channel.locales).map((locale) => ({
+        locale,
+        fields: { ...(channel.locales[locale] ?? {}) },
+      }))
+    : [];
   const rows = await ctx.db.query(
     "SELECT id, locale, target, value_text FROM staged_changes WHERE app_id = ? AND kind = 'listing_text' AND ordinal = 0",
     [app.id],
   );
   const staged = new Map<string, { id: string; value: string }>();
-  for (const r of rows) staged.set(stagedKey(String(r.locale), String(r.target)), { id: String(r.id), value: String(r.value_text ?? '') });
+  for (const r of rows)
+    staged.set(stagedKey(String(r.locale), String(r.target)), {
+      id: String(r.id),
+      value: String(r.value_text ?? ''),
+    });
   return { app, store: listingStoreOf(app.platform), locales, staged };
 }
 
@@ -80,9 +104,16 @@ export async function getListingFixes(
 ): Promise<{ ok: true; view: ListingFixesView } | Failure> {
   const base = await readBase(ctx, input.workspaceId, input.appId);
   if (!base) return failure(404, 'not_found');
-  const anyStaged = Array.from(base.staged.keys()).some((k) => base.locales.some((l) => k.startsWith(`${l.locale}\u0000`)));
+  const anyStaged = Array.from(base.staged.keys()).some((k) =>
+    base.locales.some((l) => k.startsWith(`${l.locale}\u0000`)),
+  );
   const locales: LocaleFixes[] = base.locales.map((entry) => {
-    const { fixes, cannot } = analyzeFixes({ platform: base.app.platform, store: base.store, locale: entry.locale, fields: effective(base, entry) });
+    const { fixes, cannot } = analyzeFixes({
+      platform: base.app.platform,
+      store: base.store,
+      locale: entry.locale,
+      fields: effective(base, entry),
+    });
     const staged: LocaleFixes['staged'] = [];
     for (const [key, row] of base.staged) {
       const [locale, field] = key.split('\u0000');
@@ -93,10 +124,20 @@ export async function getListingFixes(
   let afterPending: ListingFixesView['afterPending'] = null;
   if (anyStaged) {
     const before = checkListing({ store: base.store, locales: base.locales });
-    const after = checkListing({ store: base.store, locales: base.locales.map((l) => ({ ...l, fields: effective(base, l) })) });
+    const after = checkListing({
+      store: base.store,
+      locales: base.locales.map((l) => ({ ...l, fields: effective(base, l) })),
+    });
     const left = new Set(after.locales.flatMap((l) => l.issues.map((i) => i.id)));
-    const resolved = before.locales.flatMap((l) => l.issues.map((i) => i.id)).filter((id) => !left.has(id));
-    afterPending = { score: after.score, issueCount: after.issueCount, counts: after.counts, resolved };
+    const resolved = before.locales
+      .flatMap((l) => l.issues.map((i) => i.id))
+      .filter((id) => !left.has(id));
+    afterPending = {
+      score: after.score,
+      issueCount: after.issueCount,
+      counts: after.counts,
+      resolved,
+    };
   }
   return { ok: true, view: { appId: base.app.id, store: base.store, afterPending, locales } };
 }
@@ -118,18 +159,39 @@ export async function stageListingFix(ctx: StagedContext, input: StageFixInput) 
   const locked = await metadataLockedFailure(ctx.db, input.workspaceId, base.app);
   if (locked) return locked;
   const entry = base.locales.find((l) => l.locale === input.locale);
-  const gone = failure(409, 'fix_not_available', 'This fix no longer applies: the text changed or it is already fixed. Reload and look again.', {
-    ...coded('listing.fixNotAvailable'),
-  });
-  if (!entry) return gone;
-  const fix = analyzeFixes({ platform: base.app.platform, store: base.store, locale: entry.locale, fields: effective(base, entry) }).fixes.find(
-    (f) => f.id === input.fixId && f.field === input.field,
+  const gone = failure(
+    409,
+    'fix_not_available',
+    'This fix no longer applies: the text changed or it is already fixed. Reload and look again.',
+    {
+      ...coded('listing.fixNotAvailable'),
+    },
   );
+  if (!entry) return gone;
+  const fix = analyzeFixes({
+    platform: base.app.platform,
+    store: base.store,
+    locale: entry.locale,
+    fields: effective(base, entry),
+  }).fixes.find((f) => f.id === input.fixId && f.field === input.field);
   if (!fix || fix.kind !== 'stage' || fix.after === null) return gone;
   if (input.beforeHash !== undefined && input.beforeHash !== hashListingValue(fix.before)) {
-    return failure(409, 'stale_fix', 'The text changed since you looked at this fix. Reload and review it again.', { ...coded('listing.staleFix') });
+    return failure(
+      409,
+      'stale_fix',
+      'The text changed since you looked at this fix. Reload and review it again.',
+      { ...coded('listing.staleFix') },
+    );
   }
-  const done = await stageText(ctx, { workspaceId: input.workspaceId, appId: input.appId, locale: input.locale, field: input.field, from: 'local', value: fix.after, actor: input.actor });
+  const done = await stageText(ctx, {
+    workspaceId: input.workspaceId,
+    appId: input.appId,
+    locale: input.locale,
+    field: input.field,
+    from: 'local',
+    value: fix.after,
+    actor: input.actor,
+  });
   if (!done.ok) return done;
   await recordAudit(ctx.db, {
     workspaceId: input.workspaceId,

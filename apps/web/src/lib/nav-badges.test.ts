@@ -88,9 +88,14 @@ test('the sidebar of one app: unanswered reviews of its records, and releases le
 
 test('badge tones: plain counts are tinted, a blocked pending change keeps the warning colour', async () => {
   const { badgeClass, navBadgeTone } = await import('./nav-badges.ts');
-  for (const id of ['reviews', 'releases', 'insights', 'builds', 'dashboard']) assert.equal(navBadgeTone(id, { pendingBlocking: true }), 'count', id);
+  for (const id of ['reviews', 'releases', 'insights', 'builds', 'dashboard'])
+    assert.equal(navBadgeTone(id, { pendingBlocking: true }), 'count', id);
   assert.equal(navBadgeTone('listing'), 'count');
   assert.equal(navBadgeTone('listing', { pendingBlocking: false }), 'count');
   assert.equal(navBadgeTone('listing', { pendingBlocking: true }), 'warning');
-  assert.deepEqual((['count', 'warning', 'danger'] as const).map(badgeClass), ['accent', 'warn', 'bad']);
+  assert.deepEqual((['count', 'warning', 'danger'] as const).map(badgeClass), [
+    'accent',
+    'warn',
+    'bad',
+  ]);
 });

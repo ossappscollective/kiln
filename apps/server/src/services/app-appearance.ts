@@ -34,7 +34,10 @@ export function parseAppearance(raw: unknown): AppAppearance | null {
 }
 
 /** Every stored appearance of a workspace (apps with the default are absent). An invalid stored value is ignored. */
-export async function readAppearances(sql: Sql, workspaceId: string): Promise<Record<string, AppAppearance>> {
+export async function readAppearances(
+  sql: Sql,
+  workspaceId: string,
+): Promise<Record<string, AppAppearance>> {
   const rows = await sql.query(
     "SELECT key, value_json FROM workspace_settings WHERE workspace_id = ? AND key LIKE 'app.%.appearance'",
     [workspaceId],
@@ -53,11 +56,15 @@ export async function readAppearances(sql: Sql, workspaceId: string): Promise<Re
   return out;
 }
 
-export async function readAppAppearance(sql: Sql, workspaceId: string, appId: string): Promise<AppAppearance> {
-  const [row] = await sql.query('SELECT value_json FROM workspace_settings WHERE workspace_id = ? AND key = ?', [
-    workspaceId,
-    appearanceKeyOf(appId),
-  ]);
+export async function readAppAppearance(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<AppAppearance> {
+  const [row] = await sql.query(
+    'SELECT value_json FROM workspace_settings WHERE workspace_id = ? AND key = ?',
+    [workspaceId, appearanceKeyOf(appId)],
+  );
   if (!row) return { ...DEFAULT_APP_APPEARANCE };
   try {
     return parseAppearance(JSON.parse(String(row.value_json))) ?? { ...DEFAULT_APP_APPEARANCE };
@@ -67,7 +74,10 @@ export async function readAppAppearance(sql: Sql, workspaceId: string, appId: st
 }
 
 export const deleteAppAppearance = (sql: Sql, workspaceId: string, appId: string) =>
-  sql.execute('DELETE FROM workspace_settings WHERE workspace_id = ? AND key = ?', [workspaceId, appearanceKeyOf(appId)]);
+  sql.execute('DELETE FROM workspace_settings WHERE workspace_id = ? AND key = ?', [
+    workspaceId,
+    appearanceKeyOf(appId),
+  ]);
 
 /**
  * `PUT /apps/{id}/appearance`: replaces the value. `auto` removes the row. 404 for an app of another workspace. Audited as
@@ -75,7 +85,12 @@ export const deleteAppAppearance = (sql: Sql, workspaceId: string, appId: string
  */
 export async function updateAppAppearance(
   db: Database,
-  input: { workspaceId: string; appId: string; value: unknown; actor: { type: ActorType; id: string } },
+  input: {
+    workspaceId: string;
+    appId: string;
+    value: unknown;
+    actor: { type: ActorType; id: string };
+  },
   now: number,
 ): Promise<{ ok: true; appearance: AppAppearance; changed: boolean } | Failure> {
   const app = await getApp(db, input.workspaceId, input.appId);
@@ -88,7 +103,8 @@ export async function updateAppAppearance(
     });
   return db.transaction(async (tx) => {
     const before = await readAppAppearance(tx, input.workspaceId, input.appId);
-    if (before.tint === next.tint && before.color === next.color) return { ok: true as const, appearance: next, changed: false };
+    if (before.tint === next.tint && before.color === next.color)
+      return { ok: true as const, appearance: next, changed: false };
     if (next.tint === 'auto') await deleteAppAppearance(tx, input.workspaceId, input.appId);
     else
       await tx.execute(
@@ -96,7 +112,13 @@ export async function updateAppAppearance(
          VALUES (?, ?, ?, ?, ?)
          ON CONFLICT (workspace_id, key) DO UPDATE SET
            value_json = excluded.value_json, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
-        [input.workspaceId, appearanceKeyOf(input.appId), JSON.stringify(next), now, input.actor.id],
+        [
+          input.workspaceId,
+          appearanceKeyOf(input.appId),
+          JSON.stringify(next),
+          now,
+          input.actor.id,
+        ],
       );
     await recordAudit(tx, {
       workspaceId: input.workspaceId,

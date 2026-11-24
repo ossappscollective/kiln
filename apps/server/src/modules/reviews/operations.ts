@@ -144,7 +144,9 @@ const reviewListQuery = z.object({
   mentions: z
     .enum(['crash'])
     .optional()
-    .describe('`crash`: reviews that mention crashes or freezes (the documented phrase list, docs/api/health.md).'),
+    .describe(
+      '`crash`: reviews that mention crashes or freezes (the documented phrase list, docs/api/health.md).',
+    ),
   since: z
     .number()
     .int()

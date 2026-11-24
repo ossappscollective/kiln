@@ -55,7 +55,10 @@ function kind(ceiling: boolean, choice: ReviewAiSwitch): ReviewAiKindState {
   return { choice, allowed: true, locked: false, reason: null };
 }
 
-export function resolveReviewAiPolicy(ceiling: ReviewAiCeiling, stored: ReviewAiPolicyStored): ReviewAiEffective {
+export function resolveReviewAiPolicy(
+  ceiling: ReviewAiCeiling,
+  stored: ReviewAiPolicyStored,
+): ReviewAiEffective {
   return {
     own: kind(ceiling.ownReviews, stored.ownReviews),
     competitor: kind(ceiling.competitorReviews, stored.competitorReviews),
@@ -76,7 +79,8 @@ export function normalizeReviewAiPolicy(
   const value = { ...base };
   for (const key of ['ownReviews', 'competitorReviews'] as const) {
     if (raw[key] === undefined) continue;
-    if (raw[key] === null || raw[key] === 'on' || raw[key] === 'off') value[key] = raw[key] as ReviewAiSwitch;
+    if (raw[key] === null || raw[key] === 'on' || raw[key] === 'off')
+      value[key] = raw[key] as ReviewAiSwitch;
     else issues.push({ path: key, message: 'Use on, off or null (follow the workspace).' });
   }
   if (raw.detail !== undefined) {
@@ -104,7 +108,11 @@ const HANDLE = /(^|[^A-Za-z0-9_@.])@[A-Za-z0-9_][A-Za-z0-9_.]{1,29}/g;
  * taken before a handle, a link before a number.
  */
 export function redactReviewText(text: string, authorName: string | null): string {
-  let out = text.replace(EMAIL, '[email]').replace(LINK, '[link]').replace(PHONE, '[number]').replace(HANDLE, '$1[handle]');
+  let out = text
+    .replace(EMAIL, '[email]')
+    .replace(LINK, '[link]')
+    .replace(PHONE, '[number]')
+    .replace(HANDLE, '$1[handle]');
   out = maskName(out, authorName);
   return out;
 }
@@ -151,7 +159,13 @@ export function shapeReviewForAi(
   limits: { titleChars: number; textChars: number },
 ): ShapedReview {
   if (policy.detail === 'ratings') return { stars: review.rating };
-  const clean = (value: string) => clipText(policy.redact ? redactReviewText(value, review.authorName) : maskName(value, review.authorName), 100000);
+  const clean = (value: string) =>
+    clipText(
+      policy.redact
+        ? redactReviewText(value, review.authorName)
+        : maskName(value, review.authorName),
+      100000,
+    );
   const title = clipText(clean(review.title === null ? '' : review.title), limits.titleChars);
   const text = clipText(clean(review.body), limits.textChars);
   const out: ShapedReview = { stars: review.rating };

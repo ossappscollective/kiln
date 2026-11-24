@@ -52,10 +52,7 @@ import {
   defaultReviewConnectorFactory,
   REVIEW_SYNC_QUEUE,
 } from './modules/reviews/sync.ts';
-import {
-  createTestflightAfterReviews,
-  reviewThenTestflight,
-} from './modules/testflight/index.ts';
+import { createTestflightAfterReviews, reviewThenTestflight } from './modules/testflight/index.ts';
 import {
   DEFAULT_TESTFLIGHT_SYNC_TIMEOUT_MS,
   defaultTestflightConnectorFactory,
@@ -299,7 +296,12 @@ const worker = createWorker({
       now: Date.now,
     }),
     // Apple Ads reports of linked apps (read only toward Apple; docs/api/apple-ads.md). Queued by the sync plan and by hand, never by a timer.
-    [ADS_SYNC_QUEUE]: createAdsSyncHandler({ db: database, masterKey: config.masterKey, now: Date.now, deps: undefined }),
+    [ADS_SYNC_QUEUE]: createAdsSyncHandler({
+      db: database,
+      masterKey: config.masterKey,
+      now: Date.now,
+      deps: undefined,
+    }),
     // Scheduled and background ASO refreshes (public store data only; docs/api/aso.md).
     [ASO_REFRESH_QUEUE]: createAsoRefreshHandler({
       db: database,
@@ -308,7 +310,11 @@ const worker = createWorker({
       limits: asoLimits,
     }),
     // Scheduled reads of the public reviews of followed App Store competitors (off per app until a schedule is set; docs/adr/0065).
-    [COMPETITOR_REVIEWS_QUEUE]: createCompetitorReviewsHandler({ db: database, now: Date.now, sources: asoSources }),
+    [COMPETITOR_REVIEWS_QUEUE]: createCompetitorReviewsHandler({
+      db: database,
+      now: Date.now,
+      sources: asoSources,
+    }),
     // Scheduled and background analytics syncs (read-only toward the stores; docs/api/analytics.md).
     [ANALYTICS_SYNC_QUEUE]: createAnalyticsSyncHandler({
       db: database,
@@ -351,7 +357,16 @@ const worker = createWorker({
   },
   // Several jobs at once, quick and useful ones first (release state, listing, reviews), heavy feeds after and never in every slot.
   concurrency: config.jobConcurrency,
-  priority: { [APP_SYNC_QUEUE]: 0, [LISTING_READ_QUEUE]: 0, [REVIEW_SYNC_QUEUE]: 1, [EAS_STATUS_QUEUE]: 2, [ANALYTICS_SYNC_QUEUE]: 3, [ASO_REFRESH_QUEUE]: 3, [COMPETITOR_REVIEWS_QUEUE]: 3, [ADS_SYNC_QUEUE]: 4 },
+  priority: {
+    [APP_SYNC_QUEUE]: 0,
+    [LISTING_READ_QUEUE]: 0,
+    [REVIEW_SYNC_QUEUE]: 1,
+    [EAS_STATUS_QUEUE]: 2,
+    [ANALYTICS_SYNC_QUEUE]: 3,
+    [ASO_REFRESH_QUEUE]: 3,
+    [COMPETITOR_REVIEWS_QUEUE]: 3,
+    [ADS_SYNC_QUEUE]: 4,
+  },
   heavy: [ANALYTICS_SYNC_QUEUE, ASO_REFRESH_QUEUE, COMPETITOR_REVIEWS_QUEUE, ADS_SYNC_QUEUE],
 });
 if (config.worker === 'inline') worker.start();

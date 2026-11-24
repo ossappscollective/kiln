@@ -15,11 +15,11 @@ is off. Reading products, price points, the conversion and the dry run keep work
 
 ## Who can do it
 
-| Step | Right | Notes |
-| --- | --- | --- |
+| Step                                  | Right                | Notes                                                                                                            |
+| ------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | Stage, price points, convert, dry run | `monetization.price` | Owner and admin. An API token only when its list of actions names it (explicit-only, like `monetization.write`). |
-| Send (cart publish) | `monetization.price` | Plus step-up class `store.price` (in the default list) and the typed phrase. |
-| Discard a staged price | `changesets.write` | Removes only Kiln's draft. |
+| Send (cart publish)                   | `monetization.price` | Plus step-up class `store.price` (in the default list) and the typed phrase.                                     |
+| Discard a staged price                | `changesets.write`   | Removes only Kiln's draft.                                                                                       |
 
 There is no second-person approval in Kiln. The step-up (a second factor, passkey or code) and the typed phrase take its place; the ADR says so
 rather than implying more.

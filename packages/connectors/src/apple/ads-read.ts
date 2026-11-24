@@ -86,7 +86,8 @@ export const ADS_PAGE_SIZE = 1000;
 export const ADS_MAX_PAGES = 10;
 export const ADS_MAX_ROWS = 20_000;
 
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
 const unexpected = () => new AppleAdsError('unexpected');
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 86_400_000;
@@ -102,7 +103,9 @@ export function adsRangeDays(range: AdsRange): number {
 function checkRange(range: AdsRange): void {
   const days = adsRangeDays(range);
   if (!Number.isFinite(days) || days < 1 || days > ADS_MAX_RANGE_DAYS) {
-    throw new AppleAdsError('invalid_input', { message: `The date range must be 1 to ${ADS_MAX_RANGE_DAYS} days.` });
+    throw new AppleAdsError('invalid_input', {
+      message: `The date range must be 1 to ${ADS_MAX_RANGE_DAYS} days.`,
+    });
   }
 }
 
@@ -134,16 +137,19 @@ const count = (v: unknown): number => {
 const money = (v: unknown): { micros: number; currency: string | null } => {
   if (v === undefined || v === null) return { micros: 0, currency: null };
   if (!isRecord(v)) throw unexpected();
-  const currency = typeof v.currency === 'string' && /^[A-Z]{3}$/.test(v.currency) ? v.currency : null;
+  const currency =
+    typeof v.currency === 'string' && /^[A-Z]{3}$/.test(v.currency) ? v.currency : null;
   return { micros: v.amount === undefined ? 0 : microsOf(v.amount), currency };
 };
 
 export function parseAdsMetrics(m: unknown): AdsMetrics {
-  if (m === undefined || m === null) return { impressions: 0, taps: 0, installs: 0, tapInstalls: 0, spendMicros: 0, currency: null };
+  if (m === undefined || m === null)
+    return { impressions: 0, taps: 0, installs: 0, tapInstalls: 0, spendMicros: 0, currency: null };
   if (!isRecord(m)) throw unexpected();
   const spend = money(m.localSpend);
   const tapInstalls = count(m.tapInstalls);
-  const total = m.totalInstalls === undefined || m.totalInstalls === null ? undefined : count(m.totalInstalls);
+  const total =
+    m.totalInstalls === undefined || m.totalInstalls === null ? undefined : count(m.totalInstalls);
   return {
     impressions: count(m.impressions),
     taps: count(m.taps),
@@ -164,7 +170,11 @@ const add = (a: AdsMetrics, b: AdsMetrics): AdsMetrics => ({
 });
 
 /** The daily entries of a row, merged by day and country. With no granular entries (a one-day request) the totals are that day. */
-function daysOf(row: Record<string, unknown>, range: AdsRange, meta: Record<string, unknown>): AdsDay[] {
+function daysOf(
+  row: Record<string, unknown>,
+  range: AdsRange,
+  meta: Record<string, unknown>,
+): AdsDay[] {
   const out = new Map<string, AdsDay>();
   const put = (day: string, country: string, m: AdsMetrics) => {
     const key = `${day}|${country}`;
@@ -187,11 +197,22 @@ function daysOf(row: Record<string, unknown>, range: AdsRange, meta: Record<stri
   return [...out.values()].sort((a, b) => (a.day + a.country < b.day + b.country ? -1 : 1));
 }
 
-function reportBody(range: AdsRange, page: { offset: number; pageSize: number }, extra: { campaignId?: string; groupByCountry?: boolean }) {
+function reportBody(
+  range: AdsRange,
+  page: { offset: number; pageSize: number },
+  extra: { campaignId?: string; groupByCountry?: boolean },
+) {
   const daily = range.start !== range.end;
   return {
-    timeRange: { start: range.start, end: range.end, timeZone: 'ORTZ', ...(daily ? { granularity: 'DAILY' } : {}) },
-    ...(extra.campaignId ? { filters: [{ field: 'campaignId', operator: 'EQUALS', value: extra.campaignId }] } : {}),
+    timeRange: {
+      start: range.start,
+      end: range.end,
+      timeZone: 'ORTZ',
+      ...(daily ? { granularity: 'DAILY' } : {}),
+    },
+    ...(extra.campaignId
+      ? { filters: [{ field: 'campaignId', operator: 'EQUALS', value: extra.campaignId }] }
+      : {}),
     ...(extra.groupByCountry ? { groupBy: ['countryOrRegion'] } : {}),
     pagination: { offset: page.offset, pageSize: page.pageSize },
   };
@@ -202,7 +223,11 @@ async function pagedRows(
   path: string,
   adAccountId: string,
   makeBody: (page: { offset: number; pageSize: number }) => Record<string, unknown>,
-  options: { signal?: AbortSignal | undefined; maxRows?: number | undefined; pageSize?: number | undefined },
+  options: {
+    signal?: AbortSignal | undefined;
+    maxRows?: number | undefined;
+    pageSize?: number | undefined;
+  },
 ): Promise<{ rows: Record<string, unknown>[]; complete: boolean }> {
   const pageSize = options.pageSize ?? ADS_PAGE_SIZE;
   const maxRows = options.maxRows ?? ADS_MAX_ROWS;
@@ -210,7 +235,10 @@ async function pagedRows(
   let offset = 0;
   for (let page = 0; page < ADS_MAX_PAGES; page += 1) {
     if (!client.canRequest()) return { rows, complete: false };
-    const body = await client.query(path, makeBody({ offset, pageSize }), { adAccountId, signal: options.signal });
+    const body = await client.query(path, makeBody({ offset, pageSize }), {
+      adAccountId,
+      signal: options.signal,
+    });
     const result = body.result;
     const list = isRecord(result) ? result.rows : undefined;
     if (!Array.isArray(list)) throw unexpected();
@@ -218,21 +246,31 @@ async function pagedRows(
       if (!isRecord(r)) throw unexpected();
       rows.push(r);
     }
-    const total = isRecord(body.pagination) && typeof body.pagination.totalCount === 'number' ? body.pagination.totalCount : undefined;
+    const total =
+      isRecord(body.pagination) && typeof body.pagination.totalCount === 'number'
+        ? body.pagination.totalCount
+        : undefined;
     offset += list.length;
-    if (list.length < pageSize || (total !== undefined && offset >= total)) return { rows, complete: true };
+    if (list.length < pageSize || (total !== undefined && offset >= total))
+      return { rows, complete: true };
     if (rows.length >= maxRows) return { rows, complete: false };
   }
   return { rows, complete: false };
 }
 
 const accountId = (v: string): string => {
-  if (!/^[0-9]{1,20}$/.test(v)) throw new AppleAdsError('invalid_input', { message: 'That is not a valid Apple Ads ad account id.' });
+  if (!/^[0-9]{1,20}$/.test(v))
+    throw new AppleAdsError('invalid_input', {
+      message: 'That is not a valid Apple Ads ad account id.',
+    });
   return v;
 };
 
 /** `GET /v1/acls`: the ad accounts the key may read and its roles on each. */
-export async function listAppleAdsAccounts(client: AppleAdsClient, options: { signal?: AbortSignal | undefined } = {}): Promise<AdsAccount[]> {
+export async function listAppleAdsAccounts(
+  client: AppleAdsClient,
+  options: { signal?: AbortSignal | undefined } = {},
+): Promise<AdsAccount[]> {
   const body = await client.get('/acls', options);
   const result = body.result;
   const acls = isRecord(result) ? result.acls : undefined;
@@ -242,8 +280,15 @@ export async function listAppleAdsAccounts(client: AppleAdsClient, options: { si
     if (!isRecord(entry) || !isRecord(entry.adAccount)) throw unexpected();
     const id = idOf(entry.adAccount.id);
     if (id === null) continue;
-    const roles = Array.isArray(entry.roles) ? entry.roles.filter((r): r is string => typeof r === 'string').map((r) => r.slice(0, 80)) : [];
-    out.push({ id, name: textOf(entry.adAccount.name, 200) ?? id, orgId: idOf(entry.adAccount.orgId), roles });
+    const roles = Array.isArray(entry.roles)
+      ? entry.roles.filter((r): r is string => typeof r === 'string').map((r) => r.slice(0, 80))
+      : [];
+    out.push({
+      id,
+      name: textOf(entry.adAccount.name, 200) ?? id,
+      orgId: idOf(entry.adAccount.orgId),
+      roles,
+    });
   }
   return out;
 }
@@ -264,11 +309,17 @@ export async function getAppleAdsAccount(
     currency: typeof r.currency === 'string' && /^[A-Z]{3}$/.test(r.currency) ? r.currency : null,
     timezone: textOf(r.timezone, 60),
     systemStatus: textOf(r.systemStatus, 40),
-    productFeatures: Array.isArray(r.productFeatures) ? r.productFeatures.filter((f): f is string => typeof f === 'string').slice(0, 10) : [],
+    productFeatures: Array.isArray(r.productFeatures)
+      ? r.productFeatures.filter((f): f is string => typeof f === 'string').slice(0, 10)
+      : [],
   };
 }
 
-type ReadOptions = { signal?: AbortSignal | undefined; maxRows?: number | undefined; pageSize?: number | undefined };
+type ReadOptions = {
+  signal?: AbortSignal | undefined;
+  maxRows?: number | undefined;
+  pageSize?: number | undefined;
+};
 
 /** `POST /v1/reports/apps/campaigns/query`: one row per App Store campaign with activity in the range, daily. */
 export async function readAppleAdsCampaigns(
@@ -279,7 +330,13 @@ export async function readAppleAdsCampaigns(
 ): Promise<AdsReadResult<AdsCampaign>> {
   checkRange(range);
   const id = accountId(adAccountId);
-  const { rows, complete } = await pagedRows(client, '/reports/apps/campaigns/query', id, (page) => reportBody(range, page, {}), options);
+  const { rows, complete } = await pagedRows(
+    client,
+    '/reports/apps/campaigns/query',
+    id,
+    (page) => reportBody(range, page, {}),
+    options,
+  );
   const byId = new Map<string, AdsCampaign>();
   let skipped = 0;
   for (const row of rows) {
@@ -295,7 +352,10 @@ export async function readAppleAdsCampaigns(
       campaignId,
       name: textOf(meta.name, 200) ?? campaignId,
       status: textOf(meta.status, 40),
-      adamId: meta.promotedObjectType === undefined || meta.promotedObjectType === 'APPSTORE_APP' ? idOf(meta.promotedObjectId) : null,
+      adamId:
+        meta.promotedObjectType === undefined || meta.promotedObjectType === 'APPSTORE_APP'
+          ? idOf(meta.promotedObjectId)
+          : null,
       days: [],
     };
     campaign.days = mergeDays(campaign.days, days);
@@ -380,12 +440,22 @@ async function readTerms(
 }
 
 /** `POST /v1/reports/apps/searchterms/query` for one campaign, daily and per country. Low-volume terms may be hidden by Apple. */
-export const readAppleAdsSearchTerms = (client: AppleAdsClient, adAccountId: string, campaignId: string, range: AdsRange, options: ReadOptions = {}) =>
-  readTerms(client, 'searchterms', adAccountId, campaignId, range, options);
+export const readAppleAdsSearchTerms = (
+  client: AppleAdsClient,
+  adAccountId: string,
+  campaignId: string,
+  range: AdsRange,
+  options: ReadOptions = {},
+) => readTerms(client, 'searchterms', adAccountId, campaignId, range, options);
 
 /** `POST /v1/reports/apps/keywords/query` for one campaign, daily and per country. */
-export const readAppleAdsKeywords = (client: AppleAdsClient, adAccountId: string, campaignId: string, range: AdsRange, options: ReadOptions = {}) =>
-  readTerms(client, 'keywords', adAccountId, campaignId, range, options);
+export const readAppleAdsKeywords = (
+  client: AppleAdsClient,
+  adAccountId: string,
+  campaignId: string,
+  range: AdsRange,
+  options: ReadOptions = {},
+) => readTerms(client, 'keywords', adAccountId, campaignId, range, options);
 
 const POPULARITY_CHUNK = 20;
 
@@ -397,11 +467,21 @@ const POPULARITY_CHUNK = 20;
 export async function readAppleAdsPopularity(
   client: AppleAdsClient,
   adAccountId: string,
-  input: { country: string; terms: string[]; weekStart: string; weekEnd: string; genre?: string | undefined },
+  input: {
+    country: string;
+    terms: string[];
+    weekStart: string;
+    weekEnd: string;
+    genre?: string | undefined;
+  },
   options: { signal?: AbortSignal | undefined } = {},
 ): Promise<{ rows: AdsPopularity[]; complete: boolean }> {
   const id = accountId(adAccountId);
-  if (!/^[A-Za-z]{2}$/.test(input.country) || !DATE.test(input.weekStart) || !DATE.test(input.weekEnd)) {
+  if (
+    !/^[A-Za-z]{2}$/.test(input.country) ||
+    !DATE.test(input.weekStart) ||
+    !DATE.test(input.weekEnd)
+  ) {
     throw new AppleAdsError('invalid_input');
   }
   const out: AdsPopularity[] = [];
@@ -433,7 +513,8 @@ export async function readAppleAdsPopularity(
       if (!isRecord(r)) throw unexpected();
       const term = textOf(r.searchTerm);
       if (term === null) continue;
-      const score = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : null);
+      const score = (v: unknown) =>
+        typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : null;
       out.push({
         term,
         country: (textOf(r.countryOrRegion, 8) ?? input.country).toLowerCase(),

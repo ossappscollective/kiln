@@ -49,12 +49,11 @@ export function planHeadline(
     .map((s) => STEP_NAME[s.type]);
   const n = plan.included;
   return {
-    title:
-      n === 0
-        ? t('shell:publish.nothing')
-        : t('shell:publish.written', { count: n, store }),
+    title: n === 0 ? t('shell:publish.nothing') : t('shell:publish.written', { count: n, store }),
     // Each step name is a whole phrase, so the order is said by a message with room for both sides.
-    sequence: names.slice(1).reduce((before, next) => t('shell:publish.then', { before, next }), names[0] ?? ''),
+    sequence: names
+      .slice(1)
+      .reduce((before, next) => t('shell:publish.then', { before, next }), names[0] ?? ''),
   };
 }
 

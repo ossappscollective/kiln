@@ -119,11 +119,9 @@ async function examine(
   const available = localAvailability(ctx.reads);
   const off = refusal(available);
   if (off || !ctx.reads)
-    return off ?? failure(
-      409,
-      'local_not_enabled',
-      'Local clones are not enabled.',
-      coded('local.notEnabled'),
+    return (
+      off ??
+      failure(409, 'local_not_enabled', 'Local clones are not enabled.', coded('local.notEnabled'))
     );
   const check = await validateLocalPath(input.path, ctx.reads.local ?? { roots: [], excluded: [] });
   if (!check.ok) return pathProblem(check);

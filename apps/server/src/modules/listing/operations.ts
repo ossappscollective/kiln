@@ -55,10 +55,14 @@ const pullListingBody = z.object({
 const appListingSettingsSchema = z.object({
   compareRepo: z
     .boolean()
-    .describe('Compare the repository (fastlane text) with the store and show the differences. Default false: the store page is checked on its own.'),
+    .describe(
+      'Compare the repository (fastlane text) with the store and show the differences. Default false: the store page is checked on its own.',
+    ),
   compareMedia: z
     .boolean()
-    .describe('Compare the repository graphics with the store graphics. Default false: the store graphics are listed on their own.'),
+    .describe(
+      'Compare the repository graphics with the store graphics. Default false: the store graphics are listed on their own.',
+    ),
 });
 
 export const listingOperations: Draft[] = [
@@ -74,7 +78,12 @@ export const listingOperations: Draft[] = [
     risk: 'read',
     access: { action: 'apps.read' },
     appScope: { kind: 'param', name: 'id' },
-    responses: { '200': { description: 'The settings.', schema: z.object({ settings: appListingSettingsSchema }) } },
+    responses: {
+      '200': {
+        description: 'The settings.',
+        schema: z.object({ settings: appListingSettingsSchema }),
+      },
+    },
   },
   {
     id: 'updateAppListingSettings',
@@ -87,9 +96,14 @@ export const listingOperations: Draft[] = [
     risk: 'write',
     access: { action: 'apps.write' },
     appScope: { kind: 'param', name: 'id' },
-    body: z.object({ compareRepo: z.boolean().optional(), compareMedia: z.boolean().optional() }).strict(),
+    body: z
+      .object({ compareRepo: z.boolean().optional(), compareMedia: z.boolean().optional() })
+      .strict(),
     responses: {
-      '200': { description: 'The settings after the change, and the keys that changed.', schema: z.object({ settings: appListingSettingsSchema, changed: z.array(z.string()) }) },
+      '200': {
+        description: 'The settings after the change, and the keys that changed.',
+        schema: z.object({ settings: appListingSettingsSchema, changed: z.array(z.string()) }),
+      },
     },
   },
   {

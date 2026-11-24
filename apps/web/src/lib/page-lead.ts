@@ -17,7 +17,9 @@ export function needsAnswerText(chipText: string): string {
   if (!count) return chipText;
   const start = t('reviews:tab.chip', { count: Number(count[0]) });
   if (!chipText.startsWith(start)) return chipText;
-  return t('shell:lead.reviews.needAnswer', { count: Number(count[0]) }) + chipText.slice(start.length);
+  return (
+    t('shell:lead.reviews.needAnswer', { count: Number(count[0]) }) + chipText.slice(start.length)
+  );
 }
 
 export interface ReviewsLead {

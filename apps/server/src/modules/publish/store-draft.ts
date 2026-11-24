@@ -645,12 +645,13 @@ async function prepare(
 ): Promise<{ ok: true; prepared: Prepared } | Failure> {
   const { app } = input;
   const rows = await loadStagedRows(ctx.db, input.workspaceId, app.id);
-  if (rows.length === 0) return failure(
-    422,
-    'nothing_staged',
-    'Nothing is staged for this app.',
-    coded('staged.nothingStaged'),
-  );
+  if (rows.length === 0)
+    return failure(
+      422,
+      'nothing_staged',
+      'Nothing is staged for this app.',
+      coded('staged.nothingStaged'),
+    );
   const view = await buildStagedView(ctx, input.workspaceId, app, rows);
   if (!view.valid) {
     const errors = [
@@ -703,12 +704,10 @@ async function prepare(
       height: first.assetHeight,
     });
     if (target === undefined)
-      return failure(
-        422,
-        'staged_invalid',
-        'A staged set has no store name.',
-        { item: set.key, ...coded('staged.setNoName') },
-      );
+      return failure(422, 'staged_invalid', 'A staged set has no store name.', {
+        item: set.key,
+        ...coded('staged.setNoName'),
+      });
     sets.push({
       locale: set.locale,
       slot: set.slot,
@@ -765,12 +764,10 @@ async function prepare(
       }
       const format = sniffImageFormat(blob.bytes);
       if (format !== 'png' && format !== 'jpeg')
-        return failure(
-          422,
-          'asset_changed',
-          `${name} is not a PNG or JPEG.`,
-          { item: set.key, ...coded('staged.notPngJpeg', { name }) },
-        );
+        return failure(422, 'asset_changed', `${name} is not a PNG or JPEG.`, {
+          item: set.key,
+          ...coded('staged.notPngJpeg', { name }),
+        });
       set.files[r.ordinal] = {
         name: fileNameOf(r.assetPath ?? '', r.ordinal),
         mime: format === 'png' ? 'image/png' : 'image/jpeg',
@@ -834,12 +831,10 @@ async function prepare(
           );
         const format = sniffImageFormat(file.bytes);
         if (format !== 'png' && format !== 'jpeg')
-          return failure(
-            422,
-            'asset_changed',
-            `${name} is not a PNG or JPEG.`,
-            { item: set.key, ...coded('staged.notPngJpeg', { name }) },
-          );
+          return failure(422, 'asset_changed', `${name} is not a PNG or JPEG.`, {
+            item: set.key,
+            ...coded('staged.notPngJpeg', { name }),
+          });
         set.files[r.ordinal] = {
           name: fileNameOf(r.assetPath, r.ordinal),
           mime: format === 'png' ? 'image/png' : 'image/jpeg',

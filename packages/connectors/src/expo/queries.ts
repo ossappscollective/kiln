@@ -660,7 +660,8 @@ function easBuildOf(value: unknown): ExpoBuildSummary | null {
       text(artifacts.buildUrl) !== undefined || text(artifacts.applicationArchiveUrl) !== undefined,
     // buildUrl is the app file of the build (eas-cli prints it as the install link of an internal Android build); applicationArchiveUrl is
     // the fallback. UNVERIFIED against a live account which of the two holds the file for each platform. Only https addresses are kept.
-    artifactUrl: artifactUrlOf(artifacts.buildUrl) ?? artifactUrlOf(artifacts.applicationArchiveUrl),
+    artifactUrl:
+      artifactUrlOf(artifacts.buildUrl) ?? artifactUrlOf(artifacts.applicationArchiveUrl),
     createdAt: easTime(value.createdAt),
     updatedAt: easTime(value.updatedAt),
     completedAt: easTime(value.completedAt),

@@ -3056,7 +3056,10 @@ export const insightDismissals = sqliteTable(
     dismissedAt: integer('dismissed_at').notNull(),
     dismissedBy: text('dismissed_by'),
   },
-  (t) => [primaryKey({ columns: [t.appId, t.cardId] }), index('insight_dismissals_workspace_idx').on(t.workspaceId)],
+  (t) => [
+    primaryKey({ columns: [t.appId, t.cardId] }),
+    index('insight_dismissals_workspace_idx').on(t.workspaceId),
+  ],
 );
 
 /**

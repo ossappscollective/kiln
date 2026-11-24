@@ -10,7 +10,12 @@ import {
   expoUpdateGroupInsights,
 } from './queries.ts';
 import type { ExpoStoreBuild, ExpoUpdateChannel } from './types.ts';
-import { checkRuntimeVersions, describeCondition, parseBranchMapping, storedUpdatesOf } from './updates.ts';
+import {
+  checkRuntimeVersions,
+  describeCondition,
+  parseBranchMapping,
+  storedUpdatesOf,
+} from './updates.ts';
 import {
   BRANCH_MAIN,
   BRANCH_NEXT,
@@ -493,8 +498,23 @@ test('storedUpdatesOf keeps the current update of each channel and the mid-rollo
       channel({
         // The mapping names main only: next is not served, so its newer update is not "current", but its rollout is kept.
         updateBranches: [
-          { id: BRANCH_MAIN, name: 'main', updateGroups: [groups(GROUP_A, ['ios', 'android'], { createdAt: '2026-11-18T10:00:00.000Z' })] },
-          { id: BRANCH_NEXT, name: 'next', updateGroups: [groups(GROUP_B, ['ios'], { createdAt: '2026-11-20T10:00:00.000Z', rolloutPercentage: 100 })] },
+          {
+            id: BRANCH_MAIN,
+            name: 'main',
+            updateGroups: [
+              groups(GROUP_A, ['ios', 'android'], { createdAt: '2026-11-18T10:00:00.000Z' }),
+            ],
+          },
+          {
+            id: BRANCH_NEXT,
+            name: 'next',
+            updateGroups: [
+              groups(GROUP_B, ['ios'], {
+                createdAt: '2026-11-20T10:00:00.000Z',
+                rolloutPercentage: 100,
+              }),
+            ],
+          },
         ],
       }),
       channel({
@@ -502,8 +522,23 @@ test('storedUpdatesOf keeps the current update of each channel and the mid-rollo
         name: 'staging',
         branchMapping: rolloutMapping(),
         updateBranches: [
-          { id: BRANCH_NEXT, name: 'next', updateGroups: [groups(GROUP_B, ['ios', 'android'], { createdAt: '2026-11-20T10:00:00.000Z', rolloutPercentage: 25 })] },
-          { id: BRANCH_MAIN, name: 'main', updateGroups: [groups(GROUP_A, ['ios', 'android'], { createdAt: '2026-11-18T10:00:00.000Z' })] },
+          {
+            id: BRANCH_NEXT,
+            name: 'next',
+            updateGroups: [
+              groups(GROUP_B, ['ios', 'android'], {
+                createdAt: '2026-11-20T10:00:00.000Z',
+                rolloutPercentage: 25,
+              }),
+            ],
+          },
+          {
+            id: BRANCH_MAIN,
+            name: 'main',
+            updateGroups: [
+              groups(GROUP_A, ['ios', 'android'], { createdAt: '2026-11-18T10:00:00.000Z' }),
+            ],
+          },
         ],
       }),
     ]),
@@ -517,6 +552,9 @@ test('storedUpdatesOf keeps the current update of each channel and the mid-rollo
   ]);
   assert.equal(rows[0]?.message, 'Line one', 'the first line of the message only');
   assert.ok(rows.every((r) => r.platform === 'ios'));
-  assert.deepEqual(storedUpdatesOf(read.channels, 'android').map((r) => r.channel), ['production', 'staging']);
+  assert.deepEqual(
+    storedUpdatesOf(read.channels, 'android').map((r) => r.channel),
+    ['production', 'staging'],
+  );
   assert.deepEqual(storedUpdatesOf([], 'ios'), []);
 });

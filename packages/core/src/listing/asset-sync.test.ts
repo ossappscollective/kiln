@@ -174,12 +174,34 @@ test('fixAdvice: a wrong extension is renamed, a wrong size is resized for png a
 
 test('store images are checked on their own: a wrong pixel size and too many in a set', () => {
   const file = (position: number, width: number, height: number) => ({
-    ref: `r${position}`, position, name: `${position}.png`, width, height, bytes: 1000, checksum: null, checksumKind: null, state: null, downloadable: true,
+    ref: `r${position}`,
+    position,
+    name: `${position}.png`,
+    width,
+    height,
+    bytes: 1000,
+    checksum: null,
+    checksumKind: null,
+    state: null,
+    downloadable: true,
   });
-  const files = [file(1, 100, 100), ...Array.from({ length: 10 }, (_, i) => file(i + 2, 1290, 2796))];
+  const files = [
+    file(1, 100, 100),
+    ...Array.from({ length: 10 }, (_, i) => file(i + 2, 1290, 2796)),
+  ];
   const problems = checkStoreImages({
     platform: 'ios',
-    sets: [{ platform: 'ios', locale: 'en-US', kind: 'screenshot', device: 'iphone_6_9', deviceLabel: 'iPhone 6.9"', target: 'APP_IPHONE_67', files }],
+    sets: [
+      {
+        platform: 'ios',
+        locale: 'en-US',
+        kind: 'screenshot',
+        device: 'iphone_6_9',
+        deviceLabel: 'iPhone 6.9"',
+        target: 'APP_IPHONE_67',
+        files,
+      },
+    ],
   });
   assert.ok(problems.some((p) => p.rule === 'apple.screenshot.size' && p.severity === 'error'));
   assert.ok(problems.some((p) => /count|max/i.test(p.rule)));
@@ -188,15 +210,41 @@ test('store images are checked on their own: a wrong pixel size and too many in 
 
 test('checkStoreImages: a size read from the header never makes an error (a downscaled rendition must not frighten anyone)', () => {
   const file = (sizeFrom: 'store' | 'header'): StoreImageFile => ({
-    ref: 'r1', position: 1, name: 'feature.png', width: 512, height: 250, bytes: 1000, sizeFrom, checksum: null, checksumKind: null, state: null, downloadable: true,
+    ref: 'r1',
+    position: 1,
+    name: 'feature.png',
+    width: 512,
+    height: 250,
+    bytes: 1000,
+    sizeFrom,
+    checksum: null,
+    checksumKind: null,
+    state: null,
+    downloadable: true,
   });
   const check = (sizeFrom: 'store' | 'header') =>
     checkStoreImages({
       platform: 'android',
-      sets: [{ platform: 'android', locale: 'en-US', kind: 'feature_graphic', device: null, deviceLabel: 'Feature graphic', target: 'featureGraphic', files: [file(sizeFrom)] }],
+      sets: [
+        {
+          platform: 'android',
+          locale: 'en-US',
+          kind: 'feature_graphic',
+          device: null,
+          deviceLabel: 'Feature graphic',
+          target: 'featureGraphic',
+          files: [file(sizeFrom)],
+        },
+      ],
     });
-  assert.ok(check('store').some((p) => p.severity === 'error'), 'the store stated 512x250: a real error');
+  assert.ok(
+    check('store').some((p) => p.severity === 'error'),
+    'the store stated 512x250: a real error',
+  );
   const measured = check('header');
   assert.ok(measured.length > 0);
-  assert.ok(measured.every((p) => p.severity === 'info'), 'measured by us: only notes');
+  assert.ok(
+    measured.every((p) => p.severity === 'info'),
+    'measured by us: only notes',
+  );
 });

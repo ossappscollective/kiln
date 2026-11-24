@@ -570,12 +570,13 @@ export async function saveReplyDraft(
       'SELECT body FROM review_reply_templates WHERE id = ? AND workspace_id = ?',
       [input.templateId, input.workspaceId],
     );
-    if (!row) return failure(
-      404,
-      'template_not_found',
-      'There is no such reply template.',
-      coded('notFound.replyTemplate'),
-    );
+    if (!row)
+      return failure(
+        404,
+        'template_not_found',
+        'There is no such reply template.',
+        coded('notFound.replyTemplate'),
+      );
     source = renderTemplate(String(row.body), { author: review.authorName, app: app.name });
   }
   const text = normalizeReplyText(source);
@@ -673,12 +674,13 @@ export async function deleteReplyDraft(
   const ttl = ctx.claimTtlMs ?? DEFAULT_REPLY_CLAIM_TTL_MS;
   return ctx.db.transaction(async (tx) => {
     const existing = await loadDraft(tx, input.workspaceId, review.id);
-    if (!existing) return failure(
-      404,
-      'no_draft',
-      'There is no draft reply for this review.',
-      coded('notFound.replyDraft'),
-    );
+    if (!existing)
+      return failure(
+        404,
+        'no_draft',
+        'There is no draft reply for this review.',
+        coded('notFound.replyDraft'),
+      );
     if (
       existing.status === 'unknown' ||
       (existing.status === 'sending' && !isStale(existing, at, ttl))
@@ -801,12 +803,13 @@ export async function sendReviewReply(
   const review = await getReview(db, workspaceId, app.id, input.reviewId);
   if (!review) return failure(404, 'not_found');
   const found = await loadDraft(db, workspaceId, review.id);
-  if (!found) return failure(
-    404,
-    'no_draft',
-    'There is no draft reply for this review.',
-    coded('notFound.replyDraft'),
-  );
+  if (!found)
+    return failure(
+      404,
+      'no_draft',
+      'There is no draft reply for this review.',
+      coded('notFound.replyDraft'),
+    );
   const view = (draft: ReplyDraft) => ({ reply: draft });
 
   if (input.confirmHash !== found.textHash) {
@@ -822,24 +825,20 @@ export async function sendReviewReply(
     );
   }
   if (found.status === 'sent') {
-    return failure(
-      409,
-      'already_sent',
-      'This exact reply has already been sent.',
-      { ...view(found), ...coded('reviews.alreadySent') },
-    );
+    return failure(409, 'already_sent', 'This exact reply has already been sent.', {
+      ...view(found),
+      ...coded('reviews.alreadySent'),
+    });
   }
   const ttl = ctx.claimTtlMs ?? DEFAULT_REPLY_CLAIM_TTL_MS;
   let now = ctx.now();
   let previous: ReplyStatus = found.status;
   if (found.status === 'sending') {
     if (!isStale(found, now, ttl)) {
-      return failure(
-        409,
-        'send_in_progress',
-        'A send of this reply is already in progress.',
-        { ...view(found), ...coded('reviews.sendRunning') },
-      );
+      return failure(409, 'send_in_progress', 'A send of this reply is already in progress.', {
+        ...view(found),
+        ...coded('reviews.sendRunning'),
+      });
     }
     // The process that was sending is gone or stuck: it may or may not have reached the store.
     await db.execute(
@@ -858,12 +857,13 @@ export async function sendReviewReply(
   );
   if (claimed === 0) {
     const current = await loadDraft(db, workspaceId, review.id);
-    if (!current) return failure(
-      404,
-      'no_draft',
-      'There is no draft reply for this review.',
-      coded('notFound.replyDraft'),
-    );
+    if (!current)
+      return failure(
+        404,
+        'no_draft',
+        'There is no draft reply for this review.',
+        coded('notFound.replyDraft'),
+      );
     if (current.textHash !== input.confirmHash)
       return failure(409, 'stale_draft', 'The draft has changed since it was shown.', {
         ...view(current),
@@ -871,18 +871,14 @@ export async function sendReviewReply(
         ...coded('reviews.draftChanged'),
       });
     if (current.status === 'sent')
-      return failure(
-        409,
-        'already_sent',
-        'This exact reply has already been sent.',
-        { ...view(current), ...coded('reviews.alreadySent') },
-      );
-    return failure(
-      409,
-      'send_in_progress',
-      'A send of this reply is already in progress.',
-      { ...view(current), ...coded('reviews.sendRunning') },
-    );
+      return failure(409, 'already_sent', 'This exact reply has already been sent.', {
+        ...view(current),
+        ...coded('reviews.alreadySent'),
+      });
+    return failure(409, 'send_in_progress', 'A send of this reply is already in progress.', {
+      ...view(current),
+      ...coded('reviews.sendRunning'),
+    });
   }
   previous = previous === 'sending' ? 'unknown' : previous;
   const claimId = found.id;

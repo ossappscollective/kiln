@@ -154,7 +154,12 @@ test('a vendor number is digits; a bucket id is pubsite_prod_rev_ and digits, wi
     'pubsite_prod_123456789',
   ])
     assert.ok(normalizeBucketId(`  ${good}  `) !== undefined, good);
-  assert.equal(normalizeBucketId('https://console.cloud.google.com/storage/browser/_details/pubsite_prod_rev_42/x'), 'pubsite_prod_rev_42');
+  assert.equal(
+    normalizeBucketId(
+      'https://console.cloud.google.com/storage/browser/_details/pubsite_prod_rev_42/x',
+    ),
+    'pubsite_prod_rev_42',
+  );
   for (const bad of [
     '',
     'my-bucket',

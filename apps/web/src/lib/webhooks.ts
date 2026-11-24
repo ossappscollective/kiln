@@ -37,7 +37,10 @@ export const webhookEventChoices: { type: string; labelKey: string }[] = [
   { type: 'testflight.crash', labelKey: k('workspace:webhook.event.testflightCrash') },
   { type: 'eas.build_failed', labelKey: k('workspace:webhook.event.easBuildFailed') },
   { type: 'eas.submission_failed', labelKey: k('workspace:webhook.event.easSubmissionFailed') },
-  { type: 'eas.update_rollout_stuck', labelKey: k('workspace:webhook.event.easUpdateRolloutStuck') },
+  {
+    type: 'eas.update_rollout_stuck',
+    labelKey: k('workspace:webhook.event.easUpdateRolloutStuck'),
+  },
   { type: 'health.crash_regression', labelKey: k('workspace:webhook.event.healthCrashRegression') },
   { type: 'release.rollout_changed', labelKey: k('workspace:webhook.event.releaseRolloutChanged') },
   { type: 'listing.draft_pushed', labelKey: k('workspace:webhook.event.listingDraftPushed') },
@@ -45,7 +48,10 @@ export const webhookEventChoices: { type: string; labelKey: string }[] = [
   { type: 'release.started', labelKey: k('workspace:webhook.event.releaseStarted') },
   { type: 'aso.rank_changed', labelKey: k('workspace:webhook.event.asoRankChanged') },
   { type: 'aso.competitor_changed', labelKey: k('workspace:webhook.event.asoCompetitorChanged') },
-  { type: 'aso.competitor_listing_changed', labelKey: k('workspace:webhook.event.asoCompetitorListingChanged') },
+  {
+    type: 'aso.competitor_listing_changed',
+    labelKey: k('workspace:webhook.event.asoCompetitorListingChanged'),
+  },
   { type: 'ci.run_started', labelKey: k('workspace:webhook.event.ciRunStarted') },
   { type: 'release.stalled', labelKey: k('workspace:webhook.event.releaseStalled') },
   { type: 'review.unanswered', labelKey: k('workspace:webhook.event.reviewUnanswered') },

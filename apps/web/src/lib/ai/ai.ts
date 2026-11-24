@@ -181,7 +181,11 @@ export type AiAcceptBody = {
 };
 
 /** A run answers with the suggestion and, near a monthly limit, a warning. */
-export type AiRunResult = { suggestion: AiSuggestionView; warning?: AiUsageWarning | null; cached?: boolean };
+export type AiRunResult = {
+  suggestion: AiSuggestionView;
+  warning?: AiUsageWarning | null;
+  cached?: boolean;
+};
 
 /** POST /ai/tasks/:id/preview: exactly what a run would send, built from stored data. Nothing is sent to a provider. */
 export type AiPreview = {
@@ -1018,7 +1022,9 @@ export function aiErrorMessage(error: unknown, fallbackText?: string): string {
         : t('ai:error.unreachable');
     }
     case 'ai_reviews_disabled':
-      return body.reason === 'workspace_off' ? t('ai:error.reviewsDisabledWorkspace') : t('ai:error.reviewsDisabledApp');
+      return body.reason === 'workspace_off'
+        ? t('ai:error.reviewsDisabledWorkspace')
+        : t('ai:error.reviewsDisabledApp');
     case 'ai_reviews_need_text':
       return t('ai:error.reviewsNeedText');
     case 'forbidden':
@@ -1284,7 +1290,8 @@ export function aiChanges(config: Pick<AiConfig, 'settings'>, form: AiForm): AiS
   const cap = centsFromText(form.costCap);
   if (cap !== null && cap !== (s.monthlyCostCapCents ?? 0)) changes.monthlyCostCapCents = cap;
   if (form.reviewsToAi !== (s.reviewsToAi ?? true)) changes.reviewsToAi = form.reviewsToAi;
-  if (form.competitorReviewsToAi !== (s.competitorReviewsToAi ?? false)) changes.competitorReviewsToAi = form.competitorReviewsToAi;
+  if (form.competitorReviewsToAi !== (s.competitorReviewsToAi ?? false))
+    changes.competitorReviewsToAi = form.competitorReviewsToAi;
   return changes;
 }
 

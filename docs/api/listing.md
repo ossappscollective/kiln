@@ -629,14 +629,14 @@ review of the cart. The server is the only author of a fix. The pure functions a
 field when there is one, else the store's last read (live, or editable when there is no live version); `staged[]` is `{ field, id }` (the staged item, to
 discard it). A fix is `{ id, labelKey, kind, locale, field, before, after, removed[], risk, resolves[], limit, unit, stageable }`:
 
-| `id`                     | `kind`       | What it does                                                                                                                                  | `risk`   |
-| ------------------------ | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `keywords_tidy`          | `stage`      | Apple keywords: trim, collapse spaces, drop empty terms and trailing commas, drop a repeated term (the first stays), comma and no space.       | `safe`   |
-| `keywords_drop_in_title` | `stage`      | The same, and drops the terms the name or subtitle already index (`removed[]` lists them).                                                    | `review` |
+| `id`                     | `kind`       | What it does                                                                                                                                                                  | `risk`   |
+| ------------------------ | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `keywords_tidy`          | `stage`      | Apple keywords: trim, collapse spaces, drop empty terms and trailing commas, drop a repeated term (the first stays), comma and no space.                                      | `safe`   |
+| `keywords_drop_in_title` | `stage`      | The same, and drops the terms the name or subtitle already index (`removed[]` lists them).                                                                                    | `review` |
 | `keywords_fit`           | `stage`      | Over the byte limit: hygiene, then whole terms the name or subtitle index (last first), then whole trailing terms, until it fits. Never cuts a word, never empties the field. | `review` |
-| `text_tidy`              | `stage`      | A text over its limit only because of stray white space (runs of spaces, line ends, three line breaks): collapsed, only when that makes it fit. | `review` |
-| `shorten_ai`             | `ai_shorten` | `after` is null: the interface offers the existing AI suggestion (only when AI is on); a person accepts it. Never staged by this route.       | `review` |
-| `edit_field`             | `edit_field` | `after` is null: open the editor with the counter (an over-long text, or a required field left empty: no invented text).                       | `safe`   |
+| `text_tidy`              | `stage`      | A text over its limit only because of stray white space (runs of spaces, line ends, three line breaks): collapsed, only when that makes it fit.                               | `review` |
+| `shorten_ai`             | `ai_shorten` | `after` is null: the interface offers the existing AI suggestion (only when AI is on); a person accepts it. Never staged by this route.                                       | `review` |
+| `edit_field`             | `edit_field` | `after` is null: open the editor with the counter (an over-long text, or a required field left empty: no invented text).                                                      | `safe`   |
 
 Prose (name, subtitle, titles, descriptions) is never truncated. Every `after` is checked again with `checkListing`: a fix that would leave the finding
 (or empty the field) is not offered and the finding is listed in `cannot[]` (`{ locale, field, code }`: "cannot be fixed automatically"). Byte limits count

@@ -12,7 +12,11 @@ import { join, resolve } from 'node:path';
 import { translator } from '../apps/server/src/i18n/catalogs.ts';
 import { SERVER_LOCALES } from '../apps/server/src/i18n/runtime.ts';
 import { alertCatalog } from '../apps/server/src/modules/alerts/catalog.ts';
-import { alertGuide, renderAlertEmail, renderDigestEmail } from '../apps/server/src/modules/alerts/email.ts';
+import {
+  alertGuide,
+  renderAlertEmail,
+  renderDigestEmail,
+} from '../apps/server/src/modules/alerts/email.ts';
 import { testMessageHtml } from '../apps/server/src/routes/mail.ts';
 import { setMailLinkOrigin } from '../apps/server/src/services/mail-template.ts';
 import { codeMessage } from '../apps/server/src/services/two-factor.ts';
@@ -28,21 +32,46 @@ if (!SERVER_LOCALES.includes(lang)) {
   process.exit(1);
 }
 const out = resolve(opt('out', '.email-preview'));
-setMailLinkOrigin(args.includes('--no-links') ? undefined : opt('origin', 'https://kiln.example.com'));
+setMailLinkOrigin(
+  args.includes('--no-links') ? undefined : opt('origin', 'https://kiln.example.com'),
+);
 mkdirSync(out, { recursive: true });
 
-const data = { appId: 'app-1', appName: 'Lyynk', version: '2.4.0', count: 3, failures: 3, code: 'smtp_timeout', from: 'in_review', to: 'rejected' };
+const data = {
+  appId: 'app-1',
+  appName: 'Lyynk',
+  version: '2.4.0',
+  count: 3,
+  failures: 3,
+  code: 'smtp_timeout',
+  from: 'in_review',
+  to: 'rejected',
+};
 const files = {};
 for (const id of ['release.rejected', 'credential.invalid', 'review.new']) {
   const def = alertCatalog.find((d) => d.id === id);
   if (!def) continue;
   files[`alert-${def.severity}-${id}`] = renderAlertEmail(def, {
-    title: def.title(data), body: def.body(data), severity: def.severity, data, count: 3, locale: lang,
+    title: def.title(data),
+    body: def.body(data),
+    severity: def.severity,
+    data,
+    count: 3,
+    locale: lang,
   }).html;
 }
 const digestItems = ['release.rejected', 'review.new', 'store.sync_failed'].flatMap((id) => {
   const def = alertCatalog.find((d) => d.id === id);
-  return def ? [{ title: def.title(data), severity: def.severity, count: id === 'review.new' ? 4 : 1, action: alertGuide(id, data, lang).primary }] : [];
+  return def
+    ? [
+        {
+          title: def.title(data),
+          severity: def.severity,
+          count: id === 'review.new' ? 4 : 1,
+          action: alertGuide(id, data, lang).primary,
+        },
+      ]
+    : [];
 });
 files['digest'] = renderDigestEmail(digestItems, lang).html;
 files['code-login'] = codeMessage('login', '042917', lang).html;

@@ -235,9 +235,7 @@ const footerRow = (t: ReturnType<typeof translator>): string => {
 
 const footerText = (t: ReturnType<typeof translator>): string => {
   const href = mailLink(alertsPath);
-  return href
-    ? t('alerts:mail.footerText.link', { href })
-    : t('alerts:mail.footerText.noLink');
+  return href ? t('alerts:mail.footerText.link', { href }) : t('alerts:mail.footerText.noLink');
 };
 
 /** One alert as an email in `locale` (the recipient's language; English when absent). `count` is how many times it happened when it is shown again. */
@@ -294,23 +292,32 @@ export function renderAlertEmail(
     })
     .filter((s) => s !== '');
   const primary = guide.primary
-    ? emailButton({
-        label: guide.primary.label,
-        href: linkTo(guide.primary),
-        where: guide.primary.where,
-      }, t)
+    ? emailButton(
+        {
+          label: guide.primary.label,
+          href: linkTo(guide.primary),
+          where: guide.primary.where,
+        },
+        t,
+      )
     : '';
-  const repeated = count > 1 ? ` ${emailMutedSpan(t('alerts:mail.repeated.inline', { count }))}` : '';
+  const repeated =
+    count > 1 ? ` ${emailMutedSpan(t('alerts:mail.repeated.inline', { count }))}` : '';
   const inner = [
     emailRow(
       `<div style="margin:0 0 14px;">${emailChip(t(`alerts:mail.severity.${severity}`), toneOf[severity])}</div>${emailHeading(title)}${emailParagraphHtml(escapeHtml(body) + repeated)}`,
       28,
     ),
-    guide.hint ? emailRow(emailCalloutHtml(t.html('alerts:mail.whatToDo.html', { hint: guide.hint })), 20) : '',
+    guide.hint
+      ? emailRow(emailCalloutHtml(t.html('alerts:mail.whatToDo.html', { hint: guide.hint })), 20)
+      : '',
     primary ? emailRow(primary, 24) : '',
     secondary.length > 0
       ? emailRow(
-          emailParagraphHtml(`${escapeHtml(t('alerts:mail.also'))} ${secondary.join(' &nbsp;·&nbsp; ')}`, true),
+          emailParagraphHtml(
+            `${escapeHtml(t('alerts:mail.also'))} ${secondary.join(' &nbsp;·&nbsp; ')}`,
+            true,
+          ),
           18,
         )
       : '',
@@ -354,9 +361,14 @@ export function renderDigestEmail(
     .map((i) => {
       const href = i.action ? linkTo(i.action) : undefined;
       const repeated =
-        i.count > 1 ? ` ${emailMutedSpan(t('alerts:mail.repeated.inline', { count: i.count }))}` : '';
-      const link = href && i.action ? `<br>${emailLinkHtml(href, escapeHtml(i.action.label), true)}` : '';
-      return emailItemRow(`${emailChip(t(`alerts:mail.severity.${i.severity}`), toneOf[i.severity])}<div style="height:8px;line-height:8px;font-size:0;">&nbsp;</div>${emailParagraphHtml(escapeHtml(i.title) + repeated + link)}`);
+        i.count > 1
+          ? ` ${emailMutedSpan(t('alerts:mail.repeated.inline', { count: i.count }))}`
+          : '';
+      const link =
+        href && i.action ? `<br>${emailLinkHtml(href, escapeHtml(i.action.label), true)}` : '';
+      return emailItemRow(
+        `${emailChip(t(`alerts:mail.severity.${i.severity}`), toneOf[i.severity])}<div style="height:8px;line-height:8px;font-size:0;">&nbsp;</div>${emailParagraphHtml(escapeHtml(i.title) + repeated + link)}`,
+      );
     })
     .join('\n');
   const inner = `${emailRow(emailHeading(t('digest:heading', { count: n })), 28, 18)}

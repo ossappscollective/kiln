@@ -1,4 +1,9 @@
-import { ASSET_KIND_LABELS, type AssetKind, type AssetProblem, type AssetSeverity } from '@kiln/core';
+import {
+  ASSET_KIND_LABELS,
+  type AssetKind,
+  type AssetProblem,
+  type AssetSeverity,
+} from '@kiln/core';
 
 /**
  * The notes of a check, grouped for reading: one row per rule (and severity) with how many images it concerns and which ones, so
@@ -43,19 +48,34 @@ export function commonText(messages: readonly string[]): string {
     n = i;
   }
   const prefix = words.slice(0, n).join(' ');
-  const cut = Math.max(prefix.lastIndexOf('. '), prefix.lastIndexOf('! '), prefix.lastIndexOf('? '));
+  const cut = Math.max(
+    prefix.lastIndexOf('. '),
+    prefix.lastIndexOf('! '),
+    prefix.lastIndexOf('? '),
+  );
   if (cut > 0) return prefix.slice(0, cut + 1);
   if (/[.!?]$/.test(prefix)) return prefix;
-  return messages.length > 0 && messages.every((m) => m === first) ? first : prefix.trim() === '' ? first : prefix.trim();
+  return messages.length > 0 && messages.every((m) => m === first)
+    ? first
+    : prefix.trim() === ''
+      ? first
+      : prefix.trim();
 }
 
 /** `locale/kind/device#position` into its parts, or null for a path of another shape. */
-export function parsePath(path: string): { locale: string; kind: string; device: string; position: string } | null {
+export function parsePath(
+  path: string,
+): { locale: string; kind: string; device: string; position: string } | null {
   const hash = path.lastIndexOf('#');
   if (hash < 0) return null;
   const parts = path.slice(0, hash).split('/');
   if (parts.length !== 3) return null;
-  return { locale: parts[0] as string, kind: parts[1] as string, device: parts[2] as string, position: path.slice(hash + 1) };
+  return {
+    locale: parts[0] as string,
+    kind: parts[1] as string,
+    device: parts[2] as string,
+    position: path.slice(hash + 1),
+  };
 }
 
 export function chipOf(path: string, withLocale: boolean): string {
@@ -94,11 +114,15 @@ export function groupProblems(problems: readonly AssetProblem[]): ProblemGroup[]
       items: list.map((p) => ({
         path: p.path ?? '',
         chip: p.path ? chipOf(p.path, withLocale) : '',
-        found: list.length > 1 && p.message.startsWith(text) ? p.message.slice(text.length).trim() : '',
+        found:
+          list.length > 1 && p.message.startsWith(text) ? p.message.slice(text.length).trim() : '',
       })),
     });
   }
-  return groups.sort((a, b) => RANK[a.severity] - RANK[b.severity] || b.count - a.count || a.rule.localeCompare(b.rule));
+  return groups.sort(
+    (a, b) =>
+      RANK[a.severity] - RANK[b.severity] || b.count - a.count || a.rule.localeCompare(b.rule),
+  );
 }
 
 export type GroupedNotes = {

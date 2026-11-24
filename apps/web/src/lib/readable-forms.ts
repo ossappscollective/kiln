@@ -32,7 +32,9 @@ export function credentialWord(input: {
 export function testWord(state: { testing?: boolean; ok: boolean | null }): Word {
   if (state.testing === true) return { tone: 'neutral', label: t('shell:word.testing') };
   if (state.ok === null) return { tone: 'neutral', label: t('shell:word.notTested') };
-  return state.ok ? { tone: 'ok', label: t('shell:word.works') } : { tone: 'bad', label: t('shell:word.failed') };
+  return state.ok
+    ? { tone: 'ok', label: t('shell:word.works') }
+    : { tone: 'bad', label: t('shell:word.failed') };
 }
 
 /**

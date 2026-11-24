@@ -33,7 +33,9 @@ export const OWN_REVIEW_TASKS: ReadonlySet<string> = new Set([
   'keyword_ideas_reviews',
 ]);
 /** The ones that cannot work without review text (the summary can: it becomes statistical). */
-const TEXT_TASKS: ReadonlySet<string> = new Set([...OWN_REVIEW_TASKS].filter((t) => t !== 'review_summary'));
+const TEXT_TASKS: ReadonlySet<string> = new Set(
+  [...OWN_REVIEW_TASKS].filter((t) => t !== 'review_summary'),
+);
 /** The suggestions made from review text that "Delete AI summaries" removes. */
 export const SUMMARY_TASKS = ['review_summary', 'fix_next'] as const;
 
@@ -70,10 +72,26 @@ export async function getStoredPolicy(
 }
 
 /** The policy in force for an app: its own row under the workspace ceiling. */
-export async function getAppReviewPolicy(sql: Sql, workspaceId: string, appId: string): Promise<AppReviewPolicy> {
-  const [{ stored, updatedAt, updatedBy }, config] = await Promise.all([getStoredPolicy(sql, workspaceId, appId), readAiConfig(sql, workspaceId)]);
-  const ceiling = { ownReviews: config.values.reviewsToAi, competitorReviews: config.values.competitorReviewsToAi };
-  return { stored, effective: resolveReviewAiPolicy(ceiling, stored), ceiling, updatedAt, updatedBy };
+export async function getAppReviewPolicy(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<AppReviewPolicy> {
+  const [{ stored, updatedAt, updatedBy }, config] = await Promise.all([
+    getStoredPolicy(sql, workspaceId, appId),
+    readAiConfig(sql, workspaceId),
+  ]);
+  const ceiling = {
+    ownReviews: config.values.reviewsToAi,
+    competitorReviews: config.values.competitorReviewsToAi,
+  };
+  return {
+    stored,
+    effective: resolveReviewAiPolicy(ceiling, stored),
+    ceiling,
+    updatedAt,
+    updatedBy,
+  };
 }
 
 /** `ai_reviews_disabled` (409) when reviews of this app may not go to the provider, `ai_reviews_need_text` (409) when only ratings may. null: go on. */
@@ -87,7 +105,10 @@ export function gateReviewTask(effective: ReviewAiEffective, taskId: string): Ai
       workspace
         ? 'Sending reviews to the AI provider is turned off for this workspace. Nothing was sent.'
         : 'Sending reviews to the AI provider is turned off for this app in its settings. Nothing was sent.',
-      { reason: effective.own.reason, ...coded(workspace ? 'ai.reviewsDisabledWorkspace' : 'ai.reviewsDisabledApp') },
+      {
+        reason: effective.own.reason,
+        ...coded(workspace ? 'ai.reviewsDisabledWorkspace' : 'ai.reviewsDisabledApp'),
+      },
     );
   }
   if (effective.detail === 'ratings' && TEXT_TASKS.has(taskId)) {
@@ -114,7 +135,11 @@ export function gateCompetitorReviews(effective: ReviewAiEffective): AiFailure |
     workspace
       ? 'Sending competitor reviews to the AI provider is turned off for this workspace. Nothing was sent.'
       : 'Sending competitor reviews to the AI provider is turned off for this app in its settings. Nothing was sent.',
-    { reason: effective.competitor.reason, kind: 'competitor', ...coded(workspace ? 'ai.reviewsDisabledWorkspace' : 'ai.reviewsDisabledApp') },
+    {
+      reason: effective.competitor.reason,
+      kind: 'competitor',
+      ...coded(workspace ? 'ai.reviewsDisabledWorkspace' : 'ai.reviewsDisabledApp'),
+    },
   );
 }
 
@@ -127,21 +152,43 @@ export async function setAppReviewPolicy(
 ): Promise<{ ok: true; policy: AppReviewPolicy; changes: PolicyChange[] } | AiFailure> {
   const before = (await getStoredPolicy(db, input.workspaceId, input.appId)).stored;
   const checked = normalizeReviewAiPolicy(input.body, before);
-  if (!checked.ok) return aiFail(400, 'invalid_request', 'The review settings are not valid.', { issues: checked.issues });
+  if (!checked.ok)
+    return aiFail(400, 'invalid_request', 'The review settings are not valid.', {
+      issues: checked.issues,
+    });
   const next = checked.value;
   const changes: PolicyChange[] = [];
   for (const field of ['ownReviews', 'competitorReviews', 'detail', 'redact'] as const)
-    if (before[field] !== next[field]) changes.push({ field, from: before[field], to: next[field] });
+    if (before[field] !== next[field])
+      changes.push({ field, from: before[field], to: next[field] });
   if (changes.length > 0) {
     await db.transaction(async (tx) => {
       const updated = await tx.execute(
         'UPDATE ai_app_review_policy SET own_reviews = ?, competitor_reviews = ?, detail = ?, redact = ?, updated_by = ?, updated_at = ? WHERE workspace_id = ? AND app_id = ?',
-        [next.ownReviews, next.competitorReviews, next.detail, next.redact ? 1 : 0, input.actor.id, input.at, input.workspaceId, input.appId],
+        [
+          next.ownReviews,
+          next.competitorReviews,
+          next.detail,
+          next.redact ? 1 : 0,
+          input.actor.id,
+          input.at,
+          input.workspaceId,
+          input.appId,
+        ],
       );
       if (Number(updated) === 0) {
         await tx.execute(
           'INSERT INTO ai_app_review_policy (app_id, workspace_id, own_reviews, competitor_reviews, detail, redact, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          [input.appId, input.workspaceId, next.ownReviews, next.competitorReviews, next.detail, next.redact ? 1 : 0, input.actor.id, input.at],
+          [
+            input.appId,
+            input.workspaceId,
+            next.ownReviews,
+            next.competitorReviews,
+            next.detail,
+            next.redact ? 1 : 0,
+            input.actor.id,
+            input.at,
+          ],
         );
       }
       await recordAudit(tx, {
@@ -154,7 +201,11 @@ export async function setAppReviewPolicy(
       });
     });
   }
-  return { ok: true, policy: await getAppReviewPolicy(db, input.workspaceId, input.appId), changes };
+  return {
+    ok: true,
+    policy: await getAppReviewPolicy(db, input.workspaceId, input.appId),
+    changes,
+  };
 }
 
 /**
@@ -167,11 +218,10 @@ export async function deleteAppSummaries(
 ): Promise<number> {
   return db.transaction(async (tx) => {
     const deleted = Number(
-      await tx.execute(`DELETE FROM ai_suggestions WHERE workspace_id = ? AND app_id = ? AND task IN (${SUMMARY_TASKS.map(() => '?').join(', ')})`, [
-        input.workspaceId,
-        input.appId,
-        ...SUMMARY_TASKS,
-      ]),
+      await tx.execute(
+        `DELETE FROM ai_suggestions WHERE workspace_id = ? AND app_id = ? AND task IN (${SUMMARY_TASKS.map(() => '?').join(', ')})`,
+        [input.workspaceId, input.appId, ...SUMMARY_TASKS],
+      ),
     );
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
@@ -198,8 +248,19 @@ export type PayloadPreview = {
 };
 
 /** What WOULD be sent for the first three reviews, built by the same shaping function the tasks use. Nothing is sent anywhere. */
-export async function previewReviewPayload(sql: Sql, workspaceId: string, appId: string, policy: AppReviewPolicy): Promise<PayloadPreview> {
-  const page = await listReviews(sql, workspaceId, appId, {}, { sort: 'newest', limit: SAMPLE_REVIEWS });
+export async function previewReviewPayload(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+  policy: AppReviewPolicy,
+): Promise<PayloadPreview> {
+  const page = await listReviews(
+    sql,
+    workspaceId,
+    appId,
+    {},
+    { sort: 'newest', limit: SAMPLE_REVIEWS },
+  );
   const rows = 'error' in page ? [] : page.reviews.slice(0, SAMPLE_REVIEWS);
   return {
     allowed: policy.effective.own.allowed,
@@ -208,7 +269,15 @@ export async function previewReviewPayload(sql: Sql, workspaceId: string, appId:
     redact: policy.effective.redact,
     reviews: rows.map((r) =>
       shapeReviewForAi(
-        { rating: r.rating, title: r.title, body: r.body, authorName: r.authorName, language: r.language, appVersion: r.appVersion, createdAt: r.createdAt },
+        {
+          rating: r.rating,
+          title: r.title,
+          body: r.body,
+          authorName: r.authorName,
+          language: r.language,
+          appVersion: r.appVersion,
+          createdAt: r.createdAt,
+        },
         policy.effective,
         { titleChars: 80, textChars: 280 },
       ),

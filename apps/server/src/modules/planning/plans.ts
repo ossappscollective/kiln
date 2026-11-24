@@ -365,12 +365,13 @@ export async function createTemplate(
       'SELECT id FROM checklist_templates WHERE workspace_id = ? AND name = ?',
       [input.workspaceId, input.name],
     );
-    if (same) return failure(
-      409,
-      'already_exists',
-      'A template with that name already exists.',
-      coded('plan.templateNameTaken'),
-    );
+    if (same)
+      return failure(
+        409,
+        'already_exists',
+        'A template with that name already exists.',
+        coded('plan.templateNameTaken'),
+      );
     const id = randomUUID();
     const at = ctx.now();
     await tx.execute(
@@ -430,12 +431,13 @@ export async function updateTemplate(
         'SELECT id FROM checklist_templates WHERE workspace_id = ? AND name = ?',
         [input.workspaceId, name],
       );
-      if (same) return failure(
-        409,
-        'already_exists',
-        'A template with that name already exists.',
-        coded('plan.templateNameTaken'),
-      );
+      if (same)
+        return failure(
+          409,
+          'already_exists',
+          'A template with that name already exists.',
+          coded('plan.templateNameTaken'),
+        );
     }
     const items = input.items ?? current.items;
     const at = ctx.now();

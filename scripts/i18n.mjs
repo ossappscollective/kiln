@@ -788,7 +788,11 @@ const BRAND_NAME =
 function isIntentional(item) {
   const value = item.kind === 'attr' ? item.text.replace(/^[\w-]+: /, '') : item.text;
   if (BRAND_NAME.test(value)) return true;
-  return item.kind === 'attr' && item.text.startsWith('placeholder: ') && /^\S*[^A-Za-z\s]\S*$|[/@=:]|^MacBook Touch ID$/.test(value);
+  return (
+    item.kind === 'attr' &&
+    item.text.startsWith('placeholder: ') &&
+    /^\S*[^A-Za-z\s]\S*$|[/@=:]|^MacBook Touch ID$/.test(value)
+  );
 }
 
 /** Scans every component and lib module: `[{ path, kind, ns, items, converted }]` (`converted` counts t() and <T> uses). */

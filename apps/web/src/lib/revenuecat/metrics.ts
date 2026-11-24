@@ -112,14 +112,18 @@ export function stripProblem(read: RevenueCatMetricsRead | null): string {
  * The Revenue block of the Insights overview: hidden unless the app is linked to RevenueCat; `figures` when there is something to show,
  * `problem` when only a failed read can be said, `waiting` for a linked app whose figures are not read yet ("Sync products" reads them).
  */
-export function revenueState(read: RevenueCatMetricsRead | null): 'hidden' | 'figures' | 'problem' | 'waiting' {
+export function revenueState(
+  read: RevenueCatMetricsRead | null,
+): 'hidden' | 'figures' | 'problem' | 'waiting' {
   if (!read || !read.supported || !read.linked) return 'hidden';
   if (stripTiles(read).length > 0) return 'figures';
   return (read.status?.lastError ?? null) !== null ? 'problem' : 'waiting';
 }
 
 /** Where the configuration of the app's RevenueCat link and the sync live. */
-export const productsHref = (appId: string): string => `#/portfolio/${encodeURIComponent(appId)}/products`;
+export const productsHref = (appId: string): string =>
+  `#/portfolio/${encodeURIComponent(appId)}/products`;
 
 /** Where the figures are drawn: the Insights overview of the app. */
-export const insightsHref = (appId: string): string => `#/portfolio/${encodeURIComponent(appId)}/insights`;
+export const insightsHref = (appId: string): string =>
+  `#/portfolio/${encodeURIComponent(appId)}/insights`;

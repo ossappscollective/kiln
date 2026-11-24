@@ -171,7 +171,11 @@ export const credentialKindInfo: Record<CredentialKind, CredentialKindInfo> = {
         label: 'Client ID',
         hint: 'Shown by Apple Ads (Account Settings, API) after you save the public key. It starts with SEARCHADS.',
       },
-      { name: 'teamId', label: 'Team ID', hint: 'Shown next to the client ID. It starts with SEARCHADS.' },
+      {
+        name: 'teamId',
+        label: 'Team ID',
+        hint: 'Shown next to the client ID. It starts with SEARCHADS.',
+      },
       { name: 'keyId', label: 'Key ID', hint: 'Shown next to the client ID and the team ID.' },
       {
         name: 'privateKey',

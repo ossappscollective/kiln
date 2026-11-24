@@ -116,22 +116,24 @@ Design, gates and the threat analysis: [ADR 0062](../adr/0062-price-writes.md); 
 `reason` (`server_switch`, `workspace_setting` or null), `limits` (`relativeChangePercent`, `absoluteChangeMajor`, `maxTerritories`) and `staged`
 (the staged changes of the app).
 
-| Route | Needs | Does |
-| --- | --- | --- |
-| `GET /apps/{appId}/products/{productId}/price-points?territory=USA` | `monetization.price` | Apple: the price points of one territory, lowest first (a store READ). Google Play: `applicable: false`. |
-| `POST /apps/{appId}/products/{productId}/price-convert` | `monetization.price` | Google Play: `{ planId, baseTerritory, amount }` returns the regional prices Google derives from one base price, in each region's own currency (a store READ; stages nothing). `422 not_applicable` for Apple. |
-| `PUT /apps/{appId}/products/{productId}/prices/staged` | `monetization.price` | Stages (replaces) the change of one product and plan. Returns `{ staged }`. |
-| `POST /apps/{appId}/prices/dry-run` | `monetization.price` | `{ ids? }` (cart ids `price:…`; all when omitted). Reads the LIVE prices, runs every rule again, shows what a send would do. Writes nothing, no claim, no phrase, no step-up; works while the switches are off (`writesEnabled` says whether a send would be allowed). |
+| Route                                                               | Needs                | Does                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /apps/{appId}/products/{productId}/price-points?territory=USA` | `monetization.price` | Apple: the price points of one territory, lowest first (a store READ). Google Play: `applicable: false`.                                                                                                                                                               |
+| `POST /apps/{appId}/products/{productId}/price-convert`             | `monetization.price` | Google Play: `{ planId, baseTerritory, amount }` returns the regional prices Google derives from one base price, in each region's own currency (a store READ; stages nothing). `422 not_applicable` for Apple.                                                         |
+| `PUT /apps/{appId}/products/{productId}/prices/staged`              | `monetization.price` | Stages (replaces) the change of one product and plan. Returns `{ staged }`.                                                                                                                                                                                            |
+| `POST /apps/{appId}/prices/dry-run`                                 | `monetization.price` | `{ ids? }` (cart ids `price:…`; all when omitted). Reads the LIVE prices, runs every rule again, shows what a send would do. Writes nothing, no claim, no phrase, no step-up; works while the switches are off (`writesEnabled` says whether a send would be allowed). |
 
 `PUT …/prices/staged` body (strict; unknown fields, including a currency or a current price, are refused):
 
 ```json
-{ "planId": null,
-  "lines": [ { "territory": "USA", "newAmount": "599", "pricePointId": "…" } ],
+{
+  "planId": null,
+  "lines": [{ "territory": "USA", "newAmount": "599", "pricePointId": "…" }],
   "effectiveDate": null,
   "existingSubscribers": "preserve",
   "acknowledgements": [],
-  "seenSyncedAt": 1767225600000 }
+  "seenSyncedAt": 1767225600000
+}
 ```
 
 `newAmount` is minor units, digits only (599 is 5.99; no rounding anywhere). `planId`: Google Play, the base plan or purchase option (required);

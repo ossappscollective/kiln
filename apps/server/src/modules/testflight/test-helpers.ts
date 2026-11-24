@@ -54,19 +54,35 @@ export const item = (over: Partial<StoreBetaFeedback> = {}): StoreBetaFeedback =
 });
 
 export const crash = (over: Partial<StoreBetaFeedback> = {}): StoreBetaFeedback =>
-  item({ id: 'c1', kind: 'crash', comment: 'It crashed', screenshots: [], createdAt: Date.UTC(2026, 10, 21, 9, 30), ...over });
+  item({
+    id: 'c1',
+    kind: 'crash',
+    comment: 'It crashed',
+    screenshots: [],
+    createdAt: Date.UTC(2026, 10, 21, 9, 30),
+    ...over,
+  });
 
 /** A store that lists feedback and crashes, and can be told how to fail. */
 export class FakeTestflightStore implements StoreTestFlightFeedbackConnector {
   readonly store = 'appstoreconnect' as const;
-  items: StoreBetaFeedback[] = [item(), item({ id: 'f2', email: null, buildNumber: '43', createdAt: Date.UTC(2026, 10, 19) }), crash()];
+  items: StoreBetaFeedback[] = [
+    item(),
+    item({ id: 'f2', email: null, buildNumber: '43', createdAt: Date.UTC(2026, 10, 19) }),
+    crash(),
+  ];
   warnings: string[] = [];
   complete = true;
   /** Crash logs by Apple id; an id without an entry has none (null). */
   logs = new Map<string, string | null>([['c1', CRASH_LOG]]);
   logErrors = new Map<string, unknown>();
   screenshots: BetaScreenshotLink[] = [
-    { url: 'https://example.invalid/shot.png?token=SECRET-LINK', width: 10, height: 20, expiresAt: Date.UTC(2026, 10, 22, 13) },
+    {
+      url: 'https://example.invalid/shot.png?token=SECRET-LINK',
+      width: 10,
+      height: 20,
+      expiresAt: Date.UTC(2026, 10, 22, 13),
+    },
   ];
   listError: unknown;
   reads = 0;
@@ -125,22 +141,41 @@ export async function bootTestflight(
       name: name ?? `App ${appCount}`,
     });
     const id = res.body.app.id as string;
-    if (platform !== 'android') await db.execute('UPDATE apps SET store_app_id = ? WHERE id = ?', ['1234567890', id]);
+    if (platform !== 'android')
+      await db.execute('UPDATE apps SET store_app_id = ? WHERE id = ?', ['1234567890', id]);
     return id;
   };
   const path = (appId: string, rest = '') => `/apps/${appId}/testflight${rest}`;
   const sync = (appId: string, cookie = t.owner) => t.call(cookie, 'POST', path(appId, '/sync'));
-  const list = (appId: string, query = '', cookie = t.owner) => t.call(cookie, 'GET', path(appId, query ? `?${query}` : ''));
+  const list = (appId: string, query = '', cookie = t.owner) =>
+    t.call(cookie, 'GET', path(appId, query ? `?${query}` : ''));
   const events = async (type: string) =>
     (await db.query('SELECT payload FROM events WHERE type = ? ORDER BY id', [type])).map(
       (r) => JSON.parse(String(r.payload)) as Record<string, unknown>,
     );
   const audit = async (like = 'testflight.%') =>
-    (await db.query('SELECT action, actor_type, detail FROM audit_events WHERE action LIKE ? ORDER BY created_at', [like])).map((r) => ({
+    (
+      await db.query(
+        'SELECT action, actor_type, detail FROM audit_events WHERE action LIKE ? ORDER BY created_at',
+        [like],
+      )
+    ).map((r) => ({
       action: String(r.action),
       actorType: String(r.actor_type),
       detail: JSON.parse(String(r.detail ?? '{}')) as Record<string, unknown>,
     }));
-  return { ...t, store, built, addApp, path, sync, list, events, audit, iosCredential, playCredential };
+  return {
+    ...t,
+    store,
+    built,
+    addApp,
+    path,
+    sync,
+    list,
+    events,
+    audit,
+    iosCredential,
+    playCredential,
+  };
 }
 export type TestflightBoot = Awaited<ReturnType<typeof bootTestflight>>;

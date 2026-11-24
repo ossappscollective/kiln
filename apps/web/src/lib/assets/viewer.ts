@@ -9,16 +9,34 @@ export function stepIndex(index: number, delta: number, count: number): number {
   return Math.min(count - 1, Math.max(0, index + delta));
 }
 
-const EXTENSION_OF: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
+const EXTENSION_OF: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+};
 
 /** `name` (the file's original name) when it has one, else `<locale>-<set>-<position>`; always with the extension of the bytes. */
-export function downloadName(input: { name: string | null | undefined; locale: string; setName: string; position: number; mime: string }): string {
+export function downloadName(input: {
+  name: string | null | undefined;
+  locale: string;
+  setName: string;
+  position: number;
+  mime: string;
+}): string {
   const ext = EXTENSION_OF[input.mime.toLowerCase()] ?? 'png';
   const raw = (input.name ?? '').split(/[\\/]/).pop() ?? '';
-  const clean = (s: string) => s.replace(/[^A-Za-z0-9._ -]+/g, '_').replace(/^\.+/, '').trim();
+  const clean = (s: string) =>
+    s
+      .replace(/[^A-Za-z0-9._ -]+/g, '_')
+      .replace(/^\.+/, '')
+      .trim();
   const dot = raw.lastIndexOf('.');
   const stem = clean(dot > 0 ? raw.slice(0, dot) : raw);
-  const base = stem !== '' ? stem : clean(`${input.locale}-${input.setName}-${input.position}`.replace(/\s+/g, '-'));
+  const base =
+    stem !== ''
+      ? stem
+      : clean(`${input.locale}-${input.setName}-${input.position}`.replace(/\s+/g, '-'));
   return `${base === '' ? 'image' : base}.${ext}`;
 }
 
@@ -32,4 +50,5 @@ export function clipboardPlan(supportsImages: boolean, mime: string): 'png' | 'c
 }
 
 /** `1242 × 2688`, or '' when a side is unknown. */
-export const pixelText = (width: number | null, height: number | null): string => (width !== null && height !== null ? `${width} × ${height}` : '');
+export const pixelText = (width: number | null, height: number | null): string =>
+  width !== null && height !== null ? `${width} × ${height}` : '';

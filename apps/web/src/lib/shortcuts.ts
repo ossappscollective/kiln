@@ -179,7 +179,9 @@ export function stepShortcut(
       return { action: { type: 'open-switcher' }, state: idleChord, consume: true };
     // Cmd or Ctrl + B folds the left panel to icons and back; not while typing (bold in a text field).
     if (key === 'b' || key === 'B')
-      return input.typing ? none() : { action: { type: 'toggle-sidebar' }, state: idleChord, consume: true };
+      return input.typing
+        ? none()
+        : { action: { type: 'toggle-sidebar' }, state: idleChord, consume: true };
     if (/^[1-9]$/.test(key))
       return {
         action: { type: 'jump-app', index: Number(key) - 1 },

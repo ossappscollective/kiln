@@ -4,11 +4,19 @@ import { test } from 'node:test';
 
 // The "4 staged" chip of the Locales table once sat over the STORES icons and was cut off. Guard the layout contract at the source:
 // the chip lives in the locale cell's wrapping flex row, in normal flow, and the stores column keeps the room of its badges.
-const src = readFileSync(new URL('../components/listing/ListingMatrix.svelte', import.meta.url), 'utf8');
+const src = readFileSync(
+  new URL('../components/listing/ListingMatrix.svelte', import.meta.url),
+  'utf8',
+);
 const markup = src.slice(0, src.indexOf('<style>'));
 const css = src.slice(src.indexOf('<style>') + 7).replace(/\/\*[\s\S]*?\*\//g, '');
 const rule = (sel: string): string => {
-  const m = [...css.matchAll(/([^{}@]+)\{([^{}]*)\}/g)].find((x) => (x[1] as string).split(',').map((p) => p.trim()).includes(sel));
+  const m = [...css.matchAll(/([^{}@]+)\{([^{}]*)\}/g)].find((x) =>
+    (x[1] as string)
+      .split(',')
+      .map((p) => p.trim())
+      .includes(sel),
+  );
   assert.ok(m, `rule ${sel}`);
   return m[2] as string;
 };
@@ -17,13 +25,25 @@ test('the staged chip is in the locale cell flow, next to the locale button, bef
   const th = markup.slice(markup.indexOf('<th scope="row" class="loc">'));
   const cell = th.slice(0, th.indexOf('</th>'));
   assert.match(cell, /<div class="loc-cell">/);
-  assert.ok(cell.indexOf('locale-btn') < cell.indexOf('staged-chip'), 'the chip follows the locale button');
-  assert.ok(cell.indexOf('staged-chip') < cell.indexOf('</div>'), 'the chip is inside the wrapping row');
+  assert.ok(
+    cell.indexOf('locale-btn') < cell.indexOf('staged-chip'),
+    'the chip follows the locale button',
+  );
+  assert.ok(
+    cell.indexOf('staged-chip') < cell.indexOf('</div>'),
+    'the chip is inside the wrapping row',
+  );
   assert.match(th, /<td class="stores">\s*<div class="store-badges">/);
 });
 
 test('no rule of the locale cell, the chip or the stores column positions anything out of flow', () => {
-  for (const sel of ['.loc-cell', '.loc-cell .locale-btn', 'button.bare.staged-chip', '.stores', '.store-badges']) {
+  for (const sel of [
+    '.loc-cell',
+    '.loc-cell .locale-btn',
+    'button.bare.staged-chip',
+    '.stores',
+    '.store-badges',
+  ]) {
     const body = rule(sel);
     assert.doesNotMatch(body, /position:\s*(absolute|fixed|relative)/, sel);
     assert.doesNotMatch(body, /(top|left|right|bottom|inset)\s*:/, sel);
@@ -52,6 +72,9 @@ test('the stores column keeps a fixed minimum width and its badges never shrink 
 test('a row with a chip and a row without keep the same columns: the chip adds no cell and no fixed row height', () => {
   assert.doesNotMatch(markup.slice(markup.indexOf('{#each rows as row')), /staged-chip[^>]*style=/);
   assert.doesNotMatch(css, /\.matrix\s+tr[^{]*\{[^}]*height\s*:/);
-  const rowCells = markup.slice(markup.indexOf('<tr class:current'), markup.indexOf('</tr>', markup.indexOf('<tr class:current')));
+  const rowCells = markup.slice(
+    markup.indexOf('<tr class:current'),
+    markup.indexOf('</tr>', markup.indexOf('<tr class:current')),
+  );
   assert.equal((rowCells.match(/<th scope="row"/g) ?? []).length, 1);
 });

@@ -84,9 +84,13 @@ export function badgeLabel(
  */
 export type BadgeTone = 'count' | 'warning' | 'danger';
 
-export function navBadgeTone(entry: string, state: { pendingBlocking?: boolean | undefined } = {}): BadgeTone {
+export function navBadgeTone(
+  entry: string,
+  state: { pendingBlocking?: boolean | undefined } = {},
+): BadgeTone {
   return entry === 'listing' && state.pendingBlocking ? 'warning' : 'count';
 }
 
 /** The CSS class of a tone (app.css .badge.accent | .warn | .bad). */
-export const badgeClass = (tone: BadgeTone): 'accent' | 'warn' | 'bad' => (tone === 'count' ? 'accent' : tone === 'warning' ? 'warn' : 'bad');
+export const badgeClass = (tone: BadgeTone): 'accent' | 'warn' | 'bad' =>
+  tone === 'count' ? 'accent' : tone === 'warning' ? 'warn' : 'bad';

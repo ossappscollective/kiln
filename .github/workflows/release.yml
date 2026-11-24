@@ -13,11 +13,11 @@ run-name: Release ${{ github.ref_name }} (${{ inputs.mode || 'release' }})
 
 on:
   push:
-    tags: ['v*.*.*']
+    tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
       mode:
-        description: 'build-only: build and upload Actions artifacts, publish nothing. release: draft GitHub Release + Docker push (needs a v* tag).'
+        description: "build-only: build and upload Actions artifacts, publish nothing. release: draft GitHub Release + Docker push (needs a v* tag)."
         type: choice
         options: [build-only, release]
         default: build-only
@@ -26,7 +26,7 @@ on:
         type: string
         required: false
       version:
-        description: 'Build-only test builds: pretend the version is this (for example 1.2.3-rc.1) without committing it. Ignored in release mode.'
+        description: "Build-only test builds: pretend the version is this (for example 1.2.3-rc.1) without committing it. Ignored in release mode."
         type: string
         required: false
       docker:
@@ -152,7 +152,7 @@ jobs:
         shell: bash
     env:
       # Never set to anything that makes the Tauri CLI wait for input.
-      CI: 'true'
+      CI: "true"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -215,7 +215,7 @@ jobs:
           TARGET: ${{ matrix.target }}
           BUNDLES: ${{ matrix.bundles }}
           PRERELEASE: ${{ needs.plan.outputs.prerelease }}
-          APPIMAGE_EXTRACT_AND_RUN: '1' # no FUSE on runners
+          APPIMAGE_EXTRACT_AND_RUN: "1" # no FUSE on runners
           KILN_WINDOWS_THUMBPRINT: ${{ steps.wincert.outputs.thumbprint }}
           # Present only in this step. Unset again by signing-env.sh unless a complete set exists.
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -243,7 +243,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
       - name: Name the installers
         env:
-          COPYFILE_DISABLE: '1' # no AppleDouble files in the .app.tar.gz
+          COPYFILE_DISABLE: "1" # no AppleDouble files in the .app.tar.gz
           TARGET: ${{ matrix.target }}
           VERSION: ${{ needs.plan.outputs.version }}
           OS: ${{ matrix.os }}
@@ -344,7 +344,7 @@ jobs:
         run: node scripts/check-version.mjs --set "$VERSION_OVERRIDE"
       - uses: ./.github/actions/docker-build
         with:
-          release: 'false'
+          release: "false"
           version: ${{ needs.plan.outputs.version }}
           major-minor: ${{ needs.plan.outputs.major_minor }}
           prerelease: ${{ needs.plan.outputs.prerelease }}
@@ -385,7 +385,7 @@ jobs:
       - uses: ./.github/actions/docker-build
         id: build
         with:
-          release: 'true'
+          release: "true"
           version: ${{ needs.plan.outputs.version }}
           major-minor: ${{ needs.plan.outputs.major_minor }}
           prerelease: ${{ needs.plan.outputs.prerelease }}
@@ -506,7 +506,7 @@ jobs:
       - uses: actions/download-artifact@v4
         continue-on-error: true # nothing to download when no desktop build ran
         with:
-          pattern: '{desktop,meta}-*'
+          pattern: "{desktop,meta}-*"
           path: artifacts
       - name: Write the summary
         env:

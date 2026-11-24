@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { canvasSize, changedRatio, clampPercent, dimensionsText, pairByPosition, pairState, percentText, sameShape } from './image-diff.ts';
+import {
+  canvasSize,
+  changedRatio,
+  clampPercent,
+  dimensionsText,
+  pairByPosition,
+  pairState,
+  percentText,
+  sameShape,
+} from './image-diff.ts';
 
 test('pair state: changed, new, removed, none', () => {
   const img = { url: '/api/x' };
@@ -13,7 +22,14 @@ test('pair state: changed, new, removed, none', () => {
 test('pairing by position leaves the longer side new or removed', () => {
   const s = (n: number) => ({ url: `/u/${n}` });
   const pairs = pairByPosition([s(1), s(2), s(3)], [s(4)], (p) => `Image ${p}`);
-  assert.deepEqual(pairs.map((p) => [p.key, p.title, pairState(p)]), [['1', 'Image 1', 'changed'], ['2', 'Image 2', 'removed'], ['3', 'Image 3', 'removed']]);
+  assert.deepEqual(
+    pairs.map((p) => [p.key, p.title, pairState(p)]),
+    [
+      ['1', 'Image 1', 'changed'],
+      ['2', 'Image 2', 'removed'],
+      ['3', 'Image 3', 'removed'],
+    ],
+  );
 });
 
 test('canvas is capped at 512 and never zero', () => {

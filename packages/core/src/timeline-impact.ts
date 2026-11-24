@@ -19,7 +19,14 @@
 import { addDays, daysBetween } from './analytics.ts';
 
 export type ImpactKind = 'count' | 'ratio' | 'level';
-export type ImpactVerdict = 'higher' | 'lower' | 'no_clear_difference' | 'too_early' | 'not_tested' | 'not_live' | 'no_data';
+export type ImpactVerdict =
+  | 'higher'
+  | 'lower'
+  | 'no_clear_difference'
+  | 'too_early'
+  | 'not_tested'
+  | 'not_live'
+  | 'no_data';
 export type ImpactCaveat =
   | 'short_window'
   | 'gaps'
@@ -48,7 +55,9 @@ export const IMPACT_DAYS_CHOICES = [7, 14, 28] as const;
 /** The standard normal CDF, by the Abramowitz and Stegun erf approximation (7.1.26). */
 export function normalCdf(z: number): number {
   const t = 1 / (1 + 0.3275911 * (Math.abs(z) / Math.SQRT2));
-  const poly = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
+  const poly =
+    t *
+    (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
   const erf = 1 - poly * Math.exp(-(z * z) / 2);
   return z >= 0 ? (1 + erf) / 2 : (1 - erf) / 2;
 }
@@ -192,7 +201,13 @@ export type Impact = {
 export function impactOf(input: ImpactInput): Impact {
   const { kind, anchor, days } = input;
   const fullDays = input.fullDays ?? days;
-  const before = windowStats(kind, input.values, input.denominators, addDays(anchor, -days), addDays(anchor, -1));
+  const before = windowStats(
+    kind,
+    input.values,
+    input.denominators,
+    addDays(anchor, -days),
+    addDays(anchor, -1),
+  );
   const afterStart = addDays(anchor, 1);
   const afterEnd = addDays(anchor, days);
   const afterTo = input.latest < afterEnd ? input.latest : afterEnd;
@@ -217,14 +232,26 @@ export function impactOf(input: ImpactInput): Impact {
   if ((input.otherEvents ?? 0) > 0) caveats.push('other_events');
 
   if (before.dataDays === 0 || (daysAfter > 0 && after.dataDays === 0)) {
-    return { ...base, change: null, confidence: null, verdict: daysAfter === 0 ? 'too_early' : 'no_data', caveats };
+    return {
+      ...base,
+      change: null,
+      confidence: null,
+      verdict: daysAfter === 0 ? 'too_early' : 'no_data',
+      caveats,
+    };
   }
   const change = relativeChange(after.value, before.value);
   let confidence: number | null = null;
   if (daysAfter > 0 && after.value !== null) {
     if (kind === 'ratio') {
-      confidence = proportionConfidence(before.sum, before.denominator, after.sum, after.denominator);
-      if (Math.min(before.denominator, after.denominator) < SMALL_NUMBERS) caveats.push('small_numbers');
+      confidence = proportionConfidence(
+        before.sum,
+        before.denominator,
+        after.sum,
+        after.denominator,
+      );
+      if (Math.min(before.denominator, after.denominator) < SMALL_NUMBERS)
+        caveats.push('small_numbers');
     } else if (kind === 'count') {
       const scaledBefore = (before.value ?? 0) * after.dataDays;
       confidence = countConfidence(scaledBefore, after.sum);
@@ -234,9 +261,23 @@ export function impactOf(input: ImpactInput): Impact {
       caveats.push('not_tested');
     }
   }
-  if (daysAfter === 0 || change === null) return { ...base, change, confidence, verdict: 'too_early', caveats };
-  if (kind === 'level') return { ...base, change, confidence, verdict: daysAfter >= MIN_DAYS_AFTER ? 'not_tested' : 'too_early', caveats };
-  return { ...base, change, confidence, verdict: verdictFor(change, confidence, daysAfter, fullDays), caveats };
+  if (daysAfter === 0 || change === null)
+    return { ...base, change, confidence, verdict: 'too_early', caveats };
+  if (kind === 'level')
+    return {
+      ...base,
+      change,
+      confidence,
+      verdict: daysAfter >= MIN_DAYS_AFTER ? 'not_tested' : 'too_early',
+      caveats,
+    };
+  return {
+    ...base,
+    change,
+    confidence,
+    verdict: verdictFor(change, confidence, daysAfter, fullDays),
+    caveats,
+  };
 }
 
 export function verdictFor(
@@ -247,7 +288,8 @@ export function verdictFor(
 ): ImpactVerdict {
   if (daysAfter === 0 || change === null || confidence === null) return 'too_early';
   const bar = confidenceBar(daysAfter, fullDays);
-  if (bar !== null && confidence >= bar && Math.abs(change) >= MIN_CHANGE) return change > 0 ? 'higher' : 'lower';
+  if (bar !== null && confidence >= bar && Math.abs(change) >= MIN_CHANGE)
+    return change > 0 ? 'higher' : 'lower';
   // A full window that still cannot tell the two apart is an answer.
   if (daysAfter >= fullDays) return 'no_clear_difference';
   return 'too_early';

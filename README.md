@@ -157,10 +157,10 @@ flowchart LR
 
 ## Screenshots
 
-| | |
-| --- | --- |
+|                                                                                                                                                                                                                                                                    |                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/02-app-overview-dark.png"><img alt="App overview with the app tint, next step and navigation" src="docs/assets/screenshots/02-app-overview-light.png" width="420"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/04-store-listing-dark.png"><img alt="Store listing text tab with the locales table" src="docs/assets/screenshots/04-store-listing-light.png" width="420"></picture> |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/06-pending-changes-dark.png"><img alt="Pending changes with one row expanded to a diff" src="docs/assets/screenshots/06-pending-changes-light.png" width="420"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/08-reviews-inbox-dark.png"><img alt="Reviews inbox filtered to one app" src="docs/assets/screenshots/08-reviews-inbox-light.png" width="420"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/06-pending-changes-dark.png"><img alt="Pending changes with one row expanded to a diff" src="docs/assets/screenshots/06-pending-changes-light.png" width="420"></picture>    | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/08-reviews-inbox-dark.png"><img alt="Reviews inbox filtered to one app" src="docs/assets/screenshots/08-reviews-inbox-light.png" width="420"></picture>             |
 
 They are generated from the demo, so they are reproducible. The full set (13 shots, dark and light) goes to [`docs/assets/screenshots/`](docs/assets/screenshots/) with a `manifest.json` that the website reads:
 
@@ -203,12 +203,12 @@ Then open <http://localhost:8787>. The first visit asks you to create the owner 
 
 Download from [Releases](https://github.com/ossappscollective/kiln/releases). Artifacts are named `kiln_<version>_<os>_<arch>.<ext>`; the exact list and how they are built is in [docs/releasing.md](docs/releasing.md).
 
-| Platform | Look for |
-| --- | --- |
+| Platform             | Look for                       |
+| -------------------- | ------------------------------ |
 | macOS, Apple Silicon | `kiln_<version>_macos_arm64.*` |
-| macOS, Intel | `kiln_<version>_macos_x64.*` |
-| Windows | `kiln_<version>_windows_x64.*` |
-| Linux | `kiln_<version>_linux_x64.*` |
+| macOS, Intel         | `kiln_<version>_macos_x64.*`   |
+| Windows              | `kiln_<version>_windows_x64.*` |
+| Linux                | `kiln_<version>_linux_x64.*`   |
 
 > Unsigned builds trigger warnings. **macOS Gatekeeper:** right-click the app, choose Open, then confirm (or allow it under System Settings, Privacy and Security). **Windows SmartScreen:** choose More info, then Run anyway. Only install builds you downloaded from this repository's Releases page.
 
@@ -229,14 +229,14 @@ Open <http://localhost:8788/demo/login>. `pnpm demo:reset` wipes the demo data a
 <details open>
 <summary><b>Prerequisites</b></summary>
 
-| Tool | Version | Needed for |
-| --- | --- | --- |
-| Node.js | 22.18 or newer (`.nvmrc` says 22) | everything; the server runs TypeScript directly, no server build step |
-| pnpm | 10.28.0 (pinned in `packageManager`), via `corepack enable` | everything |
-| Rust + Tauri system dependencies | stable | **desktop app only**: see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for macOS, Windows and Linux |
-| git | 2.34 or newer | reading repositories from a local clone (otherwise the GitHub API is used) |
-| Docker | any recent | optional: image build, Postgres for tests |
-| Postgres | 17 used in compose | optional: SQLite is the default |
+| Tool                             | Version                                                     | Needed for                                                                                                              |
+| -------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Node.js                          | 22.18 or newer (`.nvmrc` says 22)                           | everything; the server runs TypeScript directly, no server build step                                                   |
+| pnpm                             | 10.28.0 (pinned in `packageManager`), via `corepack enable` | everything                                                                                                              |
+| Rust + Tauri system dependencies | stable                                                      | **desktop app only**: see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for macOS, Windows and Linux |
+| git                              | 2.34 or newer                                               | reading repositories from a local clone (otherwise the GitHub API is used)                                              |
+| Docker                           | any recent                                                  | optional: image build, Postgres for tests                                                                               |
+| Postgres                         | 17 used in compose                                          | optional: SQLite is the default                                                                                         |
 </details>
 
 ```sh
@@ -246,20 +246,20 @@ pnpm install                   # or: pnpm install --frozen-lockfile
 cp .env.example .env           # then set KILN_MASTER_KEY=$(openssl rand -base64 32)
 ```
 
-| Task | Command |
-| --- | --- |
-| Run in development | `pnpm dev` (API on :8787, web UI on :5173 with an `/api` proxy; open <http://localhost:5173>) |
-| Build the web UI | `pnpm build` (output in `apps/web/dist`) |
+| Task                     | Command                                                                                                                                                                                         |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Run in development       | `pnpm dev` (API on :8787, web UI on :5173 with an `/api` proxy; open <http://localhost:5173>)                                                                                                   |
+| Build the web UI         | `pnpm build` (output in `apps/web/dist`)                                                                                                                                                        |
 | Run the production build | from the repository root: `node --disable-warning=ExperimentalWarning --env-file-if-exists=.env apps/server/src/index.ts` (the server serves `apps/web/dist`; this is what the Dockerfile runs) |
-| Build the Docker image | `docker build -t kiln .` |
-| Build the desktop app | `pnpm build`, then `pnpm --filter @kiln/desktop build` (stages the Node sidecar, then `tauri build`); details in [apps/desktop/README.md](apps/desktop/README.md) |
-| Desktop in development | `pnpm dev` in one terminal, `pnpm --filter @kiln/desktop dev` in another |
-| Tests (all packages) | `pnpm test` |
-| One package | `pnpm --filter @kiln/core test` (also `@kiln/server`, `@kiln/web`, `@kiln/db`, `@kiln/vault`, `@kiln/connectors`) |
-| Typecheck | `pnpm typecheck` |
-| Lint and format (Biome) | `pnpm lint` / `pnpm format` |
-| Translations | `node scripts/i18n.mjs check --strict` (also `pnpm i18n:check`, `pnpm i18n:fix`, `pnpm i18n:scan`) |
-| Demo | `pnpm demo`, `pnpm demo:reset` |
+| Build the Docker image   | `docker build -t kiln .`                                                                                                                                                                        |
+| Build the desktop app    | `pnpm build`, then `pnpm --filter @kiln/desktop build` (stages the Node sidecar, then `tauri build`); details in [apps/desktop/README.md](apps/desktop/README.md)                               |
+| Desktop in development   | `pnpm dev` in one terminal, `pnpm --filter @kiln/desktop dev` in another                                                                                                                        |
+| Tests (all packages)     | `pnpm test`                                                                                                                                                                                     |
+| One package              | `pnpm --filter @kiln/core test` (also `@kiln/server`, `@kiln/web`, `@kiln/db`, `@kiln/vault`, `@kiln/connectors`)                                                                               |
+| Typecheck                | `pnpm typecheck`                                                                                                                                                                                |
+| Lint and format (Biome)  | `pnpm lint` / `pnpm format`                                                                                                                                                                     |
+| Translations             | `node scripts/i18n.mjs check --strict` (also `pnpm i18n:check`, `pnpm i18n:fix`, `pnpm i18n:scan`)                                                                                              |
+| Demo                     | `pnpm demo`, `pnpm demo:reset`                                                                                                                                                                  |
 
 **Postgres tests.** The Postgres cases are skipped unless `KILN_TEST_POSTGRES_URL` is set:
 
@@ -280,90 +280,90 @@ Set variables in `.env` (see [.env.example](.env.example), which documents every
 
 **Core**
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `KILN_MASTER_KEY` | none, **required** | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts credentials at rest. |
-| `DATABASE_URL` | SQLite `./.kiln-data/kiln.db` | `postgres://...` for Postgres. Docker image: `file:/data/kiln.db`. |
-| `PORT` | `8787` | HTTP port. |
-| `KILN_DATA_DIR` | `./.kiln-data` | Uploads, graphics and (by default) clones. Docker: `/data`. |
-| `KILN_WEB_DIST` | `apps/web/dist` | Built web UI, relative to the working directory. |
-| `KILN_MODE` | `multi` | `multi` (accounts) or `single_user` (desktop). |
-| `KILN_PUBLIC_ORIGIN` | request origin | Origin for passkeys and links in emails, e.g. `https://kiln.example.com`. |
-| `KILN_TRUSTED_ORIGINS` | none | Extra origins allowed to send writes (comma separated). |
-| `KILN_TRUST_PROXY` | `0` | `1` when exactly one reverse proxy you control sets `X-Forwarded-For`. |
-| `KILN_BIND` | `127.0.0.1` | docker compose only: address port 8787 is published on. |
-| `KILN_LAUNCH_SECRET`, `KILN_ALLOWED_HOSTS` | none | `single_user` only; the desktop shell sets them itself. |
+| Variable                                   | Default                       | Description                                                                        |
+| ------------------------------------------ | ----------------------------- | ---------------------------------------------------------------------------------- |
+| `KILN_MASTER_KEY`                          | none, **required**            | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts credentials at rest. |
+| `DATABASE_URL`                             | SQLite `./.kiln-data/kiln.db` | `postgres://...` for Postgres. Docker image: `file:/data/kiln.db`.                 |
+| `PORT`                                     | `8787`                        | HTTP port.                                                                         |
+| `KILN_DATA_DIR`                            | `./.kiln-data`                | Uploads, graphics and (by default) clones. Docker: `/data`.                        |
+| `KILN_WEB_DIST`                            | `apps/web/dist`               | Built web UI, relative to the working directory.                                   |
+| `KILN_MODE`                                | `multi`                       | `multi` (accounts) or `single_user` (desktop).                                     |
+| `KILN_PUBLIC_ORIGIN`                       | request origin                | Origin for passkeys and links in emails, e.g. `https://kiln.example.com`.          |
+| `KILN_TRUSTED_ORIGINS`                     | none                          | Extra origins allowed to send writes (comma separated).                            |
+| `KILN_TRUST_PROXY`                         | `0`                           | `1` when exactly one reverse proxy you control sets `X-Forwarded-For`.             |
+| `KILN_BIND`                                | `127.0.0.1`                   | docker compose only: address port 8787 is published on.                            |
+| `KILN_LAUNCH_SECRET`, `KILN_ALLOWED_HOSTS` | none                          | `single_user` only; the desktop shell sets them itself.                            |
 
 **Background work and schedules** (minutes; `0` is off where stated; only where `KILN_WORKER=inline`)
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `KILN_WORKER` | `inline` | `inline` runs the job worker in the server, `off` disables it. |
-| `KILN_JOB_CONCURRENCY`, `KILN_SYNC_APPLE_CONCURRENCY`, `KILN_SYNC_GOOGLE_CONCURRENCY` | `4` | Jobs at once, and requests in flight per store. |
-| `KILN_SYNC_INTERVAL_MINUTES` | `30` | Scheduled read-only sync of every app; `0` off, otherwise 5 to 10080. |
-| `KILN_REMINDER_INTERVAL_MINUTES`, `KILN_RELEASE_WATCH_INTERVAL_MINUTES` | `15` | Plan reminders and release watch events; `0` off. |
-| `KILN_REVIEW_SYNC_INTERVAL_MINUTES` | `0` (off) | Read reviews from the stores (15 to 10080). Use 360 or less for Android. |
-| `KILN_REVIEW_RETENTION_DAYS` | `365` | Days stored reviews are kept; `0` keeps all. |
-| `KILN_LISTING_INTERVAL_MINUTES` | `0` (off) | Scheduled store listing reads (30 to 10080). |
-| `KILN_ANALYTICS_INTERVAL_MINUTES` | `360` | Analytics reads (15 to 10080, `0` never); also needs the workspace setting. |
-| `KILN_EAS_STATUS_INTERVAL_MINUTES` | `30` | EAS build/submit status reads (5 to 10080, `0` never). |
-| `KILN_ASO_INTERVAL_MINUTES` | `0` (off) | Keyword and competitor checks (60 to 10080). |
-| `KILN_ASO_RETENTION_DAYS` | `365` | Days rank checks and snapshots are kept; `0` keeps all. |
-| `KILN_ASO_MAX_KEYWORDS_PER_APP`, `KILN_ASO_MAX_COMPETITORS_PER_APP`, `KILN_ASO_MAX_CHECKS_PER_RUN`, `KILN_ASO_RANK_DEPTH` | `50`, `10`, `25`, `50` | ASO limits. |
-| `KILN_ASO_CACHE_MINUTES`, `KILN_ASO_APPLE_CALLS_PER_MINUTE`, `KILN_ASO_PLAY_CALLS_PER_MINUTE`, `KILN_ASO_HEARTBEAT_DAYS` | `60`, `10`, `4`, `7` | ASO caching, rate limits and competitor refresh. |
+| Variable                                                                                                                  | Default                | Description                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------- |
+| `KILN_WORKER`                                                                                                             | `inline`               | `inline` runs the job worker in the server, `off` disables it.              |
+| `KILN_JOB_CONCURRENCY`, `KILN_SYNC_APPLE_CONCURRENCY`, `KILN_SYNC_GOOGLE_CONCURRENCY`                                     | `4`                    | Jobs at once, and requests in flight per store.                             |
+| `KILN_SYNC_INTERVAL_MINUTES`                                                                                              | `30`                   | Scheduled read-only sync of every app; `0` off, otherwise 5 to 10080.       |
+| `KILN_REMINDER_INTERVAL_MINUTES`, `KILN_RELEASE_WATCH_INTERVAL_MINUTES`                                                   | `15`                   | Plan reminders and release watch events; `0` off.                           |
+| `KILN_REVIEW_SYNC_INTERVAL_MINUTES`                                                                                       | `0` (off)              | Read reviews from the stores (15 to 10080). Use 360 or less for Android.    |
+| `KILN_REVIEW_RETENTION_DAYS`                                                                                              | `365`                  | Days stored reviews are kept; `0` keeps all.                                |
+| `KILN_LISTING_INTERVAL_MINUTES`                                                                                           | `0` (off)              | Scheduled store listing reads (30 to 10080).                                |
+| `KILN_ANALYTICS_INTERVAL_MINUTES`                                                                                         | `360`                  | Analytics reads (15 to 10080, `0` never); also needs the workspace setting. |
+| `KILN_EAS_STATUS_INTERVAL_MINUTES`                                                                                        | `30`                   | EAS build/submit status reads (5 to 10080, `0` never).                      |
+| `KILN_ASO_INTERVAL_MINUTES`                                                                                               | `0` (off)              | Keyword and competitor checks (60 to 10080).                                |
+| `KILN_ASO_RETENTION_DAYS`                                                                                                 | `365`                  | Days rank checks and snapshots are kept; `0` keeps all.                     |
+| `KILN_ASO_MAX_KEYWORDS_PER_APP`, `KILN_ASO_MAX_COMPETITORS_PER_APP`, `KILN_ASO_MAX_CHECKS_PER_RUN`, `KILN_ASO_RANK_DEPTH` | `50`, `10`, `25`, `50` | ASO limits.                                                                 |
+| `KILN_ASO_CACHE_MINUTES`, `KILN_ASO_APPLE_CALLS_PER_MINUTE`, `KILN_ASO_PLAY_CALLS_PER_MINUTE`, `KILN_ASO_HEARTBEAT_DAYS`  | `60`, `10`, `4`, `7`   | ASO caching, rate limits and competitor refresh.                            |
 
 **Store writes and feature switches** (all `false` unless noted)
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `KILN_STORE_DRAFT_WRITE_ENABLED` | `false` | Push staged listing changes to a store draft. |
-| `KILN_STORE_SUBMIT_ENABLED` | `false` | Submit the pushed draft for review (irreversible from Kiln). |
-| `KILN_STORE_RELEASE_ENABLED` | `false` | Release an approved version (irreversible from Kiln). |
-| `KILN_STORE_ROLLOUT_ENABLED` | `false` | Change a live rollout. |
-| `KILN_STORE_PUBLISH_BATCH_ENABLED` | `false` | One confirmation for several steps; does not enable the steps. |
-| `KILN_STORE_PRODUCT_WRITE_ENABLED` | `false` | Edit localized in-app product names and descriptions. |
-| `KILN_PRICE_WRITES_ENABLED` | `false` | Price changes (also needs a workspace setting). |
-| `KILN_PRICE_MAX_RELATIVE_CHANGE_PERCENT`, `KILN_PRICE_MAX_ABSOLUTE_CHANGE`, `KILN_PRICE_MAX_TERRITORIES` | `50`, `100`, `50` | Price change guard rails. |
-| `KILN_REVIEW_REPLY_ENABLED` | `false` | Public replies to reviews. |
-| `KILN_EAS_UPDATE_ROLLOUT_ENABLED` | `false` | Raise an EAS Update rollout. |
-| `KILN_BUILDS_DOWNLOAD_ENABLED` | `false` | Download CI artifacts and share one-time links. |
-| `KILN_BUILDS_DOWNLOAD_MAX_MB` | `500` | Largest downloadable artifact (1 to 4096). |
-| `KILN_PLAY_INTERNAL_SHARING_ENABLED` | `false` | Upload a build to Google Play internal app sharing. |
-| `KILN_ASO_PLAY_UNOFFICIAL_ENABLED` | `false` | Read public Google Play pages (unofficial, may breach Google's terms). |
-| `KILN_AI_ENABLED` | `false` | Allow AI features at all; workspaces still opt in. |
-| `KILN_MCP_ENABLED` | `false` | Serve MCP at `POST /mcp`. |
+| Variable                                                                                                 | Default           | Description                                                            |
+| -------------------------------------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------- |
+| `KILN_STORE_DRAFT_WRITE_ENABLED`                                                                         | `false`           | Push staged listing changes to a store draft.                          |
+| `KILN_STORE_SUBMIT_ENABLED`                                                                              | `false`           | Submit the pushed draft for review (irreversible from Kiln).           |
+| `KILN_STORE_RELEASE_ENABLED`                                                                             | `false`           | Release an approved version (irreversible from Kiln).                  |
+| `KILN_STORE_ROLLOUT_ENABLED`                                                                             | `false`           | Change a live rollout.                                                 |
+| `KILN_STORE_PUBLISH_BATCH_ENABLED`                                                                       | `false`           | One confirmation for several steps; does not enable the steps.         |
+| `KILN_STORE_PRODUCT_WRITE_ENABLED`                                                                       | `false`           | Edit localized in-app product names and descriptions.                  |
+| `KILN_PRICE_WRITES_ENABLED`                                                                              | `false`           | Price changes (also needs a workspace setting).                        |
+| `KILN_PRICE_MAX_RELATIVE_CHANGE_PERCENT`, `KILN_PRICE_MAX_ABSOLUTE_CHANGE`, `KILN_PRICE_MAX_TERRITORIES` | `50`, `100`, `50` | Price change guard rails.                                              |
+| `KILN_REVIEW_REPLY_ENABLED`                                                                              | `false`           | Public replies to reviews.                                             |
+| `KILN_EAS_UPDATE_ROLLOUT_ENABLED`                                                                        | `false`           | Raise an EAS Update rollout.                                           |
+| `KILN_BUILDS_DOWNLOAD_ENABLED`                                                                           | `false`           | Download CI artifacts and share one-time links.                        |
+| `KILN_BUILDS_DOWNLOAD_MAX_MB`                                                                            | `500`             | Largest downloadable artifact (1 to 4096).                             |
+| `KILN_PLAY_INTERNAL_SHARING_ENABLED`                                                                     | `false`           | Upload a build to Google Play internal app sharing.                    |
+| `KILN_ASO_PLAY_UNOFFICIAL_ENABLED`                                                                       | `false`           | Read public Google Play pages (unofficial, may breach Google's terms). |
+| `KILN_AI_ENABLED`                                                                                        | `false`           | Allow AI features at all; workspaces still opt in.                     |
+| `KILN_MCP_ENABLED`                                                                                       | `false`           | Serve MCP at `POST /mcp`.                                              |
 
 **Repositories and git**
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `KILN_READS` | `auto` | `auto`, `clone` or `api`: how repositories are read. |
-| `KILN_CLONE_DIR` | `<KILN_DATA_DIR>/clones` | Where clones are cached. |
-| `KILN_CLONE_TTL_SECONDS`, `KILN_CLONE_MAX_BYTES`, `KILN_CLONE_IDLE_DAYS`, `KILN_CLONE_SWEEP_INTERVAL_MINUTES` | `60`, `2g`, `30`, `360` | Clone freshness and clean-up. |
-| `KILN_GIT_PATH` | `git` | The git program. |
-| `KILN_LOCAL_REPO_ROOTS` | unset (off) | Folders that may hold local clones to read. |
-| `KILN_LOCAL_REPO_WRITE` | `false` | Apply change sets as a commit on a new branch of a local clone. |
-| `KILN_GIT_AUTHOR_NAME`, `KILN_GIT_AUTHOR_EMAIL` | the applying person | Author of those commits. |
-| `KILN_GIT_SIGN`, `KILN_GIT_SIGNING_KEY`, `KILN_GIT_SIGNING_PROGRAM`, `KILN_GIT_GNUPGHOME` | `off` | Sign those commits with `ssh` or `gpg`. |
+| Variable                                                                                                      | Default                  | Description                                                     |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------ | --------------------------------------------------------------- |
+| `KILN_READS`                                                                                                  | `auto`                   | `auto`, `clone` or `api`: how repositories are read.            |
+| `KILN_CLONE_DIR`                                                                                              | `<KILN_DATA_DIR>/clones` | Where clones are cached.                                        |
+| `KILN_CLONE_TTL_SECONDS`, `KILN_CLONE_MAX_BYTES`, `KILN_CLONE_IDLE_DAYS`, `KILN_CLONE_SWEEP_INTERVAL_MINUTES` | `60`, `2g`, `30`, `360`  | Clone freshness and clean-up.                                   |
+| `KILN_GIT_PATH`                                                                                               | `git`                    | The git program.                                                |
+| `KILN_LOCAL_REPO_ROOTS`                                                                                       | unset (off)              | Folders that may hold local clones to read.                     |
+| `KILN_LOCAL_REPO_WRITE`                                                                                       | `false`                  | Apply change sets as a commit on a new branch of a local clone. |
+| `KILN_GIT_AUTHOR_NAME`, `KILN_GIT_AUTHOR_EMAIL`                                                               | the applying person      | Author of those commits.                                        |
+| `KILN_GIT_SIGN`, `KILN_GIT_SIGNING_KEY`, `KILN_GIT_SIGNING_PROGRAM`, `KILN_GIT_GNUPGHOME`                     | `off`                    | Sign those commits with `ssh` or `gpg`.                         |
 
 **Network safety and mail**
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `KILN_WEBHOOKS_ALLOW_PRIVATE` | `0` | `1` allows webhooks to private and loopback addresses. |
-| `KILN_TRANSLATE_ALLOW_PRIVATE_URLS` | `false` | Allow a LibreTranslate server on a private address. |
-| `KILN_AI_ALLOW_PRIVATE_URLS` | `false` | Allow a local model server (Ollama, LM Studio, vLLM). |
+| Variable                                                                                                         | Default                  | Description                                              |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------ | -------------------------------------------------------- |
+| `KILN_WEBHOOKS_ALLOW_PRIVATE`                                                                                    | `0`                      | `1` allows webhooks to private and loopback addresses.   |
+| `KILN_TRANSLATE_ALLOW_PRIVATE_URLS`                                                                              | `false`                  | Allow a LibreTranslate server on a private address.      |
+| `KILN_AI_ALLOW_PRIVATE_URLS`                                                                                     | `false`                  | Allow a local model server (Ollama, LM Studio, vLLM).    |
 | `KILN_SMTP_HOST`, `KILN_SMTP_PORT`, `KILN_SMTP_SECURE`, `KILN_SMTP_USER`, `KILN_SMTP_PASSWORD`, `KILN_SMTP_FROM` | unset, `587`, `starttls` | Outgoing mail; unset, an admin can enter it in Settings. |
-| `KILN_SMTP_ALLOW_PRIVATE_HOSTS` | `false` | Allow a mail server on a private address. |
+| `KILN_SMTP_ALLOW_PRIVATE_HOSTS`                                                                                  | `false`                  | Allow a mail server on a private address.                |
 
 **Demo, desktop and tests**
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `KILN_DEMO`, `KILN_DEMO_PORT`, `KILN_DEMO_DIR`, `KILN_DEMO_FORCE` | set by `pnpm demo`, `8788` | Demo mode; see [docs/demo.md](docs/demo.md). |
-| `KILN_LANG`, `KILN_NODE`, `KILN_USE_PACKAGED_SERVER` | unset | Desktop development: UI language, Node binary, run the staged server. |
-| `KILN_URL`, `KILN_TOKEN` | unset | Used by the MCP stdio bridge ([docs/mcp.md](docs/mcp.md)). |
-| `KILN_TEST_POSTGRES_URL` | unset | Enables the Postgres test cases. |
+| Variable                                                          | Default                    | Description                                                           |
+| ----------------------------------------------------------------- | -------------------------- | --------------------------------------------------------------------- |
+| `KILN_DEMO`, `KILN_DEMO_PORT`, `KILN_DEMO_DIR`, `KILN_DEMO_FORCE` | set by `pnpm demo`, `8788` | Demo mode; see [docs/demo.md](docs/demo.md).                          |
+| `KILN_LANG`, `KILN_NODE`, `KILN_USE_PACKAGED_SERVER`              | unset                      | Desktop development: UI language, Node binary, run the staged server. |
+| `KILN_URL`, `KILN_TOKEN`                                          | unset                      | Used by the MCP stdio bridge ([docs/mcp.md](docs/mcp.md)).            |
+| `KILN_TEST_POSTGRES_URL`                                          | unset                      | Enables the Postgres test cases.                                      |
 </details>
 
 ## Project layout
@@ -384,21 +384,21 @@ scripts/       i18n tooling, email preview, stabilisation run
 
 ## Documentation
 
-| Topic | Where |
-| --- | --- |
-| Architecture and rules | [docs/architecture.md](docs/architecture.md), [ADRs](docs/adr/) |
-| Pages and navigation | [docs/ux-ia.md](docs/ux-ia.md), [docs/design-system.md](docs/design-system.md) |
-| Deploying and operating | [docs/deployment.md](docs/deployment.md), [docs/troubleshooting-analytics.md](docs/troubleshooting-analytics.md) |
-| Credentials for each service | [docs/credentials.md](docs/credentials.md) |
-| Store write gates | [docs/price-writes.md](docs/price-writes.md), [.env.example](.env.example) |
-| AI, MCP, alerts, chat | [docs/ai-features.md](docs/ai-features.md), [docs/mcp.md](docs/mcp.md), [docs/alerts.md](docs/alerts.md), [docs/chat-integrations.md](docs/chat-integrations.md) |
-| HTTP API (one page per feature) | [docs/api/](docs/api/), [OpenAPI](docs/api/openapi.md) |
-| Demo mode | [docs/demo.md](docs/demo.md) |
-| Translating | [docs/i18n.md](docs/i18n.md), [docs/translating.md](docs/translating.md), [glossary](docs/i18n-glossary.md) |
-| Releasing Kiln | [docs/releasing.md](docs/releasing.md) |
-| The website | [docs/website.md](docs/website.md) |
-| Open questions | [docs/open-decisions.md](docs/open-decisions.md) |
-| Working with AI agents | [docs/agent-guide.md](docs/agent-guide.md) |
+| Topic                           | Where                                                                                                                                                            |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture and rules          | [docs/architecture.md](docs/architecture.md), [ADRs](docs/adr/)                                                                                                  |
+| Pages and navigation            | [docs/ux-ia.md](docs/ux-ia.md), [docs/design-system.md](docs/design-system.md)                                                                                   |
+| Deploying and operating         | [docs/deployment.md](docs/deployment.md), [docs/troubleshooting-analytics.md](docs/troubleshooting-analytics.md)                                                 |
+| Credentials for each service    | [docs/credentials.md](docs/credentials.md)                                                                                                                       |
+| Store write gates               | [docs/price-writes.md](docs/price-writes.md), [.env.example](.env.example)                                                                                       |
+| AI, MCP, alerts, chat           | [docs/ai-features.md](docs/ai-features.md), [docs/mcp.md](docs/mcp.md), [docs/alerts.md](docs/alerts.md), [docs/chat-integrations.md](docs/chat-integrations.md) |
+| HTTP API (one page per feature) | [docs/api/](docs/api/), [OpenAPI](docs/api/openapi.md)                                                                                                           |
+| Demo mode                       | [docs/demo.md](docs/demo.md)                                                                                                                                     |
+| Translating                     | [docs/i18n.md](docs/i18n.md), [docs/translating.md](docs/translating.md), [glossary](docs/i18n-glossary.md)                                                      |
+| Releasing Kiln                  | [docs/releasing.md](docs/releasing.md)                                                                                                                           |
+| The website                     | [docs/website.md](docs/website.md)                                                                                                                               |
+| Open questions                  | [docs/open-decisions.md](docs/open-decisions.md)                                                                                                                 |
+| Working with AI agents          | [docs/agent-guide.md](docs/agent-guide.md)                                                                                                                       |
 
 ## Security
 

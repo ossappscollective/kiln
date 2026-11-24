@@ -166,27 +166,60 @@ test('one-line hints and the Danger zone line', () => {
 test('the address opens a section: ?section=, an old part id, else the first; a section the app lacks falls back', () => {
   const ids = appSettingsSections({ android: false, ai: false, canDelete: false }).map((s) => s.id);
   assert.equal(resolveAppSettingsSection('#/apps/a/settings', ids), 'stores');
-  assert.equal(resolveAppSettingsSection('#/apps/a/settings?section=notifications', ids), 'notifications');
-  assert.equal(resolveAppSettingsSection('#/apps/a/settings?section=app-settings-repository', ids), 'repository');
-  assert.equal(resolveAppSettingsSection('#/apps/a/settings?view=app-settings-defaults', ids), 'defaults');
+  assert.equal(
+    resolveAppSettingsSection('#/apps/a/settings?section=notifications', ids),
+    'notifications',
+  );
+  assert.equal(
+    resolveAppSettingsSection('#/apps/a/settings?section=app-settings-repository', ids),
+    'repository',
+  );
+  assert.equal(
+    resolveAppSettingsSection('#/apps/a/settings?view=app-settings-defaults', ids),
+    'defaults',
+  );
   assert.equal(resolveAppSettingsSection('#/apps/a/settings?section=play-bucket', ids), 'stores');
-  assert.deepEqual(appSettingsGroups({ android: false, ai: false, canDelete: false }).map((g) => g.id), ['connections', 'releases', 'data', 'display']);
+  assert.deepEqual(
+    appSettingsGroups({ android: false, ai: false, canDelete: false }).map((g) => g.id),
+    ['connections', 'releases', 'data', 'display'],
+  );
 });
 
 test('effective values say where the vendor number and the Play bucket come from', () => {
   assert.deepEqual(effectiveAnalyticsValues(null), []);
   const apple = effectiveAnalyticsValues({
-    apple: { mode: 'ongoing', requests: [], vendorNumberSet: true, vendorNumberSource: 'workspace', vendorNumber: '12345678' },
+    apple: {
+      mode: 'ongoing',
+      requests: [],
+      vendorNumberSet: true,
+      vendorNumberSource: 'workspace',
+      vendorNumber: '12345678',
+    },
     google: null,
   });
-  assert.deepEqual(apple.map((e) => [e.key, e.value, e.origin]), [['vendorNumber', '12345678', 'from the workspace default']]);
+  assert.deepEqual(
+    apple.map((e) => [e.key, e.value, e.origin]),
+    [['vendorNumber', '12345678', 'from the workspace default']],
+  );
   const own = effectiveAnalyticsValues({
-    apple: { mode: 'ongoing', requests: [], vendorNumberSet: true, vendorNumberSource: 'credential', vendorNumber: '87654321' },
+    apple: {
+      mode: 'ongoing',
+      requests: [],
+      vendorNumberSet: true,
+      vendorNumberSource: 'credential',
+      vendorNumber: '87654321',
+    },
     google: null,
   });
   assert.equal(own[0]?.origin, 'from this credential');
   const play = (bucketSource: 'app' | 'account' | 'workspace') =>
-    effectiveAnalyticsValues({ apple: null, google: { bucketIdSet: true, bucketId: 'pubsite_prod_rev_1', bucketSource } })[0]?.origin;
-  assert.deepEqual([play('app'), play('account'), play('workspace')], ['set on this app', 'from this Play account', 'from the workspace default']);
+    effectiveAnalyticsValues({
+      apple: null,
+      google: { bucketIdSet: true, bucketId: 'pubsite_prod_rev_1', bucketSource },
+    })[0]?.origin;
+  assert.deepEqual(
+    [play('app'), play('account'), play('workspace')],
+    ['set on this app', 'from this Play account', 'from the workspace default'],
+  );
   assert.deepEqual(effectiveAnalyticsValues({ apple: null, google: { bucketIdSet: false } }), []);
 });

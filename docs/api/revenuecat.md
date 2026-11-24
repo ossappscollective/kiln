@@ -17,7 +17,7 @@ RevenueCat apps of any other store are listed as "not mapped" and ignored.
 | `PUT /api/workspaces/:workspaceId/apps/:appId/revenuecat`                                 | `apps.write` | Links the app (or changes the link). Asks RevenueCat first.                                                             |
 | `DELETE /api/workspaces/:workspaceId/apps/:appId/revenuecat`                              | `apps.write` | Removes the link and the stored copy. `204`; `404` when there was none.                                                 |
 | `GET /api/workspaces/:workspaceId/apps/:appId/revenuecat/detect?credentialId=&projectId=` | `apps.write` | READS RevenueCat: the projects the key sees and, for one, its apps. Saves nothing.                                      |
-| `GET /api/workspaces/:workspaceId/revenuecat/plan?credentialId=` | `apps.write` | READS RevenueCat once and proposes the link of every app record ("Connect your apps"). Saves nothing. |
+| `GET /api/workspaces/:workspaceId/revenuecat/plan?credentialId=`                          | `apps.write` | READS RevenueCat once and proposes the link of every app record ("Connect your apps"). Saves nothing.                   |
 | `POST /api/workspaces/:workspaceId/apps/:appId/revenuecat/sync`                           | `apps.sync`  | Reads the project configuration and replaces the stored copy (the second step of the products sync, alone).             |
 
 `apps.write` is owners and admins. A token limited to some apps may use these routes for those apps only. Non-members and apps of another

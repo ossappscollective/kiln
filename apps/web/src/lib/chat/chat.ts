@@ -84,7 +84,11 @@ export const urlPlaceholder: Record<ChatProvider, string> = {
 export const severityChoices: { id: ChatSeverity; labelKey: string; fromKey: string }[] = [
   { id: 'info', labelKey: k('chat:severity.info'), fromKey: k('chat:routes.from.info') },
   { id: 'warning', labelKey: k('chat:severity.warning'), fromKey: k('chat:routes.from.warning') },
-  { id: 'critical', labelKey: k('chat:severity.critical'), fromKey: k('chat:routes.from.critical') },
+  {
+    id: 'critical',
+    labelKey: k('chat:severity.critical'),
+    fromKey: k('chat:routes.from.critical'),
+  },
 ];
 
 export const platformChoices = [
@@ -143,13 +147,17 @@ const looksLikeHttps = (value: string): boolean => {
 };
 
 /** What is wrong with the form, in words. `editing` lets the address stay empty (the saved one is kept). */
-export function validateDestinationForm(form: DestinationForm, editing: boolean): DestinationProblems {
+export function validateDestinationForm(
+  form: DestinationForm,
+  editing: boolean,
+): DestinationProblems {
   const problems: DestinationProblems = {};
   if (form.name.trim() === '') problems.name = t('chat:form.errors.name');
   else if (form.name.trim().length > 80) problems.name = t('chat:form.errors.nameLong');
   const url = form.url.trim();
   if (url === '' ? !editing : !looksLikeHttps(url)) problems.url = t('chat:form.errors.url');
-  if (form.digest === 'daily' && form.timezone.trim() === '') problems.timezone = t('chat:form.errors.timezone');
+  if (form.digest === 'daily' && form.timezone.trim() === '')
+    problems.timezone = t('chat:form.errors.timezone');
   return problems;
 }
 
@@ -179,7 +187,8 @@ export function patchFor(d: ChatDestination, form: DestinationForm): Record<stri
   if (form.allowAnyHost !== d.allowAnyHost) patch.allowAnyHost = form.allowAnyHost;
   if (form.digest !== d.digest) patch.digest = form.digest;
   if (form.digestHour !== d.digestHour) patch.digestHour = form.digestHour;
-  if (form.timezone.trim() !== d.timezone && form.timezone.trim() !== '') patch.timezone = form.timezone.trim();
+  if (form.timezone.trim() !== d.timezone && form.timezone.trim() !== '')
+    patch.timezone = form.timezone.trim();
   return patch;
 }
 
@@ -268,7 +277,10 @@ export function toggleGroup(selected: readonly string[], group: TypeGroup, on: b
   return on ? [...new Set([...selected, ...ids])] : selected.filter((x) => !ids.includes(x));
 }
 
-export const groupState = (selected: readonly string[], group: TypeGroup): 'all' | 'some' | 'none' => {
+export const groupState = (
+  selected: readonly string[],
+  group: TypeGroup,
+): 'all' | 'some' | 'none' => {
   const n = group.types.filter((x) => selected.includes(x.id)).length;
   return n === 0 ? 'none' : n === group.types.length ? 'all' : 'some';
 };
@@ -281,7 +293,9 @@ export function describeRoute(
   const allTypes = r.alertTypes.includes('*');
   const named = (r.appIds ?? []).map((id) => apps.find((a) => a.id === id)?.name ?? id);
   return {
-    types: allTypes ? t('chat:routes.allTypes') : t('chat:routes.someTypes', { count: r.alertTypes.length }),
+    types: allTypes
+      ? t('chat:routes.allTypes')
+      : t('chat:routes.someTypes', { count: r.alertTypes.length }),
     severity: severityLabel(r.minSeverity),
     apps: named.length === 0 ? t('chat:routes.allApps') : named.join(', '),
     platforms:
@@ -341,7 +355,11 @@ export const describeOutcome = (outcome: string): string => {
 };
 
 export const kindLabel = (kind: string): string =>
-  kind === 'digest' ? t('chat:kind.digest') : kind === 'test' ? t('chat:kind.test') : t('chat:kind.alert');
+  kind === 'digest'
+    ? t('chat:kind.digest')
+    : kind === 'test'
+      ? t('chat:kind.test')
+      : t('chat:kind.alert');
 
 /** A delivery still on its way: the log looks again while any is. */
 export const inFlight = (deliveries: readonly Pick<ChatDelivery, 'status'>[]): boolean =>
@@ -353,7 +371,8 @@ export function testResult(
 ): { tone: Tone; text: string } | undefined {
   if (!d) return undefined;
   if (d.status === 'sent') return { tone: 'ok', text: t('chat:test.sent') };
-  if (d.status === 'failed') return { tone: 'bad', text: t('chat:test.failed', { reason: describeOutcome(d.outcome) }) };
+  if (d.status === 'failed')
+    return { tone: 'bad', text: t('chat:test.failed', { reason: describeOutcome(d.outcome) }) };
   return { tone: 'info', text: t('chat:test.waiting') };
 }
 

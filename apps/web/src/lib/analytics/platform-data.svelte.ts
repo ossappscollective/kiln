@@ -28,14 +28,27 @@ export class PlatformData {
   }
 
   /** Reads again when `key` (workspace, app, range) changed since the last call; `appKey` tells a range change from a new app. */
-  ensure(api: Api, workspaceId: string, app: { id: string; platform: Platform }, range: ResolvedRange, now: number): void {
+  ensure(
+    api: Api,
+    workspaceId: string,
+    app: { id: string; platform: Platform },
+    range: ResolvedRange,
+    now: number,
+  ): void {
     const appKey = `${workspaceId}/${app.id}`;
     const keep = this.#shownApp === appKey && this.status !== null;
     this.#shownApp = appKey;
     void this.load(api, workspaceId, app, range, now, keep);
   }
 
-  async load(api: Api, workspaceId: string, app: { id: string; platform: Platform }, range: ResolvedRange, now: number, keepFrame: boolean): Promise<void> {
+  async load(
+    api: Api,
+    workspaceId: string,
+    app: { id: string; platform: Platform },
+    range: ResolvedRange,
+    now: number,
+    keepFrame: boolean,
+  ): Promise<void> {
     const mine = ++this.#generation;
     if (!keepFrame) {
       this.status = null;

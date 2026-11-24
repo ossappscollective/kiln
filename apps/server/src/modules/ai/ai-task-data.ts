@@ -113,7 +113,13 @@ export async function loadReviewsForAi(
   };
   const [count] = await sql.query(
     `SELECT COUNT(*) AS n FROM app_reviews WHERE workspace_id = ? AND app_id = ? AND created_at >= ?${input.ratings ? ` AND rating IN (${input.ratings.map(() => '?').join(', ')})` : ''}${input.language ? ' AND language = ?' : ''}`,
-    [input.workspaceId, input.appId, from, ...(input.ratings ?? []), ...(input.language ? [input.language] : [])],
+    [
+      input.workspaceId,
+      input.appId,
+      from,
+      ...(input.ratings ?? []),
+      ...(input.language ? [input.language] : []),
+    ],
   );
   const reviews: AiReview[] = [];
   const taken = new Set<string>();
@@ -133,7 +139,9 @@ export async function loadReviewsForAi(
         if (input.skipIds?.has(r.id) || taken.has(r.id)) continue;
         if ((r.title ?? '').trim() === '' && r.body.trim() === '') continue;
         taken.add(r.id);
-        reviews.push(toAiReview(r, `r${reviews.length + 1}`, input.titleChars, input.textChars, input.policy));
+        reviews.push(
+          toAiReview(r, `r${reviews.length + 1}`, input.titleChars, input.textChars, input.policy),
+        );
         added += 1;
       }
       if (out.nextCursor === null) break;
@@ -184,7 +192,10 @@ export async function periodRatingStats(
       [...base, a, b, ...extra],
     );
     const n = Number(row?.n ?? 0);
-    return { count: n, average: n > 0 && row?.avg !== null ? Math.round(Number(row?.avg) * 100) / 100 : null };
+    return {
+      count: n,
+      average: n > 0 && row?.avg !== null ? Math.round(Number(row?.avg) * 100) / 100 : null,
+    };
   };
   return { stars, earlier: await half(input.from, mid), recent: await half(mid, input.to + 1) };
 }

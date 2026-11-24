@@ -13,27 +13,49 @@ import type { Failure } from '../../services/repositories.ts';
 import type { AdsDeps } from './index.ts';
 import { getAdsLink, readAdAccounts, removeAdsLink, setAdsLink } from './link.ts';
 import { ADS_SYNC_QUEUE, adsRangeFor, notLinkedFailure } from './sync.ts';
-import { adsCampaigns, adsOverview, adsTerms, getAdsSync, parseWindow, TERM_SORTS } from './view.ts';
+import {
+  adsCampaigns,
+  adsOverview,
+  adsTerms,
+  getAdsSync,
+  parseWindow,
+  TERM_SORTS,
+} from './view.ts';
 
 /** The body of `PUT .../apps/{appId}/ads`: the Apple Ads credential, the ad account and (optionally) the Apple id of the app. */
 export const setAdsLinkBody = z.strictObject({
   credentialId: z.string().min(1).max(100),
   adAccountId: z.string().regex(/^[0-9]{1,20}$/, 'An ad account id is a number.'),
-  adamId: z.string().regex(/^[0-9]{5,15}$/, "The Apple id is the number in the app's App Store address.").optional(),
+  adamId: z
+    .string()
+    .regex(/^[0-9]{5,15}$/, "The Apple id is the number in the app's App Store address.")
+    .optional(),
 });
 
 /** The body of `POST .../apps/{appId}/ads/sync`. */
 export const adsSyncBody = z.strictObject({ days: z.number().int().min(1).max(90).optional() });
 
 const windowQuery = z.object({
-  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  from: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  to: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
 
 export const termsQuery = windowQuery.extend({
   kind: z.enum(['term', 'keyword']).default('term'),
-  country: z.string().regex(/^[a-z]{2}$/).optional(),
-  campaignId: z.string().regex(/^[0-9]{1,20}$/).optional(),
+  country: z
+    .string()
+    .regex(/^[a-z]{2}$/)
+    .optional(),
+  campaignId: z
+    .string()
+    .regex(/^[0-9]{1,20}$/)
+    .optional(),
   q: z.string().max(100).optional(),
   sort: z.enum(TERM_SORTS).default('impressions'),
   dir: z.enum(['asc', 'desc']).default('desc'),
@@ -62,7 +84,12 @@ const tooMany = (wait: number) =>
   ({
     ok: false,
     status: 429,
-    body: { error: 'rate_limited', message: `Too many Apple Ads checks. Try again in ${wait} seconds.`, ...coded('rate.ads', { count: wait }), retryAfterSeconds: wait },
+    body: {
+      error: 'rate_limited',
+      message: `Too many Apple Ads checks. Try again in ${wait} seconds.`,
+      ...coded('rate.ads', { count: wait }),
+      retryAfterSeconds: wait,
+    },
     headers: { 'Retry-After': String(wait) },
   }) satisfies Failure;
 
@@ -82,7 +109,13 @@ export function adsRoutes(ctx: AdsRoutesContext) {
   };
   const appOf = (c: Context<AppEnv>) => getApp(db, ws(c), param(c, 'appId'));
   const bad = (c: Context<AppEnv>, error: z.ZodError) =>
-    c.json({ error: 'invalid_request', issues: error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) }, 400);
+    c.json(
+      {
+        error: 'invalid_request',
+        issues: error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+      },
+      400,
+    );
 
   app.get('/:workspaceId/apps/:appId/ads', needs('apps.read'), async (c) => {
     const found = await appOf(c);
@@ -98,10 +131,21 @@ export function adsRoutes(ctx: AdsRoutesContext) {
     const found = await appOf(c);
     if (!found) return c.json({ error: 'not_found' }, 404);
     const credentialId = c.req.query('credentialId') ?? '';
-    if (credentialId === '' || credentialId.length > 100) return c.json({ error: 'invalid_request', issues: [{ path: 'credentialId', message: 'Choose an Apple Ads credential.' }] }, 400);
+    if (credentialId === '' || credentialId.length > 100)
+      return c.json(
+        {
+          error: 'invalid_request',
+          issues: [{ path: 'credentialId', message: 'Choose an Apple Ads credential.' }],
+        },
+        400,
+      );
     const wait = ctx.limiter.take(ws(c));
     if (wait > 0) return respond(c, tooMany(wait));
-    const done = await readAdAccounts({ db, masterKey, now, deps }, { workspaceId: ws(c), appId: found.id, credentialId }, actor(c));
+    const done = await readAdAccounts(
+      { db, masterKey, now, deps },
+      { workspaceId: ws(c), appId: found.id, credentialId },
+      actor(c),
+    );
     return done.ok ? c.json({ accounts: done.accounts }) : respond(c, done);
   });
 
@@ -111,13 +155,21 @@ export function adsRoutes(ctx: AdsRoutesContext) {
     if (!(await appOf(c))) return c.json({ error: 'not_found' }, 404);
     const wait = ctx.limiter.take(ws(c));
     if (wait > 0) return respond(c, tooMany(wait));
-    const done = await setAdsLink({ db, masterKey, now, deps }, { workspaceId: ws(c), appId: param(c, 'appId'), ...body.data }, actor(c));
+    const done = await setAdsLink(
+      { db, masterKey, now, deps },
+      { workspaceId: ws(c), appId: param(c, 'appId'), ...body.data },
+      actor(c),
+    );
     return done.ok ? c.json({ link: done.link }) : respond(c, done);
   });
 
   app.delete('/:workspaceId/apps/:appId/ads', needs('apps.write'), async (c) => {
     if (!(await appOf(c))) return c.json({ error: 'not_found' }, 404);
-    const removed = await removeAdsLink({ db, now }, { workspaceId: ws(c), appId: param(c, 'appId') }, actor(c));
+    const removed = await removeAdsLink(
+      { db, now },
+      { workspaceId: ws(c), appId: param(c, 'appId') },
+      actor(c),
+    );
     return removed ? c.body(null, 204) : c.json({ error: 'not_found' }, 404);
   });
 
@@ -128,20 +180,45 @@ export function adsRoutes(ctx: AdsRoutesContext) {
       try {
         json = JSON.parse(raw);
       } catch {
-        return c.json({ error: 'invalid_request', issues: [{ path: '', message: 'The body is not JSON.' }] }, 400);
+        return c.json(
+          { error: 'invalid_request', issues: [{ path: '', message: 'The body is not JSON.' }] },
+          400,
+        );
       }
     }
     const parsed = adsSyncBody.safeParse(json);
     if (!parsed.success) return bad(c, parsed.error);
     const found = await appOf(c);
     if (!found) return c.json({ error: 'not_found' }, 404);
-    if (listingStoreOf(found.platform) !== 'app_store') return respond(c, { ok: false, status: 422, body: { error: 'ads_not_supported', message: 'Apple Ads is for App Store apps. This app is not one.', ...coded('ads.notSupported') } });
+    if (listingStoreOf(found.platform) !== 'app_store')
+      return respond(c, {
+        ok: false,
+        status: 422,
+        body: {
+          error: 'ads_not_supported',
+          message: 'Apple Ads is for App Store apps. This app is not one.',
+          ...coded('ads.notSupported'),
+        },
+      });
     if (!(await getAdsLink(db, ws(c), found.id))) return respond(c, notLinkedFailure());
-    const [queued] = await db.query("SELECT id FROM jobs WHERE queue = ? AND status IN ('queued', 'running') AND payload LIKE ?", [ADS_SYNC_QUEUE, `%"appId":"${found.id.replace(/[%_"\\]/g, '')}"%`]);
+    const [queued] = await db.query(
+      "SELECT id FROM jobs WHERE queue = ? AND status IN ('queued', 'running') AND payload LIKE ?",
+      [ADS_SYNC_QUEUE, `%"appId":"${found.id.replace(/[%_"\\]/g, '')}"%`],
+    );
     if (queued) return c.json({ queued: false, reason: 'already_queued' }, 200);
     const wait = ctx.syncLimiter.take(ws(c));
     if (wait > 0) return respond(c, tooMany(wait));
-    const jobId = await enqueue(db, ADS_SYNC_QUEUE, { workspaceId: ws(c), appId: found.id, requestedBy: c.get('user').id, ...(parsed.data.days ? { days: parsed.data.days } : {}) }, { now: now() });
+    const jobId = await enqueue(
+      db,
+      ADS_SYNC_QUEUE,
+      {
+        workspaceId: ws(c),
+        appId: found.id,
+        requestedBy: c.get('user').id,
+        ...(parsed.data.days ? { days: parsed.data.days } : {}),
+      },
+      { now: now() },
+    );
     return c.json({ queued: true, jobId }, 202);
   });
 
@@ -153,7 +230,21 @@ export function adsRoutes(ctx: AdsRoutesContext) {
     if (!link) return { response: respond(c, notLinkedFailure()) };
     const sync = await getAdsSync(db, ws(c), found.id);
     const window = parseWindow(from, to, sync?.rangeEnd ?? adsRangeFor(now(), 1).end);
-    if (!window) return { response: c.json({ error: 'invalid_request', issues: [{ path: 'from', message: 'Use dates as YYYY-MM-DD, from before to, at most a year apart.' }] }, 400) };
+    if (!window)
+      return {
+        response: c.json(
+          {
+            error: 'invalid_request',
+            issues: [
+              {
+                path: 'from',
+                message: 'Use dates as YYYY-MM-DD, from before to, at most a year apart.',
+              },
+            ],
+          },
+          400,
+        ),
+      };
     return { appId: found.id, link, sync, window };
   };
 
@@ -162,7 +253,10 @@ export function adsRoutes(ctx: AdsRoutesContext) {
     if (!q.success) return bad(c, q.error);
     const v = await viewOf(c, q.data.from, q.data.to);
     if ('response' in v) return v.response;
-    return c.json({ sync: v.sync, overview: await adsOverview(db, ws(c), v.appId, v.link, v.window) });
+    return c.json({
+      sync: v.sync,
+      overview: await adsOverview(db, ws(c), v.appId, v.link, v.window),
+    });
   });
 
   app.get('/:workspaceId/apps/:appId/ads/campaigns', needs('aso.read'), async (c) => {
@@ -170,7 +264,12 @@ export function adsRoutes(ctx: AdsRoutesContext) {
     if (!q.success) return bad(c, q.error);
     const v = await viewOf(c, q.data.from, q.data.to);
     if ('response' in v) return v.response;
-    return c.json({ currency: v.link.currency, window: v.window, sync: v.sync, campaigns: await adsCampaigns(db, ws(c), v.appId, v.link, v.window) });
+    return c.json({
+      currency: v.link.currency,
+      window: v.window,
+      sync: v.sync,
+      campaigns: await adsCampaigns(db, ws(c), v.appId, v.link, v.window),
+    });
   });
 
   app.get('/:workspaceId/apps/:appId/ads/terms', needs('aso.read'), async (c) => {
@@ -180,7 +279,15 @@ export function adsRoutes(ctx: AdsRoutesContext) {
     if ('response' in v) return v.response;
     const { from: _from, to: _to, ...rest } = q.data;
     const result = await adsTerms(db, ws(c), v.appId, v.link, { ...rest, window: v.window });
-    return c.json({ currency: v.link.currency, window: v.window, sync: v.sync, kind: q.data.kind, limit: q.data.limit, offset: q.data.offset, ...result });
+    return c.json({
+      currency: v.link.currency,
+      window: v.window,
+      sync: v.sync,
+      kind: q.data.kind,
+      limit: q.data.limit,
+      offset: q.data.offset,
+      ...result,
+    });
   });
 
   return app;

@@ -98,7 +98,9 @@ dbTest(
     for (const table of ['testflight_feedback', 'testflight_sync']) {
       assert.ok((await tableIndexes(db, table)).includes(`${table}_workspace_idx`), table);
     }
-    assert.ok((await tableIndexes(db, 'testflight_feedback')).includes('testflight_feedback_apple_idx'));
+    assert.ok(
+      (await tableIndexes(db, 'testflight_feedback')).includes('testflight_feedback_apple_idx'),
+    );
 
     const row = (id: string, appId: string, appleId: string, workspaceId = 'w1') =>
       db.execute(

@@ -6,7 +6,14 @@ import { createTestLimiter } from '../../services/credential-tests.ts';
 import { ASC_SECRET, PLAY_SECRET } from '../reviews/test-helpers.ts';
 import type { StoreImageNet } from '../listing/store-image-net.ts';
 import type { FeedReview } from './competitor-reviews.ts';
-import type { AsoSources, LookupInput, PublicApp, SearchAppsInput, SearchInput, SearchOutcome } from './net.ts';
+import type {
+  AsoSources,
+  LookupInput,
+  PublicApp,
+  SearchAppsInput,
+  SearchInput,
+  SearchOutcome,
+} from './net.ts';
 import { type AsoContext, type AsoLimits, DEFAULT_ASO_LIMITS } from './service.ts';
 
 /** Shared by the ASO tests. Everything runs against a fake store: nothing is ever contacted. */
@@ -37,10 +44,16 @@ export class FakeAsoSources implements AsoSources {
   hintCalls: { term: string; country: string }[] = [];
   hintsError: unknown;
 
-  async hints(input: { term: string; country: string }): Promise<{ hints: string[]; cached: boolean }> {
+  async hints(input: {
+    term: string;
+    country: string;
+  }): Promise<{ hints: string[]; cached: boolean }> {
     this.hintCalls.push(input);
     if (this.hintsError) throw this.hintsError;
-    return { hints: this.hintLists.get(`${input.country}|${input.term.toLowerCase()}`) ?? [], cached: false };
+    return {
+      hints: this.hintLists.get(`${input.country}|${input.term.toLowerCase()}`) ?? [],
+      cached: false,
+    };
   }
 
   constructor(playEnabled = false) {
@@ -67,7 +80,9 @@ export class FakeAsoSources implements AsoSources {
           ? {
               id,
               name: this.names.get(id) ?? `App ${id}`,
-              ...(this.ratingCounts.has(id) ? { ratingCount: this.ratingCounts.get(id) as number } : {}),
+              ...(this.ratingCounts.has(id)
+                ? { ratingCount: this.ratingCounts.get(id) as number }
+                : {}),
             }
           : { id },
       ),
@@ -158,7 +173,9 @@ export async function bootAso(
       limiter: createTestLimiter({ limit: options.limiterLimit ?? 1000, now: clockState.now }),
       ...(options.maxRunMs !== undefined ? { maxRunMs: options.maxRunMs } : {}),
       ...(options.net ? { net: options.net } : {}),
-      ...(options.imageLimit !== undefined ? { imageLimiter: createTestLimiter({ limit: options.imageLimit, now: clockState.now }) } : {}),
+      ...(options.imageLimit !== undefined
+        ? { imageLimiter: createTestLimiter({ limit: options.imageLimit, now: clockState.now }) }
+        : {}),
     },
     ...options.app,
   });

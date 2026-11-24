@@ -17,7 +17,13 @@ export type PriceProductKind = (typeof PRICE_PRODUCT_KINDS)[number];
  * - `opt_in` / `opt_out`: Google Play only. Existing subscribers are migrated to the new price, and must accept it (`opt_in`) or are notified and may refuse (`opt_out`).
  * - `not_applicable`: an in-app purchase that is bought once.
  */
-export const SUBSCRIBER_RULES = ['preserve', 'apply', 'opt_in', 'opt_out', 'not_applicable'] as const;
+export const SUBSCRIBER_RULES = [
+  'preserve',
+  'apply',
+  'opt_in',
+  'opt_out',
+  'not_applicable',
+] as const;
 export type SubscriberRule = (typeof SUBSCRIBER_RULES)[number];
 
 /** Acknowledgements a person gives on purpose; each one is required by a rule below. */
@@ -71,9 +77,38 @@ export type PriceLimits = {
 
 /** Rough magnitude of one USD in currencies whose unit is small, so the default absolute guard is not meaningless for them. */
 const SMALL_UNIT: Readonly<Record<string, number>> = {
-  JPY: 100, KRW: 1000, IDR: 10000, VND: 20000, CLP: 1000, COP: 4000, HUF: 300, PYG: 7000, UGX: 3500, TZS: 2500, IQD: 1300,
-  LAK: 20000, MMK: 2000, KHR: 4000, NGN: 1000, PKR: 280, BDT: 110, LKR: 300, RWF: 1300, GNF: 8500, MGA: 4500, XAF: 600,
-  XOF: 600, CRC: 500, ARS: 1000, ISK: 140, INR: 83, PHP: 56, RUB: 90, CZK: 23, TWD: 32, THB: 35,
+  JPY: 100,
+  KRW: 1000,
+  IDR: 10000,
+  VND: 20000,
+  CLP: 1000,
+  COP: 4000,
+  HUF: 300,
+  PYG: 7000,
+  UGX: 3500,
+  TZS: 2500,
+  IQD: 1300,
+  LAK: 20000,
+  MMK: 2000,
+  KHR: 4000,
+  NGN: 1000,
+  PKR: 280,
+  BDT: 110,
+  LKR: 300,
+  RWF: 1300,
+  GNF: 8500,
+  MGA: 4500,
+  XAF: 600,
+  XOF: 600,
+  CRC: 500,
+  ARS: 1000,
+  ISK: 140,
+  INR: 83,
+  PHP: 56,
+  RUB: 90,
+  CZK: 23,
+  TWD: 32,
+  THB: 35,
 };
 
 export const DEFAULT_PRICE_LIMITS: PriceLimits = {
@@ -90,7 +125,25 @@ export const DEFAULT_PRICE_LIMITS: PriceLimits = {
 // ---------------------------------------------------------------------------------------------
 // Money
 
-const ZERO_DIGITS = ['BIF', 'CLP', 'DJF', 'GNF', 'ISK', 'JPY', 'KMF', 'KRW', 'PYG', 'RWF', 'UGX', 'UYI', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'];
+const ZERO_DIGITS = [
+  'BIF',
+  'CLP',
+  'DJF',
+  'GNF',
+  'ISK',
+  'JPY',
+  'KMF',
+  'KRW',
+  'PYG',
+  'RWF',
+  'UGX',
+  'UYI',
+  'VND',
+  'VUV',
+  'XAF',
+  'XOF',
+  'XPF',
+];
 const THREE_DIGITS = ['BHD', 'IQD', 'JOD', 'KWD', 'LYD', 'OMR', 'TND'];
 
 /** The digits after the decimal point of a currency's minor unit: 0, 2 or 3. */
@@ -106,7 +159,8 @@ const pow10 = (n: number): bigint => {
   for (let i = 0; i < n; i++) out = out * BigInt(10);
   return out;
 };
-const isDigits = (value: unknown): value is string => typeof value === 'string' && /^\d{1,18}$/.test(value);
+const isDigits = (value: unknown): value is string =>
+  typeof value === 'string' && /^\d{1,18}$/.test(value);
 
 /**
  * A decimal text (`"4.99"`, `"500"`) as minor units. NEVER rounds: more decimals than the currency has is undefined, so a person typing
@@ -125,7 +179,9 @@ export function parseDecimalMinor(text: string, currency: string): string | unde
 export function minorToDecimal(amount: string, currency: string): string {
   const digits = currencyDigits(currency);
   const padded = amount.replace(/^0+(?=\d)/, '').padStart(digits + 1, '0');
-  return digits === 0 ? padded : `${padded.slice(0, padded.length - digits)}.${padded.slice(padded.length - digits)}`;
+  return digits === 0
+    ? padded
+    : `${padded.slice(0, padded.length - digits)}.${padded.slice(padded.length - digits)}`;
 }
 
 /** Google Play's `Money`: whole `units` as a string and `nanos` (billionths) as an integer. */
@@ -141,11 +197,17 @@ export function minorToPlayMoney(amount: string, currency: string): PlayMoney {
 }
 
 /** `Money` as minor units, or undefined when it has more precision than the currency (a cent and a half is not a price). */
-export function playMoneyToMinor(money: { currencyCode?: unknown; units?: unknown; nanos?: unknown }): string | undefined {
+export function playMoneyToMinor(money: {
+  currencyCode?: unknown;
+  units?: unknown;
+  nanos?: unknown;
+}): string | undefined {
   if (typeof money.currencyCode !== 'string') return undefined;
-  const units = typeof money.units === 'string' || typeof money.units === 'number' ? String(money.units) : '0';
+  const units =
+    typeof money.units === 'string' || typeof money.units === 'number' ? String(money.units) : '0';
   const nanos = typeof money.nanos === 'number' ? money.nanos : 0;
-  if (!/^\d{1,15}$/.test(units) || !Number.isInteger(nanos) || nanos < 0 || nanos > 999999999) return undefined;
+  if (!/^\d{1,15}$/.test(units) || !Number.isInteger(nanos) || nanos < 0 || nanos > 999999999)
+    return undefined;
   const digits = currencyDigits(money.currencyCode);
   const step = pow10(9 - digits);
   if (BigInt(nanos) % step !== ZERO) return undefined;
@@ -176,7 +238,12 @@ export const percentLabel = (bp: number): string => {
 // Price points (Apple)
 
 /** The `count` price points of a territory nearest to `amount` (ties: the lower one first). Never picks for the caller. */
-export function nearestPricePoints(points: readonly PricePoint[], territory: string, amount: string, count = 4): PricePoint[] {
+export function nearestPricePoints(
+  points: readonly PricePoint[],
+  territory: string,
+  amount: string,
+  count = 4,
+): PricePoint[] {
   if (!isDigits(amount)) return [];
   const target = big(amount);
   const own = points.filter((p) => p.territory === territory && isDigits(p.amount));
@@ -242,8 +309,15 @@ export type PriceContext = {
   limits?: PriceLimits | undefined;
 };
 
-export const SUBSCRIBER_RULES_BY_KIND = (store: StoreId, kind: PriceProductKind): readonly SubscriberRule[] =>
-  kind !== 'subscription' ? ['not_applicable'] : store === 'appstoreconnect' ? ['preserve', 'apply'] : ['preserve', 'opt_in', 'opt_out'];
+export const SUBSCRIBER_RULES_BY_KIND = (
+  store: StoreId,
+  kind: PriceProductKind,
+): readonly SubscriberRule[] =>
+  kind !== 'subscription'
+    ? ['not_applicable']
+    : store === 'appstoreconnect'
+      ? ['preserve', 'apply']
+      : ['preserve', 'opt_in', 'opt_out'];
 
 /** Only Apple can schedule a price for a later date; Google Play applies a price when the write succeeds. */
 export const storeSchedulesPrices = (store: StoreId): boolean => store === 'appstoreconnect';
@@ -254,7 +328,11 @@ export function isCalendarDate(value: unknown): value is string {
   const m = DATE.exec(value);
   if (!m) return false;
   const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
-  return d.getUTCFullYear() === Number(m[1]) && d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3]);
+  return (
+    d.getUTCFullYear() === Number(m[1]) &&
+    d.getUTCMonth() === Number(m[2]) - 1 &&
+    d.getUTCDate() === Number(m[3])
+  );
 }
 
 /** Today's date in UTC as `YYYY-MM-DD`. */
@@ -266,22 +344,33 @@ const absoluteLimitMinor = (currency: string, limits: PriceLimits): bigint => {
 };
 
 /** The acknowledgements this change needs, from its own numbers. The caller compares them with the ones given. */
-export function requiredAcknowledgements(change: PriceChange, limits: PriceLimits = DEFAULT_PRICE_LIMITS): PriceAck[] {
+export function requiredAcknowledgements(
+  change: PriceChange,
+  limits: PriceLimits = DEFAULT_PRICE_LIMITS,
+): PriceAck[] {
   const need = new Set<PriceAck>();
   for (const line of change.lines) {
     if (!isDigits(line.currentAmount) || !isDigits(line.newAmount)) continue;
     const bp = changeBp(line.currentAmount, line.newAmount);
     if (bp !== undefined && Math.abs(bp) > limits.relativeBp) need.add('large_change');
     const delta = big(line.newAmount) - big(line.currentAmount);
-    if ((delta < ZERO ? -delta : delta) > absoluteLimitMinor(line.currency, limits)) need.add('large_absolute');
+    if ((delta < ZERO ? -delta : delta) > absoluteLimitMinor(line.currency, limits))
+      need.add('large_absolute');
   }
-  if (change.kind === 'subscription' && change.existingSubscribers !== 'preserve' && change.existingSubscribers !== 'not_applicable') {
+  if (
+    change.kind === 'subscription' &&
+    change.existingSubscribers !== 'preserve' &&
+    change.existingSubscribers !== 'not_applicable'
+  ) {
     need.add('existing_subscribers');
   }
   return PRICE_ACKS.filter((a) => need.has(a));
 }
 
-const TERRITORY: Readonly<Record<StoreId, RegExp>> = { appstoreconnect: /^[A-Z]{3}$/, googleplay: /^[A-Z]{2}$/ };
+const TERRITORY: Readonly<Record<StoreId, RegExp>> = {
+  appstoreconnect: /^[A-Z]{3}$/,
+  googleplay: /^[A-Z]{2}$/,
+};
 
 /**
  * Every problem of a change, or an empty list. Order is stable. Nothing is rounded or picked for the person: an Apple amount that is not a price
@@ -291,25 +380,44 @@ export function validatePriceChange(change: PriceChange, ctx: PriceContext): Pri
   const limits = ctx.limits ?? DEFAULT_PRICE_LIMITS;
   const issues: PriceIssue[] = [];
   const add = (code: PriceIssueCode, territory?: string, detail?: PriceIssue['detail']) =>
-    issues.push({ code, ...(territory === undefined ? {} : { territory }), ...(detail === undefined ? {} : { detail }) });
+    issues.push({
+      code,
+      ...(territory === undefined ? {} : { territory }),
+      ...(detail === undefined ? {} : { detail }),
+    });
   const apple = change.store === 'appstoreconnect';
 
-  if (!/^[A-Za-z0-9._-]{1,200}$/.test(change.productId) || (PRICE_PRODUCT_KINDS as readonly string[]).indexOf(change.kind) < 0) add('bad_product');
+  if (
+    !/^[A-Za-z0-9._-]{1,200}$/.test(change.productId) ||
+    (PRICE_PRODUCT_KINDS as readonly string[]).indexOf(change.kind) < 0
+  )
+    add('bad_product');
   if (change.lines.length === 0) add('no_lines');
-  if (change.lines.length > limits.maxTerritories) add('too_many_territories', undefined, { expected: String(limits.maxTerritories), actual: String(change.lines.length) });
+  if (change.lines.length > limits.maxTerritories)
+    add('too_many_territories', undefined, {
+      expected: String(limits.maxTerritories),
+      actual: String(change.lines.length),
+    });
 
   // Plan (Google Play subscriptions) and the date.
   // Google Play: the base plan of a subscription or the purchase option of a one-time product, always. Apple: the plan type (`MONTHLY`,
   // `UPFRONT`) of a subscription price, or none; an in-app purchase has none.
   if (!apple && !change.planId) add('plan_missing');
-  if (apple && change.planId && (change.kind !== 'subscription' || !/^(MONTHLY|UPFRONT)$/.test(change.planId))) add('plan_not_allowed');
+  if (
+    apple &&
+    change.planId &&
+    (change.kind !== 'subscription' || !/^(MONTHLY|UPFRONT)$/.test(change.planId))
+  )
+    add('plan_not_allowed');
   if (change.effectiveDate !== null) {
     if (!isCalendarDate(change.effectiveDate)) add('effective_date_invalid');
     else if (!storeSchedulesPrices(change.store)) add('effective_date_unsupported');
     else if (change.effectiveDate < ctx.today) add('effective_date_past');
   }
-  if (SUBSCRIBER_RULES_BY_KIND(change.store, change.kind).indexOf(change.existingSubscribers) < 0) add('subscriber_rule_invalid');
-  for (const ack of change.acknowledgements) if ((PRICE_ACKS as readonly string[]).indexOf(ack) < 0) add('ack_unknown');
+  if (SUBSCRIBER_RULES_BY_KIND(change.store, change.kind).indexOf(change.existingSubscribers) < 0)
+    add('subscriber_rule_invalid');
+  for (const ack of change.acknowledgements)
+    if ((PRICE_ACKS as readonly string[]).indexOf(ack) < 0) add('ack_unknown');
 
   const seen = new Set<string>();
   for (const line of change.lines) {
@@ -326,12 +434,19 @@ export function validatePriceChange(change: PriceChange, ctx: PriceContext): Pri
       continue;
     }
     if (big(line.newAmount) <= ZERO) add('not_positive', t);
-    else if (big(line.newAmount) > BigInt(limits.maxPriceMajor) * pow10(currencyDigits(line.currency))) add('too_high', t);
-    if (!/^[A-Z]{3}$/.test(line.currency)) add('currency_mismatch', t, { expected: now?.currency ?? '', actual: line.currency });
+    else if (
+      big(line.newAmount) >
+      BigInt(limits.maxPriceMajor) * pow10(currencyDigits(line.currency))
+    )
+      add('too_high', t);
+    if (!/^[A-Z]{3}$/.test(line.currency))
+      add('currency_mismatch', t, { expected: now?.currency ?? '', actual: line.currency });
     else if (!now) add('unknown_territory', t);
     else {
-      if (now.currency !== line.currency) add('currency_mismatch', t, { expected: now.currency, actual: line.currency });
-      if (now.amount !== line.currentAmount) add('stale_price', t, { expected: line.currentAmount, actual: now.amount });
+      if (now.currency !== line.currency)
+        add('currency_mismatch', t, { expected: now.currency, actual: line.currency });
+      if (now.amount !== line.currentAmount)
+        add('stale_price', t, { expected: line.currentAmount, actual: now.amount });
     }
     if (line.newAmount === line.currentAmount) add('no_change', t);
     if (apple) {
@@ -345,12 +460,16 @@ export function validatePriceChange(change: PriceChange, ctx: PriceContext): Pri
         }
       }
       if (!ctx.pricePoints?.some((p) => p.territory === t && p.amount === line.newAmount)) {
-        add('amount_not_price_point', t, { nearest: nearestPricePoints(ctx.pricePoints ?? [], t, line.newAmount) });
+        add('amount_not_price_point', t, {
+          nearest: nearestPricePoints(ctx.pricePoints ?? [], t, line.newAmount),
+        });
       }
     } else if (line.pricePointId) add('price_point_not_allowed', t);
   }
 
-  const missing = requiredAcknowledgements(change, limits).filter((a) => change.acknowledgements.indexOf(a) < 0);
+  const missing = requiredAcknowledgements(change, limits).filter(
+    (a) => change.acknowledgements.indexOf(a) < 0,
+  );
   if (missing.length > 0) add('ack_required', undefined, { acks: missing });
   return issues;
 }
@@ -361,8 +480,18 @@ export function staleLines(change: PriceChange, live: readonly CurrentPrice[]): 
   for (const line of change.lines) {
     const now = live.find((c) => c.territory === line.territory);
     if (!now) out.push({ code: 'unknown_territory', territory: line.territory });
-    else if (now.currency !== line.currency) out.push({ code: 'currency_mismatch', territory: line.territory, detail: { expected: now.currency, actual: line.currency } });
-    else if (now.amount !== line.currentAmount) out.push({ code: 'stale_price', territory: line.territory, detail: { expected: line.currentAmount, actual: now.amount } });
+    else if (now.currency !== line.currency)
+      out.push({
+        code: 'currency_mismatch',
+        territory: line.territory,
+        detail: { expected: now.currency, actual: line.currency },
+      });
+    else if (now.amount !== line.currentAmount)
+      out.push({
+        code: 'stale_price',
+        territory: line.territory,
+        detail: { expected: line.currentAmount, actual: now.amount },
+      });
   }
   return out;
 }
@@ -416,7 +545,10 @@ export function summarizePriceChange(change: PriceChange): PriceSummary {
       largestSignedBp = l.percentBp;
     }
   }
-  const currencies = lines.map((l) => l.currency).filter((c, i, all) => all.indexOf(c) === i).sort();
+  const currencies = lines
+    .map((l) => l.currency)
+    .filter((c, i, all) => all.indexOf(c) === i)
+    .sort();
   return {
     lines,
     currencies,
@@ -432,9 +564,19 @@ export function canonicalPriceChange(change: PriceChange): string {
   const lines = change.lines
     .slice()
     .sort((a, b) => (a.territory < b.territory ? -1 : 1))
-    .map((l) => [l.territory, l.currency, l.currentAmount, l.newAmount, l.pricePointId ?? ''].join(':'))
+    .map((l) =>
+      [l.territory, l.currency, l.currentAmount, l.newAmount, l.pricePointId ?? ''].join(':'),
+    )
     .join(',');
-  return [change.store, change.productId, change.kind, change.planId ?? '', change.effectiveDate ?? '', change.existingSubscribers, lines].join('|');
+  return [
+    change.store,
+    change.productId,
+    change.kind,
+    change.planId ?? '',
+    change.effectiveDate ?? '',
+    change.existingSubscribers,
+    lines,
+  ].join('|');
 }
 
 /**
@@ -444,4 +586,5 @@ export function canonicalPriceChange(change: PriceChange): string {
 export function priceConfirmationPhrase(products: number, largestBp: number): string {
   return `CHANGE ${products} ${products === 1 ? 'PRICE' : 'PRICES'} MAX ${Math.ceil(largestBp / 100)}%`;
 }
-export const samePhrase = (typed: string, expected: string): boolean => typed.trim().replace(/\s+/g, ' ') === expected;
+export const samePhrase = (typed: string, expected: string): boolean =>
+  typed.trim().replace(/\s+/g, ' ') === expected;

@@ -92,11 +92,17 @@ test('the side panel lives in its own param and is dropped when moving to anothe
   assert.equal(panelOf(here), 'fr-FR');
   assert.equal(panelOf('#/portfolio/a1/listing?locale=fr-FR'), null);
   assert.equal(panelOf('#/portfolio/a1/listing?panel='), null);
-  assert.equal(withPanel('#/portfolio/a1/listing?platform=ios', 'de-DE'), '#/portfolio/a1/listing?platform=ios&panel=de-DE');
+  assert.equal(
+    withPanel('#/portfolio/a1/listing?platform=ios', 'de-DE'),
+    '#/portfolio/a1/listing?platform=ios&panel=de-DE',
+  );
   assert.equal(withPanel(here, null), '#/portfolio/a1/listing?platform=ios&locale=fr-FR');
   assert.equal(withPanel('#/portfolio/a1/listing?panel=x', null), '#/portfolio/a1/listing');
   // A tab link copies version and locale, never the panel: Products and back does not reopen it.
-  assert.equal(carryHeaderParams('#/portfolio/a1/products', here), '#/portfolio/a1/products?locale=fr-FR');
+  assert.equal(
+    carryHeaderParams('#/portfolio/a1/products', here),
+    '#/portfolio/a1/products?locale=fr-FR',
+  );
   assert.equal(panelOf(carryHeaderParams('#/portfolio/a1/listing', here)), null);
 });
 
@@ -287,9 +293,27 @@ test('the header shows on the versioned pages only', () => {
 test('the web lock and the server lock (core computeMetadataLock) agree for the same releases', () => {
   const cases: [Platform, [string, ReleaseState | null][]][] = [
     ['ios', [['2.3.0', 'live']]],
-    ['ios', [['2.3.0', 'live'], ['2.4.0', 'draft']]],
-    ['ios', [['2.3.0', 'live'], ['2.4.0', 'in_review']]],
-    ['ios', [['2.3.0', 'live'], ['2.4.0', 'rejected']]],
+    [
+      'ios',
+      [
+        ['2.3.0', 'live'],
+        ['2.4.0', 'draft'],
+      ],
+    ],
+    [
+      'ios',
+      [
+        ['2.3.0', 'live'],
+        ['2.4.0', 'in_review'],
+      ],
+    ],
+    [
+      'ios',
+      [
+        ['2.3.0', 'live'],
+        ['2.4.0', 'rejected'],
+      ],
+    ],
     ['ios', [['2.3.0', 'rolling_out']]],
     ['macos', [['1.0', 'approved']]],
     ['ios', [['1.0', null]]],
@@ -300,7 +324,10 @@ test('the web lock and the server lock (core computeMetadataLock) agree for the 
     const releases = versions.map(([version, status]) => rel(platform, version, status));
     const newest = versions.map(([version]) => version).sort((a, b) => (a < b ? 1 : -1))[0] ?? null;
     const web = lockInfo(releases, newest, [platform]).locked.length > 0;
-    const server = computeMetadataLock(platform, versions.map(([version, status]) => ({ version, status }))).locked;
+    const server = computeMetadataLock(
+      platform,
+      versions.map(([version, status]) => ({ version, status })),
+    ).locked;
     assert.equal(server, web, `${platform} ${JSON.stringify(versions)}`);
   }
 });

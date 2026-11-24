@@ -11,7 +11,8 @@ export const SAMPLE_SIZE = 32;
 
 export function paletteFromUrl(url: string | null | undefined): Promise<Palette | null> {
   const src = iconSrc(url);
-  if (src === null || typeof Image === 'undefined' || typeof document === 'undefined') return Promise.resolve(null);
+  if (src === null || typeof Image === 'undefined' || typeof document === 'undefined')
+    return Promise.resolve(null);
   return new Promise((resolve) => {
     const img = new Image();
     img.decoding = 'async';

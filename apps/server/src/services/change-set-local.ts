@@ -513,12 +513,13 @@ export async function publishLocalCommit(
     );
   }
   const repository = await getRepository(db, workspaceId, String(row.repository_id));
-  if (!repository) return failure(
-    404,
-    'not_found',
-    'The repository of this change set is gone.',
-    coded('changeSet.repositoryGone'),
-  );
+  if (!repository)
+    return failure(
+      404,
+      'not_found',
+      'The repository of this change set is gone.',
+      coded('changeSet.repositoryGone'),
+    );
   const refused = await preflight(ctx, repository, { push: true, openPr: input.openPr });
   if (refused) return refused;
   if (outcome.push.status === 'pushed' && (!input.openPr || outcome.pr.status === 'opened')) {
@@ -598,12 +599,13 @@ export async function applyChangeSetLocally(
   if (String(row.status) === 'applied')
     return { ok: true, changeSet: toView(row, true), alreadyApplied: true };
   const repository = await getRepository(db, workspaceId, String(row.repository_id));
-  if (!repository) return failure(
-    404,
-    'not_found',
-    'The repository of this change set is gone.',
-    coded('changeSet.repositoryGone'),
-  );
+  if (!repository)
+    return failure(
+      404,
+      'not_found',
+      'The repository of this change set is gone.',
+      coded('changeSet.repositoryGone'),
+    );
   const refused = await preflight(ctx, repository, input);
   if (refused) return refused;
 

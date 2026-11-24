@@ -45,7 +45,8 @@ export function judge(result: SendResult, now: number): Verdict {
   }
   const s = result.status;
   if (s >= 200 && s < 300) return { kind: 'sent' };
-  if (s === 429) return { kind: 'retry', outcome: 'rate_limited', waitMs: retryAfterMs(result.retryAfter, now) };
+  if (s === 429)
+    return { kind: 'retry', outcome: 'rate_limited', waitMs: retryAfterMs(result.retryAfter, now) };
   if (s === 408 || s >= 500) return { kind: 'retry', outcome: 'server_error' };
   if (s >= 300 && s < 400) return { kind: 'fail', outcome: 'redirected' };
   if (s === 404 || s === 410) return { kind: 'fail', outcome: 'webhook_gone' };
@@ -72,7 +73,11 @@ export function createChatDeliveryHandler(ctx: ChatContext): JobHandler {
     const workspaceId = String(row.workspace_id);
     const destinationId = String(row.destination_id);
     const now = ctx.now();
-    const record = (status: string, outcome: ChatOutcome, fields: { http?: number | null; attempts?: number } = {}) =>
+    const record = (
+      status: string,
+      outcome: ChatOutcome,
+      fields: { http?: number | null; attempts?: number } = {},
+    ) =>
       db.execute(
         'UPDATE chat_deliveries SET status = ?, outcome = ?, http_status = ?, attempts = ?, updated_at = ?, delivered_at = ? WHERE id = ?',
         [
@@ -104,17 +109,24 @@ export function createChatDeliveryHandler(ctx: ChatContext): JobHandler {
       allowPrivate: ctx.allowPrivate,
     });
     if (bad) {
-      await record('failed', bad.error === 'host_not_allowed' ? 'host_not_allowed' : 'blocked_address');
+      await record(
+        'failed',
+        bad.error === 'host_not_allowed' ? 'host_not_allowed' : 'blocked_address',
+      );
       return;
     }
 
     // Pacing: one message per second per destination. Waiting costs no attempt.
-    const last = row.last_sent_at === null || row.last_sent_at === undefined ? null : Number(row.last_sent_at);
+    const last =
+      row.last_sent_at === null || row.last_sent_at === undefined ? null : Number(row.last_sent_at);
     if (last !== null && now - last < MIN_GAP_MS) {
       await enqueue(db, CHAT_QUEUE, { deliveryId }, { now, runAt: last + MIN_GAP_MS });
       return;
     }
-    await db.execute('UPDATE chat_destinations SET last_sent_at = ? WHERE id = ?', [now, destinationId]);
+    await db.execute('UPDATE chat_destinations SET last_sent_at = ? WHERE id = ?', [
+      now,
+      destinationId,
+    ]);
 
     const attempts = Number(row.attempts) + 1;
     const result = await send(
@@ -132,7 +144,12 @@ export function createChatDeliveryHandler(ctx: ChatContext): JobHandler {
     } else {
       await record('retrying', verdict.outcome, { http, attempts });
       // Our own schedule, so the server's Retry-After is honoured to the second.
-      await enqueue(db, CHAT_QUEUE, { deliveryId }, { now, runAt: now + (verdict.waitMs ?? backoffMs(attempts)) });
+      await enqueue(
+        db,
+        CHAT_QUEUE,
+        { deliveryId },
+        { now, runAt: now + (verdict.waitMs ?? backoffMs(attempts)) },
+      );
     }
   };
 }

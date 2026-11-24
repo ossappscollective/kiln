@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { nonEmptyGroups, railEntries, resolveRailSection, stepRail, withRailSection } from './section-rail.ts';
+import {
+  nonEmptyGroups,
+  railEntries,
+  resolveRailSection,
+  stepRail,
+  withRailSection,
+} from './section-rail.ts';
 
 const ids = ['builds', 'tests', 'submissions'];
 
@@ -18,7 +24,10 @@ test('a section that is not available falls back to the first', () => {
 });
 
 test('withRailSection drops the old view and keeps other parameters', () => {
-  assert.equal(withRailSection('#/apps/a/builds?view=tests&build=12&platform=ios', 'submissions'), '#/apps/a/builds?build=12&platform=ios&section=submissions');
+  assert.equal(
+    withRailSection('#/apps/a/builds?view=tests&build=12&platform=ios', 'submissions'),
+    '#/apps/a/builds?build=12&platform=ios&section=submissions',
+  );
   assert.equal(withRailSection('#/apps/a/builds', 'tests'), '#/apps/a/builds?section=tests');
 });
 
@@ -37,6 +46,12 @@ test('empty groups are left out', () => {
     { id: 'a', label: 'A', entries: [{ id: 'x', label: 'X' }] },
     { id: 'b', label: 'B', entries: [] },
   ];
-  assert.deepEqual(nonEmptyGroups(groups).map((g) => g.id), ['a']);
-  assert.deepEqual(railEntries(groups).map((e) => e.id), ['x']);
+  assert.deepEqual(
+    nonEmptyGroups(groups).map((g) => g.id),
+    ['a'],
+  );
+  assert.deepEqual(
+    railEntries(groups).map((e) => e.id),
+    ['x'],
+  );
 });

@@ -157,19 +157,36 @@ const stagedChangesSchema = z.object({
 });
 
 const listingFixSchema = z.object({
-  id: z.enum(['keywords_tidy', 'keywords_drop_in_title', 'keywords_fit', 'text_tidy', 'shorten_ai', 'edit_field']),
+  id: z.enum([
+    'keywords_tidy',
+    'keywords_drop_in_title',
+    'keywords_fit',
+    'text_tidy',
+    'shorten_ai',
+    'edit_field',
+  ]),
   labelKey: z.string().describe('The i18n key of the button label.'),
-  kind: z.enum(['stage', 'ai_shorten', 'edit_field']).describe('`stage`: `after` can be staged as it is. `ai_shorten`: only a person accepting an AI proposal. `edit_field`: open the editor.'),
+  kind: z
+    .enum(['stage', 'ai_shorten', 'edit_field'])
+    .describe(
+      '`stage`: `after` can be staged as it is. `ai_shorten`: only a person accepting an AI proposal. `edit_field`: open the editor.',
+    ),
   locale: z.string(),
   field: z.string(),
   before: z.string(),
   after: z.string().nullable(),
-  removed: z.array(z.string()).describe('Whole keyword terms the fix drops, in the order it dropped them.'),
+  removed: z
+    .array(z.string())
+    .describe('Whole keyword terms the fix drops, in the order it dropped them.'),
   risk: z.enum(['safe', 'review']),
-  resolves: z.array(z.string()).describe('Listing check codes the fix settles (checked again after applying).'),
+  resolves: z
+    .array(z.string())
+    .describe('Listing check codes the fix settles (checked again after applying).'),
   limit: z.number().nullable(),
   unit: z.enum(['characters', 'bytes']),
-  stageable: z.boolean().describe('False for the App Store name and subtitle (a draft push cannot write them).'),
+  stageable: z
+    .boolean()
+    .describe('False for the App Store name and subtitle (a draft push cannot write them).'),
 });
 
 const listingFixesSchema = z.object({
@@ -197,8 +214,17 @@ const listingFixesSchema = z.object({
 const stageListingFixBody = z.object({
   locale: z.string().min(2).max(35),
   field: z.string().min(1).max(60),
-  fixId: z.string().min(1).max(40).describe('`keywords_tidy`, `keywords_drop_in_title`, `keywords_fit` or `text_tidy`.'),
-  beforeHash: z.string().optional().describe('The hash of the text the person reviewed; a different current text is `409 stale_fix`.'),
+  fixId: z
+    .string()
+    .min(1)
+    .max(40)
+    .describe('`keywords_tidy`, `keywords_drop_in_title`, `keywords_fit` or `text_tidy`.'),
+  beforeHash: z
+    .string()
+    .optional()
+    .describe(
+      'The hash of the text the person reviewed; a different current text is `409 stale_fix`.',
+    ),
 });
 
 const stagedTextBody = z.object({
@@ -536,7 +562,10 @@ export const stagedChangesOperations: Draft[] = [
         .optional()
         .describe('Required for screenshot: a display id (iphone_6_9) or a Play device (phone).'),
       position: z.string().describe('1-based.'),
-      base: z.string().optional().describe('`store`: start an unstaged set from the images the store holds.'),
+      base: z
+        .string()
+        .optional()
+        .describe('`store`: start an unstaged set from the images the store holds.'),
     }),
     responses: {
       '200': {
@@ -706,7 +735,10 @@ export const stagedChangesOperations: Draft[] = [
     appScope: { kind: 'param', name: 'id' },
     body: stageListingFixBody,
     responses: {
-      '200': { description: 'The staged changes after the change, and the fix that was staged.', schema: z.object({ staged: stagedChangesSchema, fix: listingFixSchema }) },
+      '200': {
+        description: 'The staged changes after the change, and the fix that was staged.',
+        schema: z.object({ staged: stagedChangesSchema, fix: listingFixSchema }),
+      },
     },
   },
   {

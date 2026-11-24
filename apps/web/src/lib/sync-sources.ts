@@ -10,12 +10,24 @@ import { k, t } from './i18n/t.ts';
 export type SyncKind = 'app' | 'reviews' | 'eas' | 'analytics' | 'products' | 'testflight' | 'ads';
 
 /** Critical first, the order the server queues them in (docs/adr/0050-sync-pipeline.md); products and TestFlight have no queue and follow. */
-export const SYNC_KINDS: readonly SyncKind[] = ['app', 'reviews', 'eas', 'analytics', 'products', 'testflight', 'ads'];
+export const SYNC_KINDS: readonly SyncKind[] = [
+  'app',
+  'reviews',
+  'eas',
+  'analytics',
+  'products',
+  'testflight',
+  'ads',
+];
 
 /** What the server's `POST /apps/:id/sync-all` answers for one queued kind (docs/api/apps.md). */
 export type SyncPlanEntry =
   | { kind: 'app' | 'reviews' | 'eas' | 'analytics' | 'ads'; state: 'queued'; jobId: string }
-  | { kind: 'app' | 'reviews' | 'eas' | 'analytics' | 'ads'; state: 'skipped'; reason: 'forbidden' | 'not_linked' | 'off' | 'not_ready' | 'already_queued' };
+  | {
+      kind: 'app' | 'reviews' | 'eas' | 'analytics' | 'ads';
+      state: 'skipped';
+      reason: 'forbidden' | 'not_linked' | 'off' | 'not_ready' | 'already_queued';
+    };
 
 /** What one source reports about itself; the screens fill it from the source's own stored status (never from a store). */
 export type Reading = {
@@ -71,7 +83,10 @@ export type SourceRow = {
 };
 
 /** The rows of the list: a source that needs a look first, then the order of `SYNC_KINDS`, then the platform. `runs` is keyed `appId:kind`. */
-export function buildSourceRows(inputs: readonly SourceInput[], runs: Readonly<Record<string, RunState | undefined>> = {}): SourceRow[] {
+export function buildSourceRows(
+  inputs: readonly SourceInput[],
+  runs: Readonly<Record<string, RunState | undefined>> = {},
+): SourceRow[] {
   const rows = inputs.map((i): SourceRow => {
     const state = sourceState(i.reading, runs[`${i.appId}:${i.kind}`]);
     return {
@@ -97,12 +112,14 @@ export function buildSourceRows(inputs: readonly SourceInput[], runs: Readonly<R
 /** The newest successful read of any source: the "Updated X ago" of a page. */
 export function newestRead(rows: readonly Pick<SourceRow, 'lastReadAt'>[]): number | null {
   let best: number | null = null;
-  for (const r of rows) if (r.lastReadAt !== null && (best === null || r.lastReadAt > best)) best = r.lastReadAt;
+  for (const r of rows)
+    if (r.lastReadAt !== null && (best === null || r.lastReadAt > best)) best = r.lastReadAt;
   return best;
 }
 
 /** How many sources failed their last read. */
-export const failedSources = (rows: readonly Pick<SourceRow, 'state'>[]): number => rows.filter((r) => r.state === 'failed').length;
+export const failedSources = (rows: readonly Pick<SourceRow, 'state'>[]): number =>
+  rows.filter((r) => r.state === 'failed').length;
 
 /** The kinds a page cares about, for its quiet line: "Updated 5 minutes ago", or the failed ones named. */
 export function pageStatus(
@@ -110,7 +127,10 @@ export function pageStatus(
   kinds: readonly SyncKind[],
 ): { failed: SyncKind[]; newest: number | null } {
   const mine = rows.filter((r) => kinds.includes(r.kind));
-  return { failed: [...new Set(mine.filter((r) => r.state === 'failed').map((r) => r.kind))], newest: newestRead(mine) };
+  return {
+    failed: [...new Set(mine.filter((r) => r.state === 'failed').map((r) => r.kind))],
+    newest: newestRead(mine),
+  };
 }
 
 /** The per kind state of a run: what the server queued (`plan`) and what the client ran itself (`extra`), keyed `appId:kind`. */

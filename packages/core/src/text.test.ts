@@ -41,6 +41,7 @@ test('the keys next to core sentences are camelCase ids with plain parameters', 
   assert.ok(texts.length > 8);
   for (const text of texts) {
     assert.match(text.key, KEY);
-    for (const v of Object.values(text.params)) assert.ok(typeof v === 'string' || typeof v === 'number');
+    for (const v of Object.values(text.params))
+      assert.ok(typeof v === 'string' || typeof v === 'number');
   }
 });

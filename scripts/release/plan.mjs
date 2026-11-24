@@ -72,7 +72,8 @@ export function plan(env) {
   if (event !== 'push' && !dispatch) errors.push(`Unsupported event "${event}".`);
 
   const mode = dispatch ? env.INPUT_MODE || 'build-only' : 'release';
-  if (mode !== 'build-only' && mode !== 'release') errors.push(`mode must be build-only or release, got "${mode}".`);
+  if (mode !== 'build-only' && mode !== 'release')
+    errors.push(`mode must be build-only or release, got "${mode}".`);
   const release = mode === 'release';
 
   let checkoutRef = (dispatch && env.INPUT_REF ? env.INPUT_REF : env.REF) ?? '';
@@ -81,7 +82,8 @@ export function plan(env) {
   }
   if (release) {
     // A bare "v1.2.3" typed in the ref box is a tag; anything else must already be refs/tags/.
-    if (!checkoutRef.startsWith('refs/') && /^v\d/.test(checkoutRef)) checkoutRef = `refs/tags/${checkoutRef}`;
+    if (!checkoutRef.startsWith('refs/') && /^v\d/.test(checkoutRef))
+      checkoutRef = `refs/tags/${checkoutRef}`;
     const parsed = versionFromRef(checkoutRef);
     if (!checkoutRef.startsWith('refs/tags/') || parsed.error) {
       errors.push(
@@ -94,8 +96,12 @@ export function plan(env) {
 
   const versionOverride = dispatch ? (env.INPUT_VERSION ?? '').trim() : '';
   if (versionOverride) {
-    if (release) errors.push('version is for build-only test builds. A release takes its version from the tag.');
-    else if (!parseVersion(versionOverride)) errors.push(`version "${versionOverride}" is not X.Y.Z or X.Y.Z-prerelease.`);
+    if (release)
+      errors.push(
+        'version is for build-only test builds. A release takes its version from the tag.',
+      );
+    else if (!parseVersion(versionOverride))
+      errors.push(`version "${versionOverride}" is not X.Y.Z or X.Y.Z-prerelease.`);
   }
 
   const docker = dispatch ? (env.INPUT_DOCKER ?? 'true') !== 'false' : true;
@@ -112,7 +118,9 @@ export function plan(env) {
   } else {
     const unknown = asked.filter((k) => !(k in PLATFORMS));
     if (unknown.length > 0) {
-      errors.push(`Unknown platform(s): ${unknown.join(', ')}. Use: ${Object.keys(PLATFORMS).join(', ')}, all or none.`);
+      errors.push(
+        `Unknown platform(s): ${unknown.join(', ')}. Use: ${Object.keys(PLATFORMS).join(', ')}, all or none.`,
+      );
     }
     keys = Object.keys(PLATFORMS).filter((k) => asked.includes(k));
   }

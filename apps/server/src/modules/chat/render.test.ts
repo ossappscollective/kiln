@@ -32,7 +32,12 @@ test('Slack: a Block Kit message in an attachment with an accent colour, inside 
   const [attachment] = payload.attachments;
   assert.ok(attachment);
   assert.equal(attachment.color, accentOf.critical);
-  const blocks = attachment.blocks as { type: string; text?: { type: string; text: string }; fields?: { text: string }[]; elements?: { type: string; url?: string; text?: { text: string } }[] }[];
+  const blocks = attachment.blocks as {
+    type: string;
+    text?: { type: string; text: string };
+    fields?: { text: string }[];
+    elements?: { type: string; url?: string; text?: { text: string } }[];
+  }[];
   assert.ok(blocks.length <= limits.slack.blocks);
   assert.equal(blocks[0]?.type, 'header');
   assert.equal(blocks[0]?.text?.type, 'plain_text');
@@ -59,7 +64,10 @@ test('Slack: dynamic values cannot open a link, a mention or a format', () => {
   assert.ok(text.includes('&amp;'));
   assert.equal(escapeMrkdwn('a <b> & c'), 'a &lt;b&gt; &amp; c');
   const formatted = escapeMrkdwn('*bold* _it_ ~s~ `c`');
-  assert.ok(!/(^|[^​])\*[^​]/.test(formatted), 'every formatting character is wrapped in zero-width spaces');
+  assert.ok(
+    !/(^|[^​])\*[^​]/.test(formatted),
+    'every formatting character is wrapped in zero-width spaces',
+  );
 });
 
 test('Teams: an Adaptive Card in a message envelope, escaped, with link buttons and within 28 KB', () => {
@@ -68,13 +76,22 @@ test('Teams: an Adaptive Card in a message envelope, escaped, with link buttons 
   assert.equal(payload.type, 'message');
   const [att] = payload.attachments;
   assert.equal(att?.contentType, 'application/vnd.microsoft.card.adaptive');
-  const card = att?.content as { type: string; version: string; $schema: string; body: { type: string; facts?: { title: string; value: string }[] }[]; actions?: { type: string; url: string }[] };
+  const card = att?.content as {
+    type: string;
+    version: string;
+    $schema: string;
+    body: { type: string; facts?: { title: string; value: string }[] }[];
+    actions?: { type: string; url: string }[];
+  };
   assert.equal(card.type, 'AdaptiveCard');
   assert.equal(card.version, '1.4');
   assert.ok(card.$schema.startsWith('http://adaptivecards.io/'));
   const facts = card.body.find((b) => b.type === 'FactSet')?.facts ?? [];
   const app = facts[0]?.value ?? '';
-  assert.ok(app.includes('\\*Diary\\*') && app.includes('\\<\\!channel\\>') && app.includes('\\_co\\_'), app);
+  assert.ok(
+    app.includes('\\*Diary\\*') && app.includes('\\<\\!channel\\>') && app.includes('\\_co\\_'),
+    app,
+  );
   assert.deepEqual(
     (card.actions ?? []).map((a) => [a.type, a.url]),
     [['Action.OpenUrl', 'https://kiln.example.com/#/portfolio/app1/releases']],
@@ -170,11 +187,19 @@ test('hosts: only the providers known domains, unless the admin allows any', () 
 });
 
 test('routing rules: types, severity, apps and platforms', () => {
-  const alert = { type: 'release.rejected', severity: 'critical' as const, appId: 'a1', platform: 'ios' };
+  const alert = {
+    type: 'release.rejected',
+    severity: 'critical' as const,
+    appId: 'a1',
+    platform: 'ios',
+  };
   const rule = { alertTypes: ['*'], minSeverity: 'info' as const, appIds: null, platforms: null };
   assert.equal(ruleMatches(rule, alert), true);
   assert.equal(ruleMatches({ ...rule, alertTypes: ['release.live'] }, alert), false);
-  assert.equal(ruleMatches({ ...rule, minSeverity: 'critical' }, { ...alert, severity: 'warning' }), false);
+  assert.equal(
+    ruleMatches({ ...rule, minSeverity: 'critical' }, { ...alert, severity: 'warning' }),
+    false,
+  );
   assert.equal(ruleMatches({ ...rule, appIds: ['a2'] }, alert), false);
   assert.equal(ruleMatches({ ...rule, appIds: ['a1'] }, alert), true);
   assert.equal(ruleMatches({ ...rule, appIds: ['a1'] }, { ...alert, appId: null }), false);
@@ -189,14 +214,29 @@ test('Retry-After and the meaning of an answer', () => {
   assert.equal(retryAfterMs(new Date(10_000).toUTCString(), 0), 10_000);
   assert.equal(retryAfterMs('soon', 0), undefined);
   assert.equal(retryAfterMs(undefined, 0), undefined);
-  const ok = (status: number, retryAfter?: string) => ({ ok: true as const, status, body: '', ...(retryAfter ? { retryAfter } : {}) });
+  const ok = (status: number, retryAfter?: string) => ({
+    ok: true as const,
+    status,
+    body: '',
+    ...(retryAfter ? { retryAfter } : {}),
+  });
   assert.deepEqual(judge(ok(200), 0), { kind: 'sent' });
   assert.deepEqual(judge(ok(202), 0), { kind: 'sent' });
-  assert.deepEqual(judge(ok(429, '12'), 0), { kind: 'retry', outcome: 'rate_limited', waitMs: 12_000 });
+  assert.deepEqual(judge(ok(429, '12'), 0), {
+    kind: 'retry',
+    outcome: 'rate_limited',
+    waitMs: 12_000,
+  });
   assert.equal(judge(ok(503), 0).kind, 'retry');
   assert.deepEqual(judge(ok(404), 0), { kind: 'fail', outcome: 'webhook_gone' });
   assert.deepEqual(judge(ok(400), 0), { kind: 'fail', outcome: 'payload_rejected' });
   assert.deepEqual(judge(ok(302), 0), { kind: 'fail', outcome: 'redirected' });
-  assert.deepEqual(judge({ ok: false, kind: 'blocked', message: '', transient: false }, 0), { kind: 'fail', outcome: 'blocked_address' });
-  assert.deepEqual(judge({ ok: false, kind: 'timeout', message: '', transient: true }, 0), { kind: 'retry', outcome: 'timeout' });
+  assert.deepEqual(judge({ ok: false, kind: 'blocked', message: '', transient: false }, 0), {
+    kind: 'fail',
+    outcome: 'blocked_address',
+  });
+  assert.deepEqual(judge({ ok: false, kind: 'timeout', message: '', transient: true }, 0), {
+    kind: 'retry',
+    outcome: 'timeout',
+  });
 });

@@ -424,12 +424,13 @@ export async function dispatchRun(
   appIds.sort();
   for (const id of appIds) {
     const app = await getApp(ctx.db, workspaceId, id);
-    if (!app) return failure(
-      422,
-      'app_not_found',
-      'That app is not in this workspace.',
-      coded('app.notInWorkspace'),
-    );
+    if (!app)
+      return failure(
+        422,
+        'app_not_found',
+        'That app is not in this workspace.',
+        coded('app.notInWorkspace'),
+      );
     if (app.repositoryId !== repository.id) {
       return failure(
         422,
@@ -1340,12 +1341,13 @@ async function scopeApp(
 ): Promise<{ ok: true; app: ManagedApp | undefined } | Failure> {
   if (appId === undefined) return { ok: true, app: undefined };
   const app = await getApp(ctx.db, workspaceId, appId);
-  if (!app) return failure(
-    422,
-    'app_not_found',
-    'That app is not in this workspace.',
-    coded('app.notInWorkspace'),
-  );
+  if (!app)
+    return failure(
+      422,
+      'app_not_found',
+      'That app is not in this workspace.',
+      coded('app.notInWorkspace'),
+    );
   if (app.repositoryId !== repository.id) {
     return failure(
       422,

@@ -6,7 +6,13 @@
 // field with its wasted space removed (`analyzeKeywordField`), because it changes no meaning; the rest is advice a person acts on.
 
 import { analyzeKeywordField, languageOf } from '../aso/aso.ts';
-import { APP_STORE_FIELD_SPECS, countBytes, countCharacters, type ListingStore, PLAY_FIELD_SPECS } from '../listing/listing.ts';
+import {
+  APP_STORE_FIELD_SPECS,
+  countBytes,
+  countCharacters,
+  type ListingStore,
+  PLAY_FIELD_SPECS,
+} from '../listing/listing.ts';
 import { languageKey } from './countries.ts';
 
 export type CheckSeverity = 'problem' | 'warning' | 'tip';
@@ -78,12 +84,34 @@ const specsOf = (store: ListingStore): Record<string, Spec> =>
     : (PLAY_FIELD_SPECS as unknown as Record<string, Spec>);
 
 /** The fields the checks look at, per store. */
-const FIELDS: Record<ListingStore, { name: string; short: string | null; keywords: string | null; promo: string | null; long: string }> = {
-  app_store: { name: 'name', short: 'subtitle', keywords: 'keywords', promo: 'promotional_text', long: 'description' },
-  google_play: { name: 'title', short: 'short_description', keywords: null, promo: null, long: 'full_description' },
+const FIELDS: Record<
+  ListingStore,
+  {
+    name: string;
+    short: string | null;
+    keywords: string | null;
+    promo: string | null;
+    long: string;
+  }
+> = {
+  app_store: {
+    name: 'name',
+    short: 'subtitle',
+    keywords: 'keywords',
+    promo: 'promotional_text',
+    long: 'description',
+  },
+  google_play: {
+    name: 'title',
+    short: 'short_description',
+    keywords: null,
+    promo: null,
+    long: 'full_description',
+  },
 };
 
-const lengthOf = (spec: Spec, text: string): number => (spec.unit === 'bytes' ? countBytes(text) : countCharacters(text));
+const lengthOf = (spec: Spec, text: string): number =>
+  spec.unit === 'bytes' ? countBytes(text) : countCharacters(text);
 
 const wordsOf = (text: string): string[] =>
   text
@@ -91,12 +119,18 @@ const wordsOf = (text: string): string[] =>
     .split(/[^a-z0-9À-ɏ]+/)
     .filter((w) => w.length >= 3);
 
-const key = (locale: string, code: CheckCode, field: string | null) => `${locale}:${code}:${field ?? '-'}`;
+const key = (locale: string, code: CheckCode, field: string | null) =>
+  `${locale}:${code}:${field ?? '-'}`;
 
 /** Under this share of the limit a field is "underused": room that shoppers' searches and eyes could use. */
 const UNDERUSED = 0.5;
 
-function checkLocale(store: ListingStore, entry: CheckLocaleText, base: CheckLocaleText | null, anyScreenshots: boolean): CheckIssue[] {
+function checkLocale(
+  store: ListingStore,
+  entry: CheckLocaleText,
+  base: CheckLocaleText | null,
+  anyScreenshots: boolean,
+): CheckIssue[] {
   const f = FIELDS[store];
   const specs = specsOf(store);
   const issues: CheckIssue[] = [];
@@ -116,12 +150,19 @@ function checkLocale(store: ListingStore, entry: CheckLocaleText, base: CheckLoc
     if (!spec || spec.maxLength === undefined) continue;
     const value = text(field);
     const used = lengthOf(spec, value);
-    if (used > spec.maxLength) add('too_long', field, 'problem', { used, limit: spec.maxLength, over: used - spec.maxLength, unit: spec.unit });
+    if (used > spec.maxLength)
+      add('too_long', field, 'problem', {
+        used,
+        limit: spec.maxLength,
+        over: used - spec.maxLength,
+        unit: spec.unit,
+      });
   }
   for (const field of [f.name, f.long]) {
     if (text(field).trim() === '') add('empty', field, 'problem');
   }
-  if (store === 'google_play' && f.short && text(f.short).trim() === '') add('empty', f.short, 'problem');
+  if (store === 'google_play' && f.short && text(f.short).trim() === '')
+    add('empty', f.short, 'problem');
 
   // Use of the room.
   const room = (field: string, code: CheckCode, severity: CheckSeverity) => {
@@ -129,7 +170,8 @@ function checkLocale(store: ListingStore, entry: CheckLocaleText, base: CheckLoc
     const value = text(field).trim();
     if (!spec || spec.maxLength === undefined || value === '') return;
     const used = lengthOf(spec, value);
-    if (used < spec.maxLength * UNDERUSED) add(code, field, severity, { used, limit: spec.maxLength, unit: spec.unit });
+    if (used < spec.maxLength * UNDERUSED)
+      add(code, field, severity, { used, limit: spec.maxLength, unit: spec.unit });
   };
   if (store === 'app_store') {
     if (text('subtitle').trim() === '') add('subtitle_missing', 'subtitle', 'warning');
@@ -139,35 +181,75 @@ function checkLocale(store: ListingStore, entry: CheckLocaleText, base: CheckLoc
     const kw = text('keywords');
     if (kw.trim() === '') add('empty', 'keywords', 'warning');
     else {
-      const report = analyzeKeywordField(kw, { title: text('name'), subtitle: text('subtitle'), language: languageOf(entry.locale) });
+      const report = analyzeKeywordField(kw, {
+        title: text('name'),
+        subtitle: text('subtitle'),
+        language: languageOf(entry.locale),
+      });
       const fixValue = report.compacted;
-      const fix = report.savedBytes > 0 && fixValue !== '' ? { field: 'keywords', value: fixValue } : null;
-      if (report.separatorBytes > 0) add('keywords_spaces', 'keywords', 'warning', { saved: report.separatorBytes }, fix);
-      if (report.duplicates.length > 0) add('keywords_duplicate', 'keywords', 'warning', { count: report.duplicates.length, words: report.duplicates.slice(0, 5).join(', ') }, fix);
+      const fix =
+        report.savedBytes > 0 && fixValue !== '' ? { field: 'keywords', value: fixValue } : null;
+      if (report.separatorBytes > 0)
+        add('keywords_spaces', 'keywords', 'warning', { saved: report.separatorBytes }, fix);
+      if (report.duplicates.length > 0)
+        add(
+          'keywords_duplicate',
+          'keywords',
+          'warning',
+          { count: report.duplicates.length, words: report.duplicates.slice(0, 5).join(', ') },
+          fix,
+        );
       if (report.inTitleOrSubtitle.length > 0) {
-        add('keywords_in_title', 'keywords', 'warning', { count: report.inTitleOrSubtitle.length, words: report.inTitleOrSubtitle.slice(0, 5).join(', ') }, fix);
+        add(
+          'keywords_in_title',
+          'keywords',
+          'warning',
+          {
+            count: report.inTitleOrSubtitle.length,
+            words: report.inTitleOrSubtitle.slice(0, 5).join(', '),
+          },
+          fix,
+        );
       }
-      if (report.bytes <= report.max && report.bytes < report.max * 0.7 && report.terms.length > 0) {
-        add('keywords_underused', 'keywords', 'tip', { used: report.bytes, limit: report.max, unit: 'bytes' });
+      if (
+        report.bytes <= report.max &&
+        report.bytes < report.max * 0.7 &&
+        report.terms.length > 0
+      ) {
+        add('keywords_underused', 'keywords', 'tip', {
+          used: report.bytes,
+          limit: report.max,
+          unit: 'bytes',
+        });
       }
     }
     // A subtitle that says the name again spends 30 characters for nothing.
     const nameWords = new Set(wordsOf(text('name')));
     const subtitleWords = wordsOf(text('subtitle'));
-    if (subtitleWords.length > 0 && subtitleWords.every((w) => nameWords.has(w))) add('subtitle_repeats_name', 'subtitle', 'warning');
+    if (subtitleWords.length > 0 && subtitleWords.every((w) => nameWords.has(w)))
+      add('subtitle_repeats_name', 'subtitle', 'warning');
   } else {
     room('short_description', 'underused', 'tip');
     room('title', 'underused', 'tip');
   }
 
   // Text left as it is in the base language.
-  if (base && base.locale !== entry.locale && languageKey(base.locale) !== languageKey(entry.locale)) {
+  if (
+    base &&
+    base.locale !== entry.locale &&
+    languageKey(base.locale) !== languageKey(entry.locale)
+  ) {
     const same = [f.name, f.short, f.long].filter((field): field is string => {
       if (field === null) return false;
       const mine = text(field).trim();
       return mine.length >= 12 && mine === (base.fields[field] ?? '').trim();
     });
-    if (same.length > 0) add('untranslated', null, 'warning', { fields: same.join(', '), count: same.length, base: base.locale });
+    if (same.length > 0)
+      add('untranslated', null, 'warning', {
+        fields: same.join(', '),
+        count: same.length,
+        base: base.locale,
+      });
   }
 
   // Screenshots: only said when the data says it, and only for a page where others have some.
@@ -179,19 +261,35 @@ function checkLocale(store: ListingStore, entry: CheckLocaleText, base: CheckLoc
  * Checks every locale. `baseLocale` is the language the text was written in (default: `en-US` when present, else the first locale); other
  * languages are compared with it for untranslated text. A locale with no entry in `fields` at all is checked like an empty page.
  */
-export function checkListing(input: { store: ListingStore; locales: readonly CheckLocaleText[]; baseLocale?: string | undefined }): {
+export function checkListing(input: {
+  store: ListingStore;
+  locales: readonly CheckLocaleText[];
+  baseLocale?: string | undefined;
+}): {
   locales: LocaleChecks[];
   score: number;
   issueCount: number;
   counts: CheckCounts;
 } {
   const list = input.locales;
-  const base = list.find((l) => l.locale === input.baseLocale) ?? list.find((l) => l.locale === 'en-US') ?? list[0] ?? null;
+  const base =
+    list.find((l) => l.locale === input.baseLocale) ??
+    list.find((l) => l.locale === 'en-US') ??
+    list[0] ??
+    null;
   const anyScreenshots = list.some((l) => l.hasScreenshots === true);
   const locales = list.map((entry) => {
     const issues = checkLocale(input.store, entry, base, anyScreenshots);
     return { locale: entry.locale, score: scoreOf(issues), issues };
   });
-  const score = locales.length === 0 ? 100 : Math.round(locales.reduce((s, l) => s + l.score, 0) / locales.length);
-  return { locales, score, issueCount: locales.reduce((n, l) => n + l.issues.length, 0), counts: countIssues(locales.flatMap((l) => l.issues)) };
+  const score =
+    locales.length === 0
+      ? 100
+      : Math.round(locales.reduce((s, l) => s + l.score, 0) / locales.length);
+  return {
+    locales,
+    score,
+    issueCount: locales.reduce((n, l) => n + l.issues.length, 0),
+    counts: countIssues(locales.flatMap((l) => l.issues)),
+  };
 }

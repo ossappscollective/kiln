@@ -239,13 +239,13 @@ collapsed. It is now two panes, like the preferences of Slack and VS Code: a rai
 and one section at a time on the right, kept in the address as `?section=`. Pure logic: `settings-views.ts` (`settingsGroupsFor`,
 `filterSettingsGroups`, `resolveSettingsSection`, `withSettingsSection`, `isFormSection`).
 
-| Group        | Sections                                                           | Save                                  |
-| ------------ | ------------------------------------------------------------------ | ------------------------------------- |
-| Workspace    | Store refresh, Reviews, Releases, Translation, Analytics           | one form, one "Save settings" bar     |
-| Just for you | Language (this browser)                                            | applies at once                       |
-| Security     | Confirm hard actions (with recovery codes), Authenticator and email, Mail server (admins) | each card saves on its own |
-| AI           | AI assistant (`ai.use`), Connect an AI assistant                   | own save                              |
-| Integrations | Slack and Teams (the `#/chat` screen, drawn here), Webhooks (`#/webhooks`) | destinations save on their own; Webhooks is a link |
+| Group        | Sections                                                                                  | Save                                               |
+| ------------ | ----------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Workspace    | Store refresh, Reviews, Releases, Translation, Analytics                                  | one form, one "Save settings" bar                  |
+| Just for you | Language (this browser)                                                                   | applies at once                                    |
+| Security     | Confirm hard actions (with recovery codes), Authenticator and email, Mail server (admins) | each card saves on its own                         |
+| AI           | AI assistant (`ai.use`), Connect an AI assistant                                          | own save                                           |
+| Integrations | Slack and Teams (the `#/chat` screen, drawn here), Webhooks (`#/webhooks`)                | destinations save on their own; Webhooks is a link |
 
 - `#/settings` is Store refresh. The old `?view=general|analytics|security|ai` addresses (emails, other pages) open the first section of
   that view, so nothing that links to them breaks.
@@ -287,12 +287,12 @@ The settings of an app (`#/apps/:id/settings`) used to be one long column of col
 (0c): `ui/SectionRail` on the left, one section on the right, kept in the address as `?section=`. Pure logic in `lib/app-settings.ts`
 (`appSettingsGroups`, `appSettingsSections`, `resolveAppSettingsSection`).
 
-| Group       | Sections                                                                  |
-| ----------- | ------------------------------------------------------------------------- |
-| Connections | Stores (credentials), Repository, Expo and RevenueCat                     |
-| Releases    | Release defaults, Google Play releases (Android records only)             |
+| Group       | Sections                                                                                                   |
+| ----------- | ---------------------------------------------------------------------------------------------------------- |
+| Connections | Stores (credentials), Repository, Expo and RevenueCat                                                      |
+| Releases    | Release defaults, Google Play releases (Android records only)                                              |
 | Data        | Reports bucket (Android only), Notifications, AI assistant (when it is on), Privacy and AI (when it is on) |
-| Removal     | Danger zone (roles that may delete)                                       |
+| Removal     | Danger zone (roles that may delete)                                                                        |
 
 - The address opens the first section (Stores); an old element id (`?section=app-settings-repository`, also in `?view=`) opens the same section; a section the
   app does not have opens the first one. A group with no entry is not drawn.

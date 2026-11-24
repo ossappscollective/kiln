@@ -3,7 +3,15 @@ import { test } from 'node:test';
 import { compareTracks, sortByTrack, trackRank } from './play-tracks.ts';
 
 test('tracks: production, open, closed (alpha, then custom), internal, app sharing', () => {
-  const shuffled = ['internal', 'qa-team', 'alpha', 'app-sharing', 'production', 'beta', 'closed-b'];
+  const shuffled = [
+    'internal',
+    'qa-team',
+    'alpha',
+    'app-sharing',
+    'production',
+    'beta',
+    'closed-b',
+  ];
   assert.deepEqual(
     sortByTrack(shuffled, (x) => x),
     ['production', 'beta', 'alpha', 'closed-b', 'qa-team', 'internal', 'app-sharing'],

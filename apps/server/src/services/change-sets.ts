@@ -829,12 +829,14 @@ export async function applyChangeSet(
       f = githubFailure(error, opened.secret);
     } catch (unknown) {
       // Not a connector error. Do not leave the change set claimed.
-      await failed(failure(
-        502,
-        'github_unavailable',
-        'Applying failed unexpectedly.',
-        coded('changeSet.applyFailed'),
-      ));
+      await failed(
+        failure(
+          502,
+          'github_unavailable',
+          'Applying failed unexpectedly.',
+          coded('changeSet.applyFailed'),
+        ),
+      );
       throw unknown;
     }
     // A plain rate limit is refused before anything is written, so the set can be retried.

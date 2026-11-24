@@ -24,7 +24,9 @@ export function playLiveUnconfirmed(
 
 /** The status as a person reads it: "In review", "Live", or "Live, not confirmed" for a Google Play production release. */
 export function releaseStatusText(
-  release: Pick<ReleaseSummary, 'platform' | 'track' | 'status' | 'rawState'> & { sentForReviewAt?: number | null },
+  release: Pick<ReleaseSummary, 'platform' | 'track' | 'status' | 'rawState'> & {
+    sentForReviewAt?: number | null;
+  },
 ): string {
   const label = statusInfo(release.status, release.rawState).label;
   return playLiveUnconfirmed(release) && !release.sentForReviewAt

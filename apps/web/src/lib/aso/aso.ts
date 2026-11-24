@@ -151,7 +151,11 @@ export type AsoCompetitorSearchResult = {
   price: string | null;
   state: 'available' | 'followed' | 'own';
 };
-export type AsoCompetitorSearch = { country: string; cached: boolean; results: AsoCompetitorSearchResult[] };
+export type AsoCompetitorSearch = {
+  country: string;
+  cached: boolean;
+  results: AsoCompetitorSearchResult[];
+};
 
 export type AsoCompetitor = {
   id: string;

@@ -11,17 +11,31 @@ import type { StatChipModel } from './view.ts';
 export type PlatformShape = 'loading' | 'error' | 'off' | 'empty' | 'data';
 
 /** What one platform record is, from what was read for it: a failed read, no status yet, analytics off, on with nothing stored, or data. */
-export function platformShape(read: { statusError: boolean; enabled: boolean | null; stored: boolean }): PlatformShape {
+export function platformShape(read: {
+  statusError: boolean;
+  enabled: boolean | null;
+  stored: boolean;
+}): PlatformShape {
   if (read.statusError) return 'error';
   if (read.enabled === null) return 'loading';
   if (read.stored) return 'data';
   return read.enabled ? 'empty' : 'off';
 }
 
-export type PlatformView = { id: string; platform: string; shape: PlatformShape; chips: StatChipModel[] };
+export type PlatformView = {
+  id: string;
+  platform: string;
+  shape: PlatformShape;
+  chips: StatChipModel[];
+};
 
 /** One cell of the comparison: the figure of that platform for the measure, or null when it has none (drawn as a dash). */
-export type CompareRow = { id: string; label: string; title: string; cells: (StatChipModel | null)[] };
+export type CompareRow = {
+  id: string;
+  label: string;
+  title: string;
+  cells: (StatChipModel | null)[];
+};
 
 export type OverviewModel = {
   /** Platforms with stored data, in scope order: these get figures and charts. */
@@ -51,12 +65,17 @@ export function buildOverview(platforms: readonly PlatformView[]): OverviewModel
     const first = cells.find((c): c is StatChipModel => c !== null) as StatChipModel;
     return { id, label: first.label, title: first.title, cells };
   });
-  const kpis: OverviewModel['kpis'] = withData.length === 0 || rows.length === 0 ? 'none' : withData.length === 1 ? 'grid' : 'compare';
+  const kpis: OverviewModel['kpis'] =
+    withData.length === 0 || rows.length === 0
+      ? 'none'
+      : withData.length === 1
+        ? 'grid'
+        : 'compare';
   return {
     withData,
     without,
     kpis,
-    gridChips: kpis === 'grid' ? ((withData[0] as PlatformView).chips) : [],
+    gridChips: kpis === 'grid' ? (withData[0] as PlatformView).chips : [],
     columns,
     rows,
     noNumbers: withData.length > 0 && rows.length === 0,

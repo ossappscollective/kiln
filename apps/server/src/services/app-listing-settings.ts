@@ -16,7 +16,10 @@ import { type Failure, failure } from './repositories.ts';
  */
 
 export type AppListingSettings = { compareRepo: boolean; compareMedia: boolean };
-export const DEFAULT_APP_LISTING_SETTINGS: AppListingSettings = { compareRepo: false, compareMedia: false };
+export const DEFAULT_APP_LISTING_SETTINGS: AppListingSettings = {
+  compareRepo: false,
+  compareMedia: false,
+};
 export const LISTING_SETTING_KEYS = ['compareRepo', 'compareMedia'] as const;
 
 export const listingSettingsKeyOf = (appId: string): string => `app.${appId}.listing`;
@@ -30,11 +33,15 @@ function fromStored(raw: unknown): AppListingSettings {
   return out;
 }
 
-export async function readAppListingSettings(sql: Sql, workspaceId: string, appId: string): Promise<AppListingSettings> {
-  const [row] = await sql.query('SELECT value_json FROM workspace_settings WHERE workspace_id = ? AND key = ?', [
-    workspaceId,
-    listingSettingsKeyOf(appId),
-  ]);
+export async function readAppListingSettings(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<AppListingSettings> {
+  const [row] = await sql.query(
+    'SELECT value_json FROM workspace_settings WHERE workspace_id = ? AND key = ?',
+    [workspaceId, listingSettingsKeyOf(appId)],
+  );
   if (!row) return { ...DEFAULT_APP_LISTING_SETTINGS };
   try {
     return fromStored(JSON.parse(String(row.value_json)));
@@ -44,7 +51,10 @@ export async function readAppListingSettings(sql: Sql, workspaceId: string, appI
 }
 
 export const deleteAppListingSettings = (sql: Sql, workspaceId: string, appId: string) =>
-  sql.execute('DELETE FROM workspace_settings WHERE workspace_id = ? AND key = ?', [workspaceId, listingSettingsKeyOf(appId)]);
+  sql.execute('DELETE FROM workspace_settings WHERE workspace_id = ? AND key = ?', [
+    workspaceId,
+    listingSettingsKeyOf(appId),
+  ]);
 
 /** `GET /apps/{id}/listing-settings`: stored values only. */
 export async function getAppListingSettings(
@@ -59,7 +69,12 @@ export async function getAppListingSettings(
 /** `PUT /apps/{id}/listing-settings`: a partial update, all or nothing. Audited as `app.listing_settings_update` (the app id, old and new values). */
 export async function updateAppListingSettings(
   db: Database,
-  input: { workspaceId: string; appId: string; changes: Record<string, unknown>; actor: { type: ActorType; id: string } },
+  input: {
+    workspaceId: string;
+    appId: string;
+    changes: Record<string, unknown>;
+    actor: { type: ActorType; id: string };
+  },
   now: number,
 ): Promise<{ ok: true; settings: AppListingSettings; changed: string[] } | Failure> {
   const app = await getApp(db, input.workspaceId, input.appId);
@@ -73,25 +88,38 @@ export async function updateAppListingSettings(
     } else issues.push({ path: key, message: 'Not a listing setting of an app.' });
   }
   if (issues.length > 0)
-    return failure(422, 'invalid_setting', 'A listing setting is not valid.', { issues, ...coded('app.listingSettingInvalid') });
+    return failure(422, 'invalid_setting', 'A listing setting is not valid.', {
+      issues,
+      ...coded('app.listingSettingInvalid'),
+    });
   return db.transaction(async (tx) => {
     const before = await readAppListingSettings(tx, input.workspaceId, input.appId);
     const after: AppListingSettings = { ...before, ...next };
     const changed = LISTING_SETTING_KEYS.filter((k) => before[k] !== after[k]);
-    if (changed.length === 0) return { ok: true as const, settings: after, changed: [] as string[] };
+    if (changed.length === 0)
+      return { ok: true as const, settings: after, changed: [] as string[] };
     await tx.execute(
       `INSERT INTO workspace_settings (workspace_id, key, value_json, updated_at, updated_by)
        VALUES (?, ?, ?, ?, ?)
        ON CONFLICT (workspace_id, key) DO UPDATE SET
          value_json = excluded.value_json, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
-      [input.workspaceId, listingSettingsKeyOf(input.appId), JSON.stringify(after), now, input.actor.id],
+      [
+        input.workspaceId,
+        listingSettingsKeyOf(input.appId),
+        JSON.stringify(after),
+        now,
+        input.actor.id,
+      ],
     );
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor: input.actor,
       action: 'app.listing_settings_update',
       target: { type: 'app', id: input.appId },
-      detail: { appId: input.appId, changes: changed.map((k) => ({ key: k, from: before[k], to: after[k] })) },
+      detail: {
+        appId: input.appId,
+        changes: changed.map((k) => ({ key: k, from: before[k], to: after[k] })),
+      },
       at: now,
     });
     return { ok: true as const, settings: after, changed: [...changed] };

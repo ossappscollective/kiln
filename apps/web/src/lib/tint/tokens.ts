@@ -45,7 +45,11 @@ export type SchemeTokens = {
 export type ChartTokens = { series: string[]; mid: string };
 
 /** `chart` is added by withChart (chart-palette.ts); absent, charts keep the default palette. */
-export type AppTint = { light: SchemeTokens; dark: SchemeTokens; chart?: Record<Scheme, ChartTokens> };
+export type AppTint = {
+  light: SchemeTokens;
+  dark: SchemeTokens;
+  chart?: Record<Scheme, ChartTokens>;
+};
 
 /** Below this chroma a colour is grey: no hue to keep, no tint. */
 export const MIN_TINT_CHROMA = 0.04;
@@ -55,7 +59,14 @@ export const MAX_TINT_CHROMA = 0.17;
 const TEXT = 4.55;
 const GRAPHIC = 3.05;
 
-const NAMES = ['ground', 'sidebar', 'surface', 'surface-sunken', 'surface-hover', 'surface-active'] as const;
+const NAMES = [
+  'ground',
+  'sidebar',
+  'surface',
+  'surface-sunken',
+  'surface-hover',
+  'surface-active',
+] as const;
 const TEXTS = ['ink', 'muted', 'faint'] as const;
 
 export function surfacesOf(colors: Record<string, string>): Surfaces {
@@ -65,7 +76,10 @@ export function surfacesOf(colors: Record<string, string>): Surfaces {
     return v;
   };
   const backgrounds = NAMES.map(rgb);
-  const texts = TEXTS.map((name) => ({ fg: rgb(name), backs: name === 'faint' ? backgrounds.slice(0, 3) : backgrounds }));
+  const texts = TEXTS.map((name) => ({
+    fg: rgb(name),
+    backs: name === 'faint' ? backgrounds.slice(0, 3) : backgrounds,
+  }));
   return { backgrounds, ground: rgb('ground'), texts };
 }
 
@@ -94,7 +108,14 @@ function candidate(l: number, c: number, h: number): Candidate {
 }
 
 /** The first lightness (nearest to the icon's own) whose colour satisfies `ok`, or null. */
-function search(scheme: Scheme, h: number, c: number, l0: number, range: [number, number], ok: (x: Rgb) => boolean): Candidate | null {
+function search(
+  scheme: Scheme,
+  h: number,
+  c: number,
+  l0: number,
+  range: [number, number],
+  ok: (x: Rgb) => boolean,
+): Candidate | null {
   for (const l of lightnesses(scheme, l0, range[0], range[1])) {
     const cand = candidate(l, Math.min(c, maxChroma(l, h)), h);
     if (ok(cand.rgb)) return cand;
@@ -106,13 +127,19 @@ type Layer = NonNullable<ReturnType<typeof parseColor>>;
 
 /** Whether every text colour keeps 4.5:1 on every surface it is used on, with each of the layers drawn over it. */
 function textsPass(surfaces: Surfaces, layers: Layer[]): boolean {
-  return surfaces.texts.every((t) => t.backs.every((b) => layers.every((l) => ratio(t.fg, over(l, b)) >= TEXT)));
+  return surfaces.texts.every((t) =>
+    t.backs.every((b) => layers.every((l) => ratio(t.fg, over(l, b)) >= TEXT)),
+  );
 }
 
 const INK_RANGE: Record<Scheme, [number, number]> = { light: [0.2, 0.75], dark: [0.55, 0.97] };
 
 /** Derives one theme. Null when a pair cannot be met. */
-export function deriveScheme(primaryHex: string, scheme: Scheme, surfaces: Surfaces = themeSurfaces[scheme]): SchemeTokens | null {
+export function deriveScheme(
+  primaryHex: string,
+  scheme: Scheme,
+  surfaces: Surfaces = themeSurfaces[scheme],
+): SchemeTokens | null {
   const rgb = parseHex(primaryHex);
   if (!rgb) return null;
   const lch = rgbToOklch(rgb);
@@ -121,24 +148,34 @@ export function deriveScheme(primaryHex: string, scheme: Scheme, surfaces: Surfa
   const { h } = lch;
   const bgs = surfaces.backgrounds;
 
-  const accent = search(scheme, h, c, lch.l, INK_RANGE[scheme], (x) => bgs.every((b) => ratio(x, b) >= GRAPHIC));
+  const accent = search(scheme, h, c, lch.l, INK_RANGE[scheme], (x) =>
+    bgs.every((b) => ratio(x, b) >= GRAPHIC),
+  );
   if (!accent) return null;
 
   // Tints: the accent over the surface, at an opacity that is lowered until the text on it passes.
   const base = scheme === 'light' ? [0.1, 0.18] : [0.14, 0.26];
   for (const scale of [1, 0.8, 0.6, 0.45, 0.3]) {
-    const subtle = toHexAlpha(accent.rgb, base[0] as number * scale);
-    const strong = toHexAlpha(accent.rgb, base[1] as number * scale);
-    const tints = [subtle, strong].map((t) => parseColor(t) as NonNullable<ReturnType<typeof parseColor>>);
+    const subtle = toHexAlpha(accent.rgb, (base[0] as number) * scale);
+    const strong = toHexAlpha(accent.rgb, (base[1] as number) * scale);
+    const tints = [subtle, strong].map(
+      (t) => parseColor(t) as NonNullable<ReturnType<typeof parseColor>>,
+    );
     if (!textsPass(surfaces, tints)) continue;
     const underTint = [...bgs, ...bgs.flatMap((b) => tints.map((t) => over(t, b)))];
-    const ink = search(scheme, h, c, lch.l, INK_RANGE[scheme], (x) => underTint.every((b) => ratio(x, b) >= TEXT));
+    const ink = search(scheme, h, c, lch.l, INK_RANGE[scheme], (x) =>
+      underTint.every((b) => ratio(x, b) >= TEXT),
+    );
     if (!ink) continue;
-    const subtleGrounds = bgs.map((b) => over(tints[0] as NonNullable<ReturnType<typeof parseColor>>, b));
+    const subtleGrounds = bgs.map((b) =>
+      over(tints[0] as NonNullable<ReturnType<typeof parseColor>>, b),
+    );
     const shift = scheme === 'light' ? -0.05 : 0.05;
     const hoverL = Math.min(0.97, Math.max(0.2, rgbToOklch(ink.rgb).l + shift));
     const hoverCand = candidate(hoverL, Math.min(c, maxChroma(hoverL, h)), h);
-    const hover = [...bgs, ...subtleGrounds].every((b) => ratio(hoverCand.rgb, b) >= TEXT) ? hoverCand : ink;
+    const hover = [...bgs, ...subtleGrounds].every((b) => ratio(hoverCand.rgb, b) >= TEXT)
+      ? hoverCand
+      : ink;
 
     const onAccentOf = (s: Rgb): Rgb | null => {
       const best = ratio(WHITE, s) >= ratio(DARK_INK, s) ? WHITE : DARK_INK;
@@ -152,7 +189,15 @@ export function deriveScheme(primaryHex: string, scheme: Scheme, surfaces: Surfa
     let glow = toHexAlpha(accent.rgb, 0);
     for (const a of scheme === 'light' ? [0.14, 0.1, 0.06, 0.03] : [0.16, 0.11, 0.07, 0.04]) {
       const g = parseColor(toHexAlpha(accent.rgb, a)) as NonNullable<ReturnType<typeof parseColor>>;
-      if (textsPass({ ...surfaces, texts: surfaces.texts.map((t) => ({ fg: t.fg, backs: [surfaces.ground] })) }, [g])) {
+      if (
+        textsPass(
+          {
+            ...surfaces,
+            texts: surfaces.texts.map((t) => ({ fg: t.fg, backs: [surfaces.ground] })),
+          },
+          [g],
+        )
+      ) {
         glow = toHexAlpha(accent.rgb, a);
         break;
       }
@@ -188,7 +233,8 @@ export function failures(t: SchemeTokens, surfaces: Surfaces): string[] {
   const glow = parseColor(t.glow) as NonNullable<ReturnType<typeof parseColor>>;
   const tinted = bgs.flatMap((b) => [over(sub, b), over(str, b)]);
   const check = (name: string, fg: Rgb, backs: Rgb[], min: number): void => {
-    for (const b of backs) if (ratio(fg, b) < min) bad.push(`${name} ${ratio(fg, b).toFixed(2)} < ${min}`);
+    for (const b of backs)
+      if (ratio(fg, b) < min) bad.push(`${name} ${ratio(fg, b).toFixed(2)} < ${min}`);
   };
   check('accent', px(t.accent), bgs, 3);
   check('accentInk', px(t.accentInk), [...bgs, ...tinted], 4.5);
@@ -220,11 +266,20 @@ const KEYS: Record<keyof SchemeTokens, string> = {
 export function tintStyle(tint: AppTint | null): string {
   if (!tint) return '';
   const parts: string[] = [];
-  for (const [prefix, set] of [['l', tint.light], ['d', tint.dark]] as const)
-    for (const key of Object.keys(KEYS) as (keyof SchemeTokens)[]) parts.push(`--tint-${prefix}-${KEYS[key]}:${set[key]}`);
+  for (const [prefix, set] of [
+    ['l', tint.light],
+    ['d', tint.dark],
+  ] as const)
+    for (const key of Object.keys(KEYS) as (keyof SchemeTokens)[])
+      parts.push(`--tint-${prefix}-${KEYS[key]}:${set[key]}`);
   if (tint.chart)
-    for (const [prefix, scheme] of [['l', 'light'], ['d', 'dark']] as const) {
-      tint.chart[scheme].series.forEach((hex, i) => parts.push(`--tint-${prefix}-viz-${i + 1}:${hex}`));
+    for (const [prefix, scheme] of [
+      ['l', 'light'],
+      ['d', 'dark'],
+    ] as const) {
+      tint.chart[scheme].series.forEach((hex, i) =>
+        parts.push(`--tint-${prefix}-viz-${i + 1}:${hex}`),
+      );
       parts.push(`--tint-${prefix}-viz-mid:${tint.chart[scheme].mid}`);
     }
   return `${parts.join(';')};`;

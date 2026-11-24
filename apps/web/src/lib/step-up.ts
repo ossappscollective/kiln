@@ -198,15 +198,12 @@ export function recoveryFailureMessage(error: unknown): string | undefined {
   const e = error as { code?: unknown; body?: unknown } | null;
   if (!e || typeof e !== 'object' || e.code !== 'step_up_failed') return undefined;
   const body = (e.body && typeof e.body === 'object' ? e.body : {}) as Record<string, unknown>;
-  return body.reason === 'invalid_recovery_code'
-    ? t('auth:recovery.invalid')
-    : undefined;
+  return body.reason === 'invalid_recovery_code' ? t('auth:recovery.invalid') : undefined;
 }
 
 /** The Security card's line about the codes that are left. */
 export function recoverySummary(recovery: RecoveryStatus | undefined): string {
-  if (!recovery || recovery.total === 0)
-    return t('auth:recovery.none');
+  if (!recovery || recovery.total === 0) return t('auth:recovery.none');
   if (recovery.remaining === 0) return t('auth:recovery.allUsed');
   const params = { remaining: recovery.remaining, total: recovery.total };
   return recovery.remaining <= 3 ? t('auth:recovery.low', params) : t('auth:recovery.left', params);
@@ -231,8 +228,7 @@ export const RECOVERY_FILE_NAME = 'kiln-recovery-codes.txt';
 /** What went wrong in the browser's WebAuthn call, as a sentence. The browser's own text is never shown. */
 export function webauthnFailureMessage(error: unknown): string {
   const name = error && typeof error === 'object' ? String((error as { name?: unknown }).name) : '';
-  if (name === 'NotAllowedError' || name === 'AbortError')
-    return t('auth:webauthn.cancelled');
+  if (name === 'NotAllowedError' || name === 'AbortError') return t('auth:webauthn.cancelled');
   if (name === 'InvalidStateError') return t('auth:webauthn.alreadyRegistered');
   if (name === 'NotSupportedError' || name === 'SecurityError')
     return t('auth:webauthn.unsupported');
@@ -385,9 +381,7 @@ export function toggleAction(
 
 /** A sentence for the Security card about the state of the policy and the person's ways to confirm. */
 export function securitySummary(status: Pick<StepUpStatus, 'policy' | 'enrolled'>): string {
-  if (status.policy.mode === 'off')
-    return t('auth:policy.off');
-  if (!status.enrolled)
-    return t('auth:policy.notEnrolled');
+  if (status.policy.mode === 'off') return t('auth:policy.off');
+  if (!status.enrolled) return t('auth:policy.notEnrolled');
   return t('auth:policy.on');
 }

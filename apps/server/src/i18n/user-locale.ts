@@ -22,7 +22,10 @@ export function parseUserLocale(value: unknown): string | undefined {
 export const storedLocale = (value: unknown): string | null => parseUserLocale(value) ?? null;
 
 /** The language of an email for a person: their choice, else English (there is no workspace default). */
-export async function recipientLocale(sql: Sql, userId: string | null | undefined): Promise<string> {
+export async function recipientLocale(
+  sql: Sql,
+  userId: string | null | undefined,
+): Promise<string> {
   if (!userId) return SOURCE_LOCALE;
   try {
     const [row] = await sql.query('SELECT locale FROM users WHERE id = ?', [userId]);

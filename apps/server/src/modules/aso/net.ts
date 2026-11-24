@@ -36,7 +36,11 @@ import type { Resolver } from '../../services/webhook-transport.ts';
  * Nothing here logs. Search terms live only in the cache keys, in memory.
  */
 
-export const ASO_HOSTS: ReadonlySet<string> = new Set(['itunes.apple.com', APPLE_HINTS_HOST, 'play.google.com']);
+export const ASO_HOSTS: ReadonlySet<string> = new Set([
+  'itunes.apple.com',
+  APPLE_HINTS_HOST,
+  'play.google.com',
+]);
 /** The largest body the fetch accepts (the connectors cap at 4 MiB and 3 MiB). */
 export const ASO_FETCH_MAX_BYTES = 4 * 1024 * 1024;
 
@@ -128,7 +132,12 @@ export type SearchInput = {
   locale: string;
   limit: number;
 };
-export type SearchAppsInput = { platform: AsoPlatform; term: string; country: string; limit: number };
+export type SearchAppsInput = {
+  platform: AsoPlatform;
+  term: string;
+  country: string;
+  limit: number;
+};
 export type LookupInput = { platform: AsoPlatform; id: string; country: string; locale: string };
 
 export type AsoSources = {
@@ -314,7 +323,11 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
     },
     async searchApps(input) {
       if (listingStoreOf(input.platform) !== 'app_store')
-        throw new AsoError('apple_search', 'invalid_input', 'Searching by name is for the App Store only.');
+        throw new AsoError(
+          'apple_search',
+          'invalid_input',
+          'Searching by name is for the App Store only.',
+        );
       const limit = Math.min(input.limit, APPLE_SEARCH_MAX_LIMIT);
       const key = `a|${input.platform}|${input.country}|${input.term.toLowerCase()}|${limit}`;
       const { value, cached } = await shared(key, appSearches, async () => {
@@ -334,7 +347,9 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
     async hints(input) {
       const key = `h|${input.country}|${input.term.toLowerCase()}`;
       const { value, cached } = await shared(key, hintLists, () =>
-        outbound('apple', () => fetchAppleHints({ term: input.term, country: input.country, fetch: doFetch })),
+        outbound('apple', () =>
+          fetchAppleHints({ term: input.term, country: input.country, fetch: doFetch }),
+        ),
       );
       return { hints: value, cached };
     },
@@ -344,10 +359,20 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
       const url = `https://itunes.apple.com/${input.country}/rss/customerreviews/id=${input.id}/sortby=mostrecent/json`;
       const response = await outbound('apple', async () => {
         try {
-          return await doFetch(url, { headers: { accept: 'application/json', 'user-agent': ASO_USER_AGENT } });
+          return await doFetch(url, {
+            headers: { accept: 'application/json', 'user-agent': ASO_USER_AGENT },
+          });
         } catch (error) {
           const name = (error as { name?: string }).name;
-          throw new AsoError('apple_search', name === 'TimeoutError' ? 'timeout' : name === 'TooLargeError' ? 'too_large' : 'network', 'The App Store could not be read.');
+          throw new AsoError(
+            'apple_search',
+            name === 'TimeoutError'
+              ? 'timeout'
+              : name === 'TooLargeError'
+                ? 'too_large'
+                : 'network',
+            'The App Store could not be read.',
+          );
         }
       });
       if (response.status === 404) return [];
@@ -358,7 +383,10 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
           retryAfterSeconds: Number.isFinite(wait) && wait > 0 ? wait : 60,
         });
       }
-      if (!response.ok) throw new AsoError('apple_search', 'server', 'The App Store answered with an error.', { status: response.status });
+      if (!response.ok)
+        throw new AsoError('apple_search', 'server', 'The App Store answered with an error.', {
+          status: response.status,
+        });
       let json: unknown;
       try {
         json = await response.json();

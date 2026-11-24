@@ -13,8 +13,24 @@
  */
 import { palette as themePalette } from '../tokens.ts';
 import { ratio } from './contrast.ts';
-import { type Oklch, type Rgb, maxChroma, oklchToHex, parseHex, rgbToOklab, rgbToOklch } from './oklch.ts';
-import { MAX_TINT_CHROMA, MIN_TINT_CHROMA, type AppTint, type ChartTokens, type Scheme, type Surfaces, themeSurfaces } from './tokens.ts';
+import {
+  type Oklch,
+  type Rgb,
+  maxChroma,
+  oklchToHex,
+  parseHex,
+  rgbToOklab,
+  rgbToOklch,
+} from './oklch.ts';
+import {
+  MAX_TINT_CHROMA,
+  MIN_TINT_CHROMA,
+  type AppTint,
+  type ChartTokens,
+  type Scheme,
+  type Surfaces,
+  themeSurfaces,
+} from './tokens.ts';
 
 /** The most series a chart can ask for. */
 export const MAX_SERIES = 8;
@@ -33,10 +49,17 @@ export function distance(a: string, b: string): number {
   return Math.hypot(x.l - y.l, x.a - y.a, x.b - y.b);
 }
 
-const okOn = (rgb: Rgb, surfaces: Surfaces): boolean => surfaces.backgrounds.every((b) => ratio(rgb, b) >= GRAPHIC);
+const okOn = (rgb: Rgb, surfaces: Surfaces): boolean =>
+  surfaces.backgrounds.every((b) => ratio(rgb, b) >= GRAPHIC);
 
 /** The colour of this hue and chroma whose lightness is nearest `l0` and that holds 3:1 on every surface; null when none does. */
-function nearest(scheme: Scheme, h: number, c: number, l0: number, surfaces: Surfaces): string | null {
+function nearest(
+  scheme: Scheme,
+  h: number,
+  c: number,
+  l0: number,
+  surfaces: Surfaces,
+): string | null {
   const [lo, hi] = LIGHTNESS[scheme];
   let best: { hex: string; d: number } | null = null;
   for (let l = lo; l <= hi + 1e-9; l += 0.01) {
@@ -51,7 +74,12 @@ function nearest(scheme: Scheme, h: number, c: number, l0: number, surfaces: Sur
 const lch = (hex: string): Oklch => rgbToOklch(parseHex(hex) as Rgb);
 
 /** The series colours from an accent (already safe) and an optional secondary icon colour. Null when the accent is not usable. */
-function build(accent: string, secondary: string | null | undefined, scheme: Scheme, surfaces: Surfaces): string[] | null {
+function build(
+  accent: string,
+  secondary: string | null | undefined,
+  scheme: Scheme,
+  surfaces: Surfaces,
+): string[] | null {
   const base = parseHex(accent);
   if (!base || !okOn(base, surfaces)) return null;
   const a = lch(accent);
@@ -94,7 +122,10 @@ function build(accent: string, secondary: string | null | undefined, scheme: Sch
 
 /** The middle of the gradient: the OKLab midpoint of series 1 and 2, kept only when it also holds 3:1 (else series 1). */
 function middle(series: string[], surfaces: Surfaces): string {
-  const [x, y] = [rgbToOklab(parseHex(series[0] as string) as Rgb), rgbToOklab(parseHex(series[1] as string) as Rgb)];
+  const [x, y] = [
+    rgbToOklab(parseHex(series[0] as string) as Rgb),
+    rgbToOklab(parseHex(series[1] as string) as Rgb),
+  ];
   const l = (x.l + y.l) / 2;
   const a = (x.a + y.a) / 2;
   const b = (x.b + y.b) / 2;
@@ -108,7 +139,12 @@ function middle(series: string[], surfaces: Surfaces): string {
  * N series colours for a scheme. `base` is the app's tint (its accent and, optionally, the secondary icon colour); null or an unusable
  * base gives the default palette of the theme. N is clamped to 1..MAX_SERIES.
  */
-export function chartPalette(n: number, scheme: Scheme, base: { accent: string; secondary?: string | null | undefined } | null, surfaces: Surfaces = themeSurfaces[scheme]): string[] {
+export function chartPalette(
+  n: number,
+  scheme: Scheme,
+  base: { accent: string; secondary?: string | null | undefined } | null,
+  surfaces: Surfaces = themeSurfaces[scheme],
+): string[] {
   const count = Math.max(1, Math.min(MAX_SERIES, Math.floor(n) || 1));
   const colors = themePalette[scheme];
   const own = base ? build(base.accent, base.secondary, scheme, surfaces) : null;
@@ -120,7 +156,11 @@ export function chartPalette(n: number, scheme: Scheme, base: { accent: string; 
 }
 
 /** The chart tokens of one scheme, or null when the default palette applies. */
-export function chartTokens(scheme: Scheme, base: { accent: string; secondary?: string | null | undefined }, surfaces: Surfaces = themeSurfaces[scheme]): ChartTokens | null {
+export function chartTokens(
+  scheme: Scheme,
+  base: { accent: string; secondary?: string | null | undefined },
+  surfaces: Surfaces = themeSurfaces[scheme],
+): ChartTokens | null {
   const series = build(base.accent, base.secondary, scheme, surfaces);
   return series ? { series, mid: middle(series, surfaces) } : null;
 }

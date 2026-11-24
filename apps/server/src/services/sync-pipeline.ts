@@ -114,11 +114,14 @@ export type HostGroup = 'apple' | 'google';
 export function hostGroupOf(input: string | URL | Request): HostGroup | undefined {
   let host: string;
   try {
-    host = new URL(typeof input === 'string' || input instanceof URL ? input : input.url).hostname.toLowerCase();
+    host = new URL(
+      typeof input === 'string' || input instanceof URL ? input : input.url,
+    ).hostname.toLowerCase();
   } catch {
     return undefined;
   }
-  if (host === 'appstoreconnect.apple.com' || host.endsWith('.appstoreconnect.apple.com')) return 'apple';
+  if (host === 'appstoreconnect.apple.com' || host.endsWith('.appstoreconnect.apple.com'))
+    return 'apple';
   if (host === 'googleapis.com' || host.endsWith('.googleapis.com')) return 'google';
   return undefined;
 }
@@ -148,17 +151,24 @@ export type HostGateOptions = {
 export type HostGate = {
   /** The same `fetch`, with store requests held to the limits. Other hosts pass straight through. */
   wrap(base: typeof fetch): typeof fetch;
-  stats(): Record<HostGroup, { inFlight: number; peak: number; limit: number; pausedUntil: number }>;
+  stats(): Record<
+    HostGroup,
+    { inFlight: number; peak: number; limit: number; pausedUntil: number }
+  >;
 };
 
 const abortError = () => new DOMException('The sync was stopped', 'AbortError');
 
 export function createHostGate(options: HostGateOptions = {}): HostGate {
   const now = options.now ?? Date.now;
-  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const sleep =
+    options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const maxCooldown = options.maxCooldownMs ?? MAX_COOLDOWN_MS;
   const limits = { ...DEFAULT_HOST_LIMITS, ...options.limits };
-  const gates: Record<HostGroup, Semaphore> = { apple: new Semaphore(limits.apple), google: new Semaphore(limits.google) };
+  const gates: Record<HostGroup, Semaphore> = {
+    apple: new Semaphore(limits.apple),
+    google: new Semaphore(limits.google),
+  };
   const pausedUntil: Record<HostGroup, number> = { apple: 0, google: 0 };
 
   const pause = async (group: HostGroup, signal: AbortSignal | null | undefined) => {
@@ -180,7 +190,10 @@ export function createHostGate(options: HostGateOptions = {}): HostGate {
           const reply = await base(input, init);
           if (reply.status === 429) {
             const seconds = retryAfterSeconds(reply.headers.get('retry-after'), now());
-            const hold = Math.min(seconds === undefined ? DEFAULT_COOLDOWN_MS : seconds * 1000, maxCooldown);
+            const hold = Math.min(
+              seconds === undefined ? DEFAULT_COOLDOWN_MS : seconds * 1000,
+              maxCooldown,
+            );
             pausedUntil[group] = Math.max(pausedUntil[group], now() + hold);
           }
           return reply;
@@ -235,7 +248,9 @@ export function pipelineSettings(): PipelineSettings {
  */
 export function installSyncPipeline(next: Partial<PipelineSettings> = {}): HostGate {
   settings = { ...DEFAULT_PIPELINE, ...next };
-  hostGate = createHostGate({ limits: { apple: settings.appleConcurrency, google: settings.googleConcurrency } });
+  hostGate = createHostGate({
+    limits: { apple: settings.appleConcurrency, google: settings.googleConcurrency },
+  });
   globalThis.fetch = hostGate.wrap(globalThis.fetch);
   return hostGate;
 }
@@ -265,7 +280,8 @@ export async function credentialLane<T>(key: string, job: () => Promise<T>): Pro
   try {
     return await mine.gate.run(job);
   } finally {
-    if (mine.gate.inFlight === 0 && mine.gate.waiting === 0 && lanes.get(key) === mine) lanes.delete(key);
+    if (mine.gate.inFlight === 0 && mine.gate.waiting === 0 && lanes.get(key) === mine)
+      lanes.delete(key);
   }
 }
 

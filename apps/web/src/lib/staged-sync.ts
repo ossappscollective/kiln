@@ -19,7 +19,9 @@ export function announceStagedChanged(
   reason: StagedChangeReason,
   target: Target | null = windowOrNull(),
 ): void {
-  target?.dispatchEvent(new CustomEvent<StagedChangedDetail>(STAGED_CHANGED_EVENT, { detail: { appId, reason } }));
+  target?.dispatchEvent(
+    new CustomEvent<StagedChangedDetail>(STAGED_CHANGED_EVENT, { detail: { appId, reason } }),
+  );
 }
 
 /** Calls `handler` for each announcement. Returns the function that stops listening. */

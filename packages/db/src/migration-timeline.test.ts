@@ -32,10 +32,18 @@ dbTest('migration 57 adds the timeline events table; earlier data is untouched',
     [TIMELINE],
   );
   assert.equal(String((await db.query('SELECT name FROM workspaces'))[0]?.name), 'Acme');
-  assert.deepEqual(
-    (await tableColumns(db, 'timeline_events')).map((c) => c.name).sort(),
-    ['app_id', 'created_at', 'created_by', 'day', 'id', 'kind', 'note', 'title', 'updated_at', 'workspace_id'],
-  );
+  assert.deepEqual((await tableColumns(db, 'timeline_events')).map((c) => c.name).sort(), [
+    'app_id',
+    'created_at',
+    'created_by',
+    'day',
+    'id',
+    'kind',
+    'note',
+    'title',
+    'updated_at',
+    'workspace_id',
+  ]);
   const indexes = await tableIndexes(db, 'timeline_events');
   assert.ok(indexes.includes('timeline_events_app_idx'));
   assert.ok(indexes.includes('timeline_events_workspace_idx'));

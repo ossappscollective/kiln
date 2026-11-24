@@ -133,7 +133,8 @@ function codedCalls(): { code: string; keys: string[]; where: string }[] {
   return calls;
 }
 
-const placeholders = (s: string) => [...s.matchAll(/\{\{\s*(\w+)\s*\}\}/g)].map((m) => m[1] as string);
+const placeholders = (s: string) =>
+  [...s.matchAll(/\{\{\s*(\w+)\s*\}\}/g)].map((m) => m[1] as string);
 
 test('every placeholder of an English message is passed by each coded() call that sends the code', () => {
   const en = read('apps/web/locales/errors/en.json');

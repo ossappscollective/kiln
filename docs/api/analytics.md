@@ -168,18 +168,18 @@ Setup codes (`analyticsSetupCodes`): `turn_on_analytics`, `create_report_request
 The stored error of a source (`lastError.code`) is one code of a fixed vocabulary; the server never keeps the store's text. The classes that matter
 for Sales and Play reports (see also [Troubleshooting analytics sources](../troubleshooting-analytics.md)):
 
-| Code | Cause | Fix |
-| --- | --- | --- |
-| `vendor_number_missing` | No vendor number for the Apple team of the app (optional source). | Enter it: `PUT apple-vendor`. |
-| `vendor_number_invalid` | Apple answered HTTP 400 about the vendor number (another team's, or mistyped). | Check it in Payments and Financial Reports. |
-| `sales_forbidden` | Apple answered 403 on Sales and Trends: the key's role (needs Sales, Finance, Admin or Account Holder) or a vendor number of another team. | Fix the role or the number. |
-| `bucket_missing` / `bucket_id_missing` | No Cloud Storage bucket id for the app. | Set it (`PUT play-bucket`). |
-| `bucket_forbidden` | Google answered 403 on the whole reports bucket: another Play account's bucket, or the service account was not invited in Play Console (View app information and download bulk reports). | Check the bucket id, then the invitation. |
-| `play_sales_forbidden` | The statistics folder can be read but a financial folder (`sales/`, `earnings/`, `financial-stats/`) cannot: Play Console permission View financial data, orders and cancellation survey responses, set to Global. | Grant it; up to 24 to 48 hours. |
-| `bucket_not_found` / `bucket_invalid` | The bucket id does not exist or is not `pubsite_prod_rev_<number>`. | Copy it again from Play Console. |
-| `package_not_in_bucket` | The bucket is readable but holds nothing of this package: another account's bucket. | Set the bucket of the owning account. |
-| `store_rejected` | The store answered an HTTP 4xx that has no meaning of its own (not an outage). | Check credential, vendor number, bucket id; test access. |
-| `store_unavailable` | Network failure, timeout or HTTP 5xx. | The next sync tries again. |
+| Code                                   | Cause                                                                                                                                                                                                              | Fix                                                      |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| `vendor_number_missing`                | No vendor number for the Apple team of the app (optional source).                                                                                                                                                  | Enter it: `PUT apple-vendor`.                            |
+| `vendor_number_invalid`                | Apple answered HTTP 400 about the vendor number (another team's, or mistyped).                                                                                                                                     | Check it in Payments and Financial Reports.              |
+| `sales_forbidden`                      | Apple answered 403 on Sales and Trends: the key's role (needs Sales, Finance, Admin or Account Holder) or a vendor number of another team.                                                                         | Fix the role or the number.                              |
+| `bucket_missing` / `bucket_id_missing` | No Cloud Storage bucket id for the app.                                                                                                                                                                            | Set it (`PUT play-bucket`).                              |
+| `bucket_forbidden`                     | Google answered 403 on the whole reports bucket: another Play account's bucket, or the service account was not invited in Play Console (View app information and download bulk reports).                           | Check the bucket id, then the invitation.                |
+| `play_sales_forbidden`                 | The statistics folder can be read but a financial folder (`sales/`, `earnings/`, `financial-stats/`) cannot: Play Console permission View financial data, orders and cancellation survey responses, set to Global. | Grant it; up to 24 to 48 hours.                          |
+| `bucket_not_found` / `bucket_invalid`  | The bucket id does not exist or is not `pubsite_prod_rev_<number>`.                                                                                                                                                | Copy it again from Play Console.                         |
+| `package_not_in_bucket`                | The bucket is readable but holds nothing of this package: another account's bucket.                                                                                                                                | Set the bucket of the owning account.                    |
+| `store_rejected`                       | The store answered an HTTP 4xx that has no meaning of its own (not an outage).                                                                                                                                     | Check credential, vendor number, bucket id; test access. |
+| `store_unavailable`                    | Network failure, timeout or HTTP 5xx.                                                                                                                                                                              | The next sync tries again.                               |
 
 Not failures (the read succeeds, nothing is stored): Apple 404, or 400 about the report date (no report for that day); a month with no Play file yet
 (`sales/salesreport_YYYYMM.zip` appears during the month, `earnings/earnings_YYYYMM.zip` about the 5th of the next month); a readable bucket with no

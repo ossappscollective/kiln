@@ -330,7 +330,11 @@ export function alertRoutes(ctx: AlertRoutesContext) {
     });
     if (!done.ok)
       return c.json(
-        { error: done.error, ...(done.message ? { message: done.message } : {}), ...codingOf(done) },
+        {
+          error: done.error,
+          ...(done.message ? { message: done.message } : {}),
+          ...codingOf(done),
+        },
         done.status,
       );
     return c.json({ alertId: done.alertId, deliveries: done.deliveries }, 202);

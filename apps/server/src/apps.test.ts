@@ -1922,51 +1922,70 @@ dbTest(
 // ---------------------------------------------------------------------------------------------
 // One Sync for everything (POST /apps/:id/sync-all)
 
-dbTest('sync-all queues the app jobs critical first, reads no store, and says why a kind is left out', async (db) => {
-  const t = await boot(db);
-  const id = (await t.addAndroid()).body.app.id as string;
-  const path = `/apps/${id}/sync-all`;
-  const viewer = await t.addMember('viewer');
-  const member = await t.addMember('member');
-  assert.equal((await t.call(viewer, 'POST', path)).status, 403);
-  assert.equal((await t.call(t.owner, 'POST', '/apps/nope/sync-all')).status, 404);
+dbTest(
+  'sync-all queues the app jobs critical first, reads no store, and says why a kind is left out',
+  async (db) => {
+    const t = await boot(db);
+    const id = (await t.addAndroid()).body.app.id as string;
+    const path = `/apps/${id}/sync-all`;
+    const viewer = await t.addMember('viewer');
+    const member = await t.addMember('member');
+    assert.equal((await t.call(viewer, 'POST', path)).status, 403);
+    assert.equal((await t.call(t.owner, 'POST', '/apps/nope/sync-all')).status, 404);
 
-  const done = await t.call(t.owner, 'POST', path);
-  assert.equal(done.status, 202);
-  const plan = done.body.plan as { kind: string; state: string; jobId?: string; reason?: string }[];
-  assert.deepEqual(
-    plan.map((p) => p.kind),
-    ['app', 'reviews', 'eas', 'analytics', 'ads'],
-  );
-  assert.equal(plan[0]?.state, 'queued');
-  assert.equal(plan[1]?.state, 'queued');
-  assert.equal(plan[2]?.reason, 'not_linked');
-  assert.equal(plan[3]?.reason, 'off');
-  assert.equal(plan[4]?.reason, 'not_linked');
-  assert.equal(t.stores.android.calls.length, 0, 'nothing is read in the request');
-  const jobs = await db.query("SELECT queue FROM jobs WHERE status = 'queued' ORDER BY created_at");
-  assert.deepEqual(
-    jobs.map((j) => String(j.queue)).filter((q) => q === 'app.sync' || q === 'review.sync'),
-    ['app.sync', 'review.sync'],
-  );
+    const done = await t.call(t.owner, 'POST', path);
+    assert.equal(done.status, 202);
+    const plan = done.body.plan as {
+      kind: string;
+      state: string;
+      jobId?: string;
+      reason?: string;
+    }[];
+    assert.deepEqual(
+      plan.map((p) => p.kind),
+      ['app', 'reviews', 'eas', 'analytics', 'ads'],
+    );
+    assert.equal(plan[0]?.state, 'queued');
+    assert.equal(plan[1]?.state, 'queued');
+    assert.equal(plan[2]?.reason, 'not_linked');
+    assert.equal(plan[3]?.reason, 'off');
+    assert.equal(plan[4]?.reason, 'not_linked');
+    assert.equal(t.stores.android.calls.length, 0, 'nothing is read in the request');
+    const jobs = await db.query(
+      "SELECT queue FROM jobs WHERE status = 'queued' ORDER BY created_at",
+    );
+    assert.deepEqual(
+      jobs.map((j) => String(j.queue)).filter((q) => q === 'app.sync' || q === 'review.sync'),
+      ['app.sync', 'review.sync'],
+    );
 
-  // A second press while the first jobs wait queues nothing twice.
-  const again = (await t.call(t.owner, 'POST', path)).body.plan as { kind: string; reason?: string }[];
-  assert.equal(again[0]?.reason, 'already_queued');
-  assert.equal(again[1]?.reason, 'already_queued');
+    // A second press while the first jobs wait queues nothing twice.
+    const again = (await t.call(t.owner, 'POST', path)).body.plan as {
+      kind: string;
+      reason?: string;
+    }[];
+    assert.equal(again[0]?.reason, 'already_queued');
+    assert.equal(again[1]?.reason, 'already_queued');
 
-  // A member may sync but not manage analytics; a role's missing right is named, not hidden.
-  const asMember = (await t.call(member, 'POST', path)).body.plan as { kind: string; reason?: string }[];
-  assert.equal(asMember.find((p) => p.kind === 'analytics')?.reason, 'forbidden');
+    // A member may sync but not manage analytics; a role's missing right is named, not hidden.
+    const asMember = (await t.call(member, 'POST', path)).body.plan as {
+      kind: string;
+      reason?: string;
+    }[];
+    assert.equal(asMember.find((p) => p.kind === 'analytics')?.reason, 'forbidden');
 
-  // A page-scoped Sync names its kinds: only those are in the plan; a bad value is a 400 that costs nothing.
-  const only = await t.call(t.owner, 'POST', `${path}?kinds=reviews,eas`);
-  assert.equal(only.status, 202);
-  assert.deepEqual(
-    (only.body.plan as { kind: string }[]).map((p) => p.kind),
-    ['reviews', 'eas'],
-  );
-  assert.equal((await t.call(t.owner, 'POST', `${path}?kinds=products`)).status, 400);
-  assert.equal((await t.call(t.owner, 'POST', `${path}?sources=play_vitals`)).status, 202);
-  assert.equal((await t.call(t.owner, 'POST', `${path}?kinds=reviews&sources=play_vitals`)).status, 400);
-});
+    // A page-scoped Sync names its kinds: only those are in the plan; a bad value is a 400 that costs nothing.
+    const only = await t.call(t.owner, 'POST', `${path}?kinds=reviews,eas`);
+    assert.equal(only.status, 202);
+    assert.deepEqual(
+      (only.body.plan as { kind: string }[]).map((p) => p.kind),
+      ['reviews', 'eas'],
+    );
+    assert.equal((await t.call(t.owner, 'POST', `${path}?kinds=products`)).status, 400);
+    assert.equal((await t.call(t.owner, 'POST', `${path}?sources=play_vitals`)).status, 202);
+    assert.equal(
+      (await t.call(t.owner, 'POST', `${path}?kinds=reviews&sources=play_vitals`)).status,
+      400,
+    );
+  },
+);

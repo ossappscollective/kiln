@@ -1,20 +1,62 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { matchBuild, matchOta, matchRelease, matchSubmission, releaseSteps } from './eas-release.ts';
-import type { EasBuildView, EasStatusView, EasSubmissionView, EasUpdateView } from './eas-status.ts';
+import {
+  matchBuild,
+  matchOta,
+  matchRelease,
+  matchSubmission,
+  releaseSteps,
+} from './eas-release.ts';
+import type {
+  EasBuildView,
+  EasStatusView,
+  EasSubmissionView,
+  EasUpdateView,
+} from './eas-status.ts';
 
 let n = 0;
 const build = (over: Partial<EasBuildView>): EasBuildView =>
   ({
-    id: `b${++n}`, platform: 'ios', status: 'finished', active: false, appVersion: '1.4.0', buildNumber: '57', distribution: 'store',
-    internal: false, simulator: false, createdAt: 100 + n, completedAt: 200 + n, ...over,
+    id: `b${++n}`,
+    platform: 'ios',
+    status: 'finished',
+    active: false,
+    appVersion: '1.4.0',
+    buildNumber: '57',
+    distribution: 'store',
+    internal: false,
+    simulator: false,
+    createdAt: 100 + n,
+    completedAt: 200 + n,
+    ...over,
   }) as EasBuildView;
 const sub = (over: Partial<EasSubmissionView>): EasSubmissionView =>
-  ({ id: `s${++n}`, platform: 'ios', status: 'finished', buildId: 'b1', createdAt: 300 + n, completedAt: 400 + n, ...over }) as EasSubmissionView;
+  ({
+    id: `s${++n}`,
+    platform: 'ios',
+    status: 'finished',
+    buildId: 'b1',
+    createdAt: 300 + n,
+    completedAt: 400 + n,
+    ...over,
+  }) as EasSubmissionView;
 const release = (over: Record<string, unknown> = {}) =>
-  ({ platform: 'ios', version: '1.4.0', build: '57', versionCodes: null, status: 'in_review', ...over }) as never;
+  ({
+    platform: 'ios',
+    version: '1.4.0',
+    build: '57',
+    versionCodes: null,
+    status: 'in_review',
+    ...over,
+  }) as never;
 const snapshot = (builds: EasBuildView[], submissions: EasSubmissionView[] = []): EasStatusView =>
-  ({ project: { fullName: '@a/b', projectId: 'p', url: 'u', credentialAvailable: true }, supported: true, builds, submissions, active: false }) as EasStatusView;
+  ({
+    project: { fullName: '@a/b', projectId: 'p', url: 'u', credentialAvailable: true },
+    supported: true,
+    builds,
+    submissions,
+    active: false,
+  }) as EasStatusView;
 
 test('matches by platform, version and build number; another version or number is no match', () => {
   const a = build({ id: 'a' });
@@ -42,7 +84,10 @@ test('Google Play: one of the version codes names the build', () => {
   const a = build({ id: 'g', platform: 'android', buildNumber: '212' });
   const r = release({ platform: 'android', build: null, versionCodes: ['211', '212'] });
   assert.equal(matchBuild(r, [a])?.id, 'g');
-  assert.equal(matchBuild(release({ platform: 'android', build: null, versionCodes: ['300'] }), [a]), null);
+  assert.equal(
+    matchBuild(release({ platform: 'android', build: null, versionCodes: ['300'] }), [a]),
+    null,
+  );
 });
 
 test('without a number in the release: one build number is certain, two are not', () => {
@@ -72,7 +117,11 @@ test('steps: built, submitted from the submission, review from the store state o
   assert.deepEqual(states(null, null), ['done', 'todo', 'todo']);
   assert.deepEqual(states(null, sub({ status: 'in_progress' })), ['done', 'current', 'todo']);
   assert.deepEqual(states(null, sub({ status: 'errored' })), ['done', 'failed', 'todo']);
-  assert.deepEqual(states(null, null, build({ status: 'in_progress', active: true })), ['current', 'todo', 'todo']);
+  assert.deepEqual(states(null, null, build({ status: 'in_progress', active: true })), [
+    'current',
+    'todo',
+    'todo',
+  ]);
   assert.deepEqual(states(null, null, build({ status: 'errored' })), ['failed', 'todo', 'todo']);
 });
 
@@ -88,9 +137,29 @@ test('matchRelease: nothing for an app that is not linked, an unsupported platfo
 });
 
 const update = (over: Partial<EasUpdateView> = {}): EasUpdateView =>
-  ({ id: 'u1', group: 'g1', platform: 'ios', channel: 'production', branch: 'main', runtimeVersion: '1.4.0', message: 'Fix', createdAt: 500, rolloutPercentage: null, rolloutSince: null, expoUrl: 'https://expo.dev/x', ...over }) as EasUpdateView;
-const withUpdates = (s: EasStatusView, current: EasUpdateView | null, channel = 'production'): EasStatusView =>
-  ({ ...s, updates: { readAt: 5, lastError: null, channels: [{ channel, current, rollouts: [] }] } }) as EasStatusView;
+  ({
+    id: 'u1',
+    group: 'g1',
+    platform: 'ios',
+    channel: 'production',
+    branch: 'main',
+    runtimeVersion: '1.4.0',
+    message: 'Fix',
+    createdAt: 500,
+    rolloutPercentage: null,
+    rolloutSince: null,
+    expoUrl: 'https://expo.dev/x',
+    ...over,
+  }) as EasUpdateView;
+const withUpdates = (
+  s: EasStatusView,
+  current: EasUpdateView | null,
+  channel = 'production',
+): EasStatusView =>
+  ({
+    ...s,
+    updates: { readAt: 5, lastError: null, channels: [{ channel, current, rollouts: [] }] },
+  }) as EasStatusView;
 
 test('OTA: only the current update of the build channel with exactly the build runtime version shows; anything else shows nothing', () => {
   const b = build({ id: 'a', channel: 'production', runtimeVersion: '1.4.0' });
@@ -101,8 +170,14 @@ test('OTA: only the current update of the build channel with exactly the build r
   assert.equal(matchOta(b, withUpdates(base, update({ runtimeVersion: '1.5.0' }))), null);
   assert.equal(matchOta(b, withUpdates(base, update({ platform: 'android' }))), null);
   assert.equal(matchOta(b, withUpdates(base, update(), 'staging')), null);
-  assert.equal(matchOta(build({ channel: null, runtimeVersion: '1.4.0' }), withUpdates(base, update())), null);
-  assert.equal(matchOta(build({ channel: 'production', runtimeVersion: null }), withUpdates(base, update())), null);
+  assert.equal(
+    matchOta(build({ channel: null, runtimeVersion: '1.4.0' }), withUpdates(base, update())),
+    null,
+  );
+  assert.equal(
+    matchOta(build({ channel: 'production', runtimeVersion: null }), withUpdates(base, update())),
+    null,
+  );
   assert.equal(matchOta(b, withUpdates(base, null)), null);
   assert.equal(matchOta(b, base), null);
   assert.equal(matchRelease(release(), base)?.ota, null);

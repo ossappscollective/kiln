@@ -26,7 +26,10 @@ test('a request that is never answered ends as a timeout with a retryable ApiErr
 
 test('an error is returned as a value, not thrown, so the flag can be reset after it', async () => {
   let loading = true;
-  const out = await settle(() => Promise.reject(new ApiError(409, 'metadata_locked', 'Locked.')), opts(1000));
+  const out = await settle(
+    () => Promise.reject(new ApiError(409, 'metadata_locked', 'Locked.')),
+    opts(1000),
+  );
   loading = false;
   assert.equal(loading, false);
   assert.equal(out.ok, false);
@@ -46,13 +49,20 @@ test('a request that throws before it returns a promise is an error value too', 
 test('an answer in time is the value; a late answer after the limit is dropped', async () => {
   const fast = await settle(() => Promise.resolve(7), opts(1000));
   assert.deepEqual(fast, { ok: true, value: 7 });
-  const late = await settle(() => new Promise<number>((resolve) => setTimeout(() => resolve(1), 60)), opts(10));
+  const late = await settle(
+    () => new Promise<number>((resolve) => setTimeout(() => resolve(1), 60)),
+    opts(10),
+  );
   assert.equal(late.ok, false);
   await new Promise((r) => setTimeout(r, 80));
 });
 
 test('the loading flag pattern used by the Assets step never stays on, whatever the request does', async () => {
-  const runs: ((s: AbortSignal) => Promise<number>)[] = [() => Promise.resolve(1), () => Promise.reject(new ApiError(500, 'error', 'x')), () => never()];
+  const runs: ((s: AbortSignal) => Promise<number>)[] = [
+    () => Promise.resolve(1),
+    () => Promise.reject(new ApiError(500, 'error', 'x')),
+    () => never(),
+  ];
   for (const run of runs) {
     let loading = true;
     await settle(run, opts());

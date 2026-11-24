@@ -7,7 +7,10 @@ import { t } from './i18n/t.ts';
  * parameters (the parameters are a function, so a translated word inside them is translated at draw time too), or text
  * that is data and shown as it is (a message from the server). Build it with `msg(k('ns:key'))`, draw it with `msgText`.
  */
-export type Msg = { key: string; params?: () => Params } | { text: string } | { build: () => string };
+export type Msg =
+  | { key: string; params?: () => Params }
+  | { text: string }
+  | { build: () => string };
 
 export const msg = (key: string, params?: () => Params): Msg =>
   params ? { key, params } : { key };

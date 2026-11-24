@@ -57,7 +57,13 @@ export type AdsTotals = {
   ttr: number | null;
   conversion: number | null;
 };
-export type AdsDailyPoint = { day: string; impressions: number; taps: number; installs: number; spendMicros: number };
+export type AdsDailyPoint = {
+  day: string;
+  impressions: number;
+  taps: number;
+  installs: number;
+  spendMicros: number;
+};
 export type AdsOverview = {
   currency: string | null;
   window: AdsWindow;
@@ -69,8 +75,18 @@ export type AdsOverview = {
   campaigns: number;
 };
 export type AdsOverviewResponse = { sync: AdsSyncView | null; overview: AdsOverview };
-export type AdsCampaignRow = AdsTotals & { campaignId: string; name: string; status: string | null; daysWithData: number };
-export type AdsCampaignsResponse = { currency: string | null; window: AdsWindow; sync: AdsSyncView | null; campaigns: AdsCampaignRow[] };
+export type AdsCampaignRow = AdsTotals & {
+  campaignId: string;
+  name: string;
+  status: string | null;
+  daysWithData: number;
+};
+export type AdsCampaignsResponse = {
+  currency: string | null;
+  window: AdsWindow;
+  sync: AdsSyncView | null;
+  campaigns: AdsCampaignRow[];
+};
 export type AdsTermRow = AdsTotals & {
   kind: 'term' | 'keyword';
   term: string;
@@ -98,9 +114,11 @@ export const ADS_PAGE_SIZE = 50;
 // Which records, which credentials
 
 /** Only App Store records have Apple Ads (the server refuses the others with `ads.notSupported`). */
-export const adsApps = <T extends { platform: string }>(apps: readonly T[]): T[] => apps.filter((a) => a.platform === 'ios' || a.platform === 'macos');
+export const adsApps = <T extends { platform: string }>(apps: readonly T[]): T[] =>
+  apps.filter((a) => a.platform === 'ios' || a.platform === 'macos');
 
-export const adsCredentials = (list: readonly CredentialSummary[] | null): CredentialSummary[] => (list ?? []).filter((c) => c.kind === 'apple_ads');
+export const adsCredentials = (list: readonly CredentialSummary[] | null): CredentialSummary[] =>
+  (list ?? []).filter((c) => c.kind === 'apple_ads');
 
 export const adsLinks = { credentials: '#/credentials' };
 
@@ -111,7 +129,13 @@ export const validAdamId = (v: string): boolean => /^[0-9]{5,15}$/.test(v.trim()
 // Sections of the rail
 
 export type AdsSection = 'overview' | 'campaigns' | 'terms' | 'keywords' | 'account';
-export const ADS_SECTIONS: readonly AdsSection[] = ['overview', 'campaigns', 'terms', 'keywords', 'account'];
+export const ADS_SECTIONS: readonly AdsSection[] = [
+  'overview',
+  'campaigns',
+  'terms',
+  'keywords',
+  'account',
+];
 export const adsSectionKeys: Record<AdsSection, string> = {
   overview: k('ads:rail.overview'),
   campaigns: k('ads:rail.campaigns'),
@@ -137,13 +161,18 @@ export function withAdsSection(hash: string, id: string): string {
 /** Micro-units to text in the account's currency; "no value" is a dash, never 0. */
 export function formatMicros(micros: number | null, currency: string | null): string {
   if (micros === null || !Number.isFinite(micros)) return t('ads:none');
-  const digits = currency && /^[A-Za-z]{3}$/.test(currency) ? currencyDigits(currency.toUpperCase()) : 2;
+  const digits =
+    currency && /^[A-Za-z]{3}$/.test(currency) ? currencyDigits(currency.toUpperCase()) : 2;
   // Per-tap and per-install figures are small: keep at least two decimals even for a currency without any.
-  return formatCurrency(micros / 1_000_000, currency, { digits: Math.max(digits, micros !== 0 && Math.abs(micros) < 1_000_000 ? 2 : digits) });
+  return formatCurrency(micros / 1_000_000, currency, {
+    digits: Math.max(digits, micros !== 0 && Math.abs(micros) < 1_000_000 ? 2 : digits),
+  });
 }
 
-export const formatCount = (n: number | null): string => (n === null ? t('ads:none') : formatNumber(n));
-export const formatRatio = (v: number | null): string => (v === null ? t('ads:none') : formatPercent(v, { maximumFractionDigits: 1 }));
+export const formatCount = (n: number | null): string =>
+  n === null ? t('ads:none') : formatNumber(n);
+export const formatRatio = (v: number | null): string =>
+  v === null ? t('ads:none') : formatPercent(v, { maximumFractionDigits: 1 });
 
 /** The change against the period before as a fraction; null when there is nothing to compare with (never a division by zero). */
 export function changeOf(current: number | null, previous: number | null): number | null {
@@ -157,11 +186,17 @@ export function deltaText(change: number | null): { text: string; tone: DeltaTon
   if (change === null) return null;
   const rounded = Math.round(change * 1000) / 10;
   if (rounded === 0) return { text: formatPercent(0, { maximumFractionDigits: 0 }), tone: 'flat' };
-  return { text: `${rounded > 0 ? '+' : ''}${formatPercent(rounded / 100, { maximumFractionDigits: 1 })}`, tone: rounded > 0 ? 'up' : 'down' };
+  return {
+    text: `${rounded > 0 ? '+' : ''}${formatPercent(rounded / 100, { maximumFractionDigits: 1 })}`,
+    tone: rounded > 0 ? 'up' : 'down',
+  };
 }
 
 /** The bar height of each day, 0 to 1 of the largest day; a series that is all zero has no bars rather than a wrong scale. */
-export function dailyBars(daily: readonly AdsDailyPoint[], field: 'impressions' | 'taps' | 'installs' | 'spendMicros'): number[] {
+export function dailyBars(
+  daily: readonly AdsDailyPoint[],
+  field: 'impressions' | 'taps' | 'installs' | 'spendMicros',
+): number[] {
   const max = daily.reduce((m, d) => Math.max(m, d[field]), 0);
   return daily.map((d) => (max > 0 ? d[field] / max : 0));
 }
@@ -169,7 +204,15 @@ export function dailyBars(daily: readonly AdsDailyPoint[], field: 'impressions' 
 // ---------------------------------------------------------------------------------------------
 // The terms table
 
-export type TermSort = 'impressions' | 'taps' | 'installs' | 'spend' | 'cpt' | 'cpi' | 'ttr' | 'term';
+export type TermSort =
+  | 'impressions'
+  | 'taps'
+  | 'installs'
+  | 'spend'
+  | 'cpt'
+  | 'cpi'
+  | 'ttr'
+  | 'term';
 export type TermColumn = { sort: TermSort; labelKey: string };
 export const termColumns: readonly TermColumn[] = [
   { sort: 'impressions', labelKey: k('ads:col.impressions') },
@@ -180,21 +223,40 @@ export const termColumns: readonly TermColumn[] = [
   { sort: 'cpi', labelKey: k('ads:col.cpi') },
   { sort: 'ttr', labelKey: k('ads:col.ttr') },
 ];
-export const isTermSort = (v: string | null): v is TermSort => v === 'term' || termColumns.some((c) => c.sort === v);
+export const isTermSort = (v: string | null): v is TermSort =>
+  v === 'term' || termColumns.some((c) => c.sort === v);
 
 export type SortState = { sort: TermSort; dir: 'asc' | 'desc' };
 export const DEFAULT_SORT: SortState = { sort: 'impressions', dir: 'desc' };
 
 /** Clicking a heading: the same one flips the direction; another starts with the largest first (A to Z for the term). */
 export function nextSort(current: SortState, clicked: TermSort): SortState {
-  if (current.sort === clicked) return { sort: clicked, dir: current.dir === 'desc' ? 'asc' : 'desc' };
+  if (current.sort === clicked)
+    return { sort: clicked, dir: current.dir === 'desc' ? 'asc' : 'desc' };
   return { sort: clicked, dir: clicked === 'term' ? 'asc' : 'desc' };
 }
-export const ariaSort = (state: SortState, column: TermSort): 'ascending' | 'descending' | 'none' =>
+export const ariaSort = (
+  state: SortState,
+  column: TermSort,
+): 'ascending' | 'descending' | 'none' =>
   state.sort !== column ? 'none' : state.dir === 'asc' ? 'ascending' : 'descending';
 
-export const termsQueryOf = (o: { kind: 'term' | 'keyword'; window: AdsWindow; sort: SortState; q: string; offset: number }): string => {
-  const p = new URLSearchParams({ kind: o.kind, from: o.window.from, to: o.window.to, sort: o.sort.sort, dir: o.sort.dir, limit: String(ADS_PAGE_SIZE), offset: String(o.offset) });
+export const termsQueryOf = (o: {
+  kind: 'term' | 'keyword';
+  window: AdsWindow;
+  sort: SortState;
+  q: string;
+  offset: number;
+}): string => {
+  const p = new URLSearchParams({
+    kind: o.kind,
+    from: o.window.from,
+    to: o.window.to,
+    sort: o.sort.sort,
+    dir: o.sort.dir,
+    limit: String(ADS_PAGE_SIZE),
+    offset: String(o.offset),
+  });
   if (o.q.trim() !== '') p.set('q', o.q.trim());
   return p.toString();
 };
@@ -203,7 +265,12 @@ export const termsQueryOf = (o: { kind: 'term' | 'keyword'; window: AdsWindow; s
 export const countryText = (c: string): string => (c === '' ? t('ads:none') : c.toUpperCase());
 
 /** The body to track a search term as a keyword. The server picks the storefront; the locale follows the storefront's default. */
-export const trackBody = (row: Pick<AdsTermRow, 'term' | 'country'>): { term: string; country: string } => ({ term: row.term, country: row.country === '' ? 'us' : row.country });
+export const trackBody = (
+  row: Pick<AdsTermRow, 'term' | 'country'>,
+): { term: string; country: string } => ({
+  term: row.term,
+  country: row.country === '' ? 'us' : row.country,
+});
 
 // ---------------------------------------------------------------------------------------------
 // What the last read says
@@ -216,7 +283,8 @@ export const warningKeys: Record<string, string> = {
   popularity_partial: k('ads:warn.popularityPartial'),
   no_campaign: k('ads:warn.noCampaign'),
 };
-export const warningText = (code: string): string => (warningKeys[code] ? t(warningKeys[code]) : t('ads:warn.unknown'));
+export const warningText = (code: string): string =>
+  warningKeys[code] ? t(warningKeys[code]) : t('ads:warn.unknown');
 
 /** The sentence of a failed request. Server texts are in the locale of the request (docs/i18n-server.md); the ones that cannot be shown are generic. */
 export function adsErrorText(error: unknown): string {
@@ -237,6 +305,8 @@ export function adsErrorText(error: unknown): string {
     case 'rate_limited':
       return t('ads:err.rateLimited');
     default:
-      return typeof error.body.message === 'string' && error.body.message !== '' ? error.body.message : t('common:error.genericRetry');
+      return typeof error.body.message === 'string' && error.body.message !== ''
+        ? error.body.message
+        : t('common:error.genericRetry');
   }
 }

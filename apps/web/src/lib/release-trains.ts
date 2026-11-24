@@ -302,7 +302,10 @@ function describe(train: {
     appIds: members.map((m) => m.appId),
     title:
       train.version !== null
-        ? t('release:train.title.versionOn', { version: train.version, platform: names(train.items) })
+        ? t('release:train.title.versionOn', {
+            version: train.version,
+            platform: names(train.items),
+          })
         : first.build
           ? t('release:train.title.build', { number: first.build.number })
           : t('release:train.title.release'),

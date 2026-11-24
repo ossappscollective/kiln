@@ -26,7 +26,10 @@ export type ListingDeps = {
       }
     | undefined;
   assetSync?:
-    | Pick<AssetSyncRoutesContext, 'net' | 'storeLimiter' | 'fetchLimiter' | 'uploadLimiter' | 'compareDeadlineMs'>
+    | Pick<
+        AssetSyncRoutesContext,
+        'net' | 'storeLimiter' | 'fetchLimiter' | 'uploadLimiter' | 'compareDeadlineMs'
+      >
     | undefined;
   draft?: AssetSyncRoutesContext['draft'] | undefined;
 };

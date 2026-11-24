@@ -4,11 +4,11 @@ One workflow, [`.github/workflows/release.yml`](../.github/workflows/release.yml
 desktop apps and the Docker image. Pushing a tag `vX.Y.Z` makes a **draft** GitHub Release; running
 it by hand is a **build-only** dry run that publishes nothing.
 
-| Trigger | What happens |
-| --- | --- |
-| Push a tag `v*.*.*` | Version check, desktop installers for every platform, multi-arch Docker image pushed to GHCR, draft GitHub Release with `SHA256SUMS` and build attestations. |
-| Actions, Release, Run workflow, `mode = build-only` (default) | The same builds. Output is Actions artifacts that expire after 7 days. No release, no Docker push, no tag, nothing published. |
-| Run workflow, `mode = release`, on a `vX.Y.Z` tag | Same as a tag push. Used to re-run a release whose tag already exists. |
+| Trigger                                                       | What happens                                                                                                                                                 |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Push a tag `v*.*.*`                                           | Version check, desktop installers for every platform, multi-arch Docker image pushed to GHCR, draft GitHub Release with `SHA256SUMS` and build attestations. |
+| Actions, Release, Run workflow, `mode = build-only` (default) | The same builds. Output is Actions artifacts that expire after 7 days. No release, no Docker push, no tag, nothing published.                                |
+| Run workflow, `mode = release`, on a `vX.Y.Z` tag             | Same as a tag push. Used to re-run a release whose tag already exists.                                                                                       |
 
 Run inputs: `ref` (branch, tag or commit; empty means the ref picked under "Use workflow from"),
 `version` (build-only: pretend the version is this, uncommitted, for example `1.2.3-rc.1`),
@@ -48,14 +48,14 @@ only).
 Installer names are `kiln_<version>_<os>_<arch>.<ext>`. The two Mac builds are separate apps, not a
 universal binary: each ships the Node binary for its own architecture ([ADR 0004](adr/0004-desktop-sidecar.md)).
 
-| Platform | Runner | Files |
-| --- | --- | --- |
-| macOS, Apple Silicon | `macos-15` | `kiln_<v>_macos_arm64.dmg`, `kiln_<v>_macos_arm64.app.tar.gz` |
-| macOS, Intel | `macos-15-intel` | `kiln_<v>_macos_x64.dmg`, `kiln_<v>_macos_x64.app.tar.gz` |
-| Windows, x64 | `windows-latest` | `kiln_<v>_windows_x64.exe` (NSIS), `kiln_<v>_windows_x64.msi` |
-| Windows, ARM64 (opt-in) | `windows-11-arm` | `kiln_<v>_windows_arm64.exe` (NSIS) |
-| Linux, x64 | `ubuntu-22.04` | `kiln_<v>_linux_x64.deb`, `.rpm`, `.AppImage` |
-| Linux, ARM64 | `ubuntu-22.04-arm` | `kiln_<v>_linux_arm64.deb`, `.rpm`, `.AppImage` |
+| Platform                | Runner             | Files                                                         |
+| ----------------------- | ------------------ | ------------------------------------------------------------- |
+| macOS, Apple Silicon    | `macos-15`         | `kiln_<v>_macos_arm64.dmg`, `kiln_<v>_macos_arm64.app.tar.gz` |
+| macOS, Intel            | `macos-15-intel`   | `kiln_<v>_macos_x64.dmg`, `kiln_<v>_macos_x64.app.tar.gz`     |
+| Windows, x64            | `windows-latest`   | `kiln_<v>_windows_x64.exe` (NSIS), `kiln_<v>_windows_x64.msi` |
+| Windows, ARM64 (opt-in) | `windows-11-arm`   | `kiln_<v>_windows_arm64.exe` (NSIS)                           |
+| Linux, x64              | `ubuntu-22.04`     | `kiln_<v>_linux_x64.deb`, `.rpm`, `.AppImage`                 |
+| Linux, ARM64            | `ubuntu-22.04-arm` | `kiln_<v>_linux_arm64.deb`, `.rpm`, `.AppImage`               |
 
 Plus `SHA256SUMS` on the release. Each desktop job builds the web UI, stages the server sidecar for
 its own target (`apps/desktop/scripts/prepare-sidecar.mjs`, which also starts the staged server once
@@ -77,16 +77,16 @@ Without them everything still builds, unsigned. The job summary and the release 
 installers are unsigned and tell users how to open them. Add them under Settings, Secrets and
 variables, Actions. Values are never printed, and are present only in the build step.
 
-| Secret | Value | Enables |
-| --- | --- | --- |
-| `APPLE_CERTIFICATE` | Base64 of a "Developer ID Application" certificate exported as `.p12` (`base64 -i cert.p12 \| pbcopy`) | macOS signing (needs the next two as well) |
-| `APPLE_CERTIFICATE_PASSWORD` | Password chosen when exporting the `.p12` | macOS signing |
-| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: Your Name (TEAMID)`, see `security find-identity -v -p codesigning` | macOS signing |
-| `APPLE_ID` | Apple ID e-mail | Notarization (needs the next two as well) |
-| `APPLE_PASSWORD` | An app-specific password from appleid.apple.com, not the account password | Notarization |
-| `APPLE_TEAM_ID` | The 10-character team ID | Notarization |
-| `WINDOWS_CERTIFICATE` | Base64 of a code-signing certificate as `.pfx` | Windows signing (needs the next one) |
-| `WINDOWS_CERTIFICATE_PASSWORD` | The `.pfx` password | Windows signing |
+| Secret                         | Value                                                                                                  | Enables                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| `APPLE_CERTIFICATE`            | Base64 of a "Developer ID Application" certificate exported as `.p12` (`base64 -i cert.p12 \| pbcopy`) | macOS signing (needs the next two as well) |
+| `APPLE_CERTIFICATE_PASSWORD`   | Password chosen when exporting the `.p12`                                                              | macOS signing                              |
+| `APPLE_SIGNING_IDENTITY`       | `Developer ID Application: Your Name (TEAMID)`, see `security find-identity -v -p codesigning`         | macOS signing                              |
+| `APPLE_ID`                     | Apple ID e-mail                                                                                        | Notarization (needs the next two as well)  |
+| `APPLE_PASSWORD`               | An app-specific password from appleid.apple.com, not the account password                              | Notarization                               |
+| `APPLE_TEAM_ID`                | The 10-character team ID                                                                               | Notarization                               |
+| `WINDOWS_CERTIFICATE`          | Base64 of a code-signing certificate as `.pfx`                                                         | Windows signing (needs the next one)       |
+| `WINDOWS_CERTIFICATE_PASSWORD` | The `.pfx` password                                                                                    | Windows signing                            |
 
 A partial set is ignored (the build is unsigned, or signed but not notarized). Both need paid
 accounts: Apple Developer Program for the first six, a certificate authority for the Windows pair.

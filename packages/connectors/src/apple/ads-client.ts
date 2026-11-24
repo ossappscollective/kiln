@@ -72,7 +72,10 @@ export type AppleAdsClient = {
   canRequest(reserve?: number): boolean;
   /** Gets (and caches) an access token without calling the API: the key check. */
   authenticate(options?: { signal?: AbortSignal | undefined }): Promise<void>;
-  get(path: string, options?: { adAccountId?: string | undefined; signal?: AbortSignal | undefined }): Promise<Record<string, unknown>>;
+  get(
+    path: string,
+    options?: { adAccountId?: string | undefined; signal?: AbortSignal | undefined },
+  ): Promise<Record<string, unknown>>;
   query(
     path: string,
     body: Record<string, unknown>,
@@ -86,7 +89,9 @@ export function normalizeAppleAdsOrigin(origin: string | undefined, fallback: st
   try {
     url = new URL(raw);
   } catch {
-    throw new AppleAdsError('invalid_input', { message: 'The Apple Ads address is not a valid URL.' });
+    throw new AppleAdsError('invalid_input', {
+      message: 'The Apple Ads address is not a valid URL.',
+    });
   }
   if (
     (url.protocol !== 'https:' && url.protocol !== 'http:') ||
@@ -96,7 +101,8 @@ export function normalizeAppleAdsOrigin(origin: string | undefined, fallback: st
     url.hash !== ''
   ) {
     throw new AppleAdsError('invalid_input', {
-      message: 'The Apple Ads address must be an http(s) origin without credentials, query or fragment.',
+      message:
+        'The Apple Ads address must be an http(s) origin without credentials, query or fragment.',
     });
   }
   return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
@@ -174,11 +180,17 @@ export function createAppleAdsClient(options: AppleAdsClientOptions): AppleAdsCl
   let cached: { token: string; until: number } | undefined;
   /** Seconds to wait before the next request, from the quota headers of the last answer. */
   let pace: { until: number } | undefined;
-  const fail = (kind: AppleAdsErrorKind, extra: ConstructorParameters<typeof AppleAdsError>[1] = {}) =>
-    new AppleAdsError(kind, { ...extra, known: [...known, ...(cached ? [cached.token] : [])] });
+  const fail = (
+    kind: AppleAdsErrorKind,
+    extra: ConstructorParameters<typeof AppleAdsError>[1] = {},
+  ) => new AppleAdsError(kind, { ...extra, known: [...known, ...(cached ? [cached.token] : [])] });
 
   type Raw = { status: number; headers: Headers; text: string | undefined };
-  async function exchange(url: string, init: RequestInit, signalIn: AbortSignal | undefined): Promise<Raw> {
+  async function exchange(
+    url: string,
+    init: RequestInit,
+    signalIn: AbortSignal | undefined,
+  ): Promise<Raw> {
     const limit = new AbortController();
     let timedOut = false;
     const timer = setTimeout(() => {
@@ -188,12 +200,19 @@ export function createAppleAdsClient(options: AppleAdsClientOptions): AppleAdsCl
     const signal = signalIn ? AbortSignal.any([signalIn, limit.signal]) : limit.signal;
     try {
       const response = await send(url, { ...init, redirect: 'manual', signal });
-      return { status: response.status, headers: response.headers, text: await readCapped(response, maxBytes) };
+      return {
+        status: response.status,
+        headers: response.headers,
+        text: await readCapped(response, maxBytes),
+      };
     } catch (error) {
       if (error instanceof AppleAdsError) throw error;
       // The error text of the network is dropped on purpose (it can carry the address).
       if (timedOut || (error instanceof Error && error.name === 'TimeoutError')) {
-        throw fail('network', { timedOut: true, message: 'Apple Ads did not answer in time. Try again in a minute.' });
+        throw fail('network', {
+          timedOut: true,
+          message: 'Apple Ads did not answer in time. Try again in a minute.',
+        });
       }
       throw fail('network');
     } finally {
@@ -224,21 +243,33 @@ export function createAppleAdsClient(options: AppleAdsClientOptions): AppleAdsCl
       `${tokenOrigin}${APPLE_ADS_TOKEN_PATH}`,
       {
         method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json', 'user-agent': userAgent },
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          accept: 'application/json',
+          'user-agent': userAgent,
+        },
         body: form.toString(),
       },
       signal,
     );
     if (raw.status < 200 || raw.status > 299) {
       // `invalid_client` (400 or 401) is a key Apple does not know; 403 here is the same for a person.
-      const kind = raw.status === 400 || raw.status === 401 || raw.status === 403 ? 'auth' : appleAdsErrorKind(raw.status);
+      const kind =
+        raw.status === 400 || raw.status === 401 || raw.status === 403
+          ? 'auth'
+          : appleAdsErrorKind(raw.status);
       const retry = seconds(raw.headers.get('retry-after'));
-      throw fail(kind, { status: raw.status, ...(retry !== undefined ? { retryAfterSeconds: retry } : {}) });
+      throw fail(kind, {
+        status: raw.status,
+        ...(retry !== undefined ? { retryAfterSeconds: retry } : {}),
+      });
     }
     const body = parse(raw.text);
     const access = body?.access_token;
-    if (typeof access !== 'string' || access === '' || /\s/.test(access)) throw fail('unexpected', { status: raw.status });
-    const expires = typeof body?.expires_in === 'number' && body.expires_in > 0 ? body.expires_in : 3600;
+    if (typeof access !== 'string' || access === '' || /\s/.test(access))
+      throw fail('unexpected', { status: raw.status });
+    const expires =
+      typeof body?.expires_in === 'number' && body.expires_in > 0 ? body.expires_in : 3600;
     cached = { token: access, until: now() + Math.max(60, expires - TOKEN_MARGIN_SECONDS) * 1000 };
     return access;
   }
@@ -251,7 +282,10 @@ export function createAppleAdsClient(options: AppleAdsClientOptions): AppleAdsCl
     signal: AbortSignal | undefined,
   ): Promise<Record<string, unknown>> {
     const allowed = method === 'GET' ? GET_PATHS.some((p) => p.test(path)) : QUERY_PATHS.has(path);
-    if (!allowed) throw fail('invalid_input', { message: 'That is not a read-only Apple Ads request this tool makes.' });
+    if (!allowed)
+      throw fail('invalid_input', {
+        message: 'That is not a read-only Apple Ads request this tool makes.',
+      });
     const needsContext = !NO_CONTEXT.has(path);
     if (needsContext && !(adAccountId && /^[0-9]{1,20}$/.test(adAccountId))) {
       throw fail('invalid_input', { message: 'That is not a valid Apple Ads ad account id.' });
@@ -261,7 +295,10 @@ export function createAppleAdsClient(options: AppleAdsClientOptions): AppleAdsCl
     let limited = 0;
     for (;;) {
       if (requests >= maxRequests) {
-        throw fail('rate_limited', { retryAfterSeconds: 60, message: 'This read needs more requests than one read may use. Try again in a minute.' });
+        throw fail('rate_limited', {
+          retryAfterSeconds: 60,
+          message: 'This read needs more requests than one read may use. Try again in a minute.',
+        });
       }
       if (pace && pace.until > now()) {
         const wait = Math.ceil((pace.until - now()) / 1000);
@@ -295,8 +332,12 @@ export function createAppleAdsClient(options: AppleAdsClientOptions): AppleAdsCl
         continue;
       }
       if (status === 429) {
-        const wait = seconds(raw.headers.get('retry-after')) ?? seconds(raw.headers.get('ratelimit-reset')) ?? Math.min(2 ** (limited + 1), 16);
-        if (limited >= 3 || wait > maxWait) throw fail('rate_limited', { status, retryAfterSeconds: Math.max(wait, 1) });
+        const wait =
+          seconds(raw.headers.get('retry-after')) ??
+          seconds(raw.headers.get('ratelimit-reset')) ??
+          Math.min(2 ** (limited + 1), 16);
+        if (limited >= 3 || wait > maxWait)
+          throw fail('rate_limited', { status, retryAfterSeconds: Math.max(wait, 1) });
         limited += 1;
         pace = undefined;
         await sleep(wait * 1000, signal);

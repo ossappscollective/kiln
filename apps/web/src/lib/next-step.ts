@@ -20,7 +20,11 @@ import { releaseTrainsByPlatform, type Train, trainInputOf } from './release-tra
  */
 
 export type NextAction =
-  | { label: string; href: string; /** The store's own page: opens in a new tab. */ external?: true }
+  | {
+      label: string;
+      href: string /** The store's own page: opens in a new tab. */;
+      external?: true;
+    }
   | { label: string; action: 'start-release' | 'prepare-release' };
 
 /** One release with a next step of its own: a row of the card when several platforms have one. */
@@ -77,7 +81,9 @@ export type NextStepInput = {
 };
 
 /** The release trains of the card: one per platform, from the pipelines of every record of the app (never only the scope's). */
-export function nextStepTrains(pipelines: readonly Pick<AppPipeline, 'app' | 'pipeline'>[]): Train[] {
+export function nextStepTrains(
+  pipelines: readonly Pick<AppPipeline, 'app' | 'pipeline'>[],
+): Train[] {
   return releaseTrainsByPlatform(pipelines.map(trainInputOf));
 }
 

@@ -40,19 +40,38 @@ test('every combination of the workspace ceiling and the app choice', () => {
       assert.equal(k.choice, choice);
     }
   }
-  const mixed = resolveReviewAiPolicy({ ownReviews: true, competitorReviews: false }, defaultReviewAiPolicy());
+  const mixed = resolveReviewAiPolicy(
+    { ownReviews: true, competitorReviews: false },
+    defaultReviewAiPolicy(),
+  );
   assert.equal(mixed.own.allowed, true);
   assert.equal(mixed.competitor.allowed, false);
 });
 
 test('the default sends text only, redacted, and follows the workspace', () => {
-  assert.deepEqual(defaultReviewAiPolicy(), { ownReviews: null, competitorReviews: null, detail: 'text', redact: true });
+  assert.deepEqual(defaultReviewAiPolicy(), {
+    ownReviews: null,
+    competitorReviews: null,
+    detail: 'text',
+    redact: true,
+  });
 });
 
 test('redaction replaces emails, phones, links, handles and the name', () => {
   const out = redactReviewText(review().body, 'Marie Curie');
-  assert.ok(!out.includes('Marie') && !out.includes('+33') && !out.includes('evil.example') && !out.includes('foo.bar') && !out.includes('@marie_c'));
-  assert.ok(out.includes('[name]') && out.includes('[number]') && out.includes('[link]') && out.includes('[handle]'));
+  assert.ok(
+    !out.includes('Marie') &&
+      !out.includes('+33') &&
+      !out.includes('evil.example') &&
+      !out.includes('foo.bar') &&
+      !out.includes('@marie_c'),
+  );
+  assert.ok(
+    out.includes('[name]') &&
+      out.includes('[number]') &&
+      out.includes('[link]') &&
+      out.includes('[handle]'),
+  );
   assert.equal(redactReviewText('mail jo@example.com now', null), 'mail [email] now');
   assert.equal(redactReviewText('hi @bob_1 and @x', null), 'hi [handle] and @x');
   assert.equal(redactReviewText('no personal data, 5 stars', null), 'no personal data, 5 stars');
@@ -64,13 +83,21 @@ test('an email is not taken for a handle and a short name is left alone', () => 
 });
 
 test('text mode: no name, no language, version or day; redacted', () => {
-  const out = shapeReviewForAi(review(), { detail: 'text', redact: true }, { titleChars: 80, textChars: 280 });
+  const out = shapeReviewForAi(
+    review(),
+    { detail: 'text', redact: true },
+    { titleChars: 80, textChars: 280 },
+  );
   assert.deepEqual(Object.keys(out).sort(), ['stars', 'text', 'title']);
   assert.ok(!JSON.stringify(out).includes('Marie') && !JSON.stringify(out).includes('example.com'));
 });
 
 test('full mode adds language, version and day, still no name', () => {
-  const out = shapeReviewForAi(review(), { detail: 'full', redact: true }, { titleChars: 80, textChars: 280 });
+  const out = shapeReviewForAi(
+    review(),
+    { detail: 'full', redact: true },
+    { titleChars: 80, textChars: 280 },
+  );
   assert.equal(out.lang, 'en');
   assert.equal(out.version, '3.2.1');
   assert.equal(out.day, '2026-11-03');
@@ -78,24 +105,44 @@ test('full mode adds language, version and day, still no name', () => {
 });
 
 test('ratings mode sends the stars and nothing else', () => {
-  assert.deepEqual(shapeReviewForAi(review(), { detail: 'ratings', redact: true }, { titleChars: 80, textChars: 280 }), { stars: 2 });
+  assert.deepEqual(
+    shapeReviewForAi(
+      review(),
+      { detail: 'ratings', redact: true },
+      { titleChars: 80, textChars: 280 },
+    ),
+    { stars: 2 },
+  );
 });
 
 test('with redaction off the text stays but the reviewer name is still masked', () => {
-  const out = shapeReviewForAi(review(), { detail: 'text', redact: false }, { titleChars: 80, textChars: 280 });
+  const out = shapeReviewForAi(
+    review(),
+    { detail: 'text', redact: false },
+    { titleChars: 80, textChars: 280 },
+  );
   assert.ok(out.text?.includes('https://evil.example'));
   assert.ok(!out.text?.includes('Marie'));
 });
 
 test('text is cut to the limits', () => {
-  const out = shapeReviewForAi(review({ body: 'x'.repeat(500) }), { detail: 'text', redact: true }, { titleChars: 80, textChars: 280 });
+  const out = shapeReviewForAi(
+    review({ body: 'x'.repeat(500) }),
+    { detail: 'text', redact: true },
+    { titleChars: 80, textChars: 280 },
+  );
   assert.equal(Array.from(out.text ?? '').length, 280);
 });
 
 test('normalize: a missing field keeps its value, a bad one is an issue', () => {
   const base = defaultReviewAiPolicy();
   const ok = normalizeReviewAiPolicy({ ownReviews: 'off', detail: 'ratings' }, base);
-  assert.ok(ok.ok && ok.value.ownReviews === 'off' && ok.value.detail === 'ratings' && ok.value.redact === true);
+  assert.ok(
+    ok.ok &&
+      ok.value.ownReviews === 'off' &&
+      ok.value.detail === 'ratings' &&
+      ok.value.redact === true,
+  );
   const back = normalizeReviewAiPolicy({ ownReviews: null }, { ...base, ownReviews: 'off' });
   assert.ok(back.ok && back.value.ownReviews === null);
   const bad = normalizeReviewAiPolicy({ ownReviews: 'maybe', detail: 'all', redact: 'yes' }, base);

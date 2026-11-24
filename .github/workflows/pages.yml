@@ -6,13 +6,13 @@ on:
   push:
     branches: [main]
     paths:
-      - 'site/**'
-      - 'docs/**'
-      - 'docs/assets/screenshots/**'
-      - 'SECURITY.md'
-      - 'CONTRIBUTING.md'
-      - 'docker-compose.yml'
-      - '.github/workflows/pages.yml'
+      - "site/**"
+      - "docs/**"
+      - "docs/assets/screenshots/**"
+      - "SECURITY.md"
+      - "CONTRIBUTING.md"
+      - "docker-compose.yml"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 # Least privilege by default; only the deploy job may write to Pages.

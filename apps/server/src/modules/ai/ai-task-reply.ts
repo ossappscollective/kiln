@@ -118,12 +118,13 @@ export const reviewReplyTask: ReadyTask = {
     if (bad) return bad;
     const reviewId = String(scope.reviewId);
     const review = await getReview(ctx.db, ctx.workspaceId, ctx.app.id, reviewId);
-    if (!review) return aiFail(
-      404,
-      'not_found',
-      'There is no such review in this app.',
-      coded('notFound.review'),
-    );
+    if (!review)
+      return aiFail(
+        404,
+        'not_found',
+        'There is no such review in this app.',
+        coded('notFound.review'),
+      );
     // The app's own tone (its AI context) wins over the default: the default is only used when the app has none.
     const tone =
       scope.tone === undefined

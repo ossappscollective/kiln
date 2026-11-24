@@ -119,7 +119,12 @@ export const navSignals = {
    * Reads the number for each record that has none or an old one (older than `maxAgeMs`), one request per record at a time. There is no timer:
    * this runs when an app is opened, so the cost is one cheap request per record per few minutes. A failed read leaves what there was.
    */
-  async ensureInsightsCounts(api: Api, workspaceId: string, appIds: readonly string[], maxAgeMs = 5 * 60_000): Promise<void> {
+  async ensureInsightsCounts(
+    api: Api,
+    workspaceId: string,
+    appIds: readonly string[],
+    maxAgeMs = 5 * 60_000,
+  ): Promise<void> {
     scope(workspaceId);
     const now = Date.now();
     const due = appIds.filter((id) => {

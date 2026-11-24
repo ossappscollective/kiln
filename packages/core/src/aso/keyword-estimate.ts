@@ -83,13 +83,26 @@ export type KeywordEstimate = {
   popularity: EstimateMeasure;
   difficulty: EstimateMeasure;
   /** High popularity, low difficulty and a poor current rank: where a person may gain. null when either estimate is missing. */
-  opportunity: { score: number | null; confidence: EstimateConfidence | null; roomFactor: number | null };
+  opportunity: {
+    score: number | null;
+    confidence: EstimateConfidence | null;
+    roomFactor: number | null;
+  };
 };
 
 const clamp = (n: number, lo = 0, hi = 100): number => Math.min(hi, Math.max(lo, n));
 const round = (n: number): number => Math.round(n);
 const log10 = (n: number): number => Math.log(n) / Math.LN10;
-const WEIGHTS = { own: 3, ads: 3, hints: 2, demand: 1, strength: 5, titleMatch: 3, crowding: 1, volatility: 1 } as const;
+const WEIGHTS = {
+  own: 3,
+  ads: 3,
+  hints: 2,
+  demand: 1,
+  strength: 5,
+  titleMatch: 3,
+  crowding: 1,
+  volatility: 1,
+} as const;
 /** An own sample below this many visitors is too small to count as strong evidence. */
 export const OWN_MIN_VISITORS = 20;
 /** An Apple Ads sample below this many impressions is too small to count as strong evidence. */
@@ -149,7 +162,12 @@ export function estimatePopularity(store: EstimateStore, s: KeywordSignals): Est
   if (ads) {
     reasons.push({
       code: 'ads_impressions',
-      params: { impressions: ads.impressions, taps: ads.taps, installs: ads.installs, days: ads.days },
+      params: {
+        impressions: ads.impressions,
+        taps: ads.taps,
+        installs: ads.installs,
+        days: ads.days,
+      },
       points: round(clamp((log10(ads.impressions + 1) / 5) * 100)),
       weight: WEIGHTS.ads,
     });
@@ -172,7 +190,9 @@ export function estimatePopularity(store: EstimateStore, s: KeywordSignals): Est
     }
     evidence += 1;
   }
-  const rated = (s.results?.top ?? []).slice(0, 10).filter((a) => typeof a.ratingCount === 'number');
+  const rated = (s.results?.top ?? [])
+    .slice(0, 10)
+    .filter((a) => typeof a.ratingCount === 'number');
   if (s.results && rated.length >= DIFFICULTY_MIN_APPS) {
     let sum = 0;
     for (const a of rated) sum += a.ratingCount ?? 0;
@@ -197,7 +217,9 @@ export function estimatePopularity(store: EstimateStore, s: KeywordSignals): Est
 const median = (xs: number[]): number => {
   const a = xs.slice().sort((x, y) => x - y);
   const mid = Math.floor(a.length / 2);
-  return a.length % 2 === 1 ? (a[mid] as number) : ((a[mid - 1] as number) + (a[mid] as number)) / 2;
+  return a.length % 2 === 1
+    ? (a[mid] as number)
+    : ((a[mid - 1] as number) + (a[mid] as number)) / 2;
 };
 
 export function estimateDifficulty(store: EstimateStore, s: KeywordSignals): EstimateMeasure {
@@ -242,7 +264,8 @@ export function estimateDifficulty(store: EstimateStore, s: KeywordSignals): Est
   const checks = (s.ranks ?? []).length;
   if (checks >= VOLATILITY_MIN_CHECKS && seen.length >= 2) {
     let steps = 0;
-    for (let i = 1; i < seen.length; i += 1) steps += Math.abs((seen[i] as number) - (seen[i - 1] as number));
+    for (let i = 1; i < seen.length; i += 1)
+      steps += Math.abs((seen[i] as number) - (seen[i - 1] as number));
     const mean = steps / (seen.length - 1);
     reasons.push({
       code: 'rank_volatility',
@@ -277,11 +300,20 @@ const lower = (a: EstimateConfidence, b: EstimateConfidence): EstimateConfidence
 export function estimateKeyword(store: EstimateStore, s: KeywordSignals): KeywordEstimate {
   const popularity = estimatePopularity(store, s);
   const difficulty = estimateDifficulty(store, s);
-  let opportunity: KeywordEstimate['opportunity'] = { score: null, confidence: null, roomFactor: null };
-  if (popularity.score !== null && difficulty.score !== null && popularity.confidence && difficulty.confidence) {
+  let opportunity: KeywordEstimate['opportunity'] = {
+    score: null,
+    confidence: null,
+    roomFactor: null,
+  };
+  if (
+    popularity.score !== null &&
+    difficulty.score !== null &&
+    popularity.confidence &&
+    difficulty.confidence
+  ) {
     const room = rankRoom(s.currentRank);
     opportunity = {
-      score: round(clamp((popularity.score * (100 - difficulty.score)) / 100 * (room ?? 1))),
+      score: round(clamp(((popularity.score * (100 - difficulty.score)) / 100) * (room ?? 1))),
       confidence: lower(popularity.confidence, difficulty.confidence),
       roomFactor: room,
     };

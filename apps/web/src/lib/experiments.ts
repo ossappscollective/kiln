@@ -65,7 +65,13 @@ export type CustomPage = {
   url: string | null;
   visible: boolean | null;
   deepLink: string | null;
-  versions: { id: string; version: string | null; state: ExperimentState; rawState: string | null; deepLink: string | null }[];
+  versions: {
+    id: string;
+    version: string | null;
+    state: ExperimentState;
+    rawState: string | null;
+    deepLink: string | null;
+  }[];
   locales: ExperimentLocale[];
   syncedAt: number;
 };
@@ -169,11 +175,19 @@ export const noteStatusBadge = (status: NoteStatus): { label: string; tone: Tone
 };
 
 export const noteKindLabel = (kind: NoteKind): string =>
-  kind === 'custom_page' ? t('experiments:noteKind.customPage') : t('experiments:noteKind.experiment');
+  kind === 'custom_page'
+    ? t('experiments:noteKind.customPage')
+    : t('experiments:noteKind.experiment');
 
 /** Whether an approved experiment is inside its dates (a hint: Apple's reference lists no running state). */
-export const runningByDates = (e: Pick<StoreExperiment, 'state' | 'startsAt' | 'endsAt'>, now: number): boolean =>
-  e.state === 'approved' && e.startsAt !== null && e.startsAt <= now && (e.endsAt === null || e.endsAt > now);
+export const runningByDates = (
+  e: Pick<StoreExperiment, 'state' | 'startsAt' | 'endsAt'>,
+  now: number,
+): boolean =>
+  e.state === 'approved' &&
+  e.startsAt !== null &&
+  e.startsAt <= now &&
+  (e.endsAt === null || e.endsAt > now);
 
 /** "Started Oct 1, 2026", "Oct 1, 2026 to Dec 30, 2026", or "Not started". */
 export function dateRangeText(e: Pick<StoreExperiment, 'startsAt' | 'endsAt'>): string {
@@ -183,15 +197,20 @@ export function dateRangeText(e: Pick<StoreExperiment, 'startsAt' | 'endsAt'>): 
 }
 
 export const trafficText = (pct: number | null): string =>
-  pct === null ? t('experiments:traffic.unknown') : t('experiments:traffic.percent', { percent: pct });
+  pct === null
+    ? t('experiments:traffic.unknown')
+    : t('experiments:traffic.percent', { percent: pct });
 
 /** The media of a locale or of several, in words. */
 export function assetsText(assets: AssetCounts): string {
   const parts: string[] = [];
-  if (assets.screenshots > 0) parts.push(t('experiments:assets.screenshots', { count: assets.screenshots }));
+  if (assets.screenshots > 0)
+    parts.push(t('experiments:assets.screenshots', { count: assets.screenshots }));
   if (assets.previews > 0) parts.push(t('experiments:assets.previews', { count: assets.previews }));
-  if (parts.length === 0 && assets.other > 0) parts.push(t('experiments:assets.other', { count: assets.other }));
-  if (parts.length === 0 && assets.screenshotSets > 0) parts.push(t('experiments:assets.sets', { count: assets.screenshotSets }));
+  if (parts.length === 0 && assets.other > 0)
+    parts.push(t('experiments:assets.other', { count: assets.other }));
+  if (parts.length === 0 && assets.screenshotSets > 0)
+    parts.push(t('experiments:assets.sets', { count: assets.screenshotSets }));
   return parts.length === 0 ? t('experiments:assets.none') : formatList(parts, { type: 'unit' });
 }
 
@@ -220,16 +239,27 @@ export function localesText(locales: readonly { locale: string }[]): string {
   if (locales.length === 0) return t('experiments:table.none');
   const codes = locales.map((l) => l.locale);
   if (codes.length <= 3) return formatList(codes, { type: 'unit' });
-  return t('experiments:table.localesMore', { list: formatList(codes.slice(0, 3), { type: 'unit' }), count: codes.length - 3 });
+  return t('experiments:table.localesMore', {
+    list: formatList(codes.slice(0, 3), { type: 'unit' }),
+    count: codes.length - 3,
+  });
 }
 
 /** The state of the last sync as one line and a tone. */
-export function syncLine(sync: ExperimentsSync | null, now: number): { text: string; tone: 'neutral' | 'warn' | 'bad' } {
-  if (sync === null || (sync.lastSyncedAt === null && sync.lastError === null)) return { text: t('experiments:sync.never'), tone: 'neutral' };
+export function syncLine(
+  sync: ExperimentsSync | null,
+  now: number,
+): { text: string; tone: 'neutral' | 'warn' | 'bad' } {
+  if (sync === null || (sync.lastSyncedAt === null && sync.lastError === null))
+    return { text: t('experiments:sync.never'), tone: 'neutral' };
   if (sync.lastError !== null) {
     const error = sync.lastError;
-    if (sync.lastSyncedAt === null) return { text: t('experiments:sync.failedNothing', { error }), tone: 'bad' };
-    return { text: t('experiments:sync.failedKept', { ago: timeAgo(sync.lastSyncedAt, now), error }), tone: 'bad' };
+    if (sync.lastSyncedAt === null)
+      return { text: t('experiments:sync.failedNothing', { error }), tone: 'bad' };
+    return {
+      text: t('experiments:sync.failedKept', { ago: timeAgo(sync.lastSyncedAt, now), error }),
+      tone: 'bad',
+    };
   }
   const ago = timeAgo(sync.lastSyncedAt ?? now, now);
   if (!sync.complete) return { text: t('experiments:sync.partial', { ago }), tone: 'warn' };
@@ -260,7 +290,9 @@ export function noteDateText(value: string | null): string | null {
   return formatDate(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
 }
 
-export type NoteProblems = Partial<Record<'name' | 'startedOn' | 'endedOn' | 'url' | 'listing' | 'note', string>>;
+export type NoteProblems = Partial<
+  Record<'name' | 'startedOn' | 'endedOn' | 'url' | 'listing' | 'note', string>
+>;
 
 /** The same checks the server makes, so a person is told before a round trip. */
 export function validateNote(input: NoteInput): NoteProblems {
@@ -281,7 +313,8 @@ export function validateNote(input: NoteInput): NoteProblems {
     }
     if (!ok || input.url.length > 500) out.url = t('experiments:validation.url');
   }
-  if (input.listing !== null && !/^[a-z0-9._~-]{1,100}$/.test(input.listing)) out.listing = t('experiments:validation.listing');
+  if (input.listing !== null && !/^[a-z0-9._~-]{1,100}$/.test(input.listing))
+    out.listing = t('experiments:validation.listing');
   if (input.note.length > 2000) out.note = t('experiments:validation.noteLong');
   return out;
 }

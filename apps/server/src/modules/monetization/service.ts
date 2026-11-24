@@ -56,14 +56,22 @@ export type ProductsView = {
   };
 };
 
-async function priceWriteView(price: MonetizationContext['price'], workspaceId: string, appId: string): Promise<ProductsView['priceWrite']> {
+async function priceWriteView(
+  price: MonetizationContext['price'],
+  workspaceId: string,
+  appId: string,
+): Promise<ProductsView['priceWrite']> {
   const sw = await priceSwitch(price, workspaceId);
   return {
     enabled: sw.enabled,
     envName: sw.envName,
     workspaceEnabled: sw.workspaceEnabled,
     reason: sw.reason,
-    limits: { relativeChangePercent: price.limits.relativeBp / 100, absoluteChangeMajor: price.limits.absoluteMajor, maxTerritories: price.limits.maxTerritories },
+    limits: {
+      relativeChangePercent: price.limits.relativeBp / 100,
+      absoluteChangeMajor: price.limits.absoluteMajor,
+      maxTerritories: price.limits.maxTerritories,
+    },
     staged: (await listStagedPrices(price.db, workspaceId, appId)).map(viewOf),
   };
 }
@@ -105,12 +113,13 @@ export async function getProduct(
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
   const product = await getStoredProduct(ctx.db, input.workspaceId, app.id, input.productId);
-  if (!product) return failure(
-    404,
-    'product_not_found',
-    'No such product. Sync the app first.',
-    coded('notFound.product'),
-  );
+  if (!product)
+    return failure(
+      404,
+      'product_not_found',
+      'No such product. Sync the app first.',
+      coded('notFound.product'),
+    );
   return {
     ok: true,
     app: appView(app),

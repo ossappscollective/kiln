@@ -4,7 +4,14 @@ import type { StoreImagesView } from '@kiln/core';
 import { createStoreCache, FRESH_MS, planFor, storeCacheKey } from './store-cache.ts';
 
 const view = (appId: string, readAt = 1): StoreImagesView => ({
-  appId, platform: 'android', store: 'googleplay', version: null, readAt, sets: [], unplaced: 0, notes: [],
+  appId,
+  platform: 'android',
+  store: 'googleplay',
+  version: null,
+  readAt,
+  sets: [],
+  unplaced: 0,
+  notes: [],
 });
 
 test('a kept read is shown at once; an old one is shown and read again; nothing kept loads', () => {

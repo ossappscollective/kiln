@@ -22,21 +22,37 @@ export const AFTER_STAGE_DEADLINE_MS = 15_000;
 /** The time the checksum reads of one comparison may take before the remaining files are compared by size only. */
 export const CHECKSUM_BUDGET_MS = 12_000;
 
-export async function withinDeadline<T>(work: Promise<T>, ms: number = COMPARE_DEADLINE_MS): Promise<T | Failure> {
+export async function withinDeadline<T>(
+  work: Promise<T>,
+  ms: number = COMPARE_DEADLINE_MS,
+): Promise<T | Failure> {
   try {
     return await withTimeout(work, ms);
   } catch (error) {
     if (!isTimeoutError(error)) throw error;
-    return failure(504, 'compare_timeout', 'The comparison took too long. Try again.', coded('assets.compareTimeout'));
+    return failure(
+      504,
+      'compare_timeout',
+      'The comparison took too long. Try again.',
+      coded('assets.compareTimeout'),
+    );
   }
 }
 
 /** The same for staging: the answer says that some items may be staged already (the card reads again to show which). */
-export async function withinStageDeadline<T>(work: Promise<T>, ms: number = STAGE_DEADLINE_MS): Promise<T | Failure> {
+export async function withinStageDeadline<T>(
+  work: Promise<T>,
+  ms: number = STAGE_DEADLINE_MS,
+): Promise<T | Failure> {
   try {
     return await withTimeout(work, ms);
   } catch (error) {
     if (!isTimeoutError(error)) throw error;
-    return failure(504, 'stage_timeout', 'Staging took too long. Some items may be staged already. Check the card and try again.', coded('assetProposal.stageTimeout'));
+    return failure(
+      504,
+      'stage_timeout',
+      'Staging took too long. Some items may be staged already. Check the card and try again.',
+      coded('assetProposal.stageTimeout'),
+    );
   }
 }

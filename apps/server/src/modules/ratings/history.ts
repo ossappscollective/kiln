@@ -27,7 +27,13 @@ export type Reading = {
 const ROUNDING = 0.0005; // Kiln keeps averages in thousandths: each can be off by half of the last
 export const starTotal = (s: Stars): number => s[0] + s[1] + s[2] + s[3] + s[4];
 export const starSum = (s: Stars): number => s[0] + 2 * s[1] + 3 * s[2] + 4 * s[3] + 5 * s[4];
-export const addStars = (a: Stars, b: Stars): Stars => [a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] + b[3], a[4] + b[4]];
+export const addStars = (a: Stars, b: Stars): Stars => [
+  a[0] + b[0],
+  a[1] + b[1],
+  a[2] + b[2],
+  a[3] + b[3],
+  a[4] + b[4],
+];
 
 export type Step = {
   day: string;
@@ -44,20 +50,31 @@ function stepBetween(a: Reading, b: Reading): Omit<Step, 'day' | 'since' | 'terr
   if (a.count === null || b.count === null) return null;
   if (b.count < a.count) {
     if (b.count < a.count / 2) {
-      return { newCount: b.count, newSum: b.stars ? starSum(b.stars) : b.average * b.count, newStars: b.stars, reset: true };
+      return {
+        newCount: b.count,
+        newSum: b.stars ? starSum(b.stars) : b.average * b.count,
+        newStars: b.stars,
+        reset: true,
+      };
     }
     return { newCount: 0, newSum: null, newStars: null, reset: false };
   }
   if (a.stars && b.stars) {
     const d = b.stars.map((v, i) => v - a.stars![i]!) as Stars;
-    if (d.every((v) => v >= 0)) return { newCount: starTotal(d), newSum: starSum(d), newStars: d, reset: false };
+    if (d.every((v) => v >= 0))
+      return { newCount: starTotal(d), newSum: starSum(d), newStars: d, reset: false };
   }
   const newCount = b.count - a.count;
   if (newCount === 0) return { newCount: 0, newSum: null, newStars: null, reset: false };
   const sum = b.average * b.count - a.average * a.count;
   const error = ROUNDING * (a.count + b.count);
   const usable = error <= newCount * 0.25 && sum >= newCount - error && sum <= newCount * 5 + error;
-  return { newCount, newSum: usable ? Math.min(newCount * 5, Math.max(newCount, sum)) : null, newStars: null, reset: false };
+  return {
+    newCount,
+    newSum: usable ? Math.min(newCount * 5, Math.max(newCount, sum)) : null,
+    newStars: null,
+    reset: false,
+  };
 }
 
 const byDay = (list: Reading[]) => [...list].sort((a, b) => a.day.localeCompare(b.day));
@@ -102,7 +119,10 @@ export type Bucket = {
   spansGap: boolean;
 };
 
-export function ratingBuckets(readings: Reading[], o: { country: string; granularity: Granularity; from: string; to: string }): Bucket[] {
+export function ratingBuckets(
+  readings: Reading[],
+  o: { country: string; granularity: Granularity; from: string; to: string },
+): Bucket[] {
   const groups = group(readings);
   const codes = o.country === 'all' ? [...groups.keys()] : [o.country];
   const steps = codes.flatMap((c) => stepsOf(groups.get(c) ?? [], c));
@@ -130,16 +150,31 @@ export function ratingBuckets(readings: Reading[], o: { country: string; granula
     const summed = inside.filter((s) => s.newSum !== null && s.newCount > 0);
     const summedCount = summed.reduce((t, s) => t + s.newCount, 0);
     const withStars = inside.filter((s) => s.newCount > 0 && s.newStars);
-    const days = codes.flatMap((c) => (groups.get(c) ?? []).filter((r) => r.day >= start && r.day <= end && r.dayAverage != null).map((r) => r.dayAverage as number));
+    const days = codes.flatMap((c) =>
+      (groups.get(c) ?? [])
+        .filter((r) => r.day >= start && r.day <= end && r.dayAverage != null)
+        .map((r) => r.dayAverage as number),
+    );
     return {
       start,
       end,
       count: counted ? count : null,
-      average: counted && count > 0 ? sum / count : !counted && averages.length > 0 ? averages.reduce((a, b) => a + b, 0) / averages.length : null,
+      average:
+        counted && count > 0
+          ? sum / count
+          : !counted && averages.length > 0
+            ? averages.reduce((a, b) => a + b, 0) / averages.length
+            : null,
       newCount,
-      newAverage: summedCount > 0 ? summed.reduce((t, s) => t + (s.newSum ?? 0), 0) / summedCount : null,
-      newStars: withStars.length > 0 ? withStars.reduce((t, s) => addStars(t, s.newStars!), [0, 0, 0, 0, 0] as Stars) : null,
-      newUnknown: inside.filter((s) => s.newCount > 0 && !s.newStars).reduce((t, s) => t + s.newCount, 0),
+      newAverage:
+        summedCount > 0 ? summed.reduce((t, s) => t + (s.newSum ?? 0), 0) / summedCount : null,
+      newStars:
+        withStars.length > 0
+          ? withStars.reduce((t, s) => addStars(t, s.newStars!), [0, 0, 0, 0, 0] as Stars)
+          : null,
+      newUnknown: inside
+        .filter((s) => s.newCount > 0 && !s.newStars)
+        .reduce((t, s) => t + s.newCount, 0),
       dayAverage: days.length > 0 ? days.reduce((a, b) => a + b, 0) / days.length : null,
       reset: inside.some((s) => s.reset),
       spansGap: inside.some((s) => s.since < start && s.newCount > 0),
@@ -147,7 +182,15 @@ export function ratingBuckets(readings: Reading[], o: { country: string; granula
   });
 }
 
-export type CountryRow = { territory: string; average: number; count: number | null; newCount: number; newAverage: number | null; change: number | null; day: string };
+export type CountryRow = {
+  territory: string;
+  average: number;
+  count: number | null;
+  newCount: number;
+  newAverage: number | null;
+  change: number | null;
+  day: string;
+};
 
 /** Each country as of its newest reading, with what the history says about the window. */
 export function countryRows(readings: Reading[], from: string, to: string): CountryRow[] {
@@ -166,7 +209,8 @@ export function countryRows(readings: Reading[], from: string, to: string): Coun
         average: now.average,
         count: now.count,
         newCount: steps.reduce((t, s) => t + s.newCount, 0),
-        newAverage: summedCount > 0 ? summed.reduce((t, s) => t + (s.newSum ?? 0), 0) / summedCount : null,
+        newAverage:
+          summedCount > 0 ? summed.reduce((t, s) => t + (s.newSum ?? 0), 0) / summedCount : null,
         change: atStart ? now.average - atStart.average : null,
         day: now.day,
       };
@@ -175,11 +219,25 @@ export function countryRows(readings: Reading[], from: string, to: string): Coun
     .sort((a, b) => (b.count ?? -1) - (a.count ?? -1) || a.territory.localeCompare(b.territory));
 }
 
-export type ReviewBucket = { start: string; end: string; stars: Stars; count: number; average: number | null };
+export type ReviewBucket = {
+  start: string;
+  end: string;
+  stars: Stars;
+  count: number;
+  average: number | null;
+};
 
 /** Written reviews in buckets, per star: the one history every store gives in full. */
-export function reviewBuckets(reviews: { day: string; rating: number; territory?: string | null }[], o: { country: string; granularity: Granularity; from: string; to: string }): ReviewBucket[] {
-  const buckets: ReviewBucket[] = bucketsIn(o.from, o.to, o.granularity).map((b) => ({ ...b, stars: [0, 0, 0, 0, 0], count: 0, average: null }));
+export function reviewBuckets(
+  reviews: { day: string; rating: number; territory?: string | null }[],
+  o: { country: string; granularity: Granularity; from: string; to: string },
+): ReviewBucket[] {
+  const buckets: ReviewBucket[] = bucketsIn(o.from, o.to, o.granularity).map((b) => ({
+    ...b,
+    stars: [0, 0, 0, 0, 0],
+    count: 0,
+    average: null,
+  }));
   for (const r of reviews) {
     if (o.country !== 'all' && (r.territory ?? '') !== o.country) continue;
     if (r.day < o.from || r.day > o.to) continue;

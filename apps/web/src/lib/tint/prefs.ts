@@ -70,7 +70,11 @@ export function resolveTint(input: {
   for (const color of p.colors.slice(0, 2)) {
     const tint = deriveTint(color);
     // The other icon colour (when it is not the one the tint came from) is the second chart series.
-    if (tint) return withChart(tint, p.colors.find((c) => c !== color));
+    if (tint)
+      return withChart(
+        tint,
+        p.colors.find((c) => c !== color),
+      );
   }
   return null;
 }

@@ -86,7 +86,10 @@ describe('check', () => {
     const root = fixture();
     setVersion(root, '2.0.0');
     const cargo = join(root, 'apps/desktop/src-tauri/Cargo.toml');
-    writeFileSync(cargo, readFileSync(cargo, 'utf8').replace('version = "2.0.0"', 'version = "2.0.1"'));
+    writeFileSync(
+      cargo,
+      readFileSync(cargo, 'utf8').replace('version = "2.0.0"', 'version = "2.0.1"'),
+    );
     const problems = check(root, '2.0.0');
     assert.equal(problems.length, 1);
     assert.match(problems[0], /Cargo\.toml is 2\.0\.1, expected 2\.0\.0/);

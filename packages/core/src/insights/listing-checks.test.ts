@@ -18,7 +18,10 @@ const codes = (out: ReturnType<typeof checkListing>, locale = 'en-US') =>
 
 test('a healthy App Store page has no problem and a high score', () => {
   const out = checkListing({ store: 'app_store', locales: [good('en-US')] });
-  assert.deepEqual(codes(out).filter((c) => !c.startsWith('keywords_underused')), []);
+  assert.deepEqual(
+    codes(out).filter((c) => !c.startsWith('keywords_underused')),
+    [],
+  );
   assert.ok(out.score >= 90);
 });
 
@@ -32,7 +35,10 @@ test('a field over the limit of the spec is a problem, in characters and in byte
   assert.equal(name?.severity, 'problem');
   assert.equal(name?.params.limit, 30);
   assert.equal(name?.params.over, 1);
-  assert.equal(issues.find((i) => i.code === 'too_long' && i.field === 'keywords')?.params.unit, 'bytes');
+  assert.equal(
+    issues.find((i) => i.code === 'too_long' && i.field === 'keywords')?.params.unit,
+    'bytes',
+  );
 });
 
 test('spaces after commas, duplicates and words of the name in the keywords are found, with one safe fix', () => {
@@ -68,7 +74,9 @@ test('text copied into another language is untranslated; the same language is no
     store: 'app_store',
     locales: [good('en-US'), good('de-DE'), good('en-GB', { name: 'Pocket Notes Pro' })],
   });
-  const de = out.locales.find((l) => l.locale === 'de-DE')?.issues.find((i) => i.code === 'untranslated');
+  const de = out.locales
+    .find((l) => l.locale === 'de-DE')
+    ?.issues.find((i) => i.code === 'untranslated');
   assert.equal(de?.params.count, 3);
   assert.equal(de?.params.base, 'en-US');
   assert.ok(!codes(out, 'en-GB').includes('untranslated:null'));
@@ -88,7 +96,11 @@ test('screenshots are only flagged when the data says so and another locale has 
 test('Google Play: title, short and full description, no keyword field', () => {
   const play: CheckLocaleText = {
     locale: 'en-US',
-    fields: { title: 'T'.repeat(31), short_description: '', full_description: 'Full text. '.repeat(20) },
+    fields: {
+      title: 'T'.repeat(31),
+      short_description: '',
+      full_description: 'Full text. '.repeat(20),
+    },
   };
   const out = checkListing({ store: 'google_play', locales: [play] });
   const c = codes(out);
@@ -100,5 +112,10 @@ test('Google Play: title, short and full description, no keyword field', () => {
 
 test('score floors at 0 and an empty list scores 100', () => {
   assert.equal(scoreOf(Array.from({ length: 9 }, () => ({ severity: 'problem' }) as never)), 0);
-  assert.deepEqual(checkListing({ store: 'app_store', locales: [] }), { locales: [], score: 100, issueCount: 0, counts: { problems: 0, warnings: 0, tips: 0 } });
+  assert.deepEqual(checkListing({ store: 'app_store', locales: [] }), {
+    locales: [],
+    score: 100,
+    issueCount: 0,
+    counts: { problems: 0, warnings: 0, tips: 0 },
+  });
 });

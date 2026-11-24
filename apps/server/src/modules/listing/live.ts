@@ -878,7 +878,9 @@ export async function getDrift(
     loadSections(sql, workspaceId, app.id),
   ]);
   const platform = app.platform;
-  const repoLatest = compareRepo ? newestPer(index, (r) => r.source === 'repo') : new Map<string, IndexRow>();
+  const repoLatest = compareRepo
+    ? newestPer(index, (r) => r.source === 'repo')
+    : new Map<string, IndexRow>();
   const changeSetLatest = newestPer(index, (r) => r.source === 'change_set');
   const storeLive = newestPer(index, (r) => r.source === 'store' && r.channel === 'live');
   const storeEditable = newestPer(index, (r) => r.source === 'store' && r.channel === 'editable');
@@ -1014,7 +1016,10 @@ export async function getDrift(
       repoObservedAt: repo?.observedAt ?? null,
       compare: on
         ? compareSection(name, store?.value ?? null, repo?.value ?? null, platform)
-        : { status: store?.value == null ? ('not-read' as const) : ('not-comparable' as const), details: [] },
+        : {
+            status: store?.value == null ? ('not-read' as const) : ('not-comparable' as const),
+            details: [],
+          },
     };
   });
   return {

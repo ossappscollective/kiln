@@ -58,13 +58,11 @@ const jsonField = {
 const cargoToml = {
   // Only the [package] table: the first `version = "..."` line before the next table header.
   read: (text) => /^\[package\][^[]*?^version\s*=\s*"([^"]*)"/ms.exec(text)?.[1] ?? null,
-  write: (text, v) =>
-    replaceOnce(text, /(^\[package\][^[]*?^version\s*=\s*)"[^"]*"/ms, `$1"${v}"`),
+  write: (text, v) => replaceOnce(text, /(^\[package\][^[]*?^version\s*=\s*)"[^"]*"/ms, `$1"${v}"`),
 };
 const cargoLock = {
   read: (text) => /^name = "kiln-desktop"\nversion = "([^"]*)"/m.exec(text)?.[1] ?? null,
-  write: (text, v) =>
-    replaceOnce(text, /(^name = "kiln-desktop"\nversion = )"[^"]*"/m, `$1"${v}"`),
+  write: (text, v) => replaceOnce(text, /(^name = "kiln-desktop"\nversion = )"[^"]*"/m, `$1"${v}"`),
 };
 const versionTs = {
   read: (text) => /export const VERSION = '([^']*)'/.exec(text)?.[1] ?? null,

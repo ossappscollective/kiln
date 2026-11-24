@@ -47,10 +47,18 @@ const KEYS: Readonly<Record<string, string>> = {
   'coach.trackKeywords.detail': k('core:coach.trackKeywords.detail'),
   'coach.trackKeywords.title': k('core:coach.trackKeywords.title'),
   'coach.untappedLocale.detail': k('core:coach.untappedLocale.detail'),
-  'coach.untappedLocale.itemEmptyKeywordField': k('core:coach.untappedLocale.itemEmptyKeywordField'),
-  'coach.untappedLocale.itemEmptyKeywordFieldMarkets': k('core:coach.untappedLocale.itemEmptyKeywordFieldMarkets'),
-  'coach.untappedLocale.itemEmptyShortDescription': k('core:coach.untappedLocale.itemEmptyShortDescription'),
-  'coach.untappedLocale.itemEmptyShortDescriptionMarkets': k('core:coach.untappedLocale.itemEmptyShortDescriptionMarkets'),
+  'coach.untappedLocale.itemEmptyKeywordField': k(
+    'core:coach.untappedLocale.itemEmptyKeywordField',
+  ),
+  'coach.untappedLocale.itemEmptyKeywordFieldMarkets': k(
+    'core:coach.untappedLocale.itemEmptyKeywordFieldMarkets',
+  ),
+  'coach.untappedLocale.itemEmptyShortDescription': k(
+    'core:coach.untappedLocale.itemEmptyShortDescription',
+  ),
+  'coach.untappedLocale.itemEmptyShortDescriptionMarkets': k(
+    'core:coach.untappedLocale.itemEmptyShortDescriptionMarkets',
+  ),
   'coach.untappedLocale.itemNoLocale': k('core:coach.untappedLocale.itemNoLocale'),
   'coach.untappedLocale.itemNoLocaleMarkets': k('core:coach.untappedLocale.itemNoLocaleMarkets'),
   'coach.untappedLocale.titleApple': k('core:coach.untappedLocale.titleApple'),
@@ -195,7 +203,10 @@ export const playCheckMessage = (check: { message: string; text?: CoreText | und
   coreMessage(check.text, check.message);
 
 /** Why no staged rollout is offered (`rolloutOffer`): its `reason` is the stable code, the English message the fallback. */
-export function rolloutOfferMessage(offer: { reason: string | null; message: string | null }): string {
+export function rolloutOfferMessage(offer: {
+  reason: string | null;
+  message: string | null;
+}): string {
   if (offer.reason === 'never') return t('core:play.offer.never');
   if (offer.reason === 'first_release') return t('core:play.offer.firstRelease');
   return offer.message ?? '';
@@ -221,11 +232,7 @@ export function coachWords(
     const text = action.itemTexts?.[i];
     if (!text) return line;
     const field = text.params.field;
-    return coreMessage(
-      text,
-      line,
-      typeof field === 'string' ? { field: fieldLabel(field) } : {},
-    );
+    return coreMessage(text, line, typeof field === 'string' ? { field: fieldLabel(field) } : {});
   });
   return {
     title: coreMessage(action.titleText, action.title),

@@ -25,7 +25,8 @@ export const TITLE_MAX = 120;
 export const NOTE_MAX = 500;
 const KIND_LIMIT = 400;
 
-const isApple = (app: Pick<ManagedApp, 'platform'>) => app.platform === 'ios' || app.platform === 'macos';
+const isApple = (app: Pick<ManagedApp, 'platform'>) =>
+  app.platform === 'ios' || app.platform === 'macos';
 
 const dayValid = z.string().refine((v) => isIsoDate(v), 'A date as YYYY-MM-DD.');
 export const createEventBody = z
@@ -86,10 +87,16 @@ export async function kilnEvents(
     const since = Number(r.status_since ?? r.synced_at);
     const version = clip(r.version, 40);
     out.push(
-      base(`k:release:${String(r.id)}`, dateToDay(since), 'release', {
-        code: r.status === 'rolling_out' ? 'releaseRollingOut' : 'release',
-        params: { version, ...(r.track ? { track: clip(r.track, 40) } : {}) },
-      }, { version }),
+      base(
+        `k:release:${String(r.id)}`,
+        dateToDay(since),
+        'release',
+        {
+          code: r.status === 'rolling_out' ? 'releaseRollingOut' : 'release',
+          params: { version, ...(r.track ? { track: clip(r.track, 40) } : {}) },
+        },
+        { version },
+      ),
     );
   }
 
@@ -102,7 +109,13 @@ export async function kilnEvents(
   for (const r of steps) {
     const version = clip(r.version, 40);
     out.push(
-      base(`k:step:${String(r.id)}`, dateToDay(Number(r.done_at)), 'rollout', { code: 'rolloutStep', params: { version, percent: Number(r.percent) } }, { version }),
+      base(
+        `k:step:${String(r.id)}`,
+        dateToDay(Number(r.done_at)),
+        'rollout',
+        { code: 'rolloutStep', params: { version, percent: Number(r.percent) } },
+        { version },
+      ),
     );
   }
 
@@ -123,10 +136,26 @@ export async function kilnEvents(
     const sets = Number(detail.assetSets ?? 0);
     const texts = Number(detail.texts ?? 0);
     if (sets > 0) {
-      out.push(base(`k:push:${String(r.id)}:graphics`, day, 'graphics', { code: 'graphics', params: { count: sets } }, { waitsForRelease: isApple(app) }));
+      out.push(
+        base(
+          `k:push:${String(r.id)}:graphics`,
+          day,
+          'graphics',
+          { code: 'graphics', params: { count: sets } },
+          { waitsForRelease: isApple(app) },
+        ),
+      );
     }
     if (texts > 0) {
-      out.push(base(`k:push:${String(r.id)}:text`, day, 'listing_text', { code: 'listingText', params: { count: texts } }, { waitsForRelease: isApple(app) }));
+      out.push(
+        base(
+          `k:push:${String(r.id)}:text`,
+          day,
+          'listing_text',
+          { code: 'listingText', params: { count: texts } },
+          { waitsForRelease: isApple(app) },
+        ),
+      );
     }
   }
 
@@ -138,9 +167,21 @@ export async function kilnEvents(
   for (const r of experiments) {
     const name = clip(r.name, 80);
     if (r.starts_at !== null && r.starts_at !== undefined)
-      out.push(base(`k:exp:${String(r.item_id)}:start`, dateToDay(Number(r.starts_at)), 'experiment_started', { code: 'experimentStarted', params: { name } }));
+      out.push(
+        base(
+          `k:exp:${String(r.item_id)}:start`,
+          dateToDay(Number(r.starts_at)),
+          'experiment_started',
+          { code: 'experimentStarted', params: { name } },
+        ),
+      );
     if (r.ends_at !== null && r.ends_at !== undefined)
-      out.push(base(`k:exp:${String(r.item_id)}:end`, dateToDay(Number(r.ends_at)), 'experiment_ended', { code: 'experimentEnded', params: { name } }));
+      out.push(
+        base(`k:exp:${String(r.item_id)}:end`, dateToDay(Number(r.ends_at)), 'experiment_ended', {
+          code: 'experimentEnded',
+          params: { name },
+        }),
+      );
   }
   const notes = await sql.query(
     `SELECT id, name, started_on, ended_on FROM store_experiment_notes WHERE app_id = ? AND workspace_id = ? AND kind = 'experiment'`,
@@ -148,8 +189,20 @@ export async function kilnEvents(
   );
   for (const r of notes) {
     const name = clip(r.name, 80);
-    if (r.started_on) out.push(base(`k:note:${String(r.id)}:start`, String(r.started_on), 'experiment_started', { code: 'experimentStarted', params: { name } }));
-    if (r.ended_on) out.push(base(`k:note:${String(r.id)}:end`, String(r.ended_on), 'experiment_ended', { code: 'experimentEnded', params: { name } }));
+    if (r.started_on)
+      out.push(
+        base(`k:note:${String(r.id)}:start`, String(r.started_on), 'experiment_started', {
+          code: 'experimentStarted',
+          params: { name },
+        }),
+      );
+    if (r.ended_on)
+      out.push(
+        base(`k:note:${String(r.id)}:end`, String(r.ended_on), 'experiment_ended', {
+          code: 'experimentEnded',
+          params: { name },
+        }),
+      );
   }
 
   // The live listing text changed in the store after it was first read: a change Kiln did not make (or made and read back).
@@ -166,7 +219,10 @@ export async function kilnEvents(
     const day = dateToDay(Number(r.observed_at));
     perDay.set(day, (perDay.get(day) ?? 0) + 1);
   }
-  for (const [day, count] of perDay) out.push(base(`k:drift:${day}`, day, 'listing_drift', { code: 'listingDrift', params: { count } }));
+  for (const [day, count] of perDay)
+    out.push(
+      base(`k:drift:${day}`, day, 'listing_drift', { code: 'listingDrift', params: { count } }),
+    );
 
   // A followed App Store competitor changed its public listing (docs/adr/0056-competitor-listing-watch.md): one event per competitor and day.
   // Rating drift alone is not an event. The kinds are codes; the screens translate them.
@@ -180,12 +236,18 @@ export async function kilnEvents(
     const day = dateToDay(Number(r.detected_at));
     const key = `${String(r.competitor_id)}:${day}`;
     const entry = rivalDays.get(key) ?? { name: clip(r.name, 80), day, kinds: new Set<string>() };
-    for (const kind of String(r.kinds).split(',')) if (kind !== '' && kind !== 'rating' && kind !== 'ratingCount') entry.kinds.add(kind);
+    for (const kind of String(r.kinds).split(','))
+      if (kind !== '' && kind !== 'rating' && kind !== 'ratingCount') entry.kinds.add(kind);
     rivalDays.set(key, entry);
   }
   for (const [key, e] of rivalDays) {
     if (e.kinds.size === 0) continue;
-    out.push(base(`k:rival:${key}`, e.day, 'competitor_change', { code: 'competitorChange', params: { name: e.name, kinds: Array.from(e.kinds).join(',') } }));
+    out.push(
+      base(`k:rival:${key}`, e.day, 'competitor_change', {
+        code: 'competitorChange',
+        params: { name: e.name, kinds: Array.from(e.kinds).join(',') },
+      }),
+    );
   }
   return out;
 }
@@ -204,7 +266,11 @@ const manualOf = (r: Row): TimelineEvent => ({
   waitsForRelease: false,
 });
 
-export async function manualEvents(sql: Sql, workspaceId: string, appId: string): Promise<TimelineEvent[]> {
+export async function manualEvents(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<TimelineEvent[]> {
   const rows = await sql.query(
     'SELECT id, kind, day, title, note FROM timeline_events WHERE workspace_id = ? AND app_id = ? ORDER BY day DESC, id LIMIT ?',
     [workspaceId, appId, MAX_EVENTS_PER_APP],
@@ -213,23 +279,61 @@ export async function manualEvents(sql: Sql, workspaceId: string, appId: string)
 }
 
 export const countManual = async (sql: Sql, workspaceId: string, appId: string): Promise<number> =>
-  Number((await sql.query('SELECT COUNT(*) AS n FROM timeline_events WHERE workspace_id = ? AND app_id = ?', [workspaceId, appId]))[0]?.n ?? 0);
+  Number(
+    (
+      await sql.query(
+        'SELECT COUNT(*) AS n FROM timeline_events WHERE workspace_id = ? AND app_id = ?',
+        [workspaceId, appId],
+      )
+    )[0]?.n ?? 0,
+  );
 
 export async function insertManual(
   sql: Sql,
-  input: { workspaceId: string; appId: string; actorId: string; at: number; event: z.infer<typeof createEventBody> },
+  input: {
+    workspaceId: string;
+    appId: string;
+    actorId: string;
+    at: number;
+    event: z.infer<typeof createEventBody>;
+  },
 ): Promise<TimelineEvent> {
   const id = randomUUID();
   await sql.execute(
     `INSERT INTO timeline_events (id, workspace_id, app_id, kind, day, title, note, created_by, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, input.workspaceId, input.appId, input.event.kind, input.event.day, input.event.title, input.event.note ?? '', input.actorId, input.at, input.at],
+    [
+      id,
+      input.workspaceId,
+      input.appId,
+      input.event.kind,
+      input.event.day,
+      input.event.title,
+      input.event.note ?? '',
+      input.actorId,
+      input.at,
+      input.at,
+    ],
   );
-  return manualOf({ id, kind: input.event.kind, day: input.event.day, title: input.event.title, note: input.event.note ?? '' });
+  return manualOf({
+    id,
+    kind: input.event.kind,
+    day: input.event.day,
+    title: input.event.title,
+    note: input.event.note ?? '',
+  });
 }
 
-export async function getManual(sql: Sql, workspaceId: string, appId: string, id: string): Promise<TimelineEvent | undefined> {
-  const rows = await sql.query('SELECT id, kind, day, title, note FROM timeline_events WHERE workspace_id = ? AND app_id = ? AND id = ?', [workspaceId, appId, id]);
+export async function getManual(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+  id: string,
+): Promise<TimelineEvent | undefined> {
+  const rows = await sql.query(
+    'SELECT id, kind, day, title, note FROM timeline_events WHERE workspace_id = ? AND app_id = ? AND id = ?',
+    [workspaceId, appId, id],
+  );
   return rows[0] ? manualOf(rows[0]) : undefined;
 }
 
@@ -239,10 +343,27 @@ export async function saveManual(
 ): Promise<void> {
   await sql.execute(
     'UPDATE timeline_events SET kind = ?, day = ?, title = ?, note = ?, updated_at = ? WHERE workspace_id = ? AND app_id = ? AND id = ?',
-    [input.event.kind, input.event.day, input.event.title ?? '', input.event.note ?? '', input.at, input.workspaceId, input.appId, input.id],
+    [
+      input.event.kind,
+      input.event.day,
+      input.event.title ?? '',
+      input.event.note ?? '',
+      input.at,
+      input.workspaceId,
+      input.appId,
+      input.id,
+    ],
   );
 }
 
-export async function deleteManual(sql: Sql, workspaceId: string, appId: string, id: string): Promise<number> {
-  return sql.execute('DELETE FROM timeline_events WHERE workspace_id = ? AND app_id = ? AND id = ?', [workspaceId, appId, id]);
+export async function deleteManual(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+  id: string,
+): Promise<number> {
+  return sql.execute(
+    'DELETE FROM timeline_events WHERE workspace_id = ? AND app_id = ? AND id = ?',
+    [workspaceId, appId, id],
+  );
 }

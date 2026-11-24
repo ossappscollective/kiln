@@ -822,12 +822,8 @@ export async function pullStoreListing(
     };
   }
   const base = common();
-  if (!base || !plan) return failure(
-    422,
-    'no_changes',
-    'Nothing to pull.',
-    coded('listing.nothingToPull'),
-  );
+  if (!base || !plan)
+    return failure(422, 'no_changes', 'Nothing to pull.', coded('listing.nothingToPull'));
   return {
     ok: true,
     result: {
@@ -984,12 +980,8 @@ export async function planRecompute(
   );
   if (!computed.ok) return computed;
   const { plan, target } = state;
-  if (!plan || !target) return failure(
-    422,
-    'no_changes',
-    'Nothing to pull.',
-    coded('listing.nothingToPull'),
-  );
+  if (!plan || !target)
+    return failure(422, 'no_changes', 'Nothing to pull.', coded('listing.nothingToPull'));
   const { live, channel, refreshed } = prepared.prepared;
   const warnings: string[] = [...computed.warnings];
   if (live.error) {

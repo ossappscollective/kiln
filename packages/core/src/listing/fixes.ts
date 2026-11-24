@@ -11,10 +11,22 @@
 import { APP_STORE_KEYWORD_BYTES, languageOf, matchWords } from '../aso/aso.ts';
 import { type CheckCode, type CheckIssue, checkListing } from '../insights/listing-checks.ts';
 import { isStageableTextField } from './staged-changes.ts';
-import { APP_STORE_FIELD_SPECS, countBytes, countCharacters, type ListingStore, PLAY_FIELD_SPECS } from './listing.ts';
+import {
+  APP_STORE_FIELD_SPECS,
+  countBytes,
+  countCharacters,
+  type ListingStore,
+  PLAY_FIELD_SPECS,
+} from './listing.ts';
 import { type Platform } from '../platform.ts';
 
-export type FixId = 'keywords_tidy' | 'keywords_drop_in_title' | 'keywords_fit' | 'text_tidy' | 'shorten_ai' | 'edit_field';
+export type FixId =
+  | 'keywords_tidy'
+  | 'keywords_drop_in_title'
+  | 'keywords_fit'
+  | 'text_tidy'
+  | 'shorten_ai'
+  | 'edit_field';
 
 /** `stage`: `after` is complete and can be staged as it is. `ai_shorten`: `after` is null; a proposal from the AI, accepted by a person. `edit_field`: open the editor. */
 export type ListingFixKind = 'stage' | 'ai_shorten' | 'edit_field';
@@ -65,10 +77,16 @@ const KEY = {
   edit: 'listing:fix.editField',
 };
 
-const specOf = (store: ListingStore, field: string): { maxLength?: number; unit: 'characters' | 'bytes' } | undefined =>
-  (store === 'app_store' ? (APP_STORE_FIELD_SPECS as Record<string, never>) : (PLAY_FIELD_SPECS as Record<string, never>))[field];
+const specOf = (
+  store: ListingStore,
+  field: string,
+): { maxLength?: number; unit: 'characters' | 'bytes' } | undefined =>
+  (store === 'app_store'
+    ? (APP_STORE_FIELD_SPECS as Record<string, never>)
+    : (PLAY_FIELD_SPECS as Record<string, never>))[field];
 
-const lengthIn = (unit: 'characters' | 'bytes', text: string): number => (unit === 'bytes' ? countBytes(text) : countCharacters(text));
+const lengthIn = (unit: 'characters' | 'bytes', text: string): number =>
+  unit === 'bytes' ? countBytes(text) : countCharacters(text);
 
 /** The terms of an Apple keyword field: split on commas, white space collapsed, empty terms gone. Repeats are kept (the caller decides). */
 export function keywordTerms(value: string): string[] {
@@ -87,7 +105,10 @@ const termKey = (term: string, language: string): string => {
 };
 
 /** Hygiene: trim, collapse spaces, drop empty terms and trailing commas, drop a term seen before (the first stays). Joined with a comma and no space. */
-export function tidyKeywords(value: string, language: string): { value: string; removed: string[] } {
+export function tidyKeywords(
+  value: string,
+  language: string,
+): { value: string; removed: string[] } {
   const seen = new Set<string>();
   const keep: string[] = [];
   const removed: string[] = [];
@@ -104,7 +125,11 @@ export function tidyKeywords(value: string, language: string): { value: string; 
 }
 
 /** The words the name and the subtitle already index. */
-const knownWords = (name: string | undefined, subtitle: string | undefined, language: string): Set<string> =>
+const knownWords = (
+  name: string | undefined,
+  subtitle: string | undefined,
+  language: string,
+): Set<string> =>
   new Set<string>(matchWords(name, language).concat(matchWords(subtitle, language)));
 
 const inTitle = (term: string, known: Set<string>, language: string): boolean => {
@@ -118,7 +143,12 @@ const inTitle = (term: string, known: Set<string>, language: string): boolean =>
  */
 export function fitKeywords(
   value: string,
-  options: { language: string; name?: string | undefined; subtitle?: string | undefined; maxBytes?: number },
+  options: {
+    language: string;
+    name?: string | undefined;
+    subtitle?: string | undefined;
+    maxBytes?: number;
+  },
 ): { value: string; removed: string[] } | null {
   const max = options.maxBytes ?? APP_STORE_KEYWORD_BYTES;
   const tidy = tidyKeywords(value, options.language);
@@ -149,9 +179,18 @@ export function tidyText(value: string): string {
 }
 
 /** The findings of `field` after `fields` replaced it with `after`: used to confirm that a fix settles what it says it settles. */
-function stillFailing(input: FixInput, field: string, after: string, codes: readonly CheckCode[]): boolean {
+function stillFailing(
+  input: FixInput,
+  field: string,
+  after: string,
+  codes: readonly CheckCode[],
+): boolean {
   const fields = { ...input.fields, [field]: after };
-  const res = checkListing({ store: input.store, locales: [{ locale: input.locale, fields }], baseLocale: input.locale });
+  const res = checkListing({
+    store: input.store,
+    locales: [{ locale: input.locale, fields }],
+    baseLocale: input.locale,
+  });
   const issues = res.locales[0]?.issues ?? [];
   return issues.some((i) => i.field === field && codes.indexOf(i.code) >= 0);
 }
@@ -162,19 +201,36 @@ export function analyzeFixes(input: FixInput): FixAnalysis {
   const language = languageOf(locale);
   const fixes: Fix[] = [];
   const cannot: UnfixableIssue[] = [];
-  const res = checkListing({ store, locales: [{ locale, fields: input.fields }], baseLocale: locale });
+  const res = checkListing({
+    store,
+    locales: [{ locale, fields: input.fields }],
+    baseLocale: locale,
+  });
   const issues: CheckIssue[] = res.locales[0]?.issues ?? [];
-  const has = (code: CheckCode, field: string) => issues.some((i) => i.code === code && i.field === field);
+  const has = (code: CheckCode, field: string) =>
+    issues.some((i) => i.code === code && i.field === field);
   const text = (field: string) => input.fields[field] ?? '';
   const stageableField = (field: string) => isStageableTextField(input.platform, field);
-  const base = { locale, removed: [] as string[], limit: null as number | null, unit: 'characters' as const };
+  const base = {
+    locale,
+    removed: [] as string[],
+    limit: null as number | null,
+    unit: 'characters' as const,
+  };
 
   // Apple keyword field.
   if (store === 'app_store' && text('keywords') !== '') {
     const before = text('keywords');
     const spec = specOf(store, 'keywords');
     const limit = spec?.maxLength ?? APP_STORE_KEYWORD_BYTES;
-    const mk = (id: FixId, labelKey: string, after: string, removed: string[], risk: FixRisk, resolves: CheckCode[]): Fix => ({
+    const mk = (
+      id: FixId,
+      labelKey: string,
+      after: string,
+      removed: string[],
+      risk: FixRisk,
+      resolves: CheckCode[],
+    ): Fix => ({
       ...base,
       id,
       labelKey,
@@ -194,7 +250,8 @@ export function analyzeFixes(input: FixInput): FixAnalysis {
     const tidyOk = tidy.value !== '' && tidy.value !== before;
     if (tidyOk) {
       const resolves = present(['keywords_spaces', 'keywords_duplicate']);
-      if (!stillFailing(input, 'keywords', tidy.value, resolves)) fixes.push(mk('keywords_tidy', KEY.tidy, tidy.value, tidy.removed, 'safe', resolves));
+      if (!stillFailing(input, 'keywords', tidy.value, resolves))
+        fixes.push(mk('keywords_tidy', KEY.tidy, tidy.value, tidy.removed, 'safe', resolves));
     }
     if (has('keywords_in_title', 'keywords')) {
       const known = knownWords(text('name'), text('subtitle'), language);
@@ -204,13 +261,28 @@ export function analyzeFixes(input: FixInput): FixAnalysis {
       const after = kept.join(',');
       const resolves = present(['keywords_in_title', 'keywords_spaces', 'keywords_duplicate']);
       if (after !== '' && after !== before && !stillFailing(input, 'keywords', after, resolves)) {
-        fixes.push(mk('keywords_drop_in_title', KEY.dropInTitle, after, tidy.removed.concat(dropped), 'review', resolves));
+        fixes.push(
+          mk(
+            'keywords_drop_in_title',
+            KEY.dropInTitle,
+            after,
+            tidy.removed.concat(dropped),
+            'review',
+            resolves,
+          ),
+        );
       }
     }
     if (has('too_long', 'keywords')) {
-      const fit = fitKeywords(before, { language, name: text('name'), subtitle: text('subtitle'), maxBytes: limit });
+      const fit = fitKeywords(before, {
+        language,
+        name: text('name'),
+        subtitle: text('subtitle'),
+        maxBytes: limit,
+      });
       const resolves: CheckCode[] = ['too_long'];
-      if (fit && !stillFailing(input, 'keywords', fit.value, resolves)) fixes.push(mk('keywords_fit', KEY.fit, fit.value, fit.removed, 'review', resolves));
+      if (fit && !stillFailing(input, 'keywords', fit.value, resolves))
+        fixes.push(mk('keywords_fit', KEY.fit, fit.value, fit.removed, 'review', resolves));
       else cannot.push({ locale, field: 'keywords', code: 'too_long' });
     }
   }
@@ -222,17 +294,64 @@ export function analyzeFixes(input: FixInput): FixAnalysis {
     const spec = specOf(store, field);
     const unit = spec?.unit ?? 'characters';
     const limit = spec?.maxLength ?? null;
-    const common = { ...base, field, limit, unit, stageable: stageableField(field), before: text(field) };
-    if (issue.code === 'empty' && (field === 'name' || field === 'title' || field === 'description' || field === 'full_description' || field === 'short_description')) {
-      fixes.push({ ...common, id: 'edit_field', labelKey: KEY.edit, kind: 'edit_field', after: null, risk: 'safe', resolves: ['empty'] });
+    const common = {
+      ...base,
+      field,
+      limit,
+      unit,
+      stageable: stageableField(field),
+      before: text(field),
+    };
+    if (
+      issue.code === 'empty' &&
+      (field === 'name' ||
+        field === 'title' ||
+        field === 'description' ||
+        field === 'full_description' ||
+        field === 'short_description')
+    ) {
+      fixes.push({
+        ...common,
+        id: 'edit_field',
+        labelKey: KEY.edit,
+        kind: 'edit_field',
+        after: null,
+        risk: 'safe',
+        resolves: ['empty'],
+      });
     } else if (issue.code === 'too_long') {
       const tidy = tidyText(text(field));
-      const fits = limit !== null && tidy !== text(field) && tidy !== '' && lengthIn(unit, tidy) <= limit;
+      const fits =
+        limit !== null && tidy !== text(field) && tidy !== '' && lengthIn(unit, tidy) <= limit;
       if (fits && !stillFailing(input, field, tidy, ['too_long'])) {
-        fixes.push({ ...common, id: 'text_tidy', labelKey: KEY.textTidy, kind: 'stage', after: tidy, risk: 'review', resolves: ['too_long'] });
+        fixes.push({
+          ...common,
+          id: 'text_tidy',
+          labelKey: KEY.textTidy,
+          kind: 'stage',
+          after: tidy,
+          risk: 'review',
+          resolves: ['too_long'],
+        });
       } else {
-        fixes.push({ ...common, id: 'shorten_ai', labelKey: KEY.shorten, kind: 'ai_shorten', after: null, risk: 'review', resolves: ['too_long'] });
-        fixes.push({ ...common, id: 'edit_field', labelKey: KEY.edit, kind: 'edit_field', after: null, risk: 'safe', resolves: ['too_long'] });
+        fixes.push({
+          ...common,
+          id: 'shorten_ai',
+          labelKey: KEY.shorten,
+          kind: 'ai_shorten',
+          after: null,
+          risk: 'review',
+          resolves: ['too_long'],
+        });
+        fixes.push({
+          ...common,
+          id: 'edit_field',
+          labelKey: KEY.edit,
+          kind: 'edit_field',
+          after: null,
+          risk: 'safe',
+          resolves: ['too_long'],
+        });
       }
     }
   }
@@ -242,7 +361,14 @@ export function analyzeFixes(input: FixInput): FixAnalysis {
 /** The fixes for one locale (see `analyzeFixes` for what could not be fixed on its own). */
 export const proposeFixes = (input: FixInput): Fix[] => analyzeFixes(input).fixes;
 
-const RANK: Record<FixId, number> = { keywords_fit: 5, keywords_drop_in_title: 4, keywords_tidy: 3, text_tidy: 3, shorten_ai: 2, edit_field: 1 };
+const RANK: Record<FixId, number> = {
+  keywords_fit: 5,
+  keywords_drop_in_title: 4,
+  keywords_tidy: 3,
+  text_tidy: 3,
+  shorten_ai: 2,
+  edit_field: 1,
+};
 
 /**
  * "Fix all": for each field the one fix that does the most and can be staged as it is (a `stage` fix); fields with only `ai_shorten` or `edit_field`

@@ -131,7 +131,13 @@ export async function syncExperiments(
     return f;
   };
 
-  const connected = await connect(ctx, input.workspaceId, app, EXPERIMENTS_SYNC_PURPOSE, input.actor);
+  const connected = await connect(
+    ctx,
+    input.workspaceId,
+    app,
+    EXPERIMENTS_SYNC_PURPOSE,
+    input.actor,
+  );
   if (!connected.ok) return failed(connected, true);
   const { connection } = connected;
   let result: Awaited<ReturnType<typeof readAll>>;

@@ -131,7 +131,10 @@ export async function probeMissingSizes(
       const address =
         image.url === null
           ? null
-          : imageUrlOf({ url: image.url, urlKind: 'play_url', width: null, height: null }, { original: true });
+          : imageUrlOf(
+              { url: image.url, urlKind: 'play_url', width: null, height: null },
+              { original: true },
+            );
       const got = address === null ? null : await probeStoreImage(ctx.net, address);
       if (!got) {
         failed += 1;
@@ -257,8 +260,7 @@ function build(
       width: image.width,
       height: image.height,
       bytes: image.bytes,
-      sizeFrom:
-        image.width === null || image.height === null ? null : (image.sizeFrom ?? 'store'),
+      sizeFrom: image.width === null || image.height === null ? null : (image.sizeFrom ?? 'store'),
       checksum: image.checksum,
       checksumKind: image.checksumKind,
       state: image.state,

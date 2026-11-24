@@ -22,8 +22,15 @@ export async function sendDueChatDigests(db: Database, at: number): Promise<Chat
     "SELECT id, workspace_id, provider, locale, digest_hour, timezone, last_digest_at FROM chat_destinations WHERE enabled = 1 AND digest = 'daily'",
   );
   for (const g of destinations) {
-    const last = g.last_digest_at === null || g.last_digest_at === undefined ? null : Number(g.last_digest_at);
-    if (!digestDue({ mode: 'daily', hour: Number(g.digest_hour), timezone: String(g.timezone), lastAt: last }, at)) continue;
+    const last =
+      g.last_digest_at === null || g.last_digest_at === undefined ? null : Number(g.last_digest_at);
+    if (
+      !digestDue(
+        { mode: 'daily', hour: Number(g.digest_hour), timezone: String(g.timezone), lastAt: last },
+        at,
+      )
+    )
+      continue;
     summary.due++;
     const workspaceId = String(g.workspace_id);
     const destinationId = String(g.id);
@@ -68,7 +75,10 @@ export async function sendDueChatDigests(db: Database, at: number): Promise<Chat
         );
         summary.sent++;
       }
-      await tx.execute('UPDATE chat_destinations SET last_digest_at = ? WHERE id = ?', [at, destinationId]);
+      await tx.execute('UPDATE chat_destinations SET last_digest_at = ? WHERE id = ?', [
+        at,
+        destinationId,
+      ]);
     });
   }
   // The log keeps 30 days of finished messages.
@@ -78,4 +88,3 @@ export async function sendDueChatDigests(db: Database, at: number): Promise<Chat
   );
   return summary;
 }
-

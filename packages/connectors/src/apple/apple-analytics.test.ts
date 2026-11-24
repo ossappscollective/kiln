@@ -316,7 +316,16 @@ test('sales: an HTTP 400 about the vendor number is vendor_number_invalid; about
   const bad = (date: string, parameter: string) =>
     fake.on('GET', (url) => url.pathname === '/v1/salesReports' && url.search.includes(date), {
       status: 400,
-      json: { errors: [{ code: 'PARAMETER_ERROR.INVALID', title: 'A parameter has an invalid value', detail: `Invalid value for ${parameter}`, source: { parameter } }] },
+      json: {
+        errors: [
+          {
+            code: 'PARAMETER_ERROR.INVALID',
+            title: 'A parameter has an invalid value',
+            detail: `Invalid value for ${parameter}`,
+            source: { parameter },
+          },
+        ],
+      },
     });
   bad('2026-11-10', 'filter[vendorNumber]');
   bad('2026-11-11', 'filter[reportDate]');

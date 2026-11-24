@@ -94,7 +94,11 @@ export const isStoreOnly = (): boolean => storeOnly;
 
 export const cellInfo = (status: CellStatus): CellInfo =>
   status === 'sync' && storeOnly
-    ? { ...INFO.sync, label: t('listing:matrix.cell.fine'), short: t('listing:matrix.cellShort.fine') }
+    ? {
+        ...INFO.sync,
+        label: t('listing:matrix.cell.fine'),
+        short: t('listing:matrix.cellShort.fine'),
+      }
     : { ...INFO[status], label: t(INFO[status].label), short: t(INFO[status].short) };
 
 const cellLabel = (status: CellStatus): string => cellInfo(status).label;

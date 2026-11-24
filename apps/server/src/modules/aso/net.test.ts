@@ -45,7 +45,11 @@ const appleReply = (...ids: number[]) => ({
 });
 
 test('the fetch goes to three hosts only, with the identifying User-Agent, and to the checked address', async () => {
-  assert.deepEqual([...ASO_HOSTS].sort(), ['itunes.apple.com', 'play.google.com', 'search.itunes.apple.com']);
+  assert.deepEqual([...ASO_HOSTS].sort(), [
+    'itunes.apple.com',
+    'play.google.com',
+    'search.itunes.apple.com',
+  ]);
   const s = scripted([reply({ body: body('{"resultCount":0,"results":[]}') })]);
   const doFetch = createAsoFetch({ resolve: publicResolve, exchange: s.exchange });
   const res = await doFetch('https://itunes.apple.com/search?term=a', {
@@ -317,18 +321,32 @@ test('errors carry no term and no address', async () => {
 });
 
 test('Apple hints: one request to the hints host with the storefront header, cached; the search keeps the rating counts', async () => {
-  const plist = '<plist><dict><key>hints</key><array><dict><key>term</key><string>habit tracker</string></dict></array></dict></plist>';
+  const plist =
+    '<plist><dict><key>hints</key><array><dict><key>term</key><string>habit tracker</string></dict></array></dict></plist>';
   const m = makeSources([
     reply({ body: new TextEncoder().encode(plist) }),
-    reply({ body: body({ resultCount: 1, results: [{ ...appleApp(7, 'App 7'), userRatingCount: 1234 }] }) }),
+    reply({
+      body: body({ resultCount: 1, results: [{ ...appleApp(7, 'App 7'), userRatingCount: 1234 }] }),
+    }),
   ]);
   const first = await m.sources.hints?.({ term: 'Habit Tracker', country: 'de' });
   assert.deepEqual(first, { hints: ['habit tracker'], cached: false });
   assert.equal((await m.sources.hints?.({ term: 'habit tracker', country: 'de' }))?.cached, true);
   assert.equal(m.seen.length, 1);
-  assert.match(m.seen[0]?.url ?? '', /^https:\/\/search\.itunes\.apple\.com\/WebObjects\/MZSearchHints\.woa\/wa\/hints\?clientApplication=Software&term=Habit%20Tracker$/);
+  assert.match(
+    m.seen[0]?.url ?? '',
+    /^https:\/\/search\.itunes\.apple\.com\/WebObjects\/MZSearchHints\.woa\/wa\/hints\?clientApplication=Software&term=Habit%20Tracker$/,
+  );
   assert.equal(m.seen[0]?.headers['x-apple-store-front'], '143443-1,29');
-  const found = await m.sources.search({ platform: 'ios', term: 'x', country: 'us', locale: 'en-US', limit: 10 });
+  const found = await m.sources.search({
+    platform: 'ios',
+    term: 'x',
+    country: 'us',
+    locale: 'en-US',
+    limit: 10,
+  });
   assert.equal(found.hits[0]?.ratingCount, 1234);
-  await assert.rejects(() => m.sources.hints?.({ term: 'x', country: 'zz' }) ?? Promise.resolve(), { kind: 'invalid_input' });
+  await assert.rejects(() => m.sources.hints?.({ term: 'x', country: 'zz' }) ?? Promise.resolve(), {
+    kind: 'invalid_input',
+  });
 });

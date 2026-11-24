@@ -67,7 +67,8 @@ export function startForm(form: StartForm): {
   for (const p of parsed.problems) {
     if (!(tooMany && p === tooManyText)) problems.push(p);
   }
-  if (tooMany) problems.push(t('eas:workflows.problem.tooManyInputs', { max: MAX_DISPATCH_INPUTS }));
+  if (tooMany)
+    problems.push(t('eas:workflows.problem.tooManyInputs', { max: MAX_DISPATCH_INPUTS }));
   if (problems.length > 0) return { problems, body: null };
   return {
     problems,

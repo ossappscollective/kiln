@@ -5,14 +5,14 @@ stored copy and triaged in Kiln. Decision: [ADR 0049](../adr/0049-testflight-fee
 All routes are under `/api/workspaces/{workspaceId}/apps/{appId}/testflight`. **Nothing here writes to Apple.** Google Play apps answer
 `422 testflight_not_supported`.
 
-| Operation | Route | Needs |
-| --- | --- | --- |
-| `listTestflightFeedback` | `GET /testflight` | `reviews.read` |
-| `getTestflightCrashGroups` | `GET /testflight/crash-groups` | `reviews.read` |
-| `getTestflightItem` | `GET /testflight/{id}` | `reviews.read` |
+| Operation                  | Route                              | Needs                                                    |
+| -------------------------- | ---------------------------------- | -------------------------------------------------------- |
+| `listTestflightFeedback`   | `GET /testflight`                  | `reviews.read`                                           |
+| `getTestflightCrashGroups` | `GET /testflight/crash-groups`     | `reviews.read`                                           |
+| `getTestflightItem`        | `GET /testflight/{id}`             | `reviews.read`                                           |
 | `getTestflightScreenshots` | `GET /testflight/{id}/screenshots` | `reviews.read` (rate limited, `Cache-Control: no-store`) |
-| `syncTestflightFeedback` | `POST /testflight/sync` | `reviews.sync` (the per-workspace app-sync budget) |
-| `triageTestflightItem` | `PATCH /testflight/{id}` | `reviews.triage` |
+| `syncTestflightFeedback`   | `POST /testflight/sync`            | `reviews.sync` (the per-workspace app-sync budget)       |
+| `triageTestflightItem`     | `PATCH /testflight/{id}`           | `reviews.triage`                                         |
 
 ## Reading
 

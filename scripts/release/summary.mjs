@@ -33,7 +33,11 @@ export function summary(env) {
 
   out.push('### Desktop installers', '');
   const rows = [];
-  const folders = existsSync(dir) ? readdirSync(dir).filter((n) => n.startsWith('desktop-')).sort() : [];
+  const folders = existsSync(dir)
+    ? readdirSync(dir)
+        .filter((n) => n.startsWith('desktop-'))
+        .sort()
+    : [];
   for (const folder of folders) {
     const key = folder.slice('desktop-'.length);
     let signing = 'unknown';
@@ -43,7 +47,9 @@ export function summary(env) {
     for (const name of readdirSync(join(dir, folder)).sort()) {
       const path = join(dir, folder, name);
       const sha = createHash('sha256').update(readFileSync(path)).digest('hex');
-      rows.push(`| \`${name}\` | ${mb(statSync(path).size)} | ${signing} | \`${sha.slice(0, 16)}...\` |`);
+      rows.push(
+        `| \`${name}\` | ${mb(statSync(path).size)} | ${signing} | \`${sha.slice(0, 16)}...\` |`,
+      );
     }
   }
   if (rows.length === 0) {
@@ -61,9 +67,13 @@ export function summary(env) {
 
   out.push('### Docker image', '');
   if (env.DOCKER_DIGEST) {
-    out.push(`Pushed \`${env.IMAGE}\` (linux/amd64, linux/arm64), digest \`${env.DOCKER_DIGEST}\`.`);
+    out.push(
+      `Pushed \`${env.IMAGE}\` (linux/amd64, linux/arm64), digest \`${env.DOCKER_DIGEST}\`.`,
+    );
   } else if (results['docker-oci'] === 'success') {
-    out.push('Built for linux/amd64 and linux/arm64 and exported as the `docker-oci` artifact (OCI tar). Not pushed.');
+    out.push(
+      'Built for linux/amd64 and linux/arm64 and exported as the `docker-oci` artifact (OCI tar). Not pushed.',
+    );
   } else if (results['docker-smoke']) {
     out.push(`No image output (smoke test: ${results['docker-smoke']}).`);
   } else {

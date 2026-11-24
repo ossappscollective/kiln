@@ -53,7 +53,8 @@ export function chatRoutes(ctx: ChatRoutesContext) {
   };
   const small = bodyLimit({
     maxSize: CHAT_BODY_LIMIT,
-    onError: (c) => c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413),
+    onError: (c) =>
+      c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413),
   });
   const fail = (c: Context<AppEnv>, f: ChatFailure) =>
     c.json({ error: f.error, message: f.message, ...codingOf(f) }, f.status);
@@ -78,14 +79,22 @@ export function chatRoutes(ctx: ChatRoutesContext) {
   app.patch('/:workspaceId/chat/destinations/:id', needs('chat.manage'), small, async (c) => {
     const body = await parseBody(c, updateDestinationBody);
     if (!body.ok) return body.response;
-    const done = await updateDestination(ctx, { workspaceId: ws(c), id: param(c, 'id'), ...body.data }, actor(c));
+    const done = await updateDestination(
+      ctx,
+      { workspaceId: ws(c), id: param(c, 'id'), ...body.data },
+      actor(c),
+    );
     return done.ok ? c.json({ destination: done.destination }) : fail(c, done);
   });
 
   app.put('/:workspaceId/chat/destinations/:id/routes', needs('chat.manage'), small, async (c) => {
     const body = await parseBody(c, routesBody);
     if (!body.ok) return body.response;
-    const done = await replaceRoutes(ctx, { workspaceId: ws(c), id: param(c, 'id'), routes: body.data.routes }, actor(c));
+    const done = await replaceRoutes(
+      ctx,
+      { workspaceId: ws(c), id: param(c, 'id'), routes: body.data.routes },
+      actor(c),
+    );
     return done.ok ? c.json({ destination: done.destination }) : fail(c, done);
   });
 
@@ -118,7 +127,12 @@ export function chatRoutes(ctx: ChatRoutesContext) {
     const limit = queryInt(c.req.query('limit'), { fallback: 20, max: MAX_DELIVERIES_LIMIT });
     if (limit === undefined) {
       return c.json(
-        { error: 'invalid_request', issues: [{ path: 'limit', message: `Use a whole number from 1 to ${MAX_DELIVERIES_LIMIT}.` }] },
+        {
+          error: 'invalid_request',
+          issues: [
+            { path: 'limit', message: `Use a whole number from 1 to ${MAX_DELIVERIES_LIMIT}.` },
+          ],
+        },
         400,
       );
     }

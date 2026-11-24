@@ -101,7 +101,9 @@ dbTest(
       '{}',
     );
 
-    await db.execute(`INSERT INTO store_experiments_sync (app_id, workspace_id) VALUES ('a1', 'w1')`);
+    await db.execute(
+      `INSERT INTO store_experiments_sync (app_id, workspace_id) VALUES ('a1', 'w1')`,
+    );
     const [sync] = await db.query(
       'SELECT failures, experiment_count, page_count, complete, warnings_json FROM store_experiments_sync',
     );

@@ -380,7 +380,8 @@ function classifyReleaseFailureBase(error: unknown, phase: 'preview' | 'release'
     kind: Exclude<ReleaseFailure['kind'], 'other' | 'blocked' | 'state_changed'>,
     text: Msg,
   ): ReleaseFailure => ({ kind, message: msgText(text), text });
-  if (!(error instanceof ApiError)) return fail('other', msg(k('release-store:rel.fail.request')), 'error');
+  if (!(error instanceof ApiError))
+    return fail('other', msg(k('release-store:rel.fail.request')), 'error');
   const message = bodyMessage(error);
   const raw = rawMsg(message);
   const code = error.code;
@@ -437,7 +438,10 @@ function classifyReleaseFailureBase(error: unknown, phase: 'preview' | 'release'
       return plain('outcome_unknown', withHint(raw));
     case 'write_failed':
       return body.outcome === 'not_applied'
-        ? plain('not_applied', msg(k('release-store:rel.fail.notApplied'), () => ({ message })))
+        ? plain(
+            'not_applied',
+            msg(k('release-store:rel.fail.notApplied'), () => ({ message })),
+          )
         : plain('outcome_unknown', withHint(raw));
     case 'changes_in_review':
       return fail('other', msg(k('release-store:rel.fail.changesInReview')), code);
@@ -461,13 +465,25 @@ function classifyReleaseFailureBase(error: unknown, phase: 'preview' | 'release'
     case 'store_forbidden':
     case 'store_not_found':
     case 'store_rejected':
-      return fail('other', msg(k('release-store:submit.fail.refused'), () => ({ message })), code);
+      return fail(
+        'other',
+        msg(k('release-store:submit.fail.refused'), () => ({ message })),
+        code,
+      );
     case 'store_unavailable':
-      return fail('other', msg(k('release-store:rel.fail.unavailable'), () => ({ message })), code);
+      return fail(
+        'other',
+        msg(k('release-store:rel.fail.unavailable'), () => ({ message })),
+        code,
+      );
     case 'timeout':
       return fail('other', msg(k('release-store:rel.fail.timeout')), code);
     case 'app_not_synced':
-      return fail('other', msg(k('release-store:submit.fail.syncFirst'), () => ({ message })), code);
+      return fail(
+        'other',
+        msg(k('release-store:submit.fail.syncFirst'), () => ({ message })),
+        code,
+      );
     default:
   }
   if (code.startsWith('credential_')) return fail('other', raw, code);

@@ -43,7 +43,11 @@ describe('plan', () => {
   });
 
   test('a manual run defaults to build-only on the selected ref', () => {
-    const { errors, outputs } = plan({ EVENT_NAME: 'workflow_dispatch', REF: 'refs/heads/main', REF_TYPE: 'branch' });
+    const { errors, outputs } = plan({
+      EVENT_NAME: 'workflow_dispatch',
+      REF: 'refs/heads/main',
+      REF_TYPE: 'branch',
+    });
     assert.deepEqual(errors, []);
     assert.equal(outputs.mode, 'build-only');
     assert.equal(outputs.release, 'false');
@@ -52,9 +56,18 @@ describe('plan', () => {
 
   test('release mode needs a v tag', () => {
     const base = { EVENT_NAME: 'workflow_dispatch', INPUT_MODE: 'release' };
-    assert.match(plan({ ...base, REF: 'refs/heads/main', REF_TYPE: 'branch' }).errors[0], /needs a vX\.Y\.Z tag/);
-    assert.match(plan({ ...base, REF: 'refs/tags/release-1', REF_TYPE: 'tag' }).errors[0], /does not start with "v"/);
-    assert.match(plan({ ...base, REF: 'refs/tags/v1.2', REF_TYPE: 'tag' }).errors[0], /not vX\.Y\.Z/);
+    assert.match(
+      plan({ ...base, REF: 'refs/heads/main', REF_TYPE: 'branch' }).errors[0],
+      /needs a vX\.Y\.Z tag/,
+    );
+    assert.match(
+      plan({ ...base, REF: 'refs/tags/release-1', REF_TYPE: 'tag' }).errors[0],
+      /does not start with "v"/,
+    );
+    assert.match(
+      plan({ ...base, REF: 'refs/tags/v1.2', REF_TYPE: 'tag' }).errors[0],
+      /not vX\.Y\.Z/,
+    );
     assert.deepEqual(plan({ ...base, REF: 'refs/tags/v1.2.3-rc.1', REF_TYPE: 'tag' }).errors, []);
   });
 
@@ -66,14 +79,21 @@ describe('plan', () => {
 
   test('the version override is only for build-only and must be valid', () => {
     const base = { EVENT_NAME: 'workflow_dispatch', REF: 'refs/heads/main' };
-    assert.equal(plan({ ...base, INPUT_VERSION: '1.2.3-rc.1' }).outputs.version_override, '1.2.3-rc.1');
+    assert.equal(
+      plan({ ...base, INPUT_VERSION: '1.2.3-rc.1' }).outputs.version_override,
+      '1.2.3-rc.1',
+    );
     assert.ok(plan({ ...base, INPUT_VERSION: 'banana' }).errors.length > 0);
-    assert.ok(plan({ ...base, INPUT_MODE: 'release', REF: 'refs/tags/v1.0.0', INPUT_VERSION: '1.0.0' }).errors.length > 0);
+    assert.ok(
+      plan({ ...base, INPUT_MODE: 'release', REF: 'refs/tags/v1.0.0', INPUT_VERSION: '1.0.0' })
+        .errors.length > 0,
+    );
   });
 
   test('platform subset, none, opt-in windows-arm64 and unknown names', () => {
     const base = { EVENT_NAME: 'workflow_dispatch', REF: 'refs/heads/main' };
-    const keys = (p) => JSON.parse(plan({ ...base, INPUT_PLATFORMS: p }).outputs.matrix).include.map((e) => e.key);
+    const keys = (p) =>
+      JSON.parse(plan({ ...base, INPUT_PLATFORMS: p }).outputs.matrix).include.map((e) => e.key);
     assert.deepEqual(keys('linux-x64, macos-arm64'), ['macos-arm64', 'linux-x64']);
     assert.deepEqual(keys('windows-arm64'), ['windows-arm64']);
     assert.equal(plan({ ...base, INPUT_PLATFORMS: 'none' }).outputs.desktop, 'false');
@@ -106,7 +126,14 @@ describe('collect', () => {
       'appimage/Kiln_1.2.3_aarch64.AppImage': 'a',
     });
     const out = join(tmp(), 'dist');
-    collect({ bundleDir, version: '1.2.3', os: 'linux', arch: 'arm64', bundles: ['deb', 'rpm', 'appimage'], out });
+    collect({
+      bundleDir,
+      version: '1.2.3',
+      os: 'linux',
+      arch: 'arm64',
+      bundles: ['deb', 'rpm', 'appimage'],
+      out,
+    });
     assert.deepEqual(readdirSync(out).sort(), [
       'kiln_1.2.3_linux_arm64.AppImage',
       'kiln_1.2.3_linux_arm64.deb',
@@ -115,26 +142,76 @@ describe('collect', () => {
   });
 
   test('Windows nsis setup exe and msi', () => {
-    const bundleDir = fakeBundle({ 'nsis/Kiln_1.2.3_x64-setup.exe': 'n', 'msi/Kiln_1.2.3_x64_en-US.msi': 'm' });
+    const bundleDir = fakeBundle({
+      'nsis/Kiln_1.2.3_x64-setup.exe': 'n',
+      'msi/Kiln_1.2.3_x64_en-US.msi': 'm',
+    });
     const out = join(tmp(), 'dist');
-    collect({ bundleDir, version: '1.2.3', os: 'windows', arch: 'x64', bundles: ['nsis', 'msi'], out });
-    assert.deepEqual(readdirSync(out).sort(), ['kiln_1.2.3_windows_x64.exe', 'kiln_1.2.3_windows_x64.msi']);
+    collect({
+      bundleDir,
+      version: '1.2.3',
+      os: 'windows',
+      arch: 'x64',
+      bundles: ['nsis', 'msi'],
+      out,
+    });
+    assert.deepEqual(readdirSync(out).sort(), [
+      'kiln_1.2.3_windows_x64.exe',
+      'kiln_1.2.3_windows_x64.msi',
+    ]);
   });
 
   test('macOS: dmg is copied and the .app is archived', () => {
-    const bundleDir = fakeBundle({ 'dmg/Kiln_1.2.3_aarch64.dmg': 'x', 'macos/Kiln.app/Contents/Info.plist': 'p' });
+    const bundleDir = fakeBundle({
+      'dmg/Kiln_1.2.3_aarch64.dmg': 'x',
+      'macos/Kiln.app/Contents/Info.plist': 'p',
+    });
     const out = join(tmp(), 'dist');
-    collect({ bundleDir, version: '1.2.3', os: 'macos', arch: 'arm64', bundles: ['app', 'dmg'], out });
-    assert.deepEqual(readdirSync(out).sort(), ['kiln_1.2.3_macos_arm64.app.tar.gz', 'kiln_1.2.3_macos_arm64.dmg']);
-    const list = spawnSync('tar', ['-tzf', join(out, 'kiln_1.2.3_macos_arm64.app.tar.gz')], { encoding: 'utf8' });
+    collect({
+      bundleDir,
+      version: '1.2.3',
+      os: 'macos',
+      arch: 'arm64',
+      bundles: ['app', 'dmg'],
+      out,
+    });
+    assert.deepEqual(readdirSync(out).sort(), [
+      'kiln_1.2.3_macos_arm64.app.tar.gz',
+      'kiln_1.2.3_macos_arm64.dmg',
+    ]);
+    const list = spawnSync('tar', ['-tzf', join(out, 'kiln_1.2.3_macos_arm64.app.tar.gz')], {
+      encoding: 'utf8',
+    });
     assert.match(list.stdout, /Kiln\.app\/Contents\/Info\.plist/);
   });
 
   test('a missing or ambiguous bundle fails', () => {
     const missing = fakeBundle({ 'deb/Kiln_1.2.3_amd64.deb': 'd' });
-    assert.throws(() => collect({ bundleDir: missing, version: '1', os: 'linux', arch: 'x64', bundles: ['deb', 'rpm'], out: tmp() }), /Expected one rpm/);
+    assert.throws(
+      () =>
+        collect({
+          bundleDir: missing,
+          version: '1',
+          os: 'linux',
+          arch: 'x64',
+          bundles: ['deb', 'rpm'],
+          out: tmp(),
+        }),
+      /Expected one rpm/,
+    );
     const two = fakeBundle({ 'deb/a.deb': 'd', 'deb/b.deb': 'd' });
-    assert.throws(() => collect({ bundleDir: two, version: '1', os: 'linux', arch: 'x64', bundles: ['deb'], out: tmp() }), /found 2/);
+    assert.throws(
+      () =>
+        collect({
+          bundleDir: two,
+          version: '1',
+          os: 'linux',
+          arch: 'x64',
+          bundles: ['deb'],
+          out: tmp(),
+        }),
+      /found 2/,
+    );
   });
 });
 
@@ -149,11 +226,24 @@ describe('notes', () => {
     writeFileSync(join(dir, 'kiln_1.2.3_windows_x64.exe'), 'x');
     writeFileSync(join(dir, 'kiln_1.2.3_linux_x64.AppImage'), 'x');
     writeFileSync(join(dir, 'SHA256SUMS'), 'x');
-    writeFileSync(join(meta, 'macos-arm64.json'), JSON.stringify({ os: 'macos', signing: signing.mac }));
-    writeFileSync(join(meta, 'windows-x64.json'), JSON.stringify({ os: 'windows', signing: signing.win }));
+    writeFileSync(
+      join(meta, 'macos-arm64.json'),
+      JSON.stringify({ os: 'macos', signing: signing.mac }),
+    );
+    writeFileSync(
+      join(meta, 'windows-x64.json'),
+      JSON.stringify({ os: 'windows', signing: signing.win }),
+    );
     return { dir, meta };
   }
-  const args = { version: '1.2.3', tag: 'v1.2.3', repo: 'o/k', prerelease: false, image: 'ghcr.io/o/k', dockerDigest: 'sha256:abc' };
+  const args = {
+    version: '1.2.3',
+    tag: 'v1.2.3',
+    repo: 'o/k',
+    prerelease: false,
+    image: 'ghcr.io/o/k',
+    dockerDigest: 'sha256:abc',
+  };
 
   test('unsigned builds get the Gatekeeper and SmartScreen instructions', () => {
     const { dir, meta } = dist({ mac: 'unsigned', win: 'unsigned' });
@@ -163,7 +253,10 @@ describe('notes', () => {
     assert.match(text, /SmartScreen/);
     assert.match(text, /chmod \+x/);
     assert.match(text, /docker pull ghcr\.io\/o\/k:1\.2\.3/);
-    assert.match(text, /\| macOS, Apple Silicon \(M1 and later\) \| `kiln_1\.2\.3_macos_arm64\.dmg`/);
+    assert.match(
+      text,
+      /\| macOS, Apple Silicon \(M1 and later\) \| `kiln_1\.2\.3_macos_arm64\.dmg`/,
+    );
     assert.doesNotMatch(text, /SHA256SUMS`? \|/);
   });
 
@@ -184,31 +277,70 @@ describe('notes', () => {
 
 describe('shell scripts', () => {
   const sourceSigning = (env) =>
-    spawnSync('bash', ['-c', `. "${join(here, 'signing-env.sh')}" >/dev/null; echo "$KILN_SIGNING_STATE|\${APPLE_ID-unset}|\${APPLE_CERTIFICATE-unset}"`], {
-      encoding: 'utf8',
-      env: { PATH: process.env.PATH, ...env },
-    }).stdout.trim();
+    spawnSync(
+      'bash',
+      [
+        '-c',
+        `. "${join(here, 'signing-env.sh')}" >/dev/null; echo "$KILN_SIGNING_STATE|\${APPLE_ID-unset}|\${APPLE_CERTIFICATE-unset}"`,
+      ],
+      {
+        encoding: 'utf8',
+        env: { PATH: process.env.PATH, ...env },
+      },
+    ).stdout.trim();
 
   test('signing-env: no secrets means unsigned and the empty variables are unset', () => {
-    assert.equal(sourceSigning({ RUNNER_OS: 'macOS', APPLE_ID: '', APPLE_CERTIFICATE: '' }), 'unsigned|unset|unset');
+    assert.equal(
+      sourceSigning({ RUNNER_OS: 'macOS', APPLE_ID: '', APPLE_CERTIFICATE: '' }),
+      'unsigned|unset|unset',
+    );
   });
   test('signing-env: certificate only means signed, notary variables dropped', () => {
-    const env = { RUNNER_OS: 'macOS', APPLE_CERTIFICATE: 'c', APPLE_CERTIFICATE_PASSWORD: 'p', APPLE_SIGNING_IDENTITY: 'i', APPLE_ID: '' };
+    const env = {
+      RUNNER_OS: 'macOS',
+      APPLE_CERTIFICATE: 'c',
+      APPLE_CERTIFICATE_PASSWORD: 'p',
+      APPLE_SIGNING_IDENTITY: 'i',
+      APPLE_ID: '',
+    };
     assert.equal(sourceSigning(env), 'signed|unset|c');
   });
   test('signing-env: full set means notarized', () => {
-    const env = { RUNNER_OS: 'macOS', APPLE_CERTIFICATE: 'c', APPLE_CERTIFICATE_PASSWORD: 'p', APPLE_SIGNING_IDENTITY: 'i', APPLE_ID: 'a', APPLE_PASSWORD: 'w', APPLE_TEAM_ID: 't' };
+    const env = {
+      RUNNER_OS: 'macOS',
+      APPLE_CERTIFICATE: 'c',
+      APPLE_CERTIFICATE_PASSWORD: 'p',
+      APPLE_SIGNING_IDENTITY: 'i',
+      APPLE_ID: 'a',
+      APPLE_PASSWORD: 'w',
+      APPLE_TEAM_ID: 't',
+    };
     assert.equal(sourceSigning(env), 'notarized|a|c');
   });
   test('signing-env: a partial certificate is not used; Linux never signs', () => {
-    assert.equal(sourceSigning({ RUNNER_OS: 'macOS', APPLE_CERTIFICATE: 'c', APPLE_SIGNING_IDENTITY: 'i' }), 'unsigned|unset|unset');
-    assert.equal(sourceSigning({ RUNNER_OS: 'Linux', APPLE_CERTIFICATE: 'c' }), 'unsigned|unset|unset');
-    assert.equal(sourceSigning({ RUNNER_OS: 'Windows', KILN_WINDOWS_THUMBPRINT: 'abc' }), 'signed|unset|unset');
+    assert.equal(
+      sourceSigning({ RUNNER_OS: 'macOS', APPLE_CERTIFICATE: 'c', APPLE_SIGNING_IDENTITY: 'i' }),
+      'unsigned|unset|unset',
+    );
+    assert.equal(
+      sourceSigning({ RUNNER_OS: 'Linux', APPLE_CERTIFICATE: 'c' }),
+      'unsigned|unset|unset',
+    );
+    assert.equal(
+      sourceSigning({ RUNNER_OS: 'Windows', KILN_WINDOWS_THUMBPRINT: 'abc' }),
+      'signed|unset|unset',
+    );
   });
   test('signing-env never prints a secret value', () => {
     const res = spawnSync('bash', ['-c', `. "${join(here, 'signing-env.sh')}"`], {
       encoding: 'utf8',
-      env: { PATH: process.env.PATH, RUNNER_OS: 'macOS', APPLE_CERTIFICATE: 'TOPSECRET1', APPLE_CERTIFICATE_PASSWORD: 'TOPSECRET2', APPLE_SIGNING_IDENTITY: 'TOPSECRET3' },
+      env: {
+        PATH: process.env.PATH,
+        RUNNER_OS: 'macOS',
+        APPLE_CERTIFICATE: 'TOPSECRET1',
+        APPLE_CERTIFICATE_PASSWORD: 'TOPSECRET2',
+        APPLE_SIGNING_IDENTITY: 'TOPSECRET3',
+      },
     });
     assert.doesNotMatch(res.stdout + res.stderr, /TOPSECRET/);
   });

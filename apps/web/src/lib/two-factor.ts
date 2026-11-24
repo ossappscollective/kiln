@@ -309,8 +309,7 @@ export const defaultSmtpPort = (secure: SmtpSecure): number =>
 export function smtpProblem(input: { host: string; port: string; from: string }): string {
   const host = input.host.trim();
   if (!host) return t('auth:mail.hostRequired');
-  if (/[\s/@:]/.test(host) && !/^[0-9a-fA-F:.]+$/.test(host))
-    return t('auth:mail.hostShape');
+  if (/[\s/@:]/.test(host) && !/^[0-9a-fA-F:.]+$/.test(host)) return t('auth:mail.hostShape');
   const port = input.port.trim();
   if (port !== '' && !(/^\d{1,5}$/.test(port) && Number(port) >= 1 && Number(port) <= 65535))
     return t('auth:mail.portShape');

@@ -21,7 +21,10 @@ test('joins countries with their language and the live locales', () => {
       ['pt', 120, 'pt-BR'],
     ],
   );
-  assert.deepEqual(c.languages[1]?.countries.map((x) => x.country), ['DE', 'AT']);
+  assert.deepEqual(
+    c.languages[1]?.countries.map((x) => x.country),
+    ['DE', 'AT'],
+  );
   assert.equal(c.unknownCount, 20);
   assert.ok(Math.abs(c.uncoveredShare - 180 / 820) < 1e-9);
   assert.equal(c.countries[0]?.country, 'US');
@@ -41,7 +44,10 @@ test('a country given twice is added, bad rows are dropped', () => {
     storeLocales: [],
   });
   assert.equal(c.total, 10);
-  assert.deepEqual(c.countries.map((x) => [x.country, x.count]), [['DE', 10]]);
+  assert.deepEqual(
+    c.countries.map((x) => [x.country, x.count]),
+    [['DE', 10]],
+  );
   assert.equal(c.uncoveredShare, 1);
 });
 
@@ -52,8 +58,15 @@ test('no downloads is an empty, not a divided-by-zero, result', () => {
 
 test('Google Play knows more languages than the App Store', () => {
   const rows2 = [{ country: 'BG', count: 10 }];
-  assert.equal(languageCoverage({ countries: rows2, storeLocales: ['en-US'] }).languages[0]?.coveredBy, 'en-US');
-  const play = languageCoverage({ countries: rows2, storeLocales: ['en-US'], store: 'google_play' });
+  assert.equal(
+    languageCoverage({ countries: rows2, storeLocales: ['en-US'] }).languages[0]?.coveredBy,
+    'en-US',
+  );
+  const play = languageCoverage({
+    countries: rows2,
+    storeLocales: ['en-US'],
+    store: 'google_play',
+  });
   assert.equal(play.languages[0]?.language, 'bg');
   assert.equal(play.languages[0]?.coveredBy, null);
 });

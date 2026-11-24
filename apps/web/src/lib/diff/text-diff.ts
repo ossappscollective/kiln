@@ -72,7 +72,10 @@ function myers(a: readonly string[], b: readonly string[], maxEdits: number): Se
   for (let d = 0; d <= max && found < 0; d++) {
     trace.push(v.slice());
     for (let k = -d; k <= d; k += 2) {
-      let x = k === -d || (k !== d && (v[off + k - 1] ?? 0) < (v[off + k + 1] ?? 0)) ? (v[off + k + 1] ?? 0) : (v[off + k - 1] ?? 0) + 1;
+      let x =
+        k === -d || (k !== d && (v[off + k - 1] ?? 0) < (v[off + k + 1] ?? 0))
+          ? (v[off + k + 1] ?? 0)
+          : (v[off + k - 1] ?? 0) + 1;
       let y = x - k;
       while (x < n && y < m && a[x] === b[y]) {
         x++;
@@ -102,7 +105,9 @@ function myers(a: readonly string[], b: readonly string[], maxEdits: number): Se
       x--;
       y--;
     }
-    ops.push(down ? { kind: 'add', a: x, b: y - 1, len: 1 } : { kind: 'del', a: x - 1, b: y, len: 1 });
+    ops.push(
+      down ? { kind: 'add', a: x, b: y - 1, len: 1 } : { kind: 'del', a: x - 1, b: y, len: 1 },
+    );
     x = px;
     y = py;
   }
@@ -112,7 +117,8 @@ function myers(a: readonly string[], b: readonly string[], maxEdits: number): Se
     y--;
   }
   const out: Segment[] = [];
-  for (const op of ops.reverse()) push(out, { kind: op.kind, text: op.kind === 'add' ? (b[op.b] ?? '') : (a[op.a] ?? '') });
+  for (const op of ops.reverse())
+    push(out, { kind: op.kind, text: op.kind === 'add' ? (b[op.b] ?? '') : (a[op.a] ?? '') });
   return out;
 }
 
@@ -147,7 +153,11 @@ function tidy(segments: readonly Segment[]): Segment[] {
 }
 
 /** Diff two token lists: common prefix and suffix first (cheap, and most edits are local), Myers on the middle. */
-function diffTokens(a: readonly string[], b: readonly string[], maxEdits: number): Segment[] | null {
+function diffTokens(
+  a: readonly string[],
+  b: readonly string[],
+  maxEdits: number,
+): Segment[] | null {
   let start = 0;
   while (start < a.length && start < b.length && a[start] === b[start]) start++;
   let endA = a.length;
@@ -173,7 +183,14 @@ const block = (before: string, after: string): Segment[] => {
 };
 
 function statsOf(segments: readonly Segment[]): DiffStats {
-  const s: DiffStats = { addedWords: 0, removedWords: 0, addedChars: 0, removedChars: 0, beforeChars: 0, afterChars: 0 };
+  const s: DiffStats = {
+    addedWords: 0,
+    removedWords: 0,
+    addedChars: 0,
+    removedChars: 0,
+    beforeChars: 0,
+    afterChars: 0,
+  };
   for (const seg of segments) {
     const chars = countChars(seg.text);
     if (seg.kind !== 'add') s.beforeChars += chars;
@@ -190,7 +207,11 @@ function statsOf(segments: readonly Segment[]): DiffStats {
 }
 
 /** Line level, then each run of removed lines followed by added lines refined by words when it is small enough. */
-function diffLines(before: string, after: string, maxEdits: number): { segments: Segment[]; capped: boolean } {
+function diffLines(
+  before: string,
+  after: string,
+  maxEdits: number,
+): { segments: Segment[]; capped: boolean } {
   const lines = diffTokens(linesOf(before), linesOf(after), maxEdits);
   if (lines === null) return { segments: block(before, after), capped: true };
   const out: Segment[] = [];
@@ -212,7 +233,11 @@ function diffLines(before: string, after: string, maxEdits: number): { segments:
 }
 
 /** The diff of two texts. Line endings are normalised first. Never throws and never runs unbounded. */
-export function diffText(beforeRaw: string, afterRaw: string, options: DiffOptions = {}): DiffResult {
+export function diffText(
+  beforeRaw: string,
+  afterRaw: string,
+  options: DiffOptions = {},
+): DiffResult {
   const before = normalizeText(beforeRaw);
   const after = normalizeText(afterRaw);
   const maxChars = options.maxChars ?? DIFF_MAX_CHARS;

@@ -47,7 +47,12 @@ export const ADS_MAX_POPULARITY_TERMS = 40;
 export const DEFAULT_ADS_SYNC_TIMEOUT_MS = 240_000;
 const DAY_MS = 86_400_000;
 
-export type AdsSyncContext = { db: Database; masterKey: Buffer; now: () => number; deps: AdsDeps | undefined };
+export type AdsSyncContext = {
+  db: Database;
+  masterKey: Buffer;
+  now: () => number;
+  deps: AdsDeps | undefined;
+};
 
 export type AdsSyncResult = {
   campaigns: number;
@@ -63,7 +68,12 @@ export type AdsSyncResult = {
 };
 
 export const notLinkedFailure = (): Failure =>
-  failure(422, 'ads_not_linked', 'This app is not linked to an Apple Ads account. Link it in the app settings first.', coded('ads.notLinked'));
+  failure(
+    422,
+    'ads_not_linked',
+    'This app is not linked to an Apple Ads account. Link it in the app settings first.',
+    coded('ads.notLinked'),
+  );
 
 const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
@@ -79,19 +89,39 @@ export function lastFullWeek(now: number): { start: string; end: string } {
   return { start: isoDay(d - 6 * DAY_MS), end: isoDay(d) };
 }
 
-type Metric = { impressions: number; taps: number; installs: number; tapInstalls: number; spendMicros: number };
-const zero = (): Metric => ({ impressions: 0, taps: 0, installs: 0, tapInstalls: 0, spendMicros: 0 });
+type Metric = {
+  impressions: number;
+  taps: number;
+  installs: number;
+  tapInstalls: number;
+  spendMicros: number;
+};
+const zero = (): Metric => ({
+  impressions: 0,
+  taps: 0,
+  installs: 0,
+  tapInstalls: 0,
+  spendMicros: 0,
+});
 
 const termKeyOf = (term: string): string => {
   const checked = checkTerm(term);
   return (checked.ok ? checked.key : term.trim().toLowerCase()).slice(0, 120);
 };
 
-
 /** Multi-row upsert in chunks, so a big report is a few statements, not thousands. */
-async function upsertRows(sql: Sql, table: string, columns: string[], key: string[], rows: unknown[][]): Promise<void> {
+async function upsertRows(
+  sql: Sql,
+  table: string,
+  columns: string[],
+  key: string[],
+  rows: unknown[][],
+): Promise<void> {
   const chunk = 100;
-  const set = columns.filter((c) => !key.includes(c)).map((c) => `${c} = excluded.${c}`).join(', ');
+  const set = columns
+    .filter((c) => !key.includes(c))
+    .map((c) => `${c} = excluded.${c}`)
+    .join(', ');
   for (let i = 0; i < rows.length; i += chunk) {
     const part = rows.slice(i, i + chunk);
     const marks = part.map(() => `(${columns.map(() => '?').join(', ')})`).join(', ');
@@ -102,11 +132,48 @@ async function upsertRows(sql: Sql, table: string, columns: string[], key: strin
   }
 }
 
-const METRIC_COLUMNS = ['impressions', 'taps', 'installs', 'tap_installs', 'spend_micros', 'currency', 'fetched_at'];
-const metricValues = (d: Metric, currency: string | null, at: number): unknown[] => [d.impressions, d.taps, d.installs, d.tapInstalls, d.spendMicros, currency, at];
+const METRIC_COLUMNS = [
+  'impressions',
+  'taps',
+  'installs',
+  'tap_installs',
+  'spend_micros',
+  'currency',
+  'fetched_at',
+];
+const metricValues = (d: Metric, currency: string | null, at: number): unknown[] => [
+  d.impressions,
+  d.taps,
+  d.installs,
+  d.tapInstalls,
+  d.spendMicros,
+  currency,
+  at,
+];
 
-const CAMPAIGN_COLUMNS = ['workspace_id', 'app_id', 'campaign_id', 'day', 'name', 'status', ...METRIC_COLUMNS];
-const TERM_COLUMNS = ['workspace_id', 'app_id', 'campaign_id', 'kind', 'term_key', 'country', 'day', 'term', 'match_type', 'source', 'keyword_text', ...METRIC_COLUMNS];
+const CAMPAIGN_COLUMNS = [
+  'workspace_id',
+  'app_id',
+  'campaign_id',
+  'day',
+  'name',
+  'status',
+  ...METRIC_COLUMNS,
+];
+const TERM_COLUMNS = [
+  'workspace_id',
+  'app_id',
+  'campaign_id',
+  'kind',
+  'term_key',
+  'country',
+  'day',
+  'term',
+  'match_type',
+  'source',
+  'keyword_text',
+  ...METRIC_COLUMNS,
+];
 
 /** The rows of one term report, merged by (key, country, day) after normalising the key, in the account's currency only. */
 export function termRowsOf(
@@ -139,16 +206,46 @@ export function termRowsOf(
         continue;
       }
       merged.set(id, {
-        base: [workspaceId, appId, campaignId, kind, key, d.country, d.day, t.term.slice(0, 200), t.matchType, t.source, t.keywordText?.slice(0, 200) ?? null],
-        metric: { impressions: d.impressions, taps: d.taps, installs: d.installs, tapInstalls: d.tapInstalls, spendMicros: d.spendMicros },
+        base: [
+          workspaceId,
+          appId,
+          campaignId,
+          kind,
+          key,
+          d.country,
+          d.day,
+          t.term.slice(0, 200),
+          t.matchType,
+          t.source,
+          t.keywordText?.slice(0, 200) ?? null,
+        ],
+        metric: {
+          impressions: d.impressions,
+          taps: d.taps,
+          installs: d.installs,
+          tapInstalls: d.tapInstalls,
+          spendMicros: d.spendMicros,
+        },
         currency: d.currency ?? currency,
       });
     }
   }
-  return { rows: [...merged.values()].map((m) => [...m.base, ...metricValues(m.metric, m.currency, at)]), foreign };
+  return {
+    rows: [...merged.values()].map((m) => [...m.base, ...metricValues(m.metric, m.currency, at)]),
+    foreign,
+  };
 }
 
-function campaignRowsOf(workspaceId: string, appId: string, campaignId: string, name: string, status: string | null, days: AdsDay[], currency: string | null, at: number) {
+function campaignRowsOf(
+  workspaceId: string,
+  appId: string,
+  campaignId: string,
+  name: string,
+  status: string | null,
+  days: AdsDay[],
+  currency: string | null,
+  at: number,
+) {
   const byDay = new Map<string, { metric: Metric; currency: string | null }>();
   let foreign = 0;
   for (const d of days) {
@@ -164,11 +261,25 @@ function campaignRowsOf(workspaceId: string, appId: string, campaignId: string, 
     had.metric.spendMicros += d.spendMicros;
     byDay.set(d.day, had);
   }
-  const rows = [...byDay.entries()].map(([day, v]) => [workspaceId, appId, campaignId, day, name.slice(0, 200), status, ...metricValues(v.metric, v.currency, at)]);
+  const rows = [...byDay.entries()].map(([day, v]) => [
+    workspaceId,
+    appId,
+    campaignId,
+    day,
+    name.slice(0, 200),
+    status,
+    ...metricValues(v.metric, v.currency, at),
+  ]);
   return { rows, foreign };
 }
 
-async function recordFailure(db: Sql, workspaceId: string, appId: string, f: Failure, at: number): Promise<void> {
+async function recordFailure(
+  db: Sql,
+  workspaceId: string,
+  appId: string,
+  f: Failure,
+  at: number,
+): Promise<void> {
   const message = String(f.body.message ?? f.body.error).slice(0, 500);
   const code = typeof f.body.code === 'string' ? f.body.code : null;
   await db.execute(
@@ -196,8 +307,13 @@ export async function runAdsSync(
     await recordFailure(ctx.db, input.workspaceId, app.id, f, at);
     return f;
   };
-  const [previous] = await ctx.db.query('SELECT last_success_at FROM ads_sync WHERE app_id = ?', [app.id]);
-  const days = Math.min(90, Math.max(1, input.days ?? (previous?.last_success_at ? ADS_DEFAULT_DAYS : ADS_FIRST_DAYS)));
+  const [previous] = await ctx.db.query('SELECT last_success_at FROM ads_sync WHERE app_id = ?', [
+    app.id,
+  ]);
+  const days = Math.min(
+    90,
+    Math.max(1, input.days ?? (previous?.last_success_at ? ADS_DEFAULT_DAYS : ADS_FIRST_DAYS)),
+  );
   const range = adsRangeFor(at, days);
 
   const controller = new AbortController();
@@ -207,12 +323,19 @@ export async function runAdsSync(
     controller.abort();
   }, ctx.deps?.syncTimeoutMs ?? DEFAULT_ADS_SYNC_TIMEOUT_MS);
   try {
-    const opened = await adsClientFor(ctx.db, ctx.masterKey, input.workspaceId, link.credentialId, ctx.deps, {
-      actor: input.actor,
-      purpose: ADS_SYNC_PURPOSE,
-      now: at,
-      signal: controller.signal,
-    });
+    const opened = await adsClientFor(
+      ctx.db,
+      ctx.masterKey,
+      input.workspaceId,
+      link.credentialId,
+      ctx.deps,
+      {
+        actor: input.actor,
+        purpose: ADS_SYNC_PURPOSE,
+        now: at,
+        signal: controller.signal,
+      },
+    );
     if (!opened.ok) return failed(opened);
     const { client } = opened;
     const warnings = new Set<string>();
@@ -223,7 +346,9 @@ export async function runAdsSync(
     const writes: Array<(tx: Sql) => Promise<void>> = [];
     let campaignCount = 0;
     try {
-      const report = await readAppleAdsCampaigns(client, link.adAccountId, range, { signal: controller.signal });
+      const report = await readAppleAdsCampaigns(client, link.adAccountId, range, {
+        signal: controller.signal,
+      });
       skipped += report.skipped;
       if (!report.complete) {
         complete = false;
@@ -232,18 +357,42 @@ export async function runAdsSync(
       let mine = report.rows.filter((c) => c.adamId === link.adamId);
       if (mine.length === 0) warnings.add('no_campaign');
       if (mine.length > ADS_MAX_CAMPAIGNS) {
-        mine = mine.sort((a, b) => b.days.reduce((t, d) => t + d.impressions, 0) - a.days.reduce((t, d) => t + d.impressions, 0)).slice(0, ADS_MAX_CAMPAIGNS);
+        mine = mine
+          .sort(
+            (a, b) =>
+              b.days.reduce((t, d) => t + d.impressions, 0) -
+              a.days.reduce((t, d) => t + d.impressions, 0),
+          )
+          .slice(0, ADS_MAX_CAMPAIGNS);
         warnings.add('cap_campaigns');
         complete = false;
       }
       campaignCount = mine.length;
       let foreign = 0;
       for (const c of mine) {
-        const camp = campaignRowsOf(input.workspaceId, app.id, c.campaignId, c.name, c.status, c.days, link.currency, at);
+        const camp = campaignRowsOf(
+          input.workspaceId,
+          app.id,
+          c.campaignId,
+          c.name,
+          c.status,
+          c.days,
+          link.currency,
+          at,
+        );
         foreign += camp.foreign;
         writes.push(async (tx) => {
-          await tx.execute('DELETE FROM ads_campaign_daily WHERE app_id = ? AND campaign_id = ? AND day >= ? AND day <= ?', [app.id, c.campaignId, range.start, range.end]);
-          await upsertRows(tx, 'ads_campaign_daily', CAMPAIGN_COLUMNS, ['app_id', 'campaign_id', 'day'], camp.rows);
+          await tx.execute(
+            'DELETE FROM ads_campaign_daily WHERE app_id = ? AND campaign_id = ? AND day >= ? AND day <= ?',
+            [app.id, c.campaignId, range.start, range.end],
+          );
+          await upsertRows(
+            tx,
+            'ads_campaign_daily',
+            CAMPAIGN_COLUMNS,
+            ['app_id', 'campaign_id', 'day'],
+            camp.rows,
+          );
         });
         for (const kind of ['term', 'keyword'] as const) {
           if (!client.canRequest(1)) {
@@ -252,9 +401,19 @@ export async function runAdsSync(
             continue;
           }
           const read = kind === 'term' ? readAppleAdsSearchTerms : readAppleAdsKeywords;
-          const result = await read(client, link.adAccountId, c.campaignId, range, { signal: controller.signal });
+          const result = await read(client, link.adAccountId, c.campaignId, range, {
+            signal: controller.signal,
+          });
           skipped += result.skipped;
-          const built = termRowsOf(input.workspaceId, app.id, c.campaignId, kind, result.rows, link.currency, at);
+          const built = termRowsOf(
+            input.workspaceId,
+            app.id,
+            c.campaignId,
+            kind,
+            result.rows,
+            link.currency,
+            at,
+          );
           foreign += built.foreign;
           if (kind === 'term') termRows += built.rows.length;
           else keywordRows += built.rows.length;
@@ -265,19 +424,43 @@ export async function runAdsSync(
           writes.push(async (tx) => {
             // A read cut short does not know what is missing, so it does not delete.
             if (result.complete) {
-              await tx.execute('DELETE FROM ads_term_daily WHERE app_id = ? AND campaign_id = ? AND kind = ? AND day >= ? AND day <= ?', [app.id, c.campaignId, kind, range.start, range.end]);
+              await tx.execute(
+                'DELETE FROM ads_term_daily WHERE app_id = ? AND campaign_id = ? AND kind = ? AND day >= ? AND day <= ?',
+                [app.id, c.campaignId, kind, range.start, range.end],
+              );
             }
-            await upsertRows(tx, 'ads_term_daily', TERM_COLUMNS, ['app_id', 'campaign_id', 'kind', 'term_key', 'country', 'day'], built.rows);
+            await upsertRows(
+              tx,
+              'ads_term_daily',
+              TERM_COLUMNS,
+              ['app_id', 'campaign_id', 'kind', 'term_key', 'country', 'day'],
+              built.rows,
+            );
           });
         }
       }
       if (foreign > 0) warnings.add('currency_mismatch');
     } catch (error) {
-      if (timedOut) return failed(failure(504, 'timeout', 'Apple Ads did not answer in time. Try again in a minute.', coded('ads.timeout')));
+      if (timedOut)
+        return failed(
+          failure(
+            504,
+            'timeout',
+            'Apple Ads did not answer in time. Try again in a minute.',
+            coded('ads.timeout'),
+          ),
+        );
       return failed(adsFailure(error, opened.secret));
     }
 
-    const popularity = await readPopularity(ctx, client, link, { workspaceId: input.workspaceId, appId: app.id }, controller.signal, at).catch(() => {
+    const popularity = await readPopularity(
+      ctx,
+      client,
+      link,
+      { workspaceId: input.workspaceId, appId: app.id },
+      controller.signal,
+      at,
+    ).catch(() => {
       warnings.add('popularity_failed');
       return null;
     });
@@ -296,7 +479,18 @@ export async function runAdsSync(
          ON CONFLICT (app_id) DO UPDATE SET last_attempt_at = excluded.last_attempt_at, last_success_at = excluded.last_success_at,
            last_error = NULL, last_error_code = NULL, last_error_params = NULL, failure_streak = 0, range_start = excluded.range_start,
            range_end = excluded.range_end, campaigns = excluded.campaigns, complete = excluded.complete, skipped = excluded.skipped, warnings = excluded.warnings`,
-        [app.id, input.workspaceId, at, at, range.start, range.end, campaignCount, complete ? 1 : 0, skipped, JSON.stringify([...warnings])],
+        [
+          app.id,
+          input.workspaceId,
+          at,
+          at,
+          range.start,
+          range.end,
+          campaignCount,
+          complete ? 1 : 0,
+          skipped,
+          JSON.stringify([...warnings]),
+        ],
       );
       await recordAudit(tx, {
         workspaceId: input.workspaceId,
@@ -304,20 +498,46 @@ export async function runAdsSync(
         action: 'ads.synced',
         target: { type: 'app', id: app.id },
         // Counts only: never a campaign name, a term or a response.
-        detail: { appId: app.id, campaigns: campaignCount, termRows, keywordRows, complete, warnings: warnings.size },
+        detail: {
+          appId: app.id,
+          campaigns: campaignCount,
+          termRows,
+          keywordRows,
+          complete,
+          warnings: warnings.size,
+        },
         at,
       });
     });
     return {
       ok: true,
-      result: { campaigns: campaignCount, termRows, keywordRows, complete, skipped, warnings: [...warnings], rangeStart: range.start, rangeEnd: range.end, syncedAt: at },
+      result: {
+        campaigns: campaignCount,
+        termRows,
+        keywordRows,
+        complete,
+        skipped,
+        warnings: [...warnings],
+        rangeStart: range.start,
+        rangeEnd: range.end,
+        syncedAt: at,
+      },
     };
   } finally {
     clearTimeout(timer);
   }
 }
 
-type PopularityRow = { country: string; termKey: string; genre: string; term: string; period: string | null; popularity100: number | null; popularity5: number | null; rankInGenre: number | null };
+type PopularityRow = {
+  country: string;
+  termKey: string;
+  genre: string;
+  term: string;
+  period: string | null;
+  popularity100: number | null;
+  popularity5: number | null;
+  rankInGenre: number | null;
+};
 
 async function readPopularity(
   ctx: AdsSyncContext,
@@ -342,36 +562,95 @@ async function readPopularity(
       complete = false;
       break;
     }
-    const read = await readAppleAdsPopularity(client, link.adAccountId, { country, terms: [...terms.values()], weekStart: week.start, weekEnd: week.end }, { signal });
+    const read = await readAppleAdsPopularity(
+      client,
+      link.adAccountId,
+      { country, terms: [...terms.values()], weekStart: week.start, weekEnd: week.end },
+      { signal },
+    );
     if (!read.complete) complete = false;
     for (const r of read.rows) {
-      rows.push({ country, termKey: termKeyOf(r.term), genre: r.genre ?? '', term: r.term, period: r.period, popularity100: r.popularity100, popularity5: r.popularity5, rankInGenre: r.rankInGenre });
+      rows.push({
+        country,
+        termKey: termKeyOf(r.term),
+        genre: r.genre ?? '',
+        term: r.term,
+        period: r.period,
+        popularity100: r.popularity100,
+        popularity5: r.popularity5,
+        rankInGenre: r.rankInGenre,
+      });
     }
   }
   return { rows, complete };
 }
 
-async function writePopularity(tx: Sql, workspaceId: string, rows: PopularityRow[], at: number): Promise<void> {
+async function writePopularity(
+  tx: Sql,
+  workspaceId: string,
+  rows: PopularityRow[],
+  at: number,
+): Promise<void> {
   const seen = new Set<string>();
   const out: unknown[][] = [];
   for (const r of rows) {
     const id = `${r.country}|${r.termKey}|${r.genre}`;
     if (seen.has(id)) continue;
     seen.add(id);
-    out.push([workspaceId, r.country, r.termKey, r.genre, r.term.slice(0, 200), r.period, r.popularity100, r.popularity5, r.rankInGenre, at]);
+    out.push([
+      workspaceId,
+      r.country,
+      r.termKey,
+      r.genre,
+      r.term.slice(0, 200),
+      r.period,
+      r.popularity100,
+      r.popularity5,
+      r.rankInGenre,
+      at,
+    ]);
   }
-  await upsertRows(tx, 'ads_term_popularity', ['workspace_id', 'country', 'term_key', 'genre', 'term', 'period', 'popularity_100', 'popularity_5', 'rank_in_genre', 'fetched_at'], ['workspace_id', 'country', 'term_key', 'genre'], out);
+  await upsertRows(
+    tx,
+    'ads_term_popularity',
+    [
+      'workspace_id',
+      'country',
+      'term_key',
+      'genre',
+      'term',
+      'period',
+      'popularity_100',
+      'popularity_5',
+      'rank_in_genre',
+      'fetched_at',
+    ],
+    ['workspace_id', 'country', 'term_key', 'genre'],
+    out,
+  );
 }
 
-export type AdsSyncPayload = { workspaceId: string; appId: string; requestedBy: string; days?: number };
+export type AdsSyncPayload = {
+  workspaceId: string;
+  appId: string;
+  requestedBy: string;
+  days?: number;
+};
 const isPayload = (value: unknown): value is AdsSyncPayload =>
-  typeof value === 'object' && value !== null && typeof (value as AdsSyncPayload).workspaceId === 'string' && typeof (value as AdsSyncPayload).appId === 'string';
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as AdsSyncPayload).workspaceId === 'string' &&
+  typeof (value as AdsSyncPayload).appId === 'string';
 
 /** The worker's handler: one sync of one app record, as the system. A failure is recorded by the sync itself, never thrown into the queue. */
 export function createAdsSyncHandler(ctx: AdsSyncContext): JobHandler {
   return async (payload) => {
     if (!isPayload(payload)) return;
-    await runAdsSync(ctx, { workspaceId: payload.workspaceId, appId: payload.appId, actor: { type: 'system', id: ADS_SYNC_QUEUE }, days: payload.days }).catch(() => undefined);
+    await runAdsSync(ctx, {
+      workspaceId: payload.workspaceId,
+      appId: payload.appId,
+      actor: { type: 'system', id: ADS_SYNC_QUEUE },
+      days: payload.days,
+    }).catch(() => undefined);
   };
 }
-

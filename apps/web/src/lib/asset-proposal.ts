@@ -34,7 +34,11 @@ export function cardMode(view: AssetProposalView | null): CardMode {
   return view.locked.locked ? 'locked' : 'proposal';
 }
 
-export type IssueGroups = { errors: ProposalIssue[]; warnings: ProposalIssue[]; tips: ProposalIssue[] };
+export type IssueGroups = {
+  errors: ProposalIssue[];
+  warnings: ProposalIssue[];
+  tips: ProposalIssue[];
+};
 
 /** The findings by severity, each in the order the server found them. Errors and warnings are shown; tips are collapsed. */
 export function issueGroups(issues: readonly ProposalIssue[]): IssueGroups {
@@ -46,26 +50,42 @@ export function issueGroups(issues: readonly ProposalIssue[]): IssueGroups {
   };
 }
 
-export const localeName = (locale: string): string => formatDisplayName(locale, 'language') || locale;
+export const localeName = (locale: string): string =>
+  formatDisplayName(locale, 'language') || locale;
 
 export function itemTitle(item: ProposalItem): string {
   if (item.kind === 'text') return fieldName(item.field);
-  return item.slotKind === 'screenshot' && item.deviceLabel !== '' ? item.deviceLabel : ASSET_KIND_LABELS[item.slotKind];
+  return item.slotKind === 'screenshot' && item.deviceLabel !== ''
+    ? item.deviceLabel
+    : ASSET_KIND_LABELS[item.slotKind];
 }
 
 /** The sentence of a finding: the listing checks have their own translated text; the rules of the limits and of the graphics carry theirs (English). */
-export function issueSentence(issue: ProposalIssue, items: readonly ProposalItem[]): { title: string; explain: string } {
-  if (issue.source === 'listing_check') return issueText({ code: issue.code as CheckCode, params: issue.params, field: issue.field });
+export function issueSentence(
+  issue: ProposalIssue,
+  items: readonly ProposalItem[],
+): { title: string; explain: string } {
+  if (issue.source === 'listing_check')
+    return issueText({ code: issue.code as CheckCode, params: issue.params, field: issue.field });
   const item = items.filter((i) => i.id === issue.itemId)[0];
-  const name = issue.source === 'graphics_rule' && issue.field ? (issue.field.split('/').pop() ?? issue.field) : item ? itemTitle(item) : issue.code;
+  const name =
+    issue.source === 'graphics_rule' && issue.field
+      ? (issue.field.split('/').pop() ?? issue.field)
+      : item
+        ? itemTitle(item)
+        : issue.code;
   return { title: name, explain: issue.message ?? issue.code };
 }
 
 /** "3 texts in 2 languages, 1 graphics set". */
 export function summaryLine(summary: AssetProposalView['summary']): string {
   const parts: string[] = [];
-  if (summary.texts > 0) parts.push(`${t('release-stepper:ap.sum.texts', { count: summary.texts })} ${t('release-stepper:ap.sum.locales', { count: summary.locales })}`);
-  if (summary.graphics > 0) parts.push(t('release-stepper:ap.sum.graphics', { count: summary.graphics }));
+  if (summary.texts > 0)
+    parts.push(
+      `${t('release-stepper:ap.sum.texts', { count: summary.texts })} ${t('release-stepper:ap.sum.locales', { count: summary.locales })}`,
+    );
+  if (summary.graphics > 0)
+    parts.push(t('release-stepper:ap.sum.graphics', { count: summary.graphics }));
   return formatList(parts);
 }
 
@@ -76,18 +96,30 @@ export function refsLine(view: Pick<AssetProposalView, 'baseRef' | 'targetRef'>)
   const { baseRef, targetRef } = view;
   if (targetRef === null) return null;
   if (baseRef === null) return t('release-stepper:ap.refsNoBase', { target: shortSha(targetRef) });
-  return t(targetRef.source === 'default_branch' ? k('release-stepper:ap.refsBranch') : k('release-stepper:ap.refs'), { base: shortSha(baseRef), target: shortSha(targetRef) });
+  return t(
+    targetRef.source === 'default_branch'
+      ? k('release-stepper:ap.refsBranch')
+      : k('release-stepper:ap.refs'),
+    { base: shortSha(baseRef), target: shortSha(targetRef) },
+  );
 }
 
 /** The ids to stage when the person presses "Stage selected": only ids of the items on the card, in the order of the card. */
-export function idsToStage(view: Pick<AssetProposalView, 'changes'>, selected: readonly string[]): string[] {
+export function idsToStage(
+  view: Pick<AssetProposalView, 'changes'>,
+  selected: readonly string[],
+): string[] {
   const picked: Record<string, true> = {};
   for (const id of selected) picked[id] = true;
   return view.changes.filter((c) => picked[c.id]).map((c) => c.id);
 }
 
 /** The line after a staging answer: how many were staged and how many were left as they were. */
-export function resultLine(results: readonly { status: string }[]): { staged: number; left: number; failed: number } {
+export function resultLine(results: readonly { status: string }[]): {
+  staged: number;
+  left: number;
+  failed: number;
+} {
   let staged = 0;
   let left = 0;
   let failed = 0;

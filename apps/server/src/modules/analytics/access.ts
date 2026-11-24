@@ -150,7 +150,12 @@ export async function testSourceAccess(
         return done(input.source, text === null ? 'no_report_yet' : 'ok');
       }
       default: {
-        const wanted = { secret, packageName: app.identifier, bucketId: bucketId as string, fetch: globalThis.fetch };
+        const wanted = {
+          secret,
+          packageName: app.identifier,
+          bucketId: bucketId as string,
+          fetch: globalThis.fetch,
+        };
         const port =
           input.source === 'play_reports'
             ? ctx.connectors.playReports(wanted)

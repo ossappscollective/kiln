@@ -1579,7 +1579,12 @@ export type PriceIssueView = {
   territory?: string;
   detail?: { acks?: PriceAck[]; nearest?: PricePointOption[]; expected?: string; actual?: string };
 };
-export type ConvertedPrice = { territory: string; currency: string; amount: string; current: string | null };
+export type ConvertedPrice = {
+  territory: string;
+  currency: string;
+  amount: string;
+  current: string | null;
+};
 
 export type PriceStageRequest = {
   planId: string | null;
@@ -1661,16 +1666,33 @@ export type CompetitorReviewStats = {
   average: number | null;
   trend: { earlier: number | null; recent: number | null };
   stars: number[];
-  latest: { id: string; rating: number; title: string; text: string; version: string | null; at: number }[];
+  latest: {
+    id: string;
+    rating: number;
+    title: string;
+    text: string;
+    version: string | null;
+    at: number;
+  }[];
 };
 
 export type CompetitorReviewsView = {
   days: number;
   competitors: CompetitorReviewStats[];
-  own: { count: number; average: number | null; trend: { earlier: number | null; recent: number | null } } | null;
+  own: {
+    count: number;
+    average: number | null;
+    trend: { earlier: number | null; recent: number | null };
+  } | null;
   retentionDays: number;
   source: string;
   notice: string;
 };
 
-export type CompetitorReviewsRefresh = { competitorId: string; state: 'read' | 'recent'; fetched: number; stored: number; checkedAt: number };
+export type CompetitorReviewsRefresh = {
+  competitorId: string;
+  state: 'read' | 'recent';
+  fetched: number;
+  stored: number;
+  checkedAt: number;
+};

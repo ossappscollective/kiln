@@ -429,13 +429,22 @@ test('summaries count per locale, kind and device with the limit of the set', ()
 });
 
 test('kindHasDevice and describeDevice: icons and graphics have no device, screenshots and previews do', () => {
-  for (const kind of ['icon', 'app_icon', 'feature_graphic', 'promo_graphic', 'tv_banner'] as const) {
+  for (const kind of [
+    'icon',
+    'app_icon',
+    'feature_graphic',
+    'promo_graphic',
+    'tv_banner',
+  ] as const) {
     assert.equal(kindHasDevice(kind), false);
     assert.equal(describeDevice('google_play', kind, null), '');
     assert.equal(describeDevice('app_store', kind, null), '');
   }
   for (const kind of ['screenshot', 'preview'] as const) assert.equal(kindHasDevice(kind), true);
-  assert.equal(describeDevice('app_store', 'screenshot', 'iphone_6_9'), deviceLabel('app_store', 'iphone_6_9'));
+  assert.equal(
+    describeDevice('app_store', 'screenshot', 'iphone_6_9'),
+    deviceLabel('app_store', 'iphone_6_9'),
+  );
   assert.equal(describeDevice('google_play', 'screenshot', 'wear'), 'Wear OS');
   assert.equal(describeDevice('google_play', 'screenshot', null), 'device not recognised');
   // Play: the feature graphic and the icon give a set with no device and no suffix.
@@ -443,7 +452,10 @@ test('kindHasDevice and describeDevice: icons and graphics have no device, scree
     facts('google_play', { kind: 'feature_graphic', device: null, path: 'f' }),
     facts('google_play', { kind: 'icon', device: null, path: 'i' }),
   ]);
-  assert.deepEqual(sets.map((x) => x.deviceLabel), ['', '']);
+  assert.deepEqual(
+    sets.map((x) => x.deviceLabel),
+    ['', ''],
+  );
   assert.equal(PLAY_DEVICES.length, 5);
 });
 

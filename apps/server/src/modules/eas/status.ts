@@ -14,7 +14,13 @@ import { type Failure, failure, type Outcome } from '../../services/repositories
 import { expoClientFor, expoFailure } from './client.ts';
 import type { EasDeps } from './index.ts';
 import { getExpoLink, type ExpoLinkView } from './link.ts';
-import { type EasUpdatesView, getEasUpdates, NO_UPDATES, readUpdatesFromExpo, storeUpdates } from './status-updates.ts';
+import {
+  type EasUpdatesView,
+  getEasUpdates,
+  NO_UPDATES,
+  readUpdatesFromExpo,
+  storeUpdates,
+} from './status-updates.ts';
 
 import { coded } from '../../i18n/problem.ts';
 /**
@@ -567,14 +573,20 @@ export async function refreshEasStatus(
     return failed;
   }
   // The OTA state: one more request. A failure of it is a short code of its own and never fails the builds read.
-  const updates = await readUpdatesFromExpo(opened.client, link.projectId, platform, (e) => expoFailure(e).body.error);
+  const updates = await readUpdatesFromExpo(
+    opened.client,
+    link.projectId,
+    platform,
+    (e) => expoFailure(e).body.error,
+  );
   const at = ctx.now();
   // What was already stored as failed, and whether this is the first read of this project: the failure alerts are for NEWS, once per id.
   const [synced] = await ctx.db.query(
     'SELECT project_id, last_success_at FROM eas_status_sync WHERE app_id = ? AND workspace_id = ?',
     [app.id, input.workspaceId],
   );
-  const baseline = !synced || synced.last_success_at === null || synced.project_id !== link.projectId;
+  const baseline =
+    !synced || synced.last_success_at === null || synced.project_id !== link.projectId;
   const knownFailed = new Set<string>();
   for (const r of await ctx.db.query(
     `SELECT build_id AS id FROM eas_builds WHERE app_id = ? AND workspace_id = ? AND status = 'errored'
@@ -602,7 +614,15 @@ export async function refreshEasStatus(
       }
     }
     if (!baseline) {
-      await raiseFailures(tx, input.workspaceId, app.id, builds.items, submissions.items, knownFailed, at);
+      await raiseFailures(
+        tx,
+        input.workspaceId,
+        app.id,
+        builds.items,
+        submissions.items,
+        knownFailed,
+        at,
+      );
     }
     if (updates.ok) await storeUpdates(tx, input.workspaceId, app.id, updates.rows, at);
     await tx.execute(
@@ -644,5 +664,8 @@ export async function refreshEasStatus(
       });
     }
   });
-  return { ok: true, status: await getEasStatus(ctx.db, input.workspaceId, app, options.artifactUrls === true) };
+  return {
+    ok: true,
+    status: await getEasStatus(ctx.db, input.workspaceId, app, options.artifactUrls === true),
+  };
 }

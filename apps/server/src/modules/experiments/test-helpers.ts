@@ -34,7 +34,13 @@ export const experiment = (over: Partial<StoreExperiment> = {}): StoreExperiment
   startedAt: Date.UTC(2026, 9, 1),
   endedAt: null,
   treatments: [
-    { id: 't1', name: 'Blue icon', iconName: 'blue', promotedAt: null, locales: [locale('en-US', 3)] },
+    {
+      id: 't1',
+      name: 'Blue icon',
+      iconName: 'blue',
+      promotedAt: null,
+      locales: [locale('en-US', 3)],
+    },
     { id: 't2', name: 'New shots', iconName: null, promotedAt: null, locales: [] },
   ],
   ...over,
@@ -48,7 +54,9 @@ export const customPage = (over: Partial<StoreCustomPage> = {}): StoreCustomPage
   state: 'approved',
   rawState: 'APPROVED',
   deepLink: 'myapp://spring',
-  versions: [{ id: 'v1', version: '1', state: 'approved', rawState: 'APPROVED', deepLink: 'myapp://spring' }],
+  versions: [
+    { id: 'v1', version: '1', state: 'approved', rawState: 'APPROVED', deepLink: 'myapp://spring' },
+  ],
   locales: [locale('en-US', 5, true), locale('fr-FR', 4, false)],
   ...over,
 });
@@ -57,8 +65,27 @@ export const customPage = (over: Partial<StoreCustomPage> = {}): StoreCustomPage
 export class FakeExperimentsStore implements StoreExperimentsConnector {
   readonly store = 'appstoreconnect' as const;
   result: ListExperimentsResult = {
-    experiments: [experiment(), experiment({ id: 'e0', name: 'Old test', state: 'completed', rawState: 'COMPLETED', startedAt: Date.UTC(2026, 5, 1), endedAt: Date.UTC(2026, 8, 1) })],
-    customPages: [customPage(), customPage({ id: 'c2', name: 'Autumn', state: 'in_review', rawState: 'IN_REVIEW', deepLink: null })],
+    experiments: [
+      experiment(),
+      experiment({
+        id: 'e0',
+        name: 'Old test',
+        state: 'completed',
+        rawState: 'COMPLETED',
+        startedAt: Date.UTC(2026, 5, 1),
+        endedAt: Date.UTC(2026, 8, 1),
+      }),
+    ],
+    customPages: [
+      customPage(),
+      customPage({
+        id: 'c2',
+        name: 'Autumn',
+        state: 'in_review',
+        rawState: 'IN_REVIEW',
+        deepLink: null,
+      }),
+    ],
     complete: true,
     warnings: [],
     experimentsRead: true,

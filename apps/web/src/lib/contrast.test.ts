@@ -139,7 +139,10 @@ test('no rule pairs --accent-ink text with a pale --accent-bg / --chip-bg backgr
     const text = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     for (const m of text.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
       const body = m[2] as string;
-      if (/(^|[\s;])color:\s*var\(--accent-ink\)/.test(body) && /background(-color)?:\s*var\(--(accent-bg|chip-bg|accent-soft)\)/.test(body))
+      if (
+        /(^|[\s;])color:\s*var\(--accent-ink\)/.test(body) &&
+        /background(-color)?:\s*var\(--(accent-bg|chip-bg|accent-soft)\)/.test(body)
+      )
         offenders.push(`${relative(here, file)}: ${(m[1] as string).trim()}`);
     }
   }

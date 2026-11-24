@@ -13,19 +13,19 @@ Group pages: [Beta feedback screenshot submissions](https://developer.apple.com/
 [Beta feedback crash submissions](https://developer.apple.com/documentation/appstoreconnectapi/beta-feedback-crash-submissions). Available
 since App Store Connect API 4.0.
 
-| Method and path | Use |
-| --- | --- |
-| `GET /v1/apps/{id}/betaFeedbackScreenshotSubmissions` | list an app's screenshot feedback |
-| `GET /v1/apps/{id}/betaFeedbackCrashSubmissions` | list an app's crash submissions |
-| `GET /v1/apps/{id}/relationships/betaFeedback...Submissions` | ids only (not used) |
-| `GET /v1/betaFeedbackScreenshotSubmissions/{id}` | one screenshot feedback |
-| `GET /v1/betaFeedbackCrashSubmissions/{id}` | one crash submission |
-| `GET /v1/betaFeedbackCrashSubmissions/{id}/crashLog` | the crash log of a submission (resource `betaCrashLogs`; `fields[betaCrashLogs]=logText`) |
-| `GET /v1/betaFeedbackCrashSubmissions/{id}/relationships/crashLog` | the crash log id (not used) |
-| `GET /v1/betaCrashLogs/{id}` | a crash log by its id (not used) |
-| `DELETE /v1/betaFeedbackScreenshotSubmissions/{id}`, `DELETE /v1/betaFeedbackCrashSubmissions/{id}` | delete feedback (NOT built: Kiln is read only toward the store) |
-| `GET /v1/builds/{id}/preReleaseVersion` | the version of a build (`fields[preReleaseVersions]=version,platform`) |
-| `GET /v1/apps/{id}/preReleaseVersions` | an app's prerelease versions (`fields[preReleaseVersions]=version,platform,builds,app`, `limit` max 200; no filter or sort documented) |
+| Method and path                                                                                     | Use                                                                                                                                    |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/apps/{id}/betaFeedbackScreenshotSubmissions`                                               | list an app's screenshot feedback                                                                                                      |
+| `GET /v1/apps/{id}/betaFeedbackCrashSubmissions`                                                    | list an app's crash submissions                                                                                                        |
+| `GET /v1/apps/{id}/relationships/betaFeedback...Submissions`                                        | ids only (not used)                                                                                                                    |
+| `GET /v1/betaFeedbackScreenshotSubmissions/{id}`                                                    | one screenshot feedback                                                                                                                |
+| `GET /v1/betaFeedbackCrashSubmissions/{id}`                                                         | one crash submission                                                                                                                   |
+| `GET /v1/betaFeedbackCrashSubmissions/{id}/crashLog`                                                | the crash log of a submission (resource `betaCrashLogs`; `fields[betaCrashLogs]=logText`)                                              |
+| `GET /v1/betaFeedbackCrashSubmissions/{id}/relationships/crashLog`                                  | the crash log id (not used)                                                                                                            |
+| `GET /v1/betaCrashLogs/{id}`                                                                        | a crash log by its id (not used)                                                                                                       |
+| `DELETE /v1/betaFeedbackScreenshotSubmissions/{id}`, `DELETE /v1/betaFeedbackCrashSubmissions/{id}` | delete feedback (NOT built: Kiln is read only toward the store)                                                                        |
+| `GET /v1/builds/{id}/preReleaseVersion`                                                             | the version of a build (`fields[preReleaseVersions]=version,platform`)                                                                 |
+| `GET /v1/apps/{id}/preReleaseVersions`                                                              | an app's prerelease versions (`fields[preReleaseVersions]=version,platform,builds,app`, `limit` max 200; no filter or sort documented) |
 
 Webhooks: Apple can notify a server of new feedback ([Webhook notifications](https://developer.apple.com/documentation/appstoreconnectapi/webhook-notifications)).
 The event type names were not read (UNVERIFIED); Kiln does not use webhooks: it reads (a sync), like every other Apple read.
@@ -71,9 +71,9 @@ gone (the stored row keeps no log).
 - [TestFlight & Privacy](https://www.apple.com/legal/privacy/data/en/test-flight/): "Apple keeps beta feedback for one year" (crash logs and
   usage data "may be kept until bugs are resolved").
 - Help: View tester feedback: "Crash reports can be downloaded for 120 days". No period for screenshot feedback.
-So the API may stop returning an item after 120 days (crash log) or one year (feedback): Kiln stores what it has read and keeps it until its
-own retention (`KILN_REVIEW_RETENTION_DAYS`, the same setting as reviews), so a sync more often than every 120 days keeps the log. Items
-deleted in App Store Connect are NOT removed from Kiln (no deletion signal is read); the retention removes them.
+  So the API may stop returning an item after 120 days (crash log) or one year (feedback): Kiln stores what it has read and keeps it until its
+  own retention (`KILN_REVIEW_RETENTION_DAYS`, the same setting as reviews), so a sync more often than every 120 days keeps the log. Items
+  deleted in App Store Connect are NOT removed from Kiln (no deletion signal is read); the retention removes them.
 
 ## Tester identity and privacy (VERIFIED)
 

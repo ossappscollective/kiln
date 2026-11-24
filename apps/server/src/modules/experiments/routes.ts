@@ -7,13 +7,7 @@ import { getApp } from '../../services/apps.ts';
 import type { Failure } from '../../services/repositories.ts';
 import { createNoteBody, updateNoteBody } from './notes.ts';
 import type { ExperimentsContext } from './shared.ts';
-import {
-  createNote,
-  listExperiments,
-  removeNote,
-  syncExperiments,
-  updateNote,
-} from './service.ts';
+import { createNote, listExperiments, removeNote, syncExperiments, updateNote } from './service.ts';
 
 /**
  * Store experiments and custom product pages of an app (docs/api/experiments.md). Reads and the sync are read-only toward the store; the manual

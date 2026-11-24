@@ -82,11 +82,18 @@ test('the lead words, the publish title and the shortcut labels follow the langu
       needsAnswerText('3 sans réponse, le plus ancien : 2 j'),
       '3 avis attendent une réponse, le plus ancien : 2 j',
     );
-    assert.equal(needsAnswerText('5 unanswered'), '5 unanswered', 'text of another language is kept');
+    assert.equal(
+      needsAnswerText('5 unanswered'),
+      '5 unanswered',
+      'text of another language is kept',
+    );
     assert.equal(buildsLead(0, 0).headline, 'Aucun build pour l’instant');
     assert.equal(buildsLead(12, 3).headline, '12 builds, dont 3 sans exécution CI');
     assert.equal(keywordsLead([]).headline, 'Aucun mot-clé suivi pour l’instant');
-    assert.equal(settingsLead([{ platform: 'ios', lastSyncError: null, lastSyncedAt: null }]).headline, 'iOS n’a pas encore été synchronisé');
+    assert.equal(
+      settingsLead([{ platform: 'ios', lastSyncError: null, lastSyncedAt: null }]).headline,
+      'iOS n’a pas encore été synchronisé',
+    );
     const registry = shortcutRegistry('workspace');
     assert.ok(registry.some((s) => s.label === 'Toutes les applications'));
     assert.equal(shortcutGroupLabel('Go to'), 'Aller à');

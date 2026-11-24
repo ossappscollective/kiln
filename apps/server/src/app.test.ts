@@ -291,9 +291,13 @@ dbTest('credentials: create, list without the secret, rotate, delete, all audite
   assert.match(listed, /Acme ASC key/);
   assert.doesNotMatch(listed, /TOPSECRET/);
   // The list carries the non-secret identifiers (and the create response too), never the key.
-  const ids = (JSON.parse(listed) as { credentials: { identifiers: { key: string; value: string }[] }[] }).credentials[0]
-    ?.identifiers.map((i) => [i.key, i.value]);
-  assert.deepEqual(ids, [['issuerId', 'issuer-1'], ['keyId', 'ABC123DEFG']]);
+  const ids = (
+    JSON.parse(listed) as { credentials: { identifiers: { key: string; value: string }[] }[] }
+  ).credentials[0]?.identifiers.map((i) => [i.key, i.value]);
+  assert.deepEqual(ids, [
+    ['issuerId', 'issuer-1'],
+    ['keyId', 'ABC123DEFG'],
+  ]);
   assert.doesNotMatch(listed, /privateKey|PRIVATE KEY/);
 
   const [stored] = await db.query('SELECT ciphertext FROM credentials');

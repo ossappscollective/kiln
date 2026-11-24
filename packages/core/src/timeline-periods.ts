@@ -64,14 +64,27 @@ export function compareWith(kind: ReportKind, day: string, through: string): Com
   const partial = period.to > through;
   const currentTo = partial ? through : period.to;
   const currentDays = currentTo < period.from ? 0 : daysBetween(period.from, currentTo) + 1;
-  const current = { from: period.from, to: currentDays === 0 ? addDays(period.from, -1) : currentTo };
+  const current = {
+    from: period.from,
+    to: currentDays === 0 ? addDays(period.from, -1) : currentTo,
+  };
   let previous = before;
   if (partial) {
     const cut = addDays(before.from, Math.max(0, currentDays) - 1);
     previous = { from: before.from, to: cut > before.to ? before.to : cut };
   }
-  const previousDays = previous.to < previous.from ? 0 : daysBetween(previous.from, previous.to) + 1;
-  return { kind, period, current, previous, currentDays, previousDays, partial, lengthsDiffer: currentDays !== previousDays };
+  const previousDays =
+    previous.to < previous.from ? 0 : daysBetween(previous.from, previous.to) + 1;
+  return {
+    kind,
+    period,
+    current,
+    previous,
+    currentDays,
+    previousDays,
+    partial,
+    lengthsDiffer: currentDays !== previousDays,
+  };
 }
 
 /** The newest period that has ended by `through` (the one a report offers first, when the running one is not wanted). */

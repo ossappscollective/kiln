@@ -23,7 +23,13 @@ test('crash words match in English, French, Spanish, German and a few other lang
 
 test('the title counts too, and ordinary praise or a plant do not match', () => {
   assert.equal(crashMention('Crashes!', 'ok'), true);
-  for (const text of ['Great app, love it', 'Houseplant care reminders are great', 'Die Pflanze wächst gut', 'Me encanta, muy fácil de usar', '']) {
+  for (const text of [
+    'Great app, love it',
+    'Houseplant care reminders are great',
+    'Die Pflanze wächst gut',
+    'Me encanta, muy fácil de usar',
+    '',
+  ]) {
     assert.equal(crashMention(null, text), false, text);
   }
 });

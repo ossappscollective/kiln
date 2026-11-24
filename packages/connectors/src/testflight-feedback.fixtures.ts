@@ -57,17 +57,38 @@ export const submission = (
   relationships: buildId === null ? {} : { build: linkage('builds', buildId) },
 });
 
-export const screenshotSubmission = (idValue: string, buildId: string | null, over: Record<string, unknown> = {}) =>
+export const screenshotSubmission = (
+  idValue: string,
+  buildId: string | null,
+  over: Record<string, unknown> = {},
+) =>
   submission('betaFeedbackScreenshotSubmissions', idValue, buildId, {
     screenshots: [
-      { url: 'https://example.invalid/shot-1.png', width: 1290, height: 2796, expirationDate: '2026-11-22T13:00:00Z' },
-      { url: 'https://example.invalid/shot-2.png', width: 1290, height: 2796, expirationDate: '2026-11-22T13:00:00Z' },
+      {
+        url: 'https://example.invalid/shot-1.png',
+        width: 1290,
+        height: 2796,
+        expirationDate: '2026-11-22T13:00:00Z',
+      },
+      {
+        url: 'https://example.invalid/shot-2.png',
+        width: 1290,
+        height: 2796,
+        expirationDate: '2026-11-22T13:00:00Z',
+      },
     ],
     ...over,
   });
 
-export const crashSubmission = (idValue: string, buildId: string | null, over: Record<string, unknown> = {}) =>
-  submission('betaFeedbackCrashSubmissions', idValue, buildId, { comment: 'It crashed when I opened settings', ...over });
+export const crashSubmission = (
+  idValue: string,
+  buildId: string | null,
+  over: Record<string, unknown> = {},
+) =>
+  submission('betaFeedbackCrashSubmissions', idValue, buildId, {
+    comment: 'It crashed when I opened settings',
+    ...over,
+  });
 
 /** An Apple `.crash` text, abbreviated: the layout the signature rule expects (UNVERIFIED for TestFlight). */
 export const CRASH_LOG = `Incident Identifier: 1A2B3C4D
@@ -100,8 +121,15 @@ export function feedbackFake(): fx.FakeFetch {
       json: {
         data: [
           screenshotSubmission('f1', 'b1'),
-          screenshotSubmission('f2', 'b2', { appPlatform: 'MAC_OS', createdDate: '2026-11-19T09:30:00Z' }),
-          screenshotSubmission('f3', null, { email: null, screenshots: [], createdDate: 'not a date' }),
+          screenshotSubmission('f2', 'b2', {
+            appPlatform: 'MAC_OS',
+            createdDate: '2026-11-19T09:30:00Z',
+          }),
+          screenshotSubmission('f3', null, {
+            email: null,
+            screenshots: [],
+            createdDate: 'not a date',
+          }),
           { type: 'betaFeedbackScreenshotSubmissions' },
         ],
         included: [build('b1', '42'), build('b2', '43')],
@@ -115,6 +143,12 @@ export function feedbackFake(): fx.FakeFetch {
     .on({
       method: 'GET',
       match: '/v1/builds/b1/preReleaseVersion?fields[preReleaseVersions]=version,platform',
-      json: { data: { type: 'preReleaseVersions', id: 'p1', attributes: { version: '2.5.0', platform: 'IOS' } } },
+      json: {
+        data: {
+          type: 'preReleaseVersions',
+          id: 'p1',
+          attributes: { version: '2.5.0', platform: 'IOS' },
+        },
+      },
     });
 }

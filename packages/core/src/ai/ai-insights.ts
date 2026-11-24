@@ -278,7 +278,12 @@ export type AiReviewSummaryInsight = {
   locale?: string | null;
   outputLanguage?: string | null;
   /** Counted by the server over ALL reviews of the period (not the sample): the mean rating of the first and of the second half, and how many reviews each half has. */
-  trend?: { earlier: number | null; recent: number | null; earlierCount: number; recentCount: number } | null;
+  trend?: {
+    earlier: number | null;
+    recent: number | null;
+    earlierCount: number;
+    recentCount: number;
+  } | null;
   /** How many of the reviews read are the newest, and how many were added because they are low-rated. */
   sampled?: { newest: number; lowest: number };
   /** One sentence from the model on what is new or gone since the last summary; empty when there was none. */

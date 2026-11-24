@@ -51,10 +51,10 @@ scheduled listing job (a recent read from any path is not started again), 429 wi
 `sync-pipeline-bench.test.ts` runs the real worker, host gate and pool against a fake store answering after 8 ms: 6 apps, each with an app sync (3 reads),
 a review sync (1) and an analytics sync (5 sources x 3 reads); analytics queued first, the worst case. Same 114 requests in both runs.
 
-| | whole round | release state of all apps stored by |
-|---|---|---|
-| before (1 job at a time, sequential feeds) | 989 ms | 989 ms |
-| after (4 jobs, host limit 4, priority, parallel sources) | 244 ms | 46 ms |
+|                                                          | whole round | release state of all apps stored by |
+| -------------------------------------------------------- | ----------- | ----------------------------------- |
+| before (1 job at a time, sequential feeds)               | 989 ms      | 989 ms                              |
+| after (4 jobs, host limit 4, priority, parallel sources) | 244 ms      | 46 ms                               |
 
 About 4x for the round, bounded by the host limit of 4, and about 20x for the first useful data. These numbers show the shape of the pipeline. They say
 nothing about real Apple or Google latency, whose requests are slower and rate limited.

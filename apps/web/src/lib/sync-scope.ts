@@ -6,13 +6,17 @@ import type { RunState } from './sync-sources.ts';
  */
 
 /** `scopeKey` names what the readings are for: the workspace and the ids of the records in scope. */
-export const scopeKey = (workspaceId: string, appIds: readonly string[]): string => `${workspaceId}|${appIds.join(',')}`;
+export const scopeKey = (workspaceId: string, appIds: readonly string[]): string =>
+  `${workspaceId}|${appIds.join(',')}`;
 
 /**
  * A race guard keyed on the scope. `begin(key)` starts a read and says whether the scope changed (then the old readings must be dropped now, not
  * when the new ones arrive); `accepts(token)` is false for every read that is not the latest, so a late answer of the app left behind is ignored.
  */
-export function createReadingsScope(): { begin: (key: string) => { token: number; changed: boolean }; accepts: (token: number) => boolean } {
+export function createReadingsScope(): {
+  begin: (key: string) => { token: number; changed: boolean };
+  accepts: (token: number) => boolean;
+} {
   let current = '';
   let latest = 0;
   return {
@@ -27,7 +31,10 @@ export function createReadingsScope(): { begin: (key: string) => { token: number
 }
 
 /** The runs of the given apps only (`runs` is keyed `appId:kind` and is kept for the whole page): a run of another app is not this app's. */
-export function runsOfApps(runs: Readonly<Record<string, RunState | undefined>>, appIds: readonly string[]): Record<string, RunState | undefined> {
+export function runsOfApps(
+  runs: Readonly<Record<string, RunState | undefined>>,
+  appIds: readonly string[],
+): Record<string, RunState | undefined> {
   const out: Record<string, RunState | undefined> = {};
   for (const [key, state] of Object.entries(runs)) {
     const at = key.indexOf(':');

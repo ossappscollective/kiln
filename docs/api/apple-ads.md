@@ -4,16 +4,16 @@ The link between an App Store record and an Apple Ads ad account, the sync that 
 **Nothing in Apple Ads is ever created or changed**: the only requests to Apple are token, `GET` of the account list and details, and report queries (`POST`s that read). Apple Ads exists for App Store records (`ios`, `macos`); the others answer `422 ads_not_supported`.
 Built against the Apple Ads Platform API v1, not the Campaign Management API v5 (sunset January 2027). **Never run against a real account**: see the UNVERIFIED list of the ADR.
 
-| Route (under `/api/workspaces/:workspaceId/apps/:appId`) | Right        | What it does                                                                                         |
-| -------------------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------- |
-| `GET /ads`                                               | `apps.read`  | `{ supported, link, sync }`. Database only.                                                          |
-| `GET /ads/accounts?credentialId=`                        | `apps.write` | The ad accounts and roles of the key (`{ accounts: [{ id, name, orgId, roles }] }`). Asks Apple once. |
-| `PUT /ads`                                               | `apps.write` | `{ credentialId, adAccountId, adamId? }` links (or changes the link). Asks Apple for the account.     |
-| `DELETE /ads`                                            | `apps.write` | Removes the link. `204`; `404` when there was none. Stored rows age out after 90 days.                |
-| `POST /ads/sync`                                         | `apps.sync`  | Queues `ads.sync`. `202 { queued: true, jobId }`, or `200 { queued: false, reason: "already_queued" }`. Body `{ days? }` 1 to 90. |
-| `GET /ads/overview?from=&to=`                            | `aso.read`   | `{ sync, overview }`: totals of the window against the window before, per day sums. Database only.   |
-| `GET /ads/campaigns?from=&to=`                           | `aso.read`   | `{ currency, window, sync, campaigns }`, most spend first.                                           |
-| `GET /ads/terms?kind=&from=&to=&sort=&dir=&q=&country=&campaignId=&limit=&offset=` | `aso.read` | Search terms (`kind=term`, default) or the keywords bid on (`kind=keyword`), grouped by term and storefront. |
+| Route (under `/api/workspaces/:workspaceId/apps/:appId`)                           | Right        | What it does                                                                                                                      |
+| ---------------------------------------------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /ads`                                                                         | `apps.read`  | `{ supported, link, sync }`. Database only.                                                                                       |
+| `GET /ads/accounts?credentialId=`                                                  | `apps.write` | The ad accounts and roles of the key (`{ accounts: [{ id, name, orgId, roles }] }`). Asks Apple once.                             |
+| `PUT /ads`                                                                         | `apps.write` | `{ credentialId, adAccountId, adamId? }` links (or changes the link). Asks Apple for the account.                                 |
+| `DELETE /ads`                                                                      | `apps.write` | Removes the link. `204`; `404` when there was none. Stored rows age out after 90 days.                                            |
+| `POST /ads/sync`                                                                   | `apps.sync`  | Queues `ads.sync`. `202 { queued: true, jobId }`, or `200 { queued: false, reason: "already_queued" }`. Body `{ days? }` 1 to 90. |
+| `GET /ads/overview?from=&to=`                                                      | `aso.read`   | `{ sync, overview }`: totals of the window against the window before, per day sums. Database only.                                |
+| `GET /ads/campaigns?from=&to=`                                                     | `aso.read`   | `{ currency, window, sync, campaigns }`, most spend first.                                                                        |
+| `GET /ads/terms?kind=&from=&to=&sort=&dir=&q=&country=&campaignId=&limit=&offset=` | `aso.read`   | Search terms (`kind=term`, default) or the keywords bid on (`kind=keyword`), grouped by term and storefront.                      |
 
 `from` and `to` are `YYYY-MM-DD` (default: the 30 days ending at the last read); `from` before `to`, at most 366 days. `sort` is `impressions` (default), `taps`, `installs`, `spend`, `cpt`, `cpi`, `ttr` or `term`; `dir` `asc` or `desc`; `limit` at most 200. `q` is a text filter (a `%` is text). Non-members and apps of another workspace are `404`. A token limited to some apps works for those apps only.
 
@@ -26,8 +26,35 @@ Every amount is an **integer in micro-units** (`spendMicros: 10250000` is 10.25)
 ```json
 {
   "supported": true,
-  "link": { "appId": "…", "credentialId": "…", "credentialLabel": "Apple Ads", "credentialAvailable": true, "adAccountId": "123456789", "adAccountName": "Acme", "orgId": "27154130", "currency": "EUR", "timezone": "America/New_York", "adamId": "1234567890", "verifiedAt": 1760000000000, "linkedBy": "…", "createdAt": 1760000000000, "updatedAt": 1760000000000 },
-  "sync": { "lastAttemptAt": 1760000000000, "lastSuccessAt": 1760000000000, "lastError": null, "lastErrorCode": null, "failureStreak": 0, "rangeStart": "2026-11-09", "rangeEnd": "2026-11-22", "campaigns": 1, "complete": true, "skipped": 0, "warnings": [] }
+  "link": {
+    "appId": "…",
+    "credentialId": "…",
+    "credentialLabel": "Apple Ads",
+    "credentialAvailable": true,
+    "adAccountId": "123456789",
+    "adAccountName": "Acme",
+    "orgId": "27154130",
+    "currency": "EUR",
+    "timezone": "America/New_York",
+    "adamId": "1234567890",
+    "verifiedAt": 1760000000000,
+    "linkedBy": "…",
+    "createdAt": 1760000000000,
+    "updatedAt": 1760000000000
+  },
+  "sync": {
+    "lastAttemptAt": 1760000000000,
+    "lastSuccessAt": 1760000000000,
+    "lastError": null,
+    "lastErrorCode": null,
+    "failureStreak": 0,
+    "rangeStart": "2026-11-09",
+    "rangeEnd": "2026-11-22",
+    "campaigns": 1,
+    "complete": true,
+    "skipped": 0,
+    "warnings": []
+  }
 }
 ```
 

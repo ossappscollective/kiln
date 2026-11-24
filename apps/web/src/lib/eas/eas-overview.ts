@@ -1,5 +1,10 @@
 import type { Platform } from '@kiln/core';
-import type { EasBuildView, EasStatusView, EasSubmissionView, EasUpdateView } from './eas-status.ts';
+import type {
+  EasBuildView,
+  EasStatusView,
+  EasSubmissionView,
+  EasUpdateView,
+} from './eas-status.ts';
 
 /**
  * The Expo card of the app Overview (docs/ux-ia.md): per platform of the app, the latest EAS build and the latest EAS submission, from the
@@ -50,13 +55,17 @@ export function otaSummary(view: EasStatusView): OtaSummary {
 }
 
 /** EAS builds iOS and Android only: a macOS (or any other) record has no card row. */
-export const expoSupported = (platform: Platform): boolean => platform === 'ios' || platform === 'android';
+export const expoSupported = (platform: Platform): boolean =>
+  platform === 'ios' || platform === 'android';
 
 const byNewest = <T extends { createdAt: number | null }>(list: readonly T[]): T[] =>
   list.slice().sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 
 /** The newest build of the platform (the snapshot is newest first, but this does not rely on it). */
-export function latestBuild(builds: readonly EasBuildView[], platform: Platform): EasBuildView | null {
+export function latestBuild(
+  builds: readonly EasBuildView[],
+  platform: Platform,
+): EasBuildView | null {
   return byNewest(builds.filter((b) => b.platform === platform))[0] ?? null;
 }
 
@@ -74,7 +83,14 @@ export function expoRow(
   app: { id: string; platform: Platform },
   view: EasStatusView | null | undefined,
 ): ExpoOverviewRow {
-  const row = { appId: app.id, platform: app.platform, build: null, submission: null, readAt: null, ota: null };
+  const row = {
+    appId: app.id,
+    platform: app.platform,
+    build: null,
+    submission: null,
+    readAt: null,
+    ota: null,
+  };
   if (view === undefined) return { ...row, state: 'loading' };
   if (view === null) return { ...row, state: 'unavailable' };
   if (view.project === null) return { ...row, state: 'not_linked' };

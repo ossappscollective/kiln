@@ -321,7 +321,10 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
     const ref = c.req.query('ref') ?? '';
     if (!REF.test(ref))
       return c.json(
-        { error: 'invalid_request', issues: [{ path: 'ref', message: 'The ref of an image of the store view.' }] },
+        {
+          error: 'invalid_request',
+          issues: [{ path: 'ref', message: 'The ref of an image of the store view.' }],
+        },
         400,
       );
     const etag = `"f-${ref}"`;
@@ -341,7 +344,12 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
     if (!done.ok) return respond(c, done);
     return new Response(asBody(done.image.bytes), {
       status: 200,
-      headers: safeImageHeaders(IMAGE_TYPES[done.image.format], etag, done.image.bytes.length, cache),
+      headers: safeImageHeaders(
+        IMAGE_TYPES[done.image.format],
+        etag,
+        done.image.bytes.length,
+        cache,
+      ),
     });
   });
 
@@ -573,7 +581,13 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
   );
 
   // The release asset proposal (docs/adr/0063-release-asset-proposal.md): the repository's changes since the previous release, staged on request.
-  mountAssetProposalRoutes(routes, { ctx: { sync, staged }, needs, gate, respond, deadlineMs: ctx.compareDeadlineMs });
+  mountAssetProposalRoutes(routes, {
+    ctx: { sync, staged },
+    needs,
+    gate,
+    respond,
+    deadlineMs: ctx.compareDeadlineMs,
+  });
 
   return routes;
 }

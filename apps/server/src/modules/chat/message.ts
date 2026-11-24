@@ -38,7 +38,10 @@ export function buildAlertMessage(input: AlertMessageInput): ChatMessage {
   const t = translator(locale);
   const { data } = input;
   const translated = locale === SOURCE_LOCALE ? undefined : alertText(input.type, data, locale);
-  const title = cut(translated?.title ?? alertTitleIn(input.type, data, input.title, locale), MAX.title);
+  const title = cut(
+    translated?.title ?? alertTitleIn(input.type, data, input.title, locale),
+    MAX.title,
+  );
   const body = cut(translated?.body ?? input.body, MAX.body);
   const guide = alertGuide(input.type, data, locale);
   const actions = [guide.primary, ...(guide.secondary ?? [])].filter((a) => a !== undefined);
@@ -67,7 +70,9 @@ export function buildAlertMessage(input: AlertMessageInput): ChatMessage {
     repeated: count > 1 ? t('chat:repeated', { count }) : undefined,
     buttons,
     noLink:
-      buttons.length === 0 && guide.primary ? t('chat:noLink', { where: guide.primary.where }) : undefined,
+      buttons.length === 0 && guide.primary
+        ? t('chat:noLink', { where: guide.primary.where })
+        : undefined,
     footer: t('chat:footer', { type: input.type }),
   };
 }

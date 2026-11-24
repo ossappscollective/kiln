@@ -4,7 +4,10 @@ import { StoreError } from '../errors.ts';
 import * as fx from '../store.fixtures.ts';
 import { crashSignature } from '../testflight-crash.ts';
 import * as tf from '../testflight-feedback.fixtures.ts';
-import { AppleTestFlightFeedbackConnector, parseSubmission } from './appstore-testflight-feedback.ts';
+import {
+  AppleTestFlightFeedbackConnector,
+  parseSubmission,
+} from './appstore-testflight-feedback.ts';
 
 const key = fx.appleKeyPem();
 
@@ -26,7 +29,10 @@ test('listFeedback reads screenshot feedback and crashes with build number and v
   assert.deepEqual(fake.unexpected, []);
   assert.equal(result.complete, true);
   assert.equal(result.feedbackRead && result.crashesRead, true);
-  assert.deepEqual(result.items.map((i) => i.id), ['f1', 'f3', 'c1']);
+  assert.deepEqual(
+    result.items.map((i) => i.id),
+    ['f1', 'f3', 'c1'],
+  );
   const [f1, f3, c1] = result.items;
   assert.equal(f1?.kind, 'feedback');
   assert.equal(f1?.buildNumber, '42');
@@ -54,10 +60,21 @@ test('listFeedback reads screenshot feedback and crashes with build number and v
 
 test('a Mac record asks for MAC_OS', async () => {
   const fake = new fx.FakeFetch()
-    .on({ method: 'GET', match: /betaFeedbackScreenshotSubmissions\?.*filter\[appPlatform\]=MAC_OS/, json: { data: [tf.screenshotSubmission('m1', null, { appPlatform: 'MAC_OS' })] } })
-    .on({ method: 'GET', match: /betaFeedbackCrashSubmissions\?.*filter\[appPlatform\]=MAC_OS/, json: { data: [] } });
+    .on({
+      method: 'GET',
+      match: /betaFeedbackScreenshotSubmissions\?.*filter\[appPlatform\]=MAC_OS/,
+      json: { data: [tf.screenshotSubmission('m1', null, { appPlatform: 'MAC_OS' })] },
+    })
+    .on({
+      method: 'GET',
+      match: /betaFeedbackCrashSubmissions\?.*filter\[appPlatform\]=MAC_OS/,
+      json: { data: [] },
+    });
   const result = await connector(fake, { scope: 'macos' }).listFeedback();
-  assert.deepEqual(result.items.map((i) => i.id), ['m1']);
+  assert.deepEqual(
+    result.items.map((i) => i.id),
+    ['m1'],
+  );
 });
 
 test('an empty app is an empty read, not an error', async () => {
@@ -71,18 +88,29 @@ test('an empty app is an empty read, not an error', async () => {
 
 test('a refused list is a warning; both refused throws; another failure fails the read', async () => {
   const one = new fx.FakeFetch()
-    .on({ method: 'GET', match: tf.FEEDBACK_LIST, status: 403, json: { errors: [{ status: '403', code: 'FORBIDDEN', title: 'Forbidden' }] } })
+    .on({
+      method: 'GET',
+      match: tf.FEEDBACK_LIST,
+      status: 403,
+      json: { errors: [{ status: '403', code: 'FORBIDDEN', title: 'Forbidden' }] },
+    })
     .on({ method: 'GET', match: tf.CRASH_LIST, json: { data: [tf.crashSubmission('c1', null)] } });
   const partial = await connector(one).listFeedback();
   assert.equal(partial.feedbackRead, false);
   assert.equal(partial.crashesRead, true);
   assert.equal(partial.warnings.length, 1);
-  assert.deepEqual(partial.items.map((i) => i.id), ['c1']);
+  assert.deepEqual(
+    partial.items.map((i) => i.id),
+    ['c1'],
+  );
 
   const both = new fx.FakeFetch()
     .on({ method: 'GET', match: tf.FEEDBACK_LIST, status: 404, json: { errors: [] } })
     .on({ method: 'GET', match: tf.CRASH_LIST, status: 404, json: { errors: [] } });
-  await assert.rejects(connector(both).listFeedback(), (e: unknown) => e instanceof StoreError && e.kind === 'not_found');
+  await assert.rejects(
+    connector(both).listFeedback(),
+    (e: unknown) => e instanceof StoreError && e.kind === 'not_found',
+  );
 
   const broken = new fx.FakeFetch()
     .on({ method: 'GET', match: tf.FEEDBACK_LIST, status: 500, json: {} })
@@ -95,7 +123,12 @@ test('a list that has more pages than the cap is partial and says so', async () 
     .on({
       method: 'GET',
       match: tf.FEEDBACK_LIST,
-      json: { data: [tf.screenshotSubmission('f1', null)], links: { next: `https://api.appstoreconnect.apple.com/v1/apps/${tf.APP}/betaFeedbackScreenshotSubmissions?cursor=2` } },
+      json: {
+        data: [tf.screenshotSubmission('f1', null)],
+        links: {
+          next: `https://api.appstoreconnect.apple.com/v1/apps/${tf.APP}/betaFeedbackScreenshotSubmissions?cursor=2`,
+        },
+      },
     })
     .on({ method: 'GET', match: tf.CRASH_LIST, json: { data: [] } });
   const result = await connector(fake, { maxPages: 1 }).listFeedback();
@@ -104,9 +137,20 @@ test('a list that has more pages than the cap is partial and says so', async () 
 });
 
 test('a version that cannot be read stays null', async () => {
-  const fake = tf.feedbackFake().on({ method: 'GET', match: '/v1/builds/b9/preReleaseVersion?fields[preReleaseVersions]=version,platform', status: 404, json: { errors: [] } });
+  const fake = tf
+    .feedbackFake()
+    .on({
+      method: 'GET',
+      match: '/v1/builds/b9/preReleaseVersion?fields[preReleaseVersions]=version,platform',
+      status: 404,
+      json: { errors: [] },
+    });
   fake.clear('GET', tf.FEEDBACK_LIST);
-  fake.on({ method: 'GET', match: tf.FEEDBACK_LIST, json: { data: [tf.screenshotSubmission('f9', 'b9')], included: [tf.build('b9', '7')] } });
+  fake.on({
+    method: 'GET',
+    match: tf.FEEDBACK_LIST,
+    json: { data: [tf.screenshotSubmission('f9', 'b9')], included: [tf.build('b9', '7')] },
+  });
   const result = await connector(fake).listFeedback();
   const f9 = result.items.find((i) => i.id === 'f9');
   assert.equal(f9?.buildNumber, '7');
@@ -115,9 +159,22 @@ test('a version that cannot be read stays null', async () => {
 
 test('readCrashLog returns the text, or null when the log is gone or has none', async () => {
   const fake = new fx.FakeFetch()
-    .on({ method: 'GET', match: '/v1/betaFeedbackCrashSubmissions/c1/crashLog?fields[betaCrashLogs]=logText', json: { data: { type: 'betaCrashLogs', id: 'l1', attributes: { logText: tf.CRASH_LOG } } } })
-    .on({ method: 'GET', match: '/v1/betaFeedbackCrashSubmissions/c2/crashLog?fields[betaCrashLogs]=logText', status: 404, json: { errors: [] } })
-    .on({ method: 'GET', match: '/v1/betaFeedbackCrashSubmissions/c3/crashLog?fields[betaCrashLogs]=logText', json: { data: { type: 'betaCrashLogs', id: 'l3', attributes: {} } } });
+    .on({
+      method: 'GET',
+      match: '/v1/betaFeedbackCrashSubmissions/c1/crashLog?fields[betaCrashLogs]=logText',
+      json: { data: { type: 'betaCrashLogs', id: 'l1', attributes: { logText: tf.CRASH_LOG } } },
+    })
+    .on({
+      method: 'GET',
+      match: '/v1/betaFeedbackCrashSubmissions/c2/crashLog?fields[betaCrashLogs]=logText',
+      status: 404,
+      json: { errors: [] },
+    })
+    .on({
+      method: 'GET',
+      match: '/v1/betaFeedbackCrashSubmissions/c3/crashLog?fields[betaCrashLogs]=logText',
+      json: { data: { type: 'betaCrashLogs', id: 'l3', attributes: {} } },
+    });
   const c = connector(fake);
   assert.equal(await c.readCrashLog('c1'), tf.CRASH_LOG);
   assert.equal(await c.readCrashLog('c2'), null);
@@ -127,14 +184,20 @@ test('readCrashLog returns the text, or null when the log is gone or has none', 
 test('readScreenshots hands on https links with their size and expiry, and nothing else', async () => {
   const fake = new fx.FakeFetch().on({
     method: 'GET',
-    match: '/v1/betaFeedbackScreenshotSubmissions/f1?fields[betaFeedbackScreenshotSubmissions]=screenshots',
+    match:
+      '/v1/betaFeedbackScreenshotSubmissions/f1?fields[betaFeedbackScreenshotSubmissions]=screenshots',
     json: {
       data: {
         type: 'betaFeedbackScreenshotSubmissions',
         id: 'f1',
         attributes: {
           screenshots: [
-            { url: 'https://example.invalid/a.png', width: 10, height: 20, expirationDate: '2026-11-22T13:00:00Z' },
+            {
+              url: 'https://example.invalid/a.png',
+              width: 10,
+              height: 20,
+              expirationDate: '2026-11-22T13:00:00Z',
+            },
             { url: 'http://example.invalid/insecure.png' },
             { url: 'javascript:alert(1)' },
             { width: 1 },
@@ -144,7 +207,14 @@ test('readScreenshots hands on https links with their size and expiry, and nothi
     },
   });
   const links = await connector(fake).readScreenshots('f1');
-  assert.deepEqual(links, [{ url: 'https://example.invalid/a.png', width: 10, height: 20, expiresAt: Date.UTC(2026, 10, 22, 13) }]);
+  assert.deepEqual(links, [
+    {
+      url: 'https://example.invalid/a.png',
+      width: 10,
+      height: 20,
+      expiresAt: Date.UTC(2026, 10, 22, 13),
+    },
+  ]);
 });
 
 test('parseSubmission tolerates a submission with almost nothing in it', () => {
@@ -180,5 +250,8 @@ test('a log in another layout has no signature (or only an exception)', () => {
 });
 
 test('the same crash on two builds has the same signature', () => {
-  assert.equal(crashSignature(tf.CRASH_LOG.replace('1234', '99'))?.key, crashSignature(tf.CRASH_LOG)?.key);
+  assert.equal(
+    crashSignature(tf.CRASH_LOG.replace('1234', '99'))?.key,
+    crashSignature(tf.CRASH_LOG)?.key,
+  );
 });

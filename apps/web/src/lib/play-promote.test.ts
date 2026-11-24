@@ -122,11 +122,24 @@ test('closing the steps drops the promotion but keeps the rest of the address', 
 
 test('no promotion for a build that already sits in production in any state', () => {
   const internal = release();
-  for (const status of ['in_review', 'approved', 'draft', 'rejected', 'rolling_out', 'live', 'halted'] as const) {
+  for (const status of [
+    'in_review',
+    'approved',
+    'draft',
+    'rejected',
+    'rolling_out',
+    'live',
+    'halted',
+  ] as const) {
     const production = release({ id: `p-${status}`, track: 'production', status });
     assert.equal(promoteOption(internal, [internal, production]), null, status);
   }
   // Another version code in production does not hide it.
-  const other = release({ id: 'p', track: 'production', status: 'in_review', versionCodes: ['240'] });
+  const other = release({
+    id: 'p',
+    track: 'production',
+    status: 'in_review',
+    versionCodes: ['240'],
+  });
   assert.ok(promoteOption(internal, [internal, other]));
 });

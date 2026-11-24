@@ -50,7 +50,10 @@ test('installPlan: platform, distribution, state, expiry and simulator', () => {
     assert.equal(plan.block, block, JSON.stringify(o));
     assert.equal(plan.qr, qr, JSON.stringify(o));
   }
-  assert.equal(installPlan(build({ simulator: true, distribution: 'simulator' }), NOW).simulator, true);
+  assert.equal(
+    installPlan(build({ simulator: true, distribution: 'simulator' }), NOW).simulator,
+    true,
+  );
 });
 
 test('fileKind reads the end of the address, not the query', () => {
@@ -74,7 +77,11 @@ test('downloadOf needs a finished, unexpired build with an https address', () =>
 test('orbitLink: only builds Orbit can install, with the address encoded', () => {
   assert.equal(orbitLink(build(), NOW), `${ORBIT_SCHEME}?url=${encodeURIComponent(APK)}`);
   assert.equal(orbitLink(build({ artifactUrl: 'https://x.test/a.aab' }), NOW), null, 'an AAB');
-  assert.equal(orbitLink(build({ internal: false, distribution: 'store' }), NOW), null, 'a store build');
+  assert.equal(
+    orbitLink(build({ internal: false, distribution: 'store' }), NOW),
+    null,
+    'a store build',
+  );
   assert.equal(orbitLink(build({ artifactUrl: null }), NOW), null);
   assert.equal(orbitLink(build({ artifactExpiresAt: NOW - 1 }), NOW), null);
   const sim = build({
@@ -88,13 +95,22 @@ test('orbitLink: only builds Orbit can install, with the address encoded', () =>
   assert.equal(orbitLink({ ...sim, platform: 'android' }, NOW), null, 'no Android simulator build');
   assert.ok(orbitLink(build({ platform: 'ios', artifactUrl: 'https://x.test/a.ipa' }), NOW));
   const tricky = build({ artifactUrl: 'https://x.test/a.apk?x=1&y=2 3' });
-  assert.ok(!orbitLink(tricky, NOW)?.includes('&y='), 'the query of the address cannot leak into the link');
+  assert.ok(
+    !orbitLink(tricky, NOW)?.includes('&y='),
+    'the query of the address cannot leak into the link',
+  );
 });
 
 test('isMobileUserAgent', () => {
-  assert.equal(isMobileUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605'), false);
+  assert.equal(
+    isMobileUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605'),
+    false,
+  );
   assert.equal(isMobileUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120'), false);
-  assert.equal(isMobileUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148'), true);
+  assert.equal(
+    isMobileUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148'),
+    true,
+  );
   assert.equal(isMobileUserAgent('Mozilla/5.0 (Linux; Android 14; Pixel 8) Mobile Safari'), true);
   assert.equal(isMobileUserAgent('Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)'), true);
 });

@@ -33,17 +33,16 @@ export type TestflightConnectorFactory = (
   input: TestflightConnectorInput,
 ) => StoreTestFlightFeedbackConnector | null;
 
-export const defaultTestflightConnectorFactory: TestflightConnectorFactory = connectorFactory<
-  StoreTestFlightFeedbackConnector | null
->({
-  app_store_connect: (input) =>
-    AppleTestFlightFeedbackConnector.fromSecret(input.secret, {
-      appStoreId: input.storeAppId ?? '',
-      scope: appleScope(input),
-      fetch: input.fetch,
-    }),
-  google_play: () => null,
-});
+export const defaultTestflightConnectorFactory: TestflightConnectorFactory =
+  connectorFactory<StoreTestFlightFeedbackConnector | null>({
+    app_store_connect: (input) =>
+      AppleTestFlightFeedbackConnector.fromSecret(input.secret, {
+        appStoreId: input.storeAppId ?? '',
+        scope: appleScope(input),
+        fetch: input.fetch,
+      }),
+    google_play: () => null,
+  });
 
 export type TestflightContext = {
   db: Database;

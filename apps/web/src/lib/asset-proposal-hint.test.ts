@@ -2,11 +2,27 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { type ProposalSummary, proposalHint, proposalHintText } from './asset-proposal-hint.ts';
 
-const base: ProposalSummary = { available: true, reason: null, version: '1.1', track: null, state: 'open', count: 3, texts: 2, graphics: 1, locked: false, cached: true, computedAt: 1 };
+const base: ProposalSummary = {
+  available: true,
+  reason: null,
+  version: '1.1',
+  track: null,
+  state: 'open',
+  count: 3,
+  texts: 2,
+  graphics: 1,
+  locked: false,
+  cached: true,
+  computedAt: 1,
+};
 
 test('a proposal that exists, is not skipped and has a repository is drawn with its count', () => {
   assert.deepEqual(proposalHint(base, true), { count: 3, texts: 2, graphics: 1 });
-  assert.deepEqual(proposalHint({ ...base, state: 'later' }, true), { count: 3, texts: 2, graphics: 1 }, 'remind later still shows the line');
+  assert.deepEqual(
+    proposalHint({ ...base, state: 'later' }, true),
+    { count: 3, texts: 2, graphics: 1 },
+    'remind later still shows the line',
+  );
 });
 
 test('nothing is drawn without a repository, while unknown, unavailable, skipped or empty', () => {

@@ -291,16 +291,33 @@ test('vitals: rate limit, server failure and an unreadable answer are not mistak
 test('parseVitalsRows: user-perceived rates and the users of each metric set; unknown metrics are skipped', () => {
   const row = (metric: string, value: string) => ax.vitalsRow('2026-11-10', metric, value, '242');
   const crash = parseVitalsRows(
-    { rows: [row('crashRate', '0.02'), row('userPerceivedCrashRate', '0.012'), row('distinctUsers', '3400'), row('somethingNew', '1')] },
+    {
+      rows: [
+        row('crashRate', '0.02'),
+        row('userPerceivedCrashRate', '0.012'),
+        row('distinctUsers', '3400'),
+        row('somethingNew', '1'),
+      ],
+    },
     'crashRate',
   );
   assert.deepEqual(
     crash.points.map((p) => [p.metric, p.value]),
-    [['crash_rate', 0.02], ['crash_rate_perceived', 0.012], ['crash_users', 3400]],
+    [
+      ['crash_rate', 0.02],
+      ['crash_rate_perceived', 0.012],
+      ['crash_users', 3400],
+    ],
   );
   assert.equal(crash.skipped, 1);
-  const anr = parseVitalsRows({ rows: [row('userPerceivedAnrRate', '0.001'), row('distinctUsers', '3300')] }, 'anrRate');
-  assert.deepEqual(anr.points.map((p) => p.metric), ['anr_rate_perceived', 'anr_users']);
+  const anr = parseVitalsRows(
+    { rows: [row('userPerceivedAnrRate', '0.001'), row('distinctUsers', '3300')] },
+    'anrRate',
+  );
+  assert.deepEqual(
+    anr.points.map((p) => p.metric),
+    ['anr_rate_perceived', 'anr_users'],
+  );
   // Without a set the users cannot be told apart, so they are skipped rather than guessed.
   assert.deepEqual(parseVitalsRows({ rows: [row('distinctUsers', '10')] }).points, []);
 });

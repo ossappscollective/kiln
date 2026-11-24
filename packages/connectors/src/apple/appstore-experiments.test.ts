@@ -53,7 +53,10 @@ test('the version that counts: work in progress, then approved, never a replaced
 });
 
 test('linkedIds reads a to-many and a to-one linkage and says when there is none', () => {
-  assert.deepEqual(linkedIds({ relationships: { x: { data: [{ id: 'a' }, { id: 'b' }] } } }, 'x'), ['a', 'b']);
+  assert.deepEqual(linkedIds({ relationships: { x: { data: [{ id: 'a' }, { id: 'b' }] } } }, 'x'), [
+    'a',
+    'b',
+  ]);
   assert.deepEqual(linkedIds({ relationships: { x: { data: { id: 'a' } } } }, 'x'), ['a']);
   assert.deepEqual(linkedIds({ relationships: { x: { data: null } } }, 'x'), []);
   assert.equal(linkedIds({ relationships: { x: { links: {} } } }, 'x'), undefined);
@@ -67,7 +70,12 @@ test('assetCounts sorts placements by type and tolerates unknown ones', () => {
     ['c', { id: 'c', attributes: { placementType: 'SOMETHING_NEW', extra: 1 } }],
   ]);
   const loc = ex.localization('l', 'l', 'en-US', ['a', 'b', 'c', 'missing'], {}, ['s1', 's2']);
-  assert.deepEqual(assetCounts(loc, byId), { screenshots: 1, previews: 1, other: 2, screenshotSets: 2 });
+  assert.deepEqual(assetCounts(loc, byId), {
+    screenshots: 1,
+    previews: 1,
+    other: 2,
+    screenshotSets: 2,
+  });
 });
 
 test('listExperiments reads tests with treatments and media, and custom pages with versions and locales', async () => {
@@ -77,7 +85,10 @@ test('listExperiments reads tests with treatments and media, and custom pages wi
   assert.equal(result.complete, true);
   assert.equal(result.experimentsRead && result.customPagesRead, true);
   // The Mac experiment is not an iOS record's.
-  assert.deepEqual(result.experiments.map((e) => e.id), ['e1']);
+  assert.deepEqual(
+    result.experiments.map((e) => e.id),
+    ['e1'],
+  );
   const [e] = result.experiments;
   assert.equal(e?.state, 'approved');
   assert.equal(e?.rawState, 'APPROVED');
@@ -85,25 +96,42 @@ test('listExperiments reads tests with treatments and media, and custom pages wi
   assert.equal(e?.reviewRequired, true);
   assert.equal(e?.startedAt, Date.UTC(2026, 9, 1, 8));
   assert.equal(e?.endedAt, null);
-  assert.deepEqual(e?.treatments.map((t) => t.name), ['Blue icon', 'Screenshots v2']);
+  assert.deepEqual(
+    e?.treatments.map((t) => t.name),
+    ['Blue icon', 'Screenshots v2'],
+  );
   assert.equal(e?.treatments[0]?.iconName, 'blue');
   assert.equal(e?.treatments[1]?.promotedAt, Date.UTC(2026, 9, 20));
-  assert.deepEqual(e?.treatments[0]?.locales[0]?.assets, { screenshots: 2, previews: 1, other: 0, screenshotSets: 0 });
-  assert.deepEqual(e?.treatments[1]?.locales.map((l) => l.locale), ['de-DE', 'fr-FR']);
+  assert.deepEqual(e?.treatments[0]?.locales[0]?.assets, {
+    screenshots: 2,
+    previews: 1,
+    other: 0,
+    screenshotSets: 0,
+  });
+  assert.deepEqual(
+    e?.treatments[1]?.locales.map((l) => l.locale),
+    ['de-DE', 'fr-FR'],
+  );
   assert.equal(e?.treatments[1]?.locales[1]?.assets.screenshotSets, 1);
   assert.equal(e?.treatments[0]?.locales[0]?.hasPromotionalText, null);
 
-  assert.deepEqual(result.customPages.map((p) => p.id), ['c1', 'c2']);
+  assert.deepEqual(
+    result.customPages.map((p) => p.id),
+    ['c1', 'c2'],
+  );
   const [c1, c2] = result.customPages;
   assert.equal(c1?.state, 'approved');
   assert.equal(c1?.deepLink, 'myapp://spring');
   assert.equal(c1?.visible, true);
   assert.match(c1?.url ?? '', /ppid=c1$/);
   assert.equal(c1?.versions.length, 2);
-  assert.deepEqual(c1?.locales.map((l) => [l.locale, l.assets.screenshots, l.hasPromotionalText]), [
-    ['en-US', 2, true],
-    ['fr-FR', 1, false],
-  ]);
+  assert.deepEqual(
+    c1?.locales.map((l) => [l.locale, l.assets.screenshots, l.hasPromotionalText]),
+    [
+      ['en-US', 2, true],
+      ['fr-FR', 1, false],
+    ],
+  );
   assert.equal(c2?.state, 'unknown');
   assert.deepEqual(c2?.locales, []);
   assert.equal(c2?.visible, false);
@@ -112,7 +140,10 @@ test('listExperiments reads tests with treatments and media, and custom pages wi
 test('a Mac record keeps the Mac experiments and reads no custom pages', async () => {
   const fake = ex.experimentsFake();
   const result = await connector(fake, { scope: 'macos' }).listExperiments();
-  assert.deepEqual(result.experiments.map((e) => e.id), ['e2']);
+  assert.deepEqual(
+    result.experiments.map((e) => e.id),
+    ['e2'],
+  );
   assert.equal(result.experiments[0]?.state, 'stopped');
   assert.deepEqual(result.customPages, []);
   assert.ok(!fake.calls.some((c) => c.url.pathname.includes('appCustomProductPages')));
@@ -120,7 +151,11 @@ test('a Mac record keeps the Mac experiments and reads no custom pages', async (
 
 test('without linkage in the list the treatments and versions are read from their own endpoints', async () => {
   const fake = new fx.FakeFetch()
-    .on({ method: 'GET', match: ex.EXPERIMENTS, json: { data: [ex.experiment('e1', {}, undefined)] } })
+    .on({
+      method: 'GET',
+      match: ex.EXPERIMENTS,
+      json: { data: [ex.experiment('e1', {}, undefined)] },
+    })
     .on({
       method: 'GET',
       match: '/v2/appStoreVersionExperiments/e1/appStoreVersionExperimentTreatments?limit=50',
@@ -128,7 +163,8 @@ test('without linkage in the list the treatments and versions are read from thei
     })
     .on({
       method: 'GET',
-      match: /^\/v1\/appStoreVersionExperimentTreatments\/t1\/appStoreVersionExperimentTreatmentLocalizations\?/,
+      match:
+        /^\/v1\/appStoreVersionExperimentTreatments\/t1\/appStoreVersionExperimentTreatmentLocalizations\?/,
       status: 404,
       json: { errors: [{ status: '404', code: 'NOT_FOUND', title: 'Not found' }] },
     })
@@ -145,14 +181,19 @@ test('without linkage in the list the treatments and versions are read from thei
     });
   const result = await connector(fake).listExperiments();
   assert.deepEqual(fake.unexpected, []);
-  assert.deepEqual(result.experiments[0]?.treatments.map((t) => [t.name, t.locales.length]), [['Only one', 0]]);
+  assert.deepEqual(
+    result.experiments[0]?.treatments.map((t) => [t.name, t.locales.length]),
+    [['Only one', 0]],
+  );
   assert.equal(result.customPages[0]?.state, 'in_review');
 });
 
 test('a part Apple refuses is a warning; both refused is an error', async () => {
   const denied = {
     status: 403,
-    json: { errors: [{ status: '403', code: 'FORBIDDEN_ERROR', title: 'Forbidden', detail: 'No access' }] },
+    json: {
+      errors: [{ status: '403', code: 'FORBIDDEN_ERROR', title: 'Forbidden', detail: 'No access' }],
+    },
   };
   const one = ex.experimentsFake();
   one.clear('GET', ex.EXPERIMENTS);

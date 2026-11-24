@@ -24,8 +24,23 @@ export type PriceWriteCode = (typeof PRICE_WRITE_CODES)[number];
 export class PriceWriteError extends StoreError {
   readonly priceCode: PriceWriteCode;
   readonly territory?: string | undefined;
-  constructor(store: StoreId, priceCode: PriceWriteCode, message: string, status?: number, territory?: string) {
-    super(store, priceCode === 'rate_limited' ? 'rate_limited' : priceCode === 'product_not_found' ? 'not_found' : 'unexpected', message, status);
+  constructor(
+    store: StoreId,
+    priceCode: PriceWriteCode,
+    message: string,
+    status?: number,
+    territory?: string,
+  ) {
+    super(
+      store,
+      priceCode === 'rate_limited'
+        ? 'rate_limited'
+        : priceCode === 'product_not_found'
+          ? 'not_found'
+          : 'unexpected',
+      message,
+      status,
+    );
     this.name = 'PriceWriteError';
     this.priceCode = priceCode;
     this.territory = territory;
@@ -36,14 +51,24 @@ export class PriceWriteError extends StoreError {
 export class PriceDriftError extends StoreError {
   readonly live: LivePrices;
   constructor(store: StoreId, live: LivePrices) {
-    super(store, 'unexpected', 'The store shows other prices than the ones that were reviewed. Nothing was changed.');
+    super(
+      store,
+      'unexpected',
+      'The store shows other prices than the ones that were reviewed. Nothing was changed.',
+    );
     this.name = 'PriceDriftError';
     this.live = live;
   }
 }
 
 /** A price already scheduled for a later date (Apple). */
-export type ScheduledPrice = { territory: string; currency: string; amount: string; startDate: string | null; pricePointId?: string | undefined };
+export type ScheduledPrice = {
+  territory: string;
+  currency: string;
+  amount: string;
+  startDate: string | null;
+  pricePointId?: string | undefined;
+};
 
 export type LivePrices = {
   /** In force now, one per territory (of the plan or purchase option for Google Play). */
@@ -63,10 +88,21 @@ export type PriceLineOutcome = {
 export type PriceApplyResult = {
   lines: PriceLineOutcome[];
   /** Google Play subscriptions: whether the existing-subscriber migration (opt-in or opt-out) was requested, and its outcome. */
-  migration?: { requested: boolean; outcome: 'applied' | 'failed' | 'unknown' | 'not_sent'; code?: PriceWriteCode | undefined; message?: string | undefined } | undefined;
+  migration?:
+    | {
+        requested: boolean;
+        outcome: 'applied' | 'failed' | 'unknown' | 'not_sent';
+        code?: PriceWriteCode | undefined;
+        message?: string | undefined;
+      }
+    | undefined;
 };
 
-export type PricePreviewLine = { territory: string; changeType?: string | undefined; note?: string | undefined };
+export type PricePreviewLine = {
+  territory: string;
+  changeType?: string | undefined;
+  note?: string | undefined;
+};
 export type PricePreviewResult = {
   /** `store`: the store's own validation ran (nothing saved). `local`: the store has no validation call; `requests` is what would be sent. */
   mode: 'store' | 'local';
@@ -85,9 +121,18 @@ export interface StorePriceWriteConnector {
   /** Google Play: regional prices derived from one base price (`pricing:convertRegionPrices`; changes nothing). Apple: undefined (use price points). */
   convertFromBase?(base: { currency: string; amount: string }): Promise<ConvertedPrices>;
   /** The store's validation where one exists (Apple subscriptions), else what would be sent. Changes nothing. */
-  preview(product: StoreProductRef, change: PriceChange, nowMs: number): Promise<PricePreviewResult>;
+  preview(
+    product: StoreProductRef,
+    change: PriceChange,
+    nowMs: number,
+  ): Promise<PricePreviewResult>;
   /** Writes. `guard` gets the live prices read right before the write; false and nothing is written (`PriceDriftError`). */
-  apply(product: StoreProductRef, change: PriceChange, guard: (live: LivePrices) => boolean, nowMs: number): Promise<PriceApplyResult>;
+  apply(
+    product: StoreProductRef,
+    change: PriceChange,
+    guard: (live: LivePrices) => boolean,
+    nowMs: number,
+  ): Promise<PriceApplyResult>;
 }
 
 /**
@@ -95,14 +140,27 @@ export interface StorePriceWriteConnector {
  * Nothing here ever echoes a request body.
  */
 export function priceCodeOf(error: StoreError): PriceWriteCode {
-  const words = [error.message, ...(error.details ?? []).map((d) => `${d.code ?? ''} ${d.title ?? ''} ${d.detail ?? ''}`)].join(' ').toLowerCase();
+  const words = [
+    error.message,
+    ...(error.details ?? []).map((d) => `${d.code ?? ''} ${d.title ?? ''} ${d.detail ?? ''}`),
+  ]
+    .join(' ')
+    .toLowerCase();
   if (error.kind === 'rate_limited' || error.status === 429) return 'rate_limited';
   if (error.kind === 'not_found' || error.status === 404) return 'product_not_found';
-  if (error.kind === 'forbidden' || error.kind === 'auth' || error.status === 403 || error.status === 401) return 'forbidden';
+  if (
+    error.kind === 'forbidden' ||
+    error.kind === 'auth' ||
+    error.status === 403 ||
+    error.status === 401
+  )
+    return 'forbidden';
   if (/unsupported_territory|territory|region/.test(words)) return 'unsupported_territory';
   if (/price.?point/.test(words)) return 'price_point_invalid';
-  if (/preserv|subscriber|opt.?in|opt.?out|price.?increase/.test(words)) return 'existing_subscriber_rule';
-  if (error.status === 409 || /already|schedul|cannot|not allowed|conflict/.test(words)) return 'price_change_not_allowed';
+  if (/preserv|subscriber|opt.?in|opt.?out|price.?increase/.test(words))
+    return 'existing_subscriber_rule';
+  if (error.status === 409 || /already|schedul|cannot|not allowed|conflict/.test(words))
+    return 'price_change_not_allowed';
   return 'rejected';
 }
 
@@ -118,16 +176,31 @@ export function priceMismatches(
   const out: { territory: string; expected: string; actual: string | null }[] = [];
   for (const line of change.lines) {
     const now = live.current.find((c) => c.territory === line.territory);
-    const later = live.scheduled.find((s) => s.territory === line.territory && s.amount === line.newAmount && (s.startDate ?? '') === (change.effectiveDate ?? ''));
+    const later = live.scheduled.find(
+      (s) =>
+        s.territory === line.territory &&
+        s.amount === line.newAmount &&
+        (s.startDate ?? '') === (change.effectiveDate ?? ''),
+    );
     const due = change.effectiveDate === null || change.effectiveDate <= today;
     const ok = (due && now?.amount === line.newAmount) || (!due && later !== undefined);
-    if (!ok) out.push({ territory: line.territory, expected: line.newAmount, actual: due ? (now?.amount ?? null) : (later?.amount ?? now?.amount ?? null) });
+    if (!ok)
+      out.push({
+        territory: line.territory,
+        expected: line.newAmount,
+        actual: due ? (now?.amount ?? null) : (later?.amount ?? now?.amount ?? null),
+      });
   }
   return out;
 }
 
 /** Whether the store already has exactly this line (idempotency: nothing is sent twice). */
-export function lineAlreadyApplied(change: PriceChange, live: LivePrices, territory: string, today: string): boolean {
+export function lineAlreadyApplied(
+  change: PriceChange,
+  live: LivePrices,
+  territory: string,
+  today: string,
+): boolean {
   const line = change.lines.find((l) => l.territory === territory);
   if (!line) return false;
   return priceMismatches({ ...change, lines: [line] }, live, today).length === 0;

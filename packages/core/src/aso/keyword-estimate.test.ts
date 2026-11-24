@@ -58,41 +58,77 @@ test('own data is the strongest input and makes it "from your data"', () => {
   assert.equal(p.confidence, 'high');
   assert.equal(p.reasons[0]?.code, 'own_visitors');
   assert.equal(p.reasons[0]?.points, 75);
-  const tiny = estimatePopularity('app_store', { term: 'w', own: { visitors: 3, installs: 0, days: 30 }, hints: { position: 1, list: ['w'] } });
+  const tiny = estimatePopularity('app_store', {
+    term: 'w',
+    own: { visitors: 3, installs: 0, days: 30 },
+    hints: { position: 1, list: ['w'] },
+  });
   assert.equal(tiny.confidence, 'medium');
 });
 
 test('Google Play: only from own data, else no estimate with the reason', () => {
-  const none = estimateKeyword('google_play', { term: 'water', hints: { position: 1, list: ['water'] }, results: { total: 9, limit: 9, top: apps([1, 2, 3]) } });
+  const none = estimateKeyword('google_play', {
+    term: 'water',
+    hints: { position: 1, list: ['water'] },
+    results: { total: 9, limit: 9, top: apps([1, 2, 3]) },
+  });
   assert.equal(none.popularity.score, null);
   assert.equal(none.popularity.reasons[0]?.code, 'play_needs_own_data');
   assert.equal(none.difficulty.reasons[0]?.code, 'play_no_competition_data');
-  const some = estimatePopularity('google_play', { term: 'water', own: { visitors: 100, installs: 10, days: 28 } });
+  const some = estimatePopularity('google_play', {
+    term: 'water',
+    own: { visitors: 100, installs: 10, days: 28 },
+  });
   assert.equal(some.score, 50);
   assert.equal(some.origin, 'own_data');
   assert.equal(some.confidence, 'medium');
 });
 
 test('difficulty: strong apps and title matches raise it, a thin result list needs three rated apps', () => {
-  const weak = estimateDifficulty('app_store', { term: 'water reminder', results: { total: 12, limit: 50, top: apps([5, 10, 20, 30]) } });
+  const weak = estimateDifficulty('app_store', {
+    term: 'water reminder',
+    results: { total: 12, limit: 50, top: apps([5, 10, 20, 30]) },
+  });
   const strong = estimateDifficulty('app_store', {
     term: 'water reminder',
-    results: { total: 50, limit: 50, top: apps([900000, 800000, 700000, 600000, 500000, 400000, 300000, 200000, 100000, 90000]) },
+    results: {
+      total: 50,
+      limit: 50,
+      top: apps([900000, 800000, 700000, 600000, 500000, 400000, 300000, 200000, 100000, 90000]),
+    },
   });
   assert.ok(weak.score !== null && strong.score !== null && strong.score > weak.score + 30);
   assert.equal(strong.confidence, 'medium');
   assert.equal(weak.confidence, 'low');
-  assert.deepEqual(strong.reasons.map((r) => r.code), ['results_strength', 'results_title_match', 'results_crowding']);
-  const thin = estimateDifficulty('app_store', { term: 'x', results: { total: 2, limit: 50, top: apps([5, null, 7]) } });
+  assert.deepEqual(
+    strong.reasons.map((r) => r.code),
+    ['results_strength', 'results_title_match', 'results_crowding'],
+  );
+  const thin = estimateDifficulty('app_store', {
+    term: 'x',
+    results: { total: 2, limit: 50, top: apps([5, null, 7]) },
+  });
   assert.equal(thin.score, null);
   assert.equal(thin.reasons[0]?.code, 'too_few_results');
-  assert.equal(estimateDifficulty('app_store', { term: 'x', results: { total: 0, limit: 50, top: [] } }).reasons[0]?.code, 'results_empty');
+  assert.equal(
+    estimateDifficulty('app_store', { term: 'x', results: { total: 0, limit: 50, top: [] } })
+      .reasons[0]?.code,
+    'results_empty',
+  );
 });
 
 test('rank volatility joins the difficulty only with enough checks, and never makes it "high"', () => {
   const results = { total: 50, limit: 50, top: apps([1000, 2000, 3000, 4000]) };
-  assert.ok(!estimateDifficulty('app_store', { term: 'water', results, ranks: [5, 40, 8] }).reasons.some((r) => r.code === 'rank_volatility'));
-  const d = estimateDifficulty('app_store', { term: 'water', results, ranks: [5, 40, null, 8, 30, 3] });
+  assert.ok(
+    !estimateDifficulty('app_store', { term: 'water', results, ranks: [5, 40, 8] }).reasons.some(
+      (r) => r.code === 'rank_volatility',
+    ),
+  );
+  const d = estimateDifficulty('app_store', {
+    term: 'water',
+    results,
+    ranks: [5, 40, null, 8, 30, 3],
+  });
   const v = d.reasons.find((r) => r.code === 'rank_volatility');
   assert.equal(v?.params.checks, 6);
   assert.equal(v?.params.meanMove, 29);
@@ -130,12 +166,22 @@ test('Apple Ads impressions are an own-data input of the App Store popularity, l
   assert.equal(p.reasons[0]?.points, 60);
   assert.deepEqual(p.reasons[0]?.params, { impressions: 1000, taps: 40, installs: 6, days: 30 });
   assert.equal(p.confidence, 'high');
-  const small = estimatePopularity('app_store', { term: 'w', ads: { impressions: 5, taps: 0, installs: 0, days: 7 } });
+  const small = estimatePopularity('app_store', {
+    term: 'w',
+    ads: { impressions: 5, taps: 0, installs: 0, days: 7 },
+  });
   assert.equal(small.confidence, 'low');
-  const absent = estimatePopularity('app_store', { term: 'w', ads: null, hints: { position: 1, list: ['w'] } });
+  const absent = estimatePopularity('app_store', {
+    term: 'w',
+    ads: null,
+    hints: { position: 1, list: ['w'] },
+  });
   assert.equal(absent.origin, 'public_signals');
   assert.ok(!absent.reasons.some((r) => r.code === 'ads_impressions'));
   // Google Play never reads Apple Ads.
-  const play = estimatePopularity('google_play', { term: 'w', ads: { impressions: 9999, taps: 1, installs: 1, days: 7 } });
+  const play = estimatePopularity('google_play', {
+    term: 'w',
+    ads: { impressions: 9999, taps: 1, installs: 1, days: 7 },
+  });
   assert.equal(play.score, null);
 });

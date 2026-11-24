@@ -278,8 +278,12 @@ const schema = z.object({
   // Guard rails of a price change. A line that moves a price by more than the percentage, or by more than the amount (in MAJOR units of its
   // currency; high-denomination currencies such as JPY have larger built-in defaults), needs an explicit acknowledgement. At most this many
   // territories in one change.
-  KILN_PRICE_MAX_RELATIVE_CHANGE_PERCENT: blankIsUnset(z.coerce.number().int().min(1).max(1000).default(50)),
-  KILN_PRICE_MAX_ABSOLUTE_CHANGE: blankIsUnset(z.coerce.number().int().min(1).max(1_000_000).default(100)),
+  KILN_PRICE_MAX_RELATIVE_CHANGE_PERCENT: blankIsUnset(
+    z.coerce.number().int().min(1).max(1000).default(50),
+  ),
+  KILN_PRICE_MAX_ABSOLUTE_CHANGE: blankIsUnset(
+    z.coerce.number().int().min(1).max(1_000_000).default(100),
+  ),
   KILN_PRICE_MAX_TERRITORIES: blankIsUnset(z.coerce.number().int().min(1).max(250).default(50)),
   // Kill switch for writing staged listing text and graphics into a store as a DRAFT (docs/adr/0009-staged-store-drafts.md):
   // the App Store version localizations and screenshots of the editable version, and a Google Play edit
@@ -688,7 +692,11 @@ export type Config = {
   /** Changing the PRICE of an in-app product in the stores is allowed (KILN_PRICE_WRITES_ENABLED). Default false. */
   priceWritesEnabled: boolean;
   /** Guard rails of a price change (KILN_PRICE_MAX_*). */
-  priceLimits: { relativeChangePercent: number; absoluteChangeMajor: number; maxTerritories: number };
+  priceLimits: {
+    relativeChangePercent: number;
+    absoluteChangeMajor: number;
+    maxTerritories: number;
+  };
   /** Writing staged listing text and graphics into a store as a draft is allowed (KILN_STORE_DRAFT_WRITE_ENABLED). Default false. */
   storeDraftWriteEnabled: boolean;
   /** Submitting the store's draft for review is allowed (KILN_STORE_SUBMIT_ENABLED). Default false. */

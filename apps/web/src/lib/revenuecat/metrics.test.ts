@@ -134,7 +134,19 @@ test('Revenue block state: hidden unless linked; figures, a failed read, or wait
   assert.equal(revenueState(read({ linked: false, metrics: null, status: null })), 'hidden');
   assert.equal(revenueState(read({ supported: false })), 'hidden');
   assert.equal(revenueState(read()), 'figures');
-  assert.equal(revenueState(read({ metrics: null, status: { lastAttemptAt: 1, lastError: 'The RevenueCat key may not read metrics.', failures: 1 } })), 'problem');
+  assert.equal(
+    revenueState(
+      read({
+        metrics: null,
+        status: {
+          lastAttemptAt: 1,
+          lastError: 'The RevenueCat key may not read metrics.',
+          failures: 1,
+        },
+      }),
+    ),
+    'problem',
+  );
   assert.equal(revenueState(read({ metrics: null, status: null })), 'waiting');
   assert.equal(productsHref('a/b'), '#/portfolio/a%2Fb/products');
   assert.equal(insightsHref('x'), '#/portfolio/x/insights');

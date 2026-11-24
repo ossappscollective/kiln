@@ -10,10 +10,31 @@ Slack and Microsoft Teams destinations, their routing rules and delivery log. Co
 ## The destination
 
 ```json
-{ "id": "…", "provider": "slack", "name": "#releases", "urlHint": "Xy7Q", "locale": "fr", "enabled": true, "allowAnyHost": false,
-  "digest": "daily", "digestHour": 8, "timezone": "Europe/Paris", "createdAt": 1766000000000, "updatedAt": 1766000000000,
-  "routes": [{ "id": "…", "alertTypes": ["*"], "minSeverity": "critical", "appIds": null, "platforms": null, "enabled": true }],
-  "lastDelivery": { "status": "sent", "outcome": "ok", "at": 1766000100000 } }
+{
+  "id": "…",
+  "provider": "slack",
+  "name": "#releases",
+  "urlHint": "Xy7Q",
+  "locale": "fr",
+  "enabled": true,
+  "allowAnyHost": false,
+  "digest": "daily",
+  "digestHour": 8,
+  "timezone": "Europe/Paris",
+  "createdAt": 1766000000000,
+  "updatedAt": 1766000000000,
+  "routes": [
+    {
+      "id": "…",
+      "alertTypes": ["*"],
+      "minSeverity": "critical",
+      "appIds": null,
+      "platforms": null,
+      "enabled": true
+    }
+  ],
+  "lastDelivery": { "status": "sent", "outcome": "ok", "at": 1766000100000 }
+}
 ```
 
 ## Endpoints

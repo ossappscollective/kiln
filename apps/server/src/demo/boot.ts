@@ -250,7 +250,11 @@ export async function createDemoRuntime(
             sources: seams.aso,
             limits: DEFAULT_ASO_LIMITS,
           }),
-          [COMPETITOR_REVIEWS_QUEUE]: createCompetitorReviewsHandler({ db, now, sources: seams.aso }),
+          [COMPETITOR_REVIEWS_QUEUE]: createCompetitorReviewsHandler({
+            db,
+            now,
+            sources: seams.aso,
+          }),
           [ANALYTICS_SYNC_QUEUE]: createAnalyticsSyncHandler({
             db,
             masterKey: config.masterKey,

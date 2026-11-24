@@ -59,7 +59,12 @@ export type RolloutIssue = {
   text: CoreText;
 };
 
-const issue = (path: string, key: string, message: string, params: Record<string, string | number> = {}): RolloutIssue => ({
+const issue = (
+  path: string,
+  key: string,
+  message: string,
+  params: Record<string, string | number> = {},
+): RolloutIssue => ({
   path,
   message,
   text: coreText(`rollout.issue.${key}`, params),

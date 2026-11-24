@@ -2,7 +2,13 @@ import type { Action, Role } from '@kiln/core';
 import { can } from '@kiln/core';
 import type { AppSection } from './app-scope.ts';
 import { k } from './i18n/t.ts';
-import { type RunState, type SourceInput, type SyncKind, SYNC_KINDS, sourceState } from './sync-sources.ts';
+import {
+  type RunState,
+  type SourceInput,
+  type SyncKind,
+  SYNC_KINDS,
+  sourceState,
+} from './sync-sources.ts';
 
 /**
  * The page-scoped Sync (docs/ux-ia.md "Sync is per page"): pure planning. Which kinds a page needs, which sources are not fresh, which failed,
@@ -11,7 +17,15 @@ import { type RunState, type SourceInput, type SyncKind, SYNC_KINDS, sourceState
  */
 
 /** What a page syncs. `listing` is the fallback for the overview, the listing, releases and every page that has no source of its own. */
-export type SyncPage = 'listing' | 'reviews' | 'analytics' | 'health' | 'timeline' | 'products' | 'builds' | 'ads';
+export type SyncPage =
+  | 'listing'
+  | 'reviews'
+  | 'analytics'
+  | 'health'
+  | 'timeline'
+  | 'products'
+  | 'builds'
+  | 'ads';
 
 export const PAGE_KINDS: Readonly<Record<SyncPage, readonly SyncKind[]>> = {
   listing: ['app'],
@@ -86,14 +100,20 @@ function age(lastReadAt: number | null, kind: SyncKind, now: number): Freshness 
 export function freshnessOf(input: SourceInput, now: number): Freshness {
   const r = input.reading;
   if (input.kind === 'analytics' && r.parts && r.parts.length > 0) {
-    const all = r.parts.map((p): Freshness => (p.failed ? 'failed' : age(p.lastReadAt, 'analytics', now)));
+    const all = r.parts.map(
+      (p): Freshness => (p.failed ? 'failed' : age(p.lastReadAt, 'analytics', now)),
+    );
     return all.reduce((worst, f) => (rank[f] < rank[worst] ? f : worst), 'fresh' as Freshness);
   }
   return r.failed ? 'failed' : age(r.lastReadAt, input.kind, now);
 }
 
 /** What to read for one input. `failed` and `due` narrow analytics to its sources; a kind without sources reads whole. */
-function targetOf(input: SourceInput, want: 'failed' | 'due' | 'all', now: number): SyncTarget | null {
+function targetOf(
+  input: SourceInput,
+  want: 'failed' | 'due' | 'all',
+  now: number,
+): SyncTarget | null {
   const f = freshnessOf(input, now);
   if (want === 'failed' && f !== 'failed') return null;
   if (want === 'due' && f === 'fresh') return null;
@@ -101,7 +121,10 @@ function targetOf(input: SourceInput, want: 'failed' | 'due' | 'all', now: numbe
   const parts = input.reading.parts;
   if (input.kind === 'analytics' && parts && parts.length > 0 && want !== 'all') {
     const picked = parts
-      .map((p) => ({ id: p.id, f: (p.failed ? 'failed' : age(p.lastReadAt, 'analytics', now)) as Freshness }))
+      .map((p) => ({
+        id: p.id,
+        f: (p.failed ? 'failed' : age(p.lastReadAt, 'analytics', now)) as Freshness,
+      }))
       .filter((p) => (want === 'failed' ? p.f === 'failed' : p.f !== 'fresh'))
       .sort((a, b) => rank[a.f] - rank[b.f])
       .map((p) => p.id);
@@ -120,11 +143,15 @@ function ordered(inputs: readonly SourceInput[], now: number): SourceInput[] {
   );
 }
 
-export const targetsOf = (inputs: readonly SourceInput[], now: number, want: 'failed' | 'due' | 'all'): SyncTarget[] =>
-  ordered(inputs, now).flatMap((i) => targetOf(i, want, now) ?? []);
+export const targetsOf = (
+  inputs: readonly SourceInput[],
+  now: number,
+  want: 'failed' | 'due' | 'all',
+): SyncTarget[] => ordered(inputs, now).flatMap((i) => targetOf(i, want, now) ?? []);
 
 /** How many things failed: an analytics source counts on its own, any other source once. */
-export const failedCount = (targets: readonly SyncTarget[]): number => targets.reduce((n, t) => n + (t.sources ? t.sources.length : 1), 0);
+export const failedCount = (targets: readonly SyncTarget[]): number =>
+  targets.reduce((n, t) => n + (t.sources ? t.sources.length : 1), 0);
 
 export type MenuEntry = {
   kind: SyncKind;
@@ -179,7 +206,9 @@ export function planPage(
     const rows = mine.filter((i) => i.kind === kind);
     if (rows.length === 0) return [];
     const reads = rows.map((r) => r.reading.lastReadAt).filter((v): v is number => v !== null);
-    const worst = rows.map((r) => freshnessOf(r, now)).reduce((w, f) => (rank[f] < rank[w] ? f : w), 'fresh' as Freshness);
+    const worst = rows
+      .map((r) => freshnessOf(r, now))
+      .reduce((w, f) => (rank[f] < rank[w] ? f : w), 'fresh' as Freshness);
     const failedTargets = targetsOf(rows, now, 'failed');
     return [
       {
@@ -195,7 +224,13 @@ export function planPage(
   });
   // The page's own kinds first, then the rest in the usual order.
   menu.sort((a, b) => Number(b.onPage) - Number(a.onPage));
-  return { page, main, menu, everything: targetsOf(mine, now, 'all'), failed: targetsOf(mine, now, 'failed') };
+  return {
+    page,
+    main,
+    menu,
+    everything: targetsOf(mine, now, 'all'),
+    failed: targetsOf(mine, now, 'failed'),
+  };
 }
 
 /** The label of the main button: a key of the `app` namespace, and the count when it is a retry. */
@@ -216,9 +251,17 @@ export function mainLabelKey(plan: SyncPlan): { key: string; failed: number | nu
 }
 
 /** Progress of a run, from the shell's per `appId:kind` states: how many of the started kinds ended. */
-export function runProgress(runs: Readonly<Record<string, RunState | undefined>>): { done: number; total: number } {
-  const states = Object.values(runs).filter((s): s is RunState => s !== undefined && s !== 'skipped');
-  return { done: states.filter((s) => s === 'done' || s === 'failed').length, total: states.length };
+export function runProgress(runs: Readonly<Record<string, RunState | undefined>>): {
+  done: number;
+  total: number;
+} {
+  const states = Object.values(runs).filter(
+    (s): s is RunState => s !== undefined && s !== 'skipped',
+  );
+  return {
+    done: states.filter((s) => s === 'done' || s === 'failed').length,
+    total: states.length,
+  };
 }
 
 export { sourceState };

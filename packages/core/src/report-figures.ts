@@ -34,7 +34,8 @@ export function figureFor(m: TimelineMetric, cmp: Comparison): ReportFigure {
   const previous = total(m.kind, prev);
   let uncompared: ReportFigure['uncompared'] = null;
   if (value === null) uncompared = 'no_data';
-  else if (previous === null || prev.dataDays < prev.calendarDays * MIN_COVERAGE) uncompared = 'previous_incomplete';
+  else if (previous === null || prev.dataDays < prev.calendarDays * MIN_COVERAGE)
+    uncompared = 'previous_incomplete';
   else if (cur.dataDays < cur.calendarDays * MIN_COVERAGE) uncompared = 'current_incomplete';
   return {
     id: m.id,

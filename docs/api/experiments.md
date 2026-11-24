@@ -5,13 +5,13 @@ tracker for anything else (Google Play has no API for its store listing experime
 [ADR 0048](../adr/0048-store-experiments.md); sources: [spike](../spikes/store-experiments.md). All routes are under
 `/api/workspaces/{workspaceId}/apps/{appId}/experiments`. **Nothing here writes to a store.**
 
-| Operation | Route | Needs |
-| --- | --- | --- |
-| `listAppExperiments` | `GET /experiments` | `aso.read` |
-| `syncAppExperiments` | `POST /experiments/sync` | `apps.sync` (the per-workspace app-sync budget) |
-| `createExperimentNote` | `POST /experiments/notes` | `aso.write` |
-| `updateExperimentNote` | `PATCH /experiments/notes/{noteId}` | `aso.write` |
-| `deleteExperimentNote` | `DELETE /experiments/notes/{noteId}` | `aso.write` |
+| Operation              | Route                                | Needs                                           |
+| ---------------------- | ------------------------------------ | ----------------------------------------------- |
+| `listAppExperiments`   | `GET /experiments`                   | `aso.read`                                      |
+| `syncAppExperiments`   | `POST /experiments/sync`             | `apps.sync` (the per-workspace app-sync budget) |
+| `createExperimentNote` | `POST /experiments/notes`            | `aso.write`                                     |
+| `updateExperimentNote` | `PATCH /experiments/notes/{noteId}`  | `aso.write`                                     |
+| `deleteExperimentNote` | `DELETE /experiments/notes/{noteId}` | `aso.write`                                     |
 
 ## Reading
 

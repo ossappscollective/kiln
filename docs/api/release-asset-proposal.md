@@ -4,12 +4,12 @@ While a release is prepared, the texts and graphics that changed in the linked r
 
 All routes are under `/api/workspaces/{workspaceId}/apps/{id}/release/asset-proposal`. A release is named by `version` (App Store: the editable version string), `track` (Google Play) and optionally `build` (the build number whose commit is the release source). Each is a plain label of at most 40 characters (`400 invalid_request` otherwise).
 
-| Route | Right | Does |
-| --- | --- | --- |
-| `GET .../asset-proposal?version=&track=&build=` | `listing.read` | Reads the repository at two commits and the stored store state. Changes nothing. |
-| `GET .../asset-proposal/summary` | `listing.read` | The count only, cached: for the Releases list. See [Summary](#get-summary-the-count-only). |
-| `POST .../asset-proposal/stage` `{ version?, track?, build?, itemIds[], acceptIssues? }` | `changesets.write` | Computes the proposal again and stages the named items. |
-| `POST .../asset-proposal/dismiss` `{ version?, track?, mode: skip \| later \| reopen }` | `changesets.write` | Saves the decision for this release (audit `release.asset_proposal_decided`). |
+| Route                                                                                    | Right              | Does                                                                                       |
+| ---------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------ |
+| `GET .../asset-proposal?version=&track=&build=`                                          | `listing.read`     | Reads the repository at two commits and the stored store state. Changes nothing.           |
+| `GET .../asset-proposal/summary`                                                         | `listing.read`     | The count only, cached: for the Releases list. See [Summary](#get-summary-the-count-only). |
+| `POST .../asset-proposal/stage` `{ version?, track?, build?, itemIds[], acceptIssues? }` | `changesets.write` | Computes the proposal again and stages the named items.                                    |
+| `POST .../asset-proposal/dismiss` `{ version?, track?, mode: skip \| later \| reopen }`  | `changesets.write` | Saves the decision for this release (audit `release.asset_proposal_decided`).              |
 
 Another workspace's app, or a non-member, answers `404`; a viewer can read and not stage (`403`).
 

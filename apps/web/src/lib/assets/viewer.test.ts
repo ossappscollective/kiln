@@ -11,9 +11,15 @@ test('arrow keys stay inside the set', () => {
 
 test('a saved file keeps its original name and gets the extension of its bytes', () => {
   const base = { locale: 'en-US', setName: 'Phone', position: 2 };
-  assert.equal(downloadName({ ...base, name: 'hero shot.png', mime: 'image/png' }), 'hero shot.png');
+  assert.equal(
+    downloadName({ ...base, name: 'hero shot.png', mime: 'image/png' }),
+    'hero shot.png',
+  );
   assert.equal(downloadName({ ...base, name: 'hero.png', mime: 'image/jpeg' }), 'hero.jpg');
-  assert.equal(downloadName({ ...base, name: '../../etc/passwd', mime: 'image/png' }), 'passwd.png');
+  assert.equal(
+    downloadName({ ...base, name: '../../etc/passwd', mime: 'image/png' }),
+    'passwd.png',
+  );
   assert.equal(downloadName({ ...base, name: null, mime: 'image/png' }), 'en-US-Phone-2.png');
   assert.equal(downloadName({ ...base, name: '', mime: 'text/html' }), 'en-US-Phone-2.png');
 });

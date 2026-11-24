@@ -25,7 +25,8 @@ import type { PublicApp } from './net.ts';
 const DAY_MS = 24 * 60 * 60_000;
 const STATE_MAX_CHARS = 60_000;
 
-const textOrNull = (v: string | undefined): string | null => (v === undefined || v === '' ? null : v);
+const textOrNull = (v: string | undefined): string | null =>
+  v === undefined || v === '' ? null : v;
 
 /** What the watch compares, from what the store said. */
 export function listingStateOf(app: PublicApp): ListingState {
@@ -44,9 +45,11 @@ export function listingStateOf(app: PublicApp): ListingState {
   };
 }
 
-const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+const strings = (v: unknown): string[] =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
 const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
-const numOrNull = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const numOrNull = (v: unknown): number | null =>
+  typeof v === 'number' && Number.isFinite(v) ? v : null;
 
 export function parseListingState(raw: unknown): ListingState | undefined {
   if (typeof raw !== 'string' || raw === '') return undefined;
@@ -83,13 +86,23 @@ export function parseChanges(raw: unknown): ListingChange[] {
 
 const serialise = (state: ListingState): string => {
   const raw = JSON.stringify(state);
-  return raw.length <= STATE_MAX_CHARS ? raw : JSON.stringify({ ...state, description: null, releaseNotes: null });
+  return raw.length <= STATE_MAX_CHARS
+    ? raw
+    : JSON.stringify({ ...state, description: null, releaseNotes: null });
 };
 
 /** The first state of a competitor that was just added (no change is recorded). */
-export async function storeInitialListingState(tx: Sql, competitorId: string, store: ListingStore, app: PublicApp): Promise<void> {
+export async function storeInitialListingState(
+  tx: Sql,
+  competitorId: string,
+  store: ListingStore,
+  app: PublicApp,
+): Promise<void> {
   if (store !== 'app_store') return;
-  await tx.execute('UPDATE aso_competitors SET listing_state = ? WHERE id = ?', [serialise(listingStateOf(app)), competitorId]);
+  await tx.execute('UPDATE aso_competitors SET listing_state = ? WHERE id = ?', [
+    serialise(listingStateOf(app)),
+    competitorId,
+  ]);
 }
 
 export type WatchOutcome = { changes: ListingChange[]; stored: boolean };
@@ -112,17 +125,28 @@ export async function recordListingChanges(
   const previous = parseListingState(input.previousState);
   const next = listingStateOf(input.found);
   const changes = diffListing(previous, next);
-  await tx.execute('UPDATE aso_competitors SET listing_state = ? WHERE id = ?', [serialise(carryOver(previous, next)), input.competitorId]);
+  await tx.execute('UPDATE aso_competitors SET listing_state = ? WHERE id = ?', [
+    serialise(carryOver(previous, next)),
+    input.competitorId,
+  ]);
   if (changes.length === 0) return { changes, stored: false };
   const kinds = changeKinds(changes);
   await tx.execute(
     `INSERT INTO aso_competitor_changes (id, workspace_id, competitor_id, app_id, detected_at, kinds, changes) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [randomUUID(), input.workspaceId, input.competitorId, input.appId, input.at, kinds.join(','), JSON.stringify(changes)],
+    [
+      randomUUID(),
+      input.workspaceId,
+      input.competitorId,
+      input.appId,
+      input.at,
+      kinds.join(','),
+      JSON.stringify(changes),
+    ],
   );
-  await tx.execute('DELETE FROM aso_competitor_changes WHERE competitor_id = ? AND detected_at < ?', [
-    input.competitorId,
-    input.at - COMPETITOR_CHANGE_RETENTION_DAYS * DAY_MS,
-  ]);
+  await tx.execute(
+    'DELETE FROM aso_competitor_changes WHERE competitor_id = ? AND detected_at < ?',
+    [input.competitorId, input.at - COMPETITOR_CHANGE_RETENTION_DAYS * DAY_MS],
+  );
   await tx.execute(
     `DELETE FROM aso_competitor_changes WHERE competitor_id = ? AND id NOT IN (
        SELECT id FROM aso_competitor_changes WHERE competitor_id = ? ORDER BY detected_at DESC, id DESC LIMIT ${COMPETITOR_CHANGES_MAX_PER_COMPETITOR})`,
@@ -173,12 +197,22 @@ export async function listCompetitorChanges(
   const rows = await sql.query(
     `SELECT id, competitor_id, detected_at, kinds, changes FROM aso_competitor_changes
       WHERE workspace_id = ? AND competitor_id = ? AND detected_at < ? ORDER BY detected_at DESC, id DESC LIMIT ?`,
-    [input.workspaceId, input.competitorId, input.before ?? Number.MAX_SAFE_INTEGER, input.limit + 1],
+    [
+      input.workspaceId,
+      input.competitorId,
+      input.before ?? Number.MAX_SAFE_INTEGER,
+      input.limit + 1,
+    ],
   );
   return { changes: rows.slice(0, input.limit).map(viewOf), hasMore: rows.length > input.limit };
 }
 
-export async function getCompetitorChange(sql: Sql, workspaceId: string, competitorId: string, id: string): Promise<CompetitorChangeView | undefined> {
+export async function getCompetitorChange(
+  sql: Sql,
+  workspaceId: string,
+  competitorId: string,
+  id: string,
+): Promise<CompetitorChangeView | undefined> {
   const [row] = await sql.query(
     'SELECT id, competitor_id, detected_at, kinds, changes FROM aso_competitor_changes WHERE workspace_id = ? AND competitor_id = ? AND id = ?',
     [workspaceId, competitorId, id],
@@ -187,12 +221,17 @@ export async function getCompetitorChange(sql: Sql, workspaceId: string, competi
 }
 
 /** How many changes each competitor of an app has (and the newest day), for the list. */
-export async function changeCounts(sql: Sql, workspaceId: string, appId: string): Promise<Record<string, { count: number; latestAt: number }>> {
+export async function changeCounts(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<Record<string, { count: number; latestAt: number }>> {
   const rows = await sql.query(
     `SELECT competitor_id, COUNT(*) AS n, MAX(detected_at) AS latest FROM aso_competitor_changes WHERE workspace_id = ? AND app_id = ? GROUP BY competitor_id`,
     [workspaceId, appId],
   );
   const out: Record<string, { count: number; latestAt: number }> = {};
-  for (const r of rows) out[String(r.competitor_id)] = { count: Number(r.n), latestAt: Number(r.latest) };
+  for (const r of rows)
+    out[String(r.competitor_id)] = { count: Number(r.n), latestAt: Number(r.latest) };
   return out;
 }

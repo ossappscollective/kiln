@@ -385,7 +385,11 @@ export function platformStatuses(row: OverviewRow): PlatformStatus[] {
     const best = [c.latest, ...row.inFlight.filter((r) => r.platform === platform)]
       .filter((r): r is ReleaseSummary => r !== null)
       .sort((a, b) => rank(a) - rank(b))[0];
-    out.push(best ? { platform, kind: 'release', release: best } : { platform, kind: 'none', release: null });
+    out.push(
+      best
+        ? { platform, kind: 'release', release: best }
+        : { platform, kind: 'none', release: null },
+    );
   }
   return out;
 }

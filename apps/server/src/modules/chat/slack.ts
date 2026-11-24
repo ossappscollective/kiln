@@ -28,7 +28,11 @@ const safeUrl = (url: string) =>
   url.replace(/\s/g, '%20').replace(/</g, '%3C').replace(/>/g, '%3E').replace(/\|/g, '%7C');
 
 const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
-const plain = (text: string, max: number) => ({ type: 'plain_text', text: cut(text, max), emoji: false });
+const plain = (text: string, max: number) => ({
+  type: 'plain_text',
+  text: cut(text, max),
+  emoji: false,
+});
 const mrkdwn = (text: string, max: number) => ({ type: 'mrkdwn', text: cut(text, max) });
 
 export type SlackPayload = {
@@ -72,7 +76,13 @@ export function renderSlackMessage(m: ChatMessage): SlackPayload {
     elements: notes.map((n) => mrkdwn(escapeMrkdwn(n), L.sectionText)),
   });
   return {
-    attachments: [{ color: accentOf[m.severity], fallback: cut(m.fallback, 300), blocks: blocks.slice(0, L.blocks) }],
+    attachments: [
+      {
+        color: accentOf[m.severity],
+        fallback: cut(m.fallback, 300),
+        blocks: blocks.slice(0, L.blocks),
+      },
+    ],
   };
 }
 
@@ -84,18 +94,23 @@ export function renderSlackDigest(d: ChatDigest): SlackPayload {
   // Ten lines to a section keeps each one far below 3000 characters and the whole below 50 blocks.
   for (let i = 0; i < d.items.length; i += 10) {
     const lines = d.items.slice(i, i + 10).map((item) => {
-      const link = item.link
-        ? ` <${safeUrl(item.link.url)}|${escapeMrkdwn(item.link.label)}>`
-        : '';
+      const link = item.link ? ` <${safeUrl(item.link.url)}|${escapeMrkdwn(item.link.label)}>` : '';
       return `*${escapeMrkdwn(item.severityLabel)}* ${escapeMrkdwn(item.text)}${link}`;
     });
     blocks.push({ type: 'section', text: mrkdwn(lines.join('\n'), L.sectionText) });
   }
-  if (d.more) blocks.push({ type: 'context', elements: [mrkdwn(escapeMrkdwn(d.more), L.sectionText)] });
+  if (d.more)
+    blocks.push({ type: 'context', elements: [mrkdwn(escapeMrkdwn(d.more), L.sectionText)] });
   const actions = buttons(d.buttons);
   if (actions) blocks.push(actions);
   blocks.push({ type: 'context', elements: [mrkdwn(escapeMrkdwn(d.footer), L.sectionText)] });
   return {
-    attachments: [{ color: accentOf.info, fallback: cut(`${d.title}: ${d.heading}`, 300), blocks: blocks.slice(0, L.blocks) }],
+    attachments: [
+      {
+        color: accentOf.info,
+        fallback: cut(`${d.title}: ${d.heading}`, 300),
+        blocks: blocks.slice(0, L.blocks),
+      },
+    ],
   };
 }

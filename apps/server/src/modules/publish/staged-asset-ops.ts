@@ -423,12 +423,8 @@ export async function stagedSetsToRepo(
     input.sets === undefined || input.sets.length === 0
       ? all
       : all.filter((s) => input.sets?.includes(s.key));
-  if (chosen.length === 0) return failure(
-    404,
-    'not_found',
-    'None of these sets is staged.',
-    coded('staged.noSets'),
-  );
+  if (chosen.length === 0)
+    return failure(404, 'not_found', 'None of these sets is staged.', coded('staged.noSets'));
   const opened = await openAssets(
     ctx.assets,
     { workspaceId: input.workspaceId, app },

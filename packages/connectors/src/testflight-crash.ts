@@ -21,7 +21,8 @@ export type CrashSignature = {
   symbolicated: boolean | null;
 };
 
-const clip = (value: string, max: number): string => (value.length > max ? value.slice(0, max) : value);
+const clip = (value: string, max: number): string =>
+  value.length > max ? value.slice(0, max) : value;
 const FRAME = /^\s*\d+\s+(\S.*?)\s+(0x[0-9a-fA-F]+)\s+(.*?)\s*$/;
 
 export function crashSignature(logText: string): CrashSignature | null {
@@ -39,7 +40,9 @@ export function crashSignature(logText: string): CrashSignature | null {
 
   let start = lines.findIndex((l) => /^\s*Thread\s+\d+\s+Crashed\b/.test(l));
   if (start < 0) {
-    const triggered = lines.map((l) => /^\s*Triggered by Thread:\s*(\d+)/.exec(l)?.[1]).find((n) => n !== undefined);
+    const triggered = lines
+      .map((l) => /^\s*Triggered by Thread:\s*(\d+)/.exec(l)?.[1])
+      .find((n) => n !== undefined);
     if (triggered !== undefined) {
       start = lines.findIndex((l) => new RegExp(`^\\s*Thread\\s+${triggered}\\b.*:\\s*$`).test(l));
     }
@@ -56,7 +59,10 @@ export function crashSignature(logText: string): CrashSignature | null {
       image = clip((m[1] ?? '').trim(), 80);
       let rest = (m[3] ?? '').trim();
       rest = rest.replace(/\s+\([^()\s]+:\d+\)\s*$/, '').replace(/\s+\+\s+\d+\s*$/, '');
-      rest = rest.replace(/0x[0-9a-fA-F]+/g, '').replace(/\s+/g, ' ').trim();
+      rest = rest
+        .replace(/0x[0-9a-fA-F]+/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
       symbol = rest === '' ? null : clip(rest, 120);
       break;
     }

@@ -11,6 +11,8 @@ export const analyticsVendorMigrations: Migration[] = [
   {
     id: 58,
     name: 'Analytics: the Apple vendor number of an App Store Connect credential',
-    statements: () => ['ALTER TABLE analytics_credential_config ADD COLUMN apple_vendor_number TEXT'],
+    statements: () => [
+      'ALTER TABLE analytics_credential_config ADD COLUMN apple_vendor_number TEXT',
+    ],
   },
 ];

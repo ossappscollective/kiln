@@ -67,7 +67,11 @@ class TintStore {
   /** The derived tint of an app (null: none). */
   tintOf(appId: string): AppTint | null {
     void this._version;
-    return resolveTint({ enabled: this.enabled, appearance: this._overrides.get(appId), palette: this._entry(appId)?.palette ?? null });
+    return resolveTint({
+      enabled: this.enabled,
+      appearance: this._overrides.get(appId),
+      palette: this._entry(appId)?.palette ?? null,
+    });
   }
 
   /** The inline style for `data-app-tint` (empty: no tint, and then the attribute is left off). */

@@ -33,13 +33,13 @@ install needing a public URL.
    (`["*"]` or a list), the lowest severity, optional apps and platforms. A new destination gets two defaults: every critical alert, and every
    alert of the `releases` group (rejected, approved, live, in review, halted, stalled, plan deadlines and steps) at any severity.
 4. **Not a parallel pipeline.** Chat is a **workspace level channel next to the webhook channel**: `raiseAlert` calls `routeAlertToChat` for
-   every *new* alert, after the alert row is written. So everything the alert system decides first still applies: the workspace rule that
+   every _new_ alert, after the alert row is written. So everything the alert system decides first still applies: the workspace rule that
    switches a type off, the dedupe key and window (a repeat raises a count, no second message), the hourly cap, and the data redaction
    (`redactAlertData`). Titles, bodies, "what to do" sentences and button labels are the **same catalog text as the emails** (`alerts`
    namespace), in the destination's language; only the frame (field names, severity words, test and summary texts) is new (`chat`
    namespace). Links are built on the same origin as the emails (`KILN_PUBLIC_ORIGIN`, `mailLink`); without it the message has no buttons and
    names the screen in words.
-   *Deviation from the brief, and why:* `AlertChannel` (`in_app`, `email`, `desktop`, `webhook`) was **not** widened with `chat`. That list
+   _Deviation from the brief, and why:_ `AlertChannel` (`in_app`, `email`, `desktop`, `webhook`) was **not** widened with `chat`. That list
    drives the per-person matrix, the workspace rule editor, the alert delivery log and the web screens; destinations have their own rules and
    their own log (`chat_deliveries`, with the destination and a fixed outcome vocabulary), so adding a fifth value there would have meant a
    second set of choices for the same thing. Personal preferences (mutes, quiet hours, minimum severity) are per person and do not apply to a
@@ -79,11 +79,11 @@ install needing a public URL.
 
 ## Limits used (from the providers' documentation)
 
-| Provider | Limit | Source |
-| -------- | ----- | ------ |
-| Slack | 50 blocks per message; header text 150 characters; section text 3000; at most 10 section fields of 2000 characters; button text 75 characters (may be cut near 30), button url 3000; `&`, `<`, `>` escaped as entities in text | docs.slack.dev block and formatting pages |
-| Slack | incoming webhooks: about 1 message per second per channel, short bursts tolerated; 429 with `Retry-After` in seconds | docs.slack.dev rate limits |
-| Teams | a message is 28 KB at most; more than 4 requests per second are throttled; Adaptive Card or MessageCard payloads; text fields take basic markdown | learn.microsoft.com incoming webhook page |
+| Provider | Limit                                                                                                                                                                                                                          | Source                                    |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
+| Slack    | 50 blocks per message; header text 150 characters; section text 3000; at most 10 section fields of 2000 characters; button text 75 characters (may be cut near 30), button url 3000; `&`, `<`, `>` escaped as entities in text | docs.slack.dev block and formatting pages |
+| Slack    | incoming webhooks: about 1 message per second per channel, short bursts tolerated; 429 with `Retry-After` in seconds                                                                                                           | docs.slack.dev rate limits                |
+| Teams    | a message is 28 KB at most; more than 4 requests per second are throttled; Adaptive Card or MessageCard payloads; text fields take basic markdown                                                                              | learn.microsoft.com incoming webhook page |
 
 ## Consequences
 

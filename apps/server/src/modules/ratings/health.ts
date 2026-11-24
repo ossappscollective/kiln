@@ -32,14 +32,27 @@ export type VersionDay = {
   anrUsers?: number;
 };
 
-export type Rate = { rate: number | null; volume: number; events?: number; days?: number; coveredDays?: number };
+export type Rate = {
+  rate: number | null;
+  volume: number;
+  events?: number;
+  days?: number;
+  coveredDays?: number;
+};
 
 /** Days a crash file answered for: any day with crash numbers of any version. */
 export type HealthData = { store: Store; points: VersionDay[]; crashDays: Set<string> };
 
-function rateOver(data: HealthData, days: string[], version: string | null, measure: 'crash' | 'freeze'): Rate | null {
+function rateOver(
+  data: HealthData,
+  days: string[],
+  version: string | null,
+  measure: 'crash' | 'freeze',
+): Rate | null {
   const set = new Set(days);
-  const pts = data.points.filter((p) => set.has(p.day) && (version === null || p.version === version));
+  const pts = data.points.filter(
+    (p) => set.has(p.day) && (version === null || p.version === version),
+  );
   if (data.store === 'appstoreconnect') {
     if (measure === 'freeze') return null;
     let sessions = 0;
@@ -53,7 +66,13 @@ function rateOver(data: HealthData, days: string[], version: string | null, meas
       sessions += p.sessions ?? 0;
       crashes += p.crashes ?? 0;
     }
-    return { rate: sessions > 0 ? crashes / sessions : null, volume: sessions, events: crashes, days: used.size, coveredDays: covered.size };
+    return {
+      rate: sessions > 0 ? crashes / sessions : null,
+      volume: sessions,
+      events: crashes,
+      days: used.size,
+      coveredDays: covered.size,
+    };
   }
   let users = 0;
   let weighted = 0;
@@ -67,7 +86,8 @@ function rateOver(data: HealthData, days: string[], version: string | null, meas
   return { rate: users > 0 ? weighted / users : null, volume: users };
 }
 
-export const partial = (r: Rate | null): boolean => !!r && r.days !== undefined && r.coveredDays !== undefined && r.coveredDays < r.days;
+export const partial = (r: Rate | null): boolean =>
+  !!r && r.days !== undefined && r.coveredDays !== undefined && r.coveredDays < r.days;
 
 /** Whether a rate rests on enough sessions or users to compare, and on the App Store on enough of its days. */
 export function steady(r: Rate | null): r is Rate & { rate: number } {
@@ -75,7 +95,13 @@ export function steady(r: Rate | null): r is Rate & { rate: number } {
   return !partial(r) || (r.coveredDays ?? 0) / (r.days ?? 1) >= MIN_COVERAGE;
 }
 
-export type VersionHealth = { version: string; from: string; to: string; crash: Rate; freeze: Rate | null };
+export type VersionHealth = {
+  version: string;
+  from: string;
+  to: string;
+  crash: Rate;
+  freeze: Rate | null;
+};
 
 const numeric = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
 
@@ -94,7 +120,13 @@ export function versionHealth(data: HealthData): VersionHealth[] {
   return [...spans.entries()]
     .map(([version, s]) => {
       const days = dayRange(s.from, s.to);
-      return { version, from: s.from, to: s.to, crash: rateOver(data, days, version, 'crash')!, freeze: rateOver(data, days, version, 'freeze') };
+      return {
+        version,
+        from: s.from,
+        to: s.to,
+        crash: rateOver(data, days, version, 'crash')!,
+        freeze: rateOver(data, days, version, 'freeze'),
+      };
     })
     .sort((a, b) => numeric(b.version, a.version));
 }
@@ -111,7 +143,12 @@ export type Finding = {
   to: string;
 };
 
-export function compare(store: Store, measure: 'crash' | 'freeze', v: VersionHealth, prev: VersionHealth): Finding | null {
+export function compare(
+  store: Store,
+  measure: 'crash' | 'freeze',
+  v: VersionHealth,
+  prev: VersionHealth,
+): Finding | null {
   const now = measure === 'crash' ? v.crash : v.freeze;
   const then = measure === 'crash' ? prev.crash : prev.freeze;
   if (!steady(now) || !steady(then)) return null;
@@ -119,9 +156,19 @@ export function compare(store: Store, measure: 'crash' | 'freeze', v: VersionHea
   const before = then.rate;
   const line = measure === 'crash' ? GOOGLE_CRASH_LINE : GOOGLE_FREEZE_LINE;
   const overLine = store === 'googleplay' && after >= line && before < line;
-  const base = { measure, version: v.version, previous: prev.version, before, after, from: v.from, to: v.to };
-  if (overLine || (after >= before * RISE && after - before >= MIN_STEP[store])) return { kind: 'worse', ...base, overLine };
-  if (before >= after * RISE && before - after >= MIN_STEP[store]) return { kind: 'better', ...base, overLine: false };
+  const base = {
+    measure,
+    version: v.version,
+    previous: prev.version,
+    before,
+    after,
+    from: v.from,
+    to: v.to,
+  };
+  if (overLine || (after >= before * RISE && after - before >= MIN_STEP[store]))
+    return { kind: 'worse', ...base, overLine };
+  if (before >= after * RISE && before - after >= MIN_STEP[store])
+    return { kind: 'better', ...base, overLine: false };
   return null;
 }
 
@@ -136,7 +183,10 @@ export function finding(store: Store, versions: VersionHealth[]): Finding | null
 }
 
 /** One day of the app as a whole, for the chart: crashes per session (App Store) or share of users (Google Play). */
-export function dailyRates(data: HealthData, days: string[]): { day: string; crash: number | null; freeze: number | null }[] {
+export function dailyRates(
+  data: HealthData,
+  days: string[],
+): { day: string; crash: number | null; freeze: number | null }[] {
   return days.map((day) => ({
     day,
     crash: rateOver(data, [day], null, 'crash')?.rate ?? null,

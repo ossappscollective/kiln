@@ -1,4 +1,10 @@
-import { type CheckCode, type Fix, type ListingFixKind, type UnfixableIssue, stageableFixesOf } from '@kiln/core';
+import {
+  type CheckCode,
+  type Fix,
+  type ListingFixKind,
+  type UnfixableIssue,
+  stageableFixesOf,
+} from '@kiln/core';
 import { k, t } from '../i18n/t.ts';
 import { notStageableReason } from './edit.ts';
 import type { Platform } from '@kiln/core';
@@ -46,10 +52,21 @@ export function fixSummary(fix: Fix): string {
   return fix.risk === 'safe' ? t('listing:fix.noMeaning') : t('listing:fix.whiteSpace');
 }
 
-const ORDER: Record<Fix['id'], number> = { keywords_tidy: 1, text_tidy: 1, keywords_drop_in_title: 2, keywords_fit: 3, shorten_ai: 4, edit_field: 5 };
+const ORDER: Record<Fix['id'], number> = {
+  keywords_tidy: 1,
+  text_tidy: 1,
+  keywords_drop_in_title: 2,
+  keywords_fit: 3,
+  shorten_ai: 4,
+  edit_field: 5,
+};
 
 /** The fix a finding row offers: the gentlest fix that settles that finding (so a spaces finding offers the tidy, not the drops). Null: none. */
-export function fixForIssue(locale: LocaleFixes | undefined, issue: { field: string | null; code: CheckCode }, kind?: ListingFixKind): Fix | null {
+export function fixForIssue(
+  locale: LocaleFixes | undefined,
+  issue: { field: string | null; code: CheckCode },
+  kind?: ListingFixKind,
+): Fix | null {
   if (!locale || issue.field === null) return null;
   let best: Fix | null = null;
   for (const fix of locale.fixes) {
@@ -61,15 +78,21 @@ export function fixForIssue(locale: LocaleFixes | undefined, issue: { field: str
 }
 
 /** The finding is one the checks found but no automatic fix can settle ("cannot be fixed automatically"). */
-export const cannotFix = (locale: LocaleFixes | undefined, issue: { field: string | null; code: CheckCode }): boolean =>
+export const cannotFix = (
+  locale: LocaleFixes | undefined,
+  issue: { field: string | null; code: CheckCode },
+): boolean =>
   !!locale && locale.cannot.some((c) => c.field === issue.field && c.code === issue.code);
 
 /** The fixes "Fix all" stages for a locale: one per field, the strongest, only those a push can write. */
-export const fixAllOf = (locale: LocaleFixes | undefined): Fix[] => (locale ? stageableFixesOf(locale.fixes) : []);
+export const fixAllOf = (locale: LocaleFixes | undefined): Fix[] =>
+  locale ? stageableFixesOf(locale.fixes) : [];
 
 /** The staged item of a field of a locale (to discard a staged fix), or null. */
-export const stagedItemOf = (locale: LocaleFixes | undefined, field: string | null): string | null =>
-  locale?.staged.find((s) => s.field === field)?.id ?? null;
+export const stagedItemOf = (
+  locale: LocaleFixes | undefined,
+  field: string | null,
+): string | null => locale?.staged.find((s) => s.field === field)?.id ?? null;
 
 export type TermMark = { term: string; removed: boolean };
 
@@ -99,7 +122,13 @@ export async function hashText(value: string): Promise<string> {
 }
 
 /** Why a fix button is off, or null: a locked version, no right to stage, or a field a draft push cannot write. */
-export function fixBlockedReason(input: { canStage: boolean; locked: boolean; stageable: boolean; platform: Platform; field: string }): string | null {
+export function fixBlockedReason(input: {
+  canStage: boolean;
+  locked: boolean;
+  stageable: boolean;
+  platform: Platform;
+  field: string;
+}): string | null {
   if (input.locked) return t('listing:fix.locked');
   if (!input.canStage) return t('listing:fix.noRight');
   if (!input.stageable) return notStageableReason(input.platform, input.field);

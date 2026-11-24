@@ -841,7 +841,9 @@ export function playConsoleUsersUrl(bucketId: string | null | undefined): string
 /** The permissions page of the Cloud Storage bucket, or null when the bucket is not known. */
 export function playBucketPermissionsUrl(bucketId: string | null | undefined): string | null {
   const id = (bucketId ?? '').trim();
-  return playDeveloperId(id) ? `https://console.cloud.google.com/storage/browser/${id};tab=permissions` : null;
+  return playDeveloperId(id)
+    ? `https://console.cloud.google.com/storage/browser/${id};tab=permissions`
+    : null;
 }
 
 /** The sources "Test access" can check with one cheap call. */

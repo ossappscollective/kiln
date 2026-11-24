@@ -145,12 +145,13 @@ export async function readCurrent(
   actor: Actor,
 ): Promise<Outcome<{ current: Current }>> {
   const repository = await getRepository(ctx.db, input.workspaceId, input.repositoryId);
-  if (!repository) return failure(
-    404,
-    'not_found',
-    'The repository of this change set is gone.',
-    coded('changeSet.repositoryGone'),
-  );
+  if (!repository)
+    return failure(
+      404,
+      'not_found',
+      'The repository of this change set is gone.',
+      coded('changeSet.repositoryGone'),
+    );
   const opened = await openConnectorForRepository(
     ctx,
     input.workspaceId,

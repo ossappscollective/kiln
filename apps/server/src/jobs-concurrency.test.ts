@@ -25,7 +25,12 @@ dbTest('queue priority: due jobs of a lower rank go first, others keep their ord
   const worker = createWorker({
     sql: db,
     now: () => 10,
-    handlers: { analytics: handler('analytics'), reviews: handler('reviews'), apps: handler('apps'), webhook: handler('webhook') },
+    handlers: {
+      analytics: handler('analytics'),
+      reviews: handler('reviews'),
+      apps: handler('apps'),
+      webhook: handler('webhook'),
+    },
     priority: { apps: 0, reviews: 1, analytics: 3 },
   });
   while (await worker.tick());
@@ -40,7 +45,10 @@ dbTest('a future job is not claimed early, whatever its rank', async (db) => {
   const worker = createWorker({
     sql: db,
     now: () => 10,
-    handlers: { apps: async () => void seen.push('apps'), analytics: async () => void seen.push('analytics') },
+    handlers: {
+      apps: async () => void seen.push('apps'),
+      analytics: async () => void seen.push('analytics'),
+    },
     priority: { apps: 0, analytics: 3 },
   });
   assert.equal(await worker.tick(), true);
@@ -48,70 +56,76 @@ dbTest('a future job is not claimed early, whatever its rank', async (db) => {
   assert.deepEqual(seen, ['analytics']);
 });
 
-dbTest('concurrency: jobs overlap up to the limit, each runs exactly once, heavy jobs leave a slot free', async (db) => {
-  await migrate(db);
-  let live = 0;
-  let peak = 0;
-  let heavyLive = 0;
-  let heavyPeak = 0;
-  const runs = new Map<string, number>();
-  const work = (heavy: boolean) => async (payload: unknown) => {
-    const id = String((payload as { id: number }).id);
-    runs.set(id, (runs.get(id) ?? 0) + 1);
-    live++;
-    peak = Math.max(peak, live);
-    if (heavy) {
-      heavyLive++;
-      heavyPeak = Math.max(heavyPeak, heavyLive);
-    }
-    await wait(12);
-    if (heavy) heavyLive--;
-    live--;
-  };
-  for (let id = 0; id < 8; id++) await enqueue(db, 'slow', { id }, { now: 1 });
-  for (let id = 100; id < 106; id++) await enqueue(db, 'quick', { id }, { now: 1 });
-  const worker = createWorker({
-    sql: db,
-    now: () => 10,
-    pollMs: 2,
-    concurrency: 4,
-    heavy: ['slow'],
-    handlers: { slow: work(true), quick: work(false) },
-  });
-  worker.start();
-  await drain(db);
-  await worker.stop();
-  assert.equal(peak, 4);
-  assert.ok(heavyPeak <= 3, `heavy peak ${heavyPeak}`);
-  assert.equal(runs.size, 14);
-  for (const count of runs.values()) assert.equal(count, 1);
-});
+dbTest(
+  'concurrency: jobs overlap up to the limit, each runs exactly once, heavy jobs leave a slot free',
+  async (db) => {
+    await migrate(db);
+    let live = 0;
+    let peak = 0;
+    let heavyLive = 0;
+    let heavyPeak = 0;
+    const runs = new Map<string, number>();
+    const work = (heavy: boolean) => async (payload: unknown) => {
+      const id = String((payload as { id: number }).id);
+      runs.set(id, (runs.get(id) ?? 0) + 1);
+      live++;
+      peak = Math.max(peak, live);
+      if (heavy) {
+        heavyLive++;
+        heavyPeak = Math.max(heavyPeak, heavyLive);
+      }
+      await wait(12);
+      if (heavy) heavyLive--;
+      live--;
+    };
+    for (let id = 0; id < 8; id++) await enqueue(db, 'slow', { id }, { now: 1 });
+    for (let id = 100; id < 106; id++) await enqueue(db, 'quick', { id }, { now: 1 });
+    const worker = createWorker({
+      sql: db,
+      now: () => 10,
+      pollMs: 2,
+      concurrency: 4,
+      heavy: ['slow'],
+      handlers: { slow: work(true), quick: work(false) },
+    });
+    worker.start();
+    await drain(db);
+    await worker.stop();
+    assert.equal(peak, 4);
+    assert.ok(heavyPeak <= 3, `heavy peak ${heavyPeak}`);
+    assert.equal(runs.size, 14);
+    for (const count of runs.values()) assert.equal(count, 1);
+  },
+);
 
-dbTest('a failing job does not stop the other slots, and stop() waits for running jobs', async (db) => {
-  await migrate(db);
-  await enqueue(db, 'bad', {}, { now: 1 });
-  await enqueue(db, 'good', {}, { now: 1 });
-  let finished = false;
-  const worker = createWorker({
-    sql: db,
-    now: () => 10,
-    pollMs: 2,
-    concurrency: 2,
-    onError: () => undefined,
-    handlers: {
-      bad: async () => {
-        throw new Error('nope');
+dbTest(
+  'a failing job does not stop the other slots, and stop() waits for running jobs',
+  async (db) => {
+    await migrate(db);
+    await enqueue(db, 'bad', {}, { now: 1 });
+    await enqueue(db, 'good', {}, { now: 1 });
+    let finished = false;
+    const worker = createWorker({
+      sql: db,
+      now: () => 10,
+      pollMs: 2,
+      concurrency: 2,
+      onError: () => undefined,
+      handlers: {
+        bad: async () => {
+          throw new Error('nope');
+        },
+        good: async () => {
+          await wait(15);
+          finished = true;
+        },
       },
-      good: async () => {
-        await wait(15);
-        finished = true;
-      },
-    },
-  });
-  worker.start();
-  await wait(5);
-  await worker.stop();
-  assert.equal(finished, true);
-  const [bad] = await db.query("SELECT status FROM jobs WHERE queue = 'bad'");
-  assert.equal(bad?.status, 'queued');
-});
+    });
+    worker.start();
+    await wait(5);
+    await worker.stop();
+    assert.equal(finished, true);
+    const [bad] = await db.query("SELECT status FROM jobs WHERE queue = 'bad'");
+    assert.equal(bad?.status, 'queued');
+  },
+);

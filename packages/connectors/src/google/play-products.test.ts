@@ -169,14 +169,12 @@ test('offers that cannot be read leave the products and add a warning; other fai
 });
 
 test('a refused service account is a clear error with no secret in it', async () => {
-  const fake = new fx.FakeFetch()
-    .on({ method: 'POST', match: '/token', json: fx.googleToken })
-    .on({
-      method: 'GET',
-      match: `${pf.SUBS}?pageSize=100`,
-      status: 403,
-      json: { error: { code: 403, message: 'The caller does not have permission' } },
-    });
+  const fake = new fx.FakeFetch().on({ method: 'POST', match: '/token', json: fx.googleToken }).on({
+    method: 'GET',
+    match: `${pf.SUBS}?pageSize=100`,
+    status: 403,
+    json: { error: { code: 403, message: 'The caller does not have permission' } },
+  });
   await assert.rejects(connector(fake).listProducts(), (error: unknown) => {
     assertNoSecrets(error);
     assert.ok(error instanceof StoreError);

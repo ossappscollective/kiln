@@ -158,5 +158,10 @@ export function currentCustomPageVersion(
   return best;
 }
 
-const empty = (): StoreAssetCounts => ({ screenshots: 0, previews: 0, other: 0, screenshotSets: 0 });
+const empty = (): StoreAssetCounts => ({
+  screenshots: 0,
+  previews: 0,
+  other: 0,
+  screenshotSets: 0,
+});
 export const emptyAssetCounts = empty;

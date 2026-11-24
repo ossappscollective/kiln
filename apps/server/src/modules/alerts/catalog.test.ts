@@ -144,24 +144,48 @@ test('events become alerts by the rules of the catalog', () => {
     type,
     workspaceId: 'w',
     subject: { appId: 'a1' },
-    payload: { appId: 'a1', [key]: id, platform: 'ios', version: '1.4.0', buildNumber: '57', code: null },
+    payload: {
+      appId: 'a1',
+      [key]: id,
+      platform: 'ios',
+      version: '1.4.0',
+      buildNumber: '57',
+      code: null,
+    },
     createdAt: at,
   });
   assert.deepEqual(ids(eas('eas.build_failed', 'buildId', 'b1')), ['eas.build_failed']);
-  assert.deepEqual(ids(eas('eas.submission_failed', 'submissionId', 's1')), ['eas.submission_failed']);
+  assert.deepEqual(ids(eas('eas.submission_failed', 'submissionId', 's1')), [
+    'eas.submission_failed',
+  ]);
   // Once per id: the same build raised later (another event, another time) has the same dedupe key; another build has another.
   const keyOf = (type: string, key: string, id: string, createdAt: number) => {
     const m = alertsFromEvent({ ...eas(type, key, id), createdAt })[0];
     return m?.def.dedupeKey(m.data);
   };
-  assert.equal(keyOf('eas.build_failed', 'buildId', 'b1', 1), keyOf('eas.build_failed', 'buildId', 'b1', 99999));
-  assert.notEqual(keyOf('eas.build_failed', 'buildId', 'b1', 1), keyOf('eas.build_failed', 'buildId', 'b2', 1));
+  assert.equal(
+    keyOf('eas.build_failed', 'buildId', 'b1', 1),
+    keyOf('eas.build_failed', 'buildId', 'b1', 99999),
+  );
+  assert.notEqual(
+    keyOf('eas.build_failed', 'buildId', 'b1', 1),
+    keyOf('eas.build_failed', 'buildId', 'b2', 1),
+  );
   assert.equal(keyOf('eas.submission_failed', 'submissionId', 's1', 1), 'eas.submission_failed:s1');
   const stuck = (group: string, createdAt: number) => ({
     type: 'eas.update_rollout_stuck',
     workspaceId: 'w',
     subject: { appId: 'a1' },
-    payload: { appId: 'a1', updateId: 'u1', group, platform: 'ios', channel: 'production', percentage: 25, hours: 49, message: 'SECRET-UPDATE-MESSAGE' },
+    payload: {
+      appId: 'a1',
+      updateId: 'u1',
+      group,
+      platform: 'ios',
+      channel: 'production',
+      percentage: 25,
+      hours: 49,
+      message: 'SECRET-UPDATE-MESSAGE',
+    },
     createdAt,
   });
   const stuckAlert = alertsFromEvent(stuck('g1', 1))[0];

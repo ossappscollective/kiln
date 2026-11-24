@@ -142,11 +142,27 @@ test('sameText ignores line endings and trailing white space like the server', (
 
 test('stageThenClose: closes after a stage, stays open with the reason when it fails, and a failing refresh does not undo a stage', async () => {
   const calls: string[] = [];
-  const ok = await stageThenClose(async () => void calls.push('stage'), () => void calls.push('after'), () => 'x');
+  const ok = await stageThenClose(
+    async () => void calls.push('stage'),
+    () => void calls.push('after'),
+    () => 'x',
+  );
   assert.deepEqual([ok, calls], [{ close: true, problem: '' }, ['stage', 'after']]);
-  const failed = await stageThenClose(async () => { throw new Error('boom'); }, () => void calls.push('never'), (e) => `sentence: ${(e as Error).message}`);
+  const failed = await stageThenClose(
+    async () => {
+      throw new Error('boom');
+    },
+    () => void calls.push('never'),
+    (e) => `sentence: ${(e as Error).message}`,
+  );
   assert.deepEqual(failed, { close: false, problem: 'sentence: boom' });
   assert.ok(!calls.includes('never'));
-  const late = await stageThenClose(async () => {}, async () => { throw new Error('read failed'); }, () => 'x');
+  const late = await stageThenClose(
+    async () => {},
+    async () => {
+      throw new Error('read failed');
+    },
+    () => 'x',
+  );
   assert.deepEqual(late, { close: true, problem: '' });
 });

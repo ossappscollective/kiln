@@ -65,7 +65,12 @@ import {
 } from './store.ts';
 
 import { coded } from '../../i18n/problem.ts';
-import { credentialLane, syncActivity, mapPool, pipelineSettings } from '../../services/sync-pipeline.ts';
+import {
+  credentialLane,
+  syncActivity,
+  mapPool,
+  pipelineSettings,
+} from '../../services/sync-pipeline.ts';
 /**
  * Reads the analytics of an app from its stores into `analytics_daily` (docs/adr/0017-analytics-foundation.md). Read only toward the
  * stores: the one store write of analytics (creating an Apple report request) is a separate, explicit action (analytics-enable.ts).

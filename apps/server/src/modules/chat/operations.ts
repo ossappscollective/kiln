@@ -26,7 +26,9 @@ export const destinationSchema = z.object({
   id: z.string(),
   provider: z.enum(chatProviders),
   name: z.string(),
-  urlHint: z.string().describe('The last four characters of the webhook URL. The URL itself is never returned.'),
+  urlHint: z
+    .string()
+    .describe('The last four characters of the webhook URL. The URL itself is never returned.'),
   locale: z.string().describe('The language of the messages: en, fr, es or de.'),
   enabled: z.boolean(),
   allowAnyHost: z.boolean().describe("Accept a webhook host outside the provider's known domains."),
@@ -65,7 +67,12 @@ export const chatOperations: Operation[] = [
     description: 'Never the webhook URL, only its last four characters.',
     risk: 'read',
     access: { action: 'chat.read' },
-    responses: { '200': { description: 'The destinations.', schema: z.object({ destinations: z.array(destinationSchema) }) } },
+    responses: {
+      '200': {
+        description: 'The destinations.',
+        schema: z.object({ destinations: z.array(destinationSchema) }),
+      },
+    },
   },
   {
     id: 'createChatDestination',
@@ -97,7 +104,8 @@ export const chatOperations: Operation[] = [
     path: `${W}/chat/destinations/{id}`,
     tags: ['chat'],
     summary: 'Change a chat destination',
-    description: 'Any of name, url (replaces the stored address), locale, enabled, allowAnyHost, digest, digestHour, timezone.',
+    description:
+      'Any of name, url (replaces the stored address), locale, enabled, allowAnyHost, digest, digestHour, timezone.',
     risk: 'write',
     access: { action: 'chat.manage' },
     body: updateDestinationBody,
@@ -110,7 +118,8 @@ export const chatOperations: Operation[] = [
     path: `${W}/chat/destinations/{id}/routes`,
     tags: ['chat'],
     summary: 'Replace the routing rules of a destination',
-    description: 'Which alert types, from which severity, for which apps and platforms go to the destination.',
+    description:
+      'Which alert types, from which severity, for which apps and platforms go to the destination.',
     risk: 'write',
     access: { action: 'chat.manage' },
     body: routesBody,
@@ -134,7 +143,8 @@ export const chatOperations: Operation[] = [
     path: `${W}/chat/destinations/{id}/test`,
     tags: ['chat'],
     summary: 'Send a test message to a destination',
-    description: 'Queued through the normal path; the result is in the deliveries. Rate limited per workspace.',
+    description:
+      'Queued through the normal path; the result is in the deliveries. Rate limited per workspace.',
     risk: 'write',
     access: { action: 'chat.manage' },
     rateLimited: true,
@@ -149,6 +159,11 @@ export const chatOperations: Operation[] = [
     risk: 'read',
     access: { action: 'chat.read' },
     query: z.object({ limit: z.number().int().min(1).max(100).optional() }),
-    responses: { '200': { description: 'Newest first.', schema: z.object({ deliveries: z.array(deliverySchema) }) } },
+    responses: {
+      '200': {
+        description: 'Newest first.',
+        schema: z.object({ deliveries: z.array(deliverySchema) }),
+      },
+    },
   },
 ];

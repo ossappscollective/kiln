@@ -99,7 +99,10 @@ const fixStageBody = z
     locale: z.string().min(2).max(35),
     field: z.string().min(1).max(60),
     fixId: z.string().min(1).max(40),
-    beforeHash: z.string().regex(/^[0-9a-f]{64}$|^absent$/).optional(),
+    beforeHash: z
+      .string()
+      .regex(/^[0-9a-f]{64}$|^absent$/)
+      .optional(),
   })
   .strict();
 const hash64 = /^[0-9a-f]{64}$/;
@@ -179,12 +182,21 @@ export function stagedRoutes(ctx: StagedRoutesContext) {
     return done.ok ? c.json(done.view) : respond(c, done);
   });
 
-  routes.post('/:workspaceId/apps/:id/listing/fixes/stage', needs('changesets.write'), async (c) => {
-    const body = await parseBody(c, fixStageBody);
-    if (!body.ok) return body.response;
-    const done = await stageListingFix(staged, { workspaceId: ws(c), appId: param(c, 'id'), ...body.data, actor: actor(c) });
-    return done.ok ? c.json({ staged: done.staged, fix: done.fix }) : respond(c, done);
-  });
+  routes.post(
+    '/:workspaceId/apps/:id/listing/fixes/stage',
+    needs('changesets.write'),
+    async (c) => {
+      const body = await parseBody(c, fixStageBody);
+      if (!body.ok) return body.response;
+      const done = await stageListingFix(staged, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        ...body.data,
+        actor: actor(c),
+      });
+      return done.ok ? c.json({ staged: done.staged, fix: done.fix }) : respond(c, done);
+    },
+  );
 
   // The release fields of a draft release (docs/api/releases-write.md): staged like a text, written by the same push.
   routes.put(

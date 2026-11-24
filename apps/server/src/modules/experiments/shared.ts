@@ -27,17 +27,16 @@ export type ExperimentsConnectorFactory = (
   input: ExperimentsConnectorInput,
 ) => StoreExperimentsConnector | null;
 
-export const defaultExperimentsConnectorFactory: ExperimentsConnectorFactory = connectorFactory<
-  StoreExperimentsConnector | null
->({
-  app_store_connect: (input) =>
-    AppleExperimentsConnector.fromSecret(input.secret, {
-      appStoreId: input.storeAppId ?? '',
-      scope: appleScope(input),
-      fetch: input.fetch,
-    }),
-  google_play: () => null,
-});
+export const defaultExperimentsConnectorFactory: ExperimentsConnectorFactory =
+  connectorFactory<StoreExperimentsConnector | null>({
+    app_store_connect: (input) =>
+      AppleExperimentsConnector.fromSecret(input.secret, {
+        appStoreId: input.storeAppId ?? '',
+        scope: appleScope(input),
+        fetch: input.fetch,
+      }),
+    google_play: () => null,
+  });
 
 export type ExperimentsContext = {
   db: Database;

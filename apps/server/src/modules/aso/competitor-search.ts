@@ -31,7 +31,10 @@ export type CompetitorSearchResult = {
 const clip = (value: string | undefined, max: number): string | null => {
   if (value === undefined) return null;
   // Plain text only: control characters and angle brackets (anything markup-like) are dropped.
-  const text = value.replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim();
+  const text = value
+    .replace(/[\u0000-\u001f\u007f<>]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   return text === '' ? null : text.slice(0, max);
 };
 
@@ -77,7 +80,8 @@ export function mapSearchResults(
           ? app.ratingCount
           : null,
       price: clip(app.price, 20),
-      state: app.id === context.ownId ? 'own' : context.followed.has(app.id) ? 'followed' : 'available',
+      state:
+        app.id === context.ownId ? 'own' : context.followed.has(app.id) ? 'followed' : 'available',
     });
     if (out.length >= COMPETITOR_SEARCH_LIMIT) break;
   }

@@ -55,7 +55,12 @@ export function bucketFormState(i: BucketFormInput): BucketFormState {
     problem,
     dirty,
     canSave: idle && dirty && saveValue !== undefined,
-    canTest: i.canManage && loaded && !i.testing && !i.saving && (i.useDefault ? i.inherited !== null : valid),
+    canTest:
+      i.canManage &&
+      loaded &&
+      !i.testing &&
+      !i.saving &&
+      (i.useDefault ? i.inherited !== null : valid),
     saveValue,
     testValue: i.useDefault ? undefined : normalized,
   };

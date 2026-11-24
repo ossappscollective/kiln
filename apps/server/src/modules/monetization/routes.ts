@@ -57,16 +57,27 @@ const priceStageBody = z
       )
       .min(1)
       .max(250),
-    effectiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+    effectiveDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable(),
     existingSubscribers: z.enum(['preserve', 'apply', 'opt_in', 'opt_out', 'not_applicable']),
-    acknowledgements: z.array(z.enum(['large_change', 'large_absolute', 'existing_subscribers'])).max(3),
+    acknowledgements: z
+      .array(z.enum(['large_change', 'large_absolute', 'existing_subscribers']))
+      .max(3),
     seenSyncedAt: z.number().int().min(0),
   })
   .strict();
 const priceConvertBody = z
-  .object({ planId: z.string().min(1).max(100).nullable(), baseTerritory: z.string().length(2), amount: z.string().regex(/^\d{1,15}$/) })
+  .object({
+    planId: z.string().min(1).max(100).nullable(),
+    baseTerritory: z.string().length(2),
+    amount: z.string().regex(/^\d{1,15}$/),
+  })
   .strict();
-const dryRunBody = z.object({ ids: z.array(z.string().min(3).max(220)).max(200).optional() }).strict();
+const dryRunBody = z
+  .object({ ids: z.array(z.string().min(3).max(220)).max(200).optional() })
+  .strict();
 
 export function monetizationRoutes(ctx: MonetizationContext) {
   const { db } = ctx;
@@ -114,47 +125,95 @@ export function monetizationRoutes(ctx: MonetizationContext) {
   });
 
   // ---- Price changes (docs/adr/0062-price-writes.md). Staging writes Kiln's own table only; sending is done from the cart. ----
-  routes.get('/:workspaceId/apps/:appId/products/:productId/price-points', needs('monetization.price'), async (c) => {
-    const done = await listPricePoints(ctx.price, {
-      workspaceId: ws(c),
-      appId: param(c, 'appId'),
-      productId: param(c, 'productId'),
-      territory: (c.req.query('territory') ?? '').toUpperCase(),
-      actor: actor(c),
-    });
-    c.header('Cache-Control', 'no-store');
-    return done.ok ? c.json({ pricePoints: done.pricePoints, currency: done.currency, applicable: done.applicable }) : respond(c, done);
-  });
+  routes.get(
+    '/:workspaceId/apps/:appId/products/:productId/price-points',
+    needs('monetization.price'),
+    async (c) => {
+      const done = await listPricePoints(ctx.price, {
+        workspaceId: ws(c),
+        appId: param(c, 'appId'),
+        productId: param(c, 'productId'),
+        territory: (c.req.query('territory') ?? '').toUpperCase(),
+        actor: actor(c),
+      });
+      c.header('Cache-Control', 'no-store');
+      return done.ok
+        ? c.json({
+            pricePoints: done.pricePoints,
+            currency: done.currency,
+            applicable: done.applicable,
+          })
+        : respond(c, done);
+    },
+  );
 
-  routes.post('/:workspaceId/apps/:appId/products/:productId/price-convert', needs('monetization.price'), async (c) => {
-    const body = await parseBody(c, priceConvertBody);
-    if (!body.ok) return body.response;
-    const done = await convertPrices(ctx.price, { workspaceId: ws(c), appId: param(c, 'appId'), productId: param(c, 'productId'), actor: actor(c), ...body.data });
-    c.header('Cache-Control', 'no-store');
-    return done.ok ? c.json({ prices: done.prices, regionsVersion: done.regionsVersion }) : respond(c, done);
-  });
+  routes.post(
+    '/:workspaceId/apps/:appId/products/:productId/price-convert',
+    needs('monetization.price'),
+    async (c) => {
+      const body = await parseBody(c, priceConvertBody);
+      if (!body.ok) return body.response;
+      const done = await convertPrices(ctx.price, {
+        workspaceId: ws(c),
+        appId: param(c, 'appId'),
+        productId: param(c, 'productId'),
+        actor: actor(c),
+        ...body.data,
+      });
+      c.header('Cache-Control', 'no-store');
+      return done.ok
+        ? c.json({ prices: done.prices, regionsVersion: done.regionsVersion })
+        : respond(c, done);
+    },
+  );
 
-  routes.put('/:workspaceId/apps/:appId/products/:productId/prices/staged', needs('monetization.price'), async (c) => {
-    const body = await parseBody(c, priceStageBody);
-    if (!body.ok) return body.response;
-    const done = await stagePrice(ctx.price, { workspaceId: ws(c), appId: param(c, 'appId'), productId: param(c, 'productId'), actor: actor(c), ...body.data });
-    c.header('Cache-Control', 'no-store');
-    return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
-  });
+  routes.put(
+    '/:workspaceId/apps/:appId/products/:productId/prices/staged',
+    needs('monetization.price'),
+    async (c) => {
+      const body = await parseBody(c, priceStageBody);
+      if (!body.ok) return body.response;
+      const done = await stagePrice(ctx.price, {
+        workspaceId: ws(c),
+        appId: param(c, 'appId'),
+        productId: param(c, 'productId'),
+        actor: actor(c),
+        ...body.data,
+      });
+      c.header('Cache-Control', 'no-store');
+      return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
+    },
+  );
 
   // The dry run: reads the store and shows what a send would do. Writes nothing, takes no claim, needs no phrase and no step-up.
-  routes.post('/:workspaceId/apps/:appId/prices/dry-run', needs('monetization.price'), async (c) => {
-    const body = await parseBody(c, dryRunBody);
-    if (!body.ok) return body.response;
-    const app = await getApp(db, ws(c), param(c, 'appId'));
-    if (!app) return c.json({ error: 'not_found' }, 404);
-    const all = await listStagedPrices(db, ws(c), app.id);
-    const named = body.data.ids ? new Set(body.data.ids) : undefined;
-    const rows = all.filter((r) => !named || named.has(`price:${r.id}`));
-    c.header('Cache-Control', 'no-store');
-    const done = await dryRunPrices(ctx.price, { workspaceId: ws(c), app, rows, actor: actor(c) });
-    return done.ok ? c.json({ dryRun: { items: done.items, writesEnabled: (await priceSwitch(ctx.price, ws(c))).enabled } }) : respond(c, done);
-  });
+  routes.post(
+    '/:workspaceId/apps/:appId/prices/dry-run',
+    needs('monetization.price'),
+    async (c) => {
+      const body = await parseBody(c, dryRunBody);
+      if (!body.ok) return body.response;
+      const app = await getApp(db, ws(c), param(c, 'appId'));
+      if (!app) return c.json({ error: 'not_found' }, 404);
+      const all = await listStagedPrices(db, ws(c), app.id);
+      const named = body.data.ids ? new Set(body.data.ids) : undefined;
+      const rows = all.filter((r) => !named || named.has(`price:${r.id}`));
+      c.header('Cache-Control', 'no-store');
+      const done = await dryRunPrices(ctx.price, {
+        workspaceId: ws(c),
+        app,
+        rows,
+        actor: actor(c),
+      });
+      return done.ok
+        ? c.json({
+            dryRun: {
+              items: done.items,
+              writesEnabled: (await priceSwitch(ctx.price, ws(c))).enabled,
+            },
+          })
+        : respond(c, done);
+    },
+  );
 
   routes.get('/:workspaceId/apps/:appId/products/:productId', needs('apps.read'), async (c) => {
     const done = await getProduct(ctx, {

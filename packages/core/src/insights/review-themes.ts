@@ -6,7 +6,16 @@
 // "sturzt ab". Terms are of three kinds: `prefixes` match the start of a word, `exact` match a whole word (for short words like "lent" that start
 // longer ones), and `phrases` match a run of words. Everything here is plain string work, so it runs where the web app does (ES2017).
 
-export const REVIEW_THEMES = ['crash', 'bug', 'login', 'data', 'price', 'ads', 'performance', 'update'] as const;
+export const REVIEW_THEMES = [
+  'crash',
+  'bug',
+  'login',
+  'data',
+  'price',
+  'ads',
+  'performance',
+  'update',
+] as const;
 export type ReviewTheme = (typeof REVIEW_THEMES)[number];
 
 type Terms = { prefixes: string[]; exact: string[]; phrases: string[] };
@@ -15,26 +24,96 @@ const THEMES: Record<ReviewTheme, Terms> = {
   crash: {
     prefixes: ['crash', 'freez', 'absturz', 'abgesturzt', 'plantage', 'crashea'],
     exact: ['froze', 'plante', 'friert', 'sturzt', 'crashe'],
-    phrases: ['force clos', 'keeps closing', 'won t open', 'wont open', 'closes by itself', 'se ferme', 'ferme tout seul', 'se cierra', 'se cuelga', 'sturzt ab', 'hangt sich auf', 'schliesst sich'],
+    phrases: [
+      'force clos',
+      'keeps closing',
+      'won t open',
+      'wont open',
+      'closes by itself',
+      'se ferme',
+      'ferme tout seul',
+      'se cierra',
+      'se cuelga',
+      'sturzt ab',
+      'hangt sich auf',
+      'schliesst sich',
+    ],
   },
   bug: {
     prefixes: ['bug', 'glitch', 'fehler', 'erreur', 'fallo', 'defaut'],
     exact: ['broken', 'error', 'errors', 'falla', 'fallas', 'panne'],
-    phrases: ['doesn t work', 'does not work', 'not working', 'stopped working', 'no funciona', 'dejo de funcionar', 'deja de funcionar', 'funktioniert nicht', 'geht nicht', 'ne marche pas', 'ne fonctionne pas', 'marche plus', 'ne fonctionne plus'],
+    phrases: [
+      'doesn t work',
+      'does not work',
+      'not working',
+      'stopped working',
+      'no funciona',
+      'dejo de funcionar',
+      'deja de funcionar',
+      'funktioniert nicht',
+      'geht nicht',
+      'ne marche pas',
+      'ne fonctionne pas',
+      'marche plus',
+      'ne fonctionne plus',
+    ],
   },
   login: {
     prefixes: ['login', 'passwort', 'anmeld', 'einlog', 'contrasena', 'identifiant'],
     exact: ['password', 'connexion', 'verification'],
-    phrases: ['log in', 'sign in', 'cant log', 'can t log', 'mot de passe', 'se connecter', 'iniciar sesion', 'no puedo entrar', 'kann mich nicht', 'verification code'],
+    phrases: [
+      'log in',
+      'sign in',
+      'cant log',
+      'can t log',
+      'mot de passe',
+      'se connecter',
+      'iniciar sesion',
+      'no puedo entrar',
+      'kann mich nicht',
+      'verification code',
+    ],
   },
   data: {
-    prefixes: ['synchron', 'sincroniz', 'sauvegarde', 'verloren', 'verschwund', 'desaparec', 'geloscht'],
+    prefixes: [
+      'synchron',
+      'sincroniz',
+      'sauvegarde',
+      'verloren',
+      'verschwund',
+      'desaparec',
+      'geloscht',
+    ],
     exact: ['sync', 'backup', 'perdu', 'perdi', 'perdido', 'disparu', 'disappeared'],
     phrases: ['lost my', 'lost all', 'data loss', 'deleted my', 'daten weg', 'copia de seguridad'],
   },
   price: {
-    prefixes: ['subscri', 'suscrip', 'abonnement', 'rembours', 'reembols', 'abzock', 'overpric', 'paywall'],
-    exact: ['expensive', 'refund', 'scam', 'cher', 'chere', 'arnaque', 'payant', 'caro', 'cara', 'estafa', 'teuer', 'abo', 'kostet', 'charged'],
+    prefixes: [
+      'subscri',
+      'suscrip',
+      'abonnement',
+      'rembours',
+      'reembols',
+      'abzock',
+      'overpric',
+      'paywall',
+    ],
+    exact: [
+      'expensive',
+      'refund',
+      'scam',
+      'cher',
+      'chere',
+      'arnaque',
+      'payant',
+      'caro',
+      'cara',
+      'estafa',
+      'teuer',
+      'abo',
+      'kostet',
+      'charged',
+    ],
     phrases: ['too much', 'rip off', 'free trial', 'trop cher', 'de pago', 'pay to', 'zu teuer'],
   },
   ads: {
@@ -44,17 +123,48 @@ const THEMES: Record<ReviewTheme, Terms> = {
   },
   performance: {
     prefixes: ['laggy', 'lenteur', 'bateria', 'batterie', 'ruckel'],
-    exact: ['slow', 'lag', 'battery', 'drain', 'drains', 'lent', 'lente', 'rame', 'lento', 'lenta', 'langsam', 'akku', 'trage', 'heavy'],
+    exact: [
+      'slow',
+      'lag',
+      'battery',
+      'drain',
+      'drains',
+      'lent',
+      'lente',
+      'rame',
+      'lento',
+      'lenta',
+      'langsam',
+      'akku',
+      'trage',
+      'heavy',
+    ],
     phrases: ['takes forever', 'se traba', 'se pone lento'],
   },
   update: {
     prefixes: [],
     exact: [],
     phrases: [
-      'since the update', 'after the update', 'latest update', 'new update', 'last update', 'update ruined', 'update broke',
-      'depuis la mise a jour', 'derniere mise a jour', 'depuis la derniere',
-      'desde la actualizacion', 'ultima actualizacion', 'despues de actualizar', 'despues de la actualizacion',
-      'seit dem update', 'nach dem update', 'neues update', 'letztes update', 'seit der aktualisierung', 'nach der aktualisierung',
+      'since the update',
+      'after the update',
+      'latest update',
+      'new update',
+      'last update',
+      'update ruined',
+      'update broke',
+      'depuis la mise a jour',
+      'derniere mise a jour',
+      'depuis la derniere',
+      'desde la actualizacion',
+      'ultima actualizacion',
+      'despues de actualizar',
+      'despues de la actualizacion',
+      'seit dem update',
+      'nach dem update',
+      'neues update',
+      'letztes update',
+      'seit der aktualisierung',
+      'nach der aktualisierung',
     ],
   },
 };
@@ -80,7 +190,10 @@ export function themesOf(text: string): ReviewTheme[] {
     const terms = THEMES[theme];
     const hit =
       terms.phrases.some((phrase) => folded.indexOf(` ${phrase} `) >= 0) ||
-      words.some((word) => terms.exact.indexOf(word) >= 0 || terms.prefixes.some((p) => word.indexOf(p) === 0));
+      words.some(
+        (word) =>
+          terms.exact.indexOf(word) >= 0 || terms.prefixes.some((p) => word.indexOf(p) === 0),
+      );
     if (hit) found.push(theme);
   }
   return found;
@@ -94,7 +207,10 @@ export type ThemeCount = { theme: ReviewTheme; count: number };
 export const COMPLAINT_MAX_RATING = 3;
 
 /** How many complaints (reviews of 1 to 3 stars) touch each theme, biggest first; themes no review touches are left out. */
-export function complaintThemes(reviews: readonly ThemedReview[]): { complaints: number; themes: ThemeCount[] } {
+export function complaintThemes(reviews: readonly ThemedReview[]): {
+  complaints: number;
+  themes: ThemeCount[];
+} {
   const counts = new Map<ReviewTheme, number>();
   let complaints = 0;
   for (const review of reviews) {
@@ -104,6 +220,9 @@ export function complaintThemes(reviews: readonly ThemedReview[]): { complaints:
   }
   const themes = REVIEW_THEMES.filter((theme) => counts.has(theme))
     .map((theme) => ({ theme, count: counts.get(theme) as number }))
-    .sort((a, b) => b.count - a.count || REVIEW_THEMES.indexOf(a.theme) - REVIEW_THEMES.indexOf(b.theme));
+    .sort(
+      (a, b) =>
+        b.count - a.count || REVIEW_THEMES.indexOf(a.theme) - REVIEW_THEMES.indexOf(b.theme),
+    );
   return { complaints, themes };
 }

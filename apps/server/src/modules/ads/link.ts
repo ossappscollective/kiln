@@ -63,22 +63,42 @@ const toView = (r: Record<string, unknown>): AdsLinkView => ({
 });
 
 /** The link of an app record, or null. Database only: Apple is not called. */
-export async function getAdsLink(sql: Sql, workspaceId: string, appId: string): Promise<AdsLinkView | null> {
-  const [row] = await sql.query(`${SELECT} WHERE l.app_id = ? AND l.workspace_id = ?`, [appId, workspaceId]);
+export async function getAdsLink(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<AdsLinkView | null> {
+  const [row] = await sql.query(`${SELECT} WHERE l.app_id = ? AND l.workspace_id = ?`, [
+    appId,
+    workspaceId,
+  ]);
   return row ? toView(row) : null;
 }
 
 /** Deletes the stored Apple Ads data of an app record: its link was removed or now names another account or app. */
 export async function clearAdsData(sql: Sql, workspaceId: string, appId: string): Promise<void> {
   for (const table of ['ads_campaign_daily', 'ads_term_daily', 'ads_sync']) {
-    await sql.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [appId, workspaceId]);
+    await sql.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [
+      appId,
+      workspaceId,
+    ]);
   }
 }
 
 export const notSupportedFailure = (): Failure =>
-  failure(422, 'ads_not_supported', 'Apple Ads is for App Store apps. This app is not one.', coded('ads.notSupported'));
+  failure(
+    422,
+    'ads_not_supported',
+    'Apple Ads is for App Store apps. This app is not one.',
+    coded('ads.notSupported'),
+  );
 
-export type AdsLinkContext = { db: Database; masterKey: Buffer; now: () => number; deps: AdsDeps | undefined };
+export type AdsLinkContext = {
+  db: Database;
+  masterKey: Buffer;
+  now: () => number;
+  deps: AdsDeps | undefined;
+};
 
 /** The ad accounts a credential may read (a read of Apple Ads, audited as `credential.use`, purpose `ads.accounts`). */
 export async function readAdAccounts(
@@ -89,11 +109,18 @@ export async function readAdAccounts(
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
   if (listingStoreOf(app.platform) !== 'app_store') return notSupportedFailure();
-  const opened = await adsClientFor(ctx.db, ctx.masterKey, input.workspaceId, input.credentialId, ctx.deps, {
-    actor,
-    purpose: ADS_ACCOUNTS_PURPOSE,
-    now: ctx.now(),
-  });
+  const opened = await adsClientFor(
+    ctx.db,
+    ctx.masterKey,
+    input.workspaceId,
+    input.credentialId,
+    ctx.deps,
+    {
+      actor,
+      purpose: ADS_ACCOUNTS_PURPOSE,
+      now: ctx.now(),
+    },
+  );
   if (!opened.ok) return opened;
   try {
     const accounts = await listAppleAdsAccounts(opened.client);
@@ -103,10 +130,20 @@ export async function readAdAccounts(
   }
 }
 
-export type SetAdsLinkInput = { workspaceId: string; appId: string; credentialId: string; adAccountId: string; adamId?: string | undefined };
+export type SetAdsLinkInput = {
+  workspaceId: string;
+  appId: string;
+  credentialId: string;
+  adAccountId: string;
+  adamId?: string | undefined;
+};
 
 /** Saves (or replaces) the link. The account is confirmed with Apple Ads first. Audited as `ads.link_set` (ids, never a key). */
-export async function setAdsLink(ctx: AdsLinkContext, input: SetAdsLinkInput, actor: Actor): Promise<Outcome<{ link: AdsLinkView }>> {
+export async function setAdsLink(
+  ctx: AdsLinkContext,
+  input: SetAdsLinkInput,
+  actor: Actor,
+): Promise<Outcome<{ link: AdsLinkView }>> {
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
   if (listingStoreOf(app.platform) !== 'app_store') return notSupportedFailure();
@@ -119,11 +156,18 @@ export async function setAdsLink(ctx: AdsLinkContext, input: SetAdsLinkInput, ac
       coded('ads.adamRequired'),
     );
   }
-  const opened = await adsClientFor(ctx.db, ctx.masterKey, input.workspaceId, input.credentialId, ctx.deps, {
-    actor,
-    purpose: ADS_LINK_PURPOSE,
-    now: ctx.now(),
-  });
+  const opened = await adsClientFor(
+    ctx.db,
+    ctx.masterKey,
+    input.workspaceId,
+    input.credentialId,
+    ctx.deps,
+    {
+      actor,
+      purpose: ADS_LINK_PURPOSE,
+      now: ctx.now(),
+    },
+  );
   if (!opened.ok) return opened;
   let detail: Awaited<ReturnType<typeof getAppleAdsAccount>>;
   let orgId: string | null;
@@ -131,7 +175,12 @@ export async function setAdsLink(ctx: AdsLinkContext, input: SetAdsLinkInput, ac
     const accounts = await listAppleAdsAccounts(opened.client);
     const found = accounts.find((a) => a.id === input.adAccountId);
     if (!found) {
-      return failure(422, 'ads_account_missing', 'That ad account is not one the key can read. Choose one from the list.', coded('ads.accountMissing'));
+      return failure(
+        422,
+        'ads_account_missing',
+        'That ad account is not one the key can read. Choose one from the list.',
+        coded('ads.accountMissing'),
+      );
     }
     orgId = found.orgId;
     detail = await getAppleAdsAccount(opened.client, found.id);
@@ -140,7 +189,10 @@ export async function setAdsLink(ctx: AdsLinkContext, input: SetAdsLinkInput, ac
   }
   const at = ctx.now();
   await ctx.db.transaction(async (tx) => {
-    const [before] = await tx.query('SELECT ad_account_id, adam_id FROM app_ads_links WHERE app_id = ? AND workspace_id = ?', [app.id, input.workspaceId]);
+    const [before] = await tx.query(
+      'SELECT ad_account_id, adam_id FROM app_ads_links WHERE app_id = ? AND workspace_id = ?',
+      [app.id, input.workspaceId],
+    );
     await tx.execute(
       `INSERT INTO app_ads_links
          (app_id, workspace_id, credential_id, ad_account_id, ad_account_name, org_id, currency, timezone, adam_id, verified_at, linked_by, created_at, updated_at)
@@ -149,10 +201,27 @@ export async function setAdsLink(ctx: AdsLinkContext, input: SetAdsLinkInput, ac
          credential_id = excluded.credential_id, ad_account_id = excluded.ad_account_id, ad_account_name = excluded.ad_account_name,
          org_id = excluded.org_id, currency = excluded.currency, timezone = excluded.timezone, adam_id = excluded.adam_id,
          verified_at = excluded.verified_at, linked_by = excluded.linked_by, updated_at = excluded.updated_at`,
-      [app.id, input.workspaceId, input.credentialId, detail.id, detail.name, orgId, detail.currency, detail.timezone, adamId, at, actor.id, at, at],
+      [
+        app.id,
+        input.workspaceId,
+        input.credentialId,
+        detail.id,
+        detail.name,
+        orgId,
+        detail.currency,
+        detail.timezone,
+        adamId,
+        at,
+        actor.id,
+        at,
+        at,
+      ],
     );
     // Data read for another account or app is not this link's.
-    if (before && (String(before.ad_account_id) !== detail.id || String(before.adam_id) !== adamId)) {
+    if (
+      before &&
+      (String(before.ad_account_id) !== detail.id || String(before.adam_id) !== adamId)
+    ) {
       await clearAdsData(tx, input.workspaceId, app.id);
     }
     await recordAudit(tx, {
@@ -160,7 +229,12 @@ export async function setAdsLink(ctx: AdsLinkContext, input: SetAdsLinkInput, ac
       actor,
       action: 'ads.link_set',
       target: { type: 'app', id: app.id },
-      detail: { appId: app.id, credentialId: input.credentialId, adAccountId: detail.id, replaced: before !== undefined },
+      detail: {
+        appId: app.id,
+        credentialId: input.credentialId,
+        adAccountId: detail.id,
+        replaced: before !== undefined,
+      },
       at,
     });
   });
@@ -170,11 +244,21 @@ export async function setAdsLink(ctx: AdsLinkContext, input: SetAdsLinkInput, ac
 }
 
 /** Removes the link and the data read through it. Nothing at Apple is changed. False when the app had none. Audited as `ads.link_remove`. */
-export async function removeAdsLink(ctx: Pick<AdsLinkContext, 'db' | 'now'>, input: { workspaceId: string; appId: string }, actor: Actor): Promise<boolean> {
+export async function removeAdsLink(
+  ctx: Pick<AdsLinkContext, 'db' | 'now'>,
+  input: { workspaceId: string; appId: string },
+  actor: Actor,
+): Promise<boolean> {
   return ctx.db.transaction(async (tx) => {
-    const [before] = await tx.query('SELECT ad_account_id FROM app_ads_links WHERE app_id = ? AND workspace_id = ?', [input.appId, input.workspaceId]);
+    const [before] = await tx.query(
+      'SELECT ad_account_id FROM app_ads_links WHERE app_id = ? AND workspace_id = ?',
+      [input.appId, input.workspaceId],
+    );
     if (!before) return false;
-    await tx.execute('DELETE FROM app_ads_links WHERE app_id = ? AND workspace_id = ?', [input.appId, input.workspaceId]);
+    await tx.execute('DELETE FROM app_ads_links WHERE app_id = ? AND workspace_id = ?', [
+      input.appId,
+      input.workspaceId,
+    ]);
     await clearAdsData(tx, input.workspaceId, input.appId);
     await recordAudit(tx, {
       workspaceId: input.workspaceId,

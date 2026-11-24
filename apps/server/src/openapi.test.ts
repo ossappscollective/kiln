@@ -515,7 +515,9 @@ dbTest(
   'an admin token reaches exactly the operations the registry offers to tokens',
   async (db) => {
     // One call per operation: the registry has outgrown the per-minute budget of a token, which is not what this test is about.
-    const t = await bootRepoApp(db, undefined, { tokens: { limiter: createTestLimiter({ limit: 100_000 }) } });
+    const t = await bootRepoApp(db, undefined, {
+      tokens: { limiter: createTestLimiter({ limit: 100_000 }) },
+    });
     const minted = await t.call(t.owner, 'POST', '/tokens', { name: 'Everything', role: 'admin' });
     const auth = { authorization: `Bearer ${minted.body.token}` };
     const filled = (path: string) =>

@@ -42,13 +42,20 @@ export function extractPalette(data: ArrayLike<number>, maxColors = 3): Palette 
   for (let i = 0; i + 3 < data.length; i += 4) {
     if ((data[i + 3] as number) < MIN_ALPHA) continue;
     opaque += 1;
-    const lab = rgbToOklab({ r: data[i] as number, g: data[i + 1] as number, b: data[i + 2] as number });
+    const lab = rgbToOklab({
+      r: data[i] as number,
+      g: data[i + 1] as number,
+      b: data[i + 2] as number,
+    });
     const c = Math.hypot(lab.a, lab.b);
     if (c < MIN_CHROMA || lab.l < MIN_LIGHTNESS || lab.l > MAX_LIGHTNESS) continue;
     usable += 1;
     const hue = ((Math.atan2(lab.b, lab.a) * 180) / Math.PI + 360) % 360;
     const hb = Math.min(HUE_BINS - 1, Math.floor(hue / (360 / HUE_BINS)));
-    const lb = Math.min(L_BINS - 1, Math.floor(((lab.l - MIN_LIGHTNESS) / (MAX_LIGHTNESS - MIN_LIGHTNESS)) * L_BINS));
+    const lb = Math.min(
+      L_BINS - 1,
+      Math.floor(((lab.l - MIN_LIGHTNESS) / (MAX_LIGHTNESS - MIN_LIGHTNESS)) * L_BINS),
+    );
     const bin = bins[hb * L_BINS + lb] as Bin;
     bin.w += c;
     bin.l += lab.l * c;

@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { countChars, diffText, normalizeText, sidesOf, statsLine, wordsIn } from './text-diff.ts';
 
-const join = (segs: { kind: string; text: string }[], skip: string) => segs.filter((s) => s.kind !== skip).map((s) => s.text).join('');
+const join = (segs: { kind: string; text: string }[], skip: string) =>
+  segs
+    .filter((s) => s.kind !== skip)
+    .map((s) => s.text)
+    .join('');
 const holds = (a: string, b: string, o = {}) => {
   const r = diffText(a, b, o);
   assert.equal(join(r.segments, 'add'), normalizeText(a));
@@ -21,9 +25,15 @@ test('empty and identical', () => {
 });
 
 test('word level: a replaced word reads old then new, stats count words', () => {
-  const r = holds('The quick brown fox jumps over the lazy dog today', 'The quick red fox jumps over the lazy cat today');
+  const r = holds(
+    'The quick brown fox jumps over the lazy dog today',
+    'The quick red fox jumps over the lazy cat today',
+  );
   assert.equal(r.mode, 'word');
-  assert.deepEqual(r.segments.filter((s) => s.kind !== 'same').map((s) => `${s.kind}:${s.text}`), ['del:brown', 'add:red', 'del:dog', 'add:cat']);
+  assert.deepEqual(
+    r.segments.filter((s) => s.kind !== 'same').map((s) => `${s.kind}:${s.text}`),
+    ['del:brown', 'add:red', 'del:dog', 'add:cat'],
+  );
   assert.equal(r.stats.addedWords, 2);
   assert.equal(r.stats.removedWords, 2);
   assert.equal(statsLine(r.stats), '+2 / -2');
@@ -33,7 +43,10 @@ test('word level: a replaced word reads old then new, stats count words', () => 
 test('short texts are diffed by characters', () => {
   const r = holds('Kiln', 'Kilns');
   assert.equal(r.mode, 'char');
-  assert.deepEqual(r.segments, [{ kind: 'same', text: 'Kiln' }, { kind: 'add', text: 's' }]);
+  assert.deepEqual(r.segments, [
+    { kind: 'same', text: 'Kiln' },
+    { kind: 'add', text: 's' },
+  ]);
 });
 
 test('line endings are normalised: CRLF alone is no change', () => {
@@ -47,22 +60,32 @@ test('unicode, emoji, CJK and RTL', () => {
   const cjk = holds('こんにちは世界です', 'こんにちはユーザーです');
   assert.ok(cjk.stats.addedChars > 0);
   const rtl = holds('مرحبا بكم في التطبيق الجديد', 'مرحبا بكم في المتجر الجديد', { mode: 'word' });
-  assert.deepEqual(rtl.segments.filter((s) => s.kind !== 'same').map((s) => s.kind), ['del', 'add']);
+  assert.deepEqual(
+    rtl.segments.filter((s) => s.kind !== 'same').map((s) => s.kind),
+    ['del', 'add'],
+  );
   assert.equal(countChars('a\u{1F680}'), 2);
   assert.equal(wordsIn('one, two  three!'), 3);
 });
 
 test('line mode for long multi paragraph text refines changed lines by words', () => {
-  const before = Array.from({ length: 12 }, (_, i) => `Paragraph ${i} says something useful about the app.`).join('\n\n');
+  const before = Array.from(
+    { length: 12 },
+    (_, i) => `Paragraph ${i} says something useful about the app.`,
+  ).join('\n\n');
   const after = before.replace('Paragraph 5 says something', 'Paragraph 5 states something');
   const r = holds(before, after, { mode: 'line' });
   assert.equal(r.mode, 'line');
-  assert.deepEqual(r.segments.filter((s) => s.kind !== 'same').map((s) => `${s.kind}:${s.text}`), ['del:says', 'add:states']);
+  assert.deepEqual(
+    r.segments.filter((s) => s.kind !== 'same').map((s) => `${s.kind}:${s.text}`),
+    ['del:says', 'add:states'],
+  );
   assert.equal(diffText(before, after).mode, 'line');
 });
 
 test('4000+ characters are fast and the caps give a correct coarse diff', () => {
-  const words = (n: number, seed: number) => Array.from({ length: n }, (_, i) => `w${(i * seed) % 97}`).join(' ');
+  const words = (n: number, seed: number) =>
+    Array.from({ length: n }, (_, i) => `w${(i * seed) % 97}`).join(' ');
   const a = words(1200, 7);
   const b = words(1200, 11);
   const t0 = Date.now();
@@ -71,7 +94,10 @@ test('4000+ characters are fast and the caps give a correct coarse diff', () => 
   assert.equal(r.capped, true);
   const huge = holds('x'.repeat(30000), 'y'.repeat(30000));
   assert.equal(huge.capped, true);
-  assert.deepEqual(huge.segments.map((s) => s.kind), ['del', 'add']);
+  assert.deepEqual(
+    huge.segments.map((s) => s.kind),
+    ['del', 'add'],
+  );
   const near = holds(a, a.replace('w14', 'w99'));
   assert.equal(near.capped, false);
 });

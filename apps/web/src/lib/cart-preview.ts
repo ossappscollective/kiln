@@ -11,18 +11,50 @@ import type { CartDetail, CartRow } from './pending-cart.ts';
 
 export type Preview =
   /** A text: listing text (before = the store's text, null when none is stored) or release field (before is never known). */
-  | { kind: 'text'; before: string | null; after: string; limit: number | null; unit: 'characters' | 'bytes'; beforeNote: 'none' | 'unknown' | null; truncated: boolean; field: string; locale: string | null }
+  | {
+      kind: 'text';
+      before: string | null;
+      after: string;
+      limit: number | null;
+      unit: 'characters' | 'bytes';
+      beforeNote: 'none' | 'unknown' | null;
+      truncated: boolean;
+      field: string;
+      locale: string | null;
+    }
   /** Graphics: pairs by position; `beforeKnown` false when no store read is remembered (then only the staged images are shown). */
-  | { kind: 'images'; pairs: ImagePair[]; beforeKnown: boolean; truncated: boolean; beforeCount: number | null; afterCount: number }
+  | {
+      kind: 'images';
+      pairs: ImagePair[];
+      beforeKnown: boolean;
+      truncated: boolean;
+      beforeCount: number | null;
+      afterCount: number;
+    }
   | { kind: 'price' }
-  | { kind: 'reply'; text: string; truncated: boolean; review: { rating: number; title: string | null; body: string; language: string | null; territory: string | null; truncated: boolean } }
+  | {
+      kind: 'reply';
+      text: string;
+      truncated: boolean;
+      review: {
+        rating: number;
+        title: string | null;
+        body: string;
+        language: string | null;
+        territory: string | null;
+        truncated: boolean;
+      };
+    }
   /** The detail has not arrived (or does not fit the row): nothing to draw beyond the list's own line. */
   | { kind: 'none' };
 
 /** Every row can be expanded (a price row shows its table, a graphics row its images, a text its diff, a reply the review). */
 export const expandable = (_row: CartRow): boolean => true;
 
-export function previewOf(row: Pick<CartRow, 'kind' | 'title'>, detail: CartDetail | null): Preview {
+export function previewOf(
+  row: Pick<CartRow, 'kind' | 'title'>,
+  detail: CartDetail | null,
+): Preview {
   if (row.kind === 'price') return { kind: 'price' };
   if (detail === null) return { kind: 'none' };
   if ((row.kind === 'listing' || row.kind === 'release') && detail.text) {
@@ -41,12 +73,25 @@ export function previewOf(row: Pick<CartRow, 'kind' | 'title'>, detail: CartDeta
   }
   if (row.kind === 'graphics' && detail.graphics) {
     const g = detail.graphics;
-    const title = (position: number) => t('app:cart.preview.imageTitle', { title: row.title, position });
+    const title = (position: number) =>
+      t('app:cart.preview.imageTitle', { title: row.title, position });
     return {
       kind: 'images',
       pairs: pairByPosition(
-        (g.before ?? []).map((f) => ({ url: f.url, width: f.width, height: f.height, bytes: f.bytes, name: f.name })),
-        g.after.map((f) => ({ url: f.url, width: f.width, height: f.height, bytes: f.bytes, name: f.name })),
+        (g.before ?? []).map((f) => ({
+          url: f.url,
+          width: f.width,
+          height: f.height,
+          bytes: f.bytes,
+          name: f.name,
+        })),
+        g.after.map((f) => ({
+          url: f.url,
+          width: f.width,
+          height: f.height,
+          bytes: f.bytes,
+          name: f.name,
+        })),
         title,
         `${row.title}#`,
       ),
@@ -75,7 +120,8 @@ export function toggleExpanded(expanded: Expanded, key: string): Expanded {
   return next;
 }
 
-export const expandAllOf = (rows: readonly Pick<CartRow, 'key'>[]): Expanded => new Set(rows.map((r) => r.key));
+export const expandAllOf = (rows: readonly Pick<CartRow, 'key'>[]): Expanded =>
+  new Set(rows.map((r) => r.key));
 
 /** Keep only keys of rows that are still listed (a refresh or a run removes some). */
 export function pruneExpanded(expanded: Expanded, rows: readonly Pick<CartRow, 'key'>[]): Expanded {
@@ -85,7 +131,10 @@ export function pruneExpanded(expanded: Expanded, rows: readonly Pick<CartRow, '
 }
 
 /** `all` when every row is expanded (the control then collapses), `some` or `none` otherwise. */
-export function expansionOf(expanded: Expanded, rows: readonly Pick<CartRow, 'key'>[]): 'none' | 'some' | 'all' {
+export function expansionOf(
+  expanded: Expanded,
+  rows: readonly Pick<CartRow, 'key'>[],
+): 'none' | 'some' | 'all' {
   const n = rows.filter((r) => expanded.has(r.key)).length;
   return n === 0 ? 'none' : n === rows.length ? 'all' : 'some';
 }
@@ -97,7 +146,8 @@ export const toggleAll = (expanded: Expanded, rows: readonly Pick<CartRow, 'key'
 // ----- the detail cache ----------------------------------------------------------------------------
 
 /** A detail is kept for the lifetime of the page, keyed by the item AND its version: a changed item is read again. */
-export const detailKey = (row: Pick<CartRow, 'appId' | 'id' | 'version'>): string => `${row.appId}|${row.id}|${row.version}`;
+export const detailKey = (row: Pick<CartRow, 'appId' | 'id' | 'version'>): string =>
+  `${row.appId}|${row.id}|${row.version}`;
 
 export const PREVIEW_KEYS = {
   expand: k('app:cart.preview.expand'),

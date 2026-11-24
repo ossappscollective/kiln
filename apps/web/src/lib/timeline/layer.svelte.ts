@@ -25,7 +25,13 @@ export class EventLayer {
     return this.entries[appId] ?? [];
   }
 
-  async load(api: Api, workspaceId: string, members: readonly { id: string; platform: Platform }[], from: string, to: string): Promise<void> {
+  async load(
+    api: Api,
+    workspaceId: string,
+    members: readonly { id: string; platform: Platform }[],
+    from: string,
+    to: string,
+  ): Promise<void> {
     const mine = ++this.generation;
     const w = windowFor(from, to);
     let failed = false;

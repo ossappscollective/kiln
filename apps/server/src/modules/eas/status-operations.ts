@@ -46,12 +46,14 @@ const build = z.object({
   ),
   hasArtifact: z
     .boolean()
-    .describe('Expo holds a build file. Its address is `artifactUrl` where the caller may have it.'),
+    .describe(
+      'Expo holds a build file. Its address is `artifactUrl` where the caller may have it.',
+    ),
   artifactUrl: z
     .string()
     .nullable()
     .describe(
-      "The https address of the build file at Expo, for a direct link (never proxied). Null unless the builds download switch is on and the caller has `builds.download`, and while Expo gave none. Which Expo field holds it per platform is unverified (`artifacts.buildUrl`, else `applicationArchiveUrl`).",
+      'The https address of the build file at Expo, for a direct link (never proxied). Null unless the builds download switch is on and the caller has `builds.download`, and while Expo gave none. Which Expo field holds it per platform is unverified (`artifacts.buildUrl`, else `applicationArchiveUrl`).',
     ),
   artifactExpiresAt: timestamp.nullable().describe('When Expo deletes the build file.'),
   createdAt: timestamp.nullable(),
@@ -103,11 +105,23 @@ const otaUpdate = z.object({
   channel: z.string(),
   branch: z.string().nullable(),
   runtimeVersion: z.string().nullable(),
-  message: z.string().nullable().describe("The publisher's text, first line, 200 characters. Never in an alert or an event."),
+  message: z
+    .string()
+    .nullable()
+    .describe("The publisher's text, first line, 200 characters. Never in an alert or an event."),
   createdAt: timestamp.nullable(),
-  rolloutPercentage: z.number().int().nullable().describe('1 to 99 while a per-update rollout is going, else null.'),
-  rolloutSince: timestamp.nullable().describe('When this server first read this percentage; null when not mid-rollout.'),
-  expoUrl: z.string().nullable().describe('The page of the update group at expo.dev (the address shape is assumed).'),
+  rolloutPercentage: z
+    .number()
+    .int()
+    .nullable()
+    .describe('1 to 99 while a per-update rollout is going, else null.'),
+  rolloutSince: timestamp
+    .nullable()
+    .describe('When this server first read this percentage; null when not mid-rollout.'),
+  expoUrl: z
+    .string()
+    .nullable()
+    .describe('The page of the update group at expo.dev (the address shape is assumed).'),
 });
 
 const status = z.object({
@@ -153,18 +167,26 @@ const status = z.object({
       lastError: z
         .string()
         .nullable()
-        .describe('A short code when the last read of the updates failed (the builds may have been read fine); never Expo text.'),
+        .describe(
+          'A short code when the last read of the updates failed (the builds may have been read fine); never Expo text.',
+        ),
       channels: z.array(
         z.object({
           channel: z.string(),
           current: otaUpdate
             .nullable()
-            .describe('The newest update of the branches the channel serves, for the platform of this app record.'),
-          rollouts: z.array(otaUpdate).describe('Other updates of the channel that are mid-rollout.'),
+            .describe(
+              'The newest update of the branches the channel serves, for the platform of this app record.',
+            ),
+          rollouts: z
+            .array(otaUpdate)
+            .describe('Other updates of the channel that are mid-rollout.'),
         }),
       ),
     })
-    .describe('The stored OTA (EAS Update) state, read by the same status read (ADR 0060). Database only.'),
+    .describe(
+      'The stored OTA (EAS Update) state, read by the same status read (ADR 0060). Database only.',
+    ),
 });
 
 export const easStatusOperations: Draft[] = [

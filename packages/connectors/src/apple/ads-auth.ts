@@ -38,13 +38,19 @@ export function parseAppleAdsSecret(secret: string): AppleAdsKey {
   try {
     parsed = JSON.parse(secret);
   } catch {
-    throw new AppleAdsError('invalid_input', { message: 'The Apple Ads credential could not be read.' });
+    throw new AppleAdsError('invalid_input', {
+      message: 'The Apple Ads credential could not be read.',
+    });
   }
-  const o = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as Record<string, unknown>;
+  const o = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as Record<
+    string,
+    unknown
+  >;
   for (const name of FIELDS) {
     if (typeof o[name] !== 'string' || (o[name] as string).trim() === '') {
       throw new AppleAdsError('invalid_input', {
-        message: 'The Apple Ads credential is incomplete: client ID, team ID, key ID and private key are all needed.',
+        message:
+          'The Apple Ads credential is incomplete: client ID, team ID, key ID and private key are all needed.',
       });
     }
   }

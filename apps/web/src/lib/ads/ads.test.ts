@@ -25,8 +25,19 @@ import {
 } from './ads.ts';
 
 test('only App Store records have Apple Ads, and only its own credential kind is offered', () => {
-  assert.deepEqual(adsApps([{ platform: 'ios' }, { platform: 'android' }, { platform: 'macos' }]).map((a) => a.platform), ['ios', 'macos']);
-  assert.deepEqual(adsCredentials([{ kind: 'apple_ads', id: 'a' }, { kind: 'github_token', id: 'b' }] as never).map((c) => c.id), ['a']);
+  assert.deepEqual(
+    adsApps([{ platform: 'ios' }, { platform: 'android' }, { platform: 'macos' }]).map(
+      (a) => a.platform,
+    ),
+    ['ios', 'macos'],
+  );
+  assert.deepEqual(
+    adsCredentials([
+      { kind: 'apple_ads', id: 'a' },
+      { kind: 'github_token', id: 'b' },
+    ] as never).map((c) => c.id),
+    ['a'],
+  );
   assert.deepEqual(adsCredentials(null), []);
   assert.ok(validAdamId('1234567890') && validAdamId(' 12345 '));
   assert.ok(!validAdamId('1234') && !validAdamId('abc12345') && !validAdamId('1'.repeat(16)));
@@ -52,7 +63,13 @@ test('a change against the period before is null when there is nothing to compar
 });
 
 test('daily bars scale to the largest day, and an all-zero series has no bars', () => {
-  const day = (n: number) => ({ day: `2026-11-0${n}`, impressions: n * 10, taps: 0, installs: 0, spendMicros: 0 });
+  const day = (n: number) => ({
+    day: `2026-11-0${n}`,
+    impressions: n * 10,
+    taps: 0,
+    installs: 0,
+    spendMicros: 0,
+  });
   assert.deepEqual(dailyBars([day(1), day(2), day(4)], 'impressions'), [0.25, 0.5, 1]);
   assert.deepEqual(dailyBars([day(1), day(2)], 'taps'), [0, 0]);
   assert.deepEqual(dailyBars([], 'taps'), []);
@@ -67,21 +84,63 @@ test('sorting: the same heading flips, another starts largest first, the term st
 });
 
 test('the terms query carries the range, the sort, the page and a trimmed filter; Track keyword never invents a storefront', () => {
-  const q = new URLSearchParams(termsQueryOf({ kind: 'term', window: { from: '2026-11-01', to: '2026-11-30' }, sort: DEFAULT_SORT, q: '  photo ', offset: 50 }));
-  assert.deepEqual(Object.fromEntries(q), { kind: 'term', from: '2026-11-01', to: '2026-11-30', sort: 'impressions', dir: 'desc', limit: '50', offset: '50', q: 'photo' });
-  assert.equal(new URLSearchParams(termsQueryOf({ kind: 'keyword', window: { from: 'a', to: 'b' }, sort: DEFAULT_SORT, q: ' ', offset: 0 })).has('q'), false);
+  const q = new URLSearchParams(
+    termsQueryOf({
+      kind: 'term',
+      window: { from: '2026-11-01', to: '2026-11-30' },
+      sort: DEFAULT_SORT,
+      q: '  photo ',
+      offset: 50,
+    }),
+  );
+  assert.deepEqual(Object.fromEntries(q), {
+    kind: 'term',
+    from: '2026-11-01',
+    to: '2026-11-30',
+    sort: 'impressions',
+    dir: 'desc',
+    limit: '50',
+    offset: '50',
+    q: 'photo',
+  });
+  assert.equal(
+    new URLSearchParams(
+      termsQueryOf({
+        kind: 'keyword',
+        window: { from: 'a', to: 'b' },
+        sort: DEFAULT_SORT,
+        q: ' ',
+        offset: 0,
+      }),
+    ).has('q'),
+    false,
+  );
   assert.deepEqual(trackBody({ term: 'Photo', country: 'gb' }), { term: 'Photo', country: 'gb' });
   assert.deepEqual(trackBody({ term: 'Photo', country: '' }), { term: 'Photo', country: 'us' });
 });
 
 test('the sections of the rail keep the view in the address; Overview is the default and is not written', () => {
-  assert.equal(withAdsSection('#/portfolio/a/insights', 'terms'), '#/portfolio/a/insights?view=ads&section=terms');
-  assert.equal(withAdsSection('#/portfolio/a/insights?view=ads&section=terms&range=7', 'overview'), '#/portfolio/a/insights?view=ads&range=7');
+  assert.equal(
+    withAdsSection('#/portfolio/a/insights', 'terms'),
+    '#/portfolio/a/insights?view=ads&section=terms',
+  );
+  assert.equal(
+    withAdsSection('#/portfolio/a/insights?view=ads&section=terms&range=7', 'overview'),
+    '#/portfolio/a/insights?view=ads&range=7',
+  );
   for (const id of ADS_SECTIONS) assert.ok(t(adsSectionKeys[id]) !== '', id);
 });
 
 test('every warning code and the ads reason of the estimate has its own text; an unknown one falls back', () => {
-  for (const code of ['cap_campaigns', 'read_cut', 'currency_mismatch', 'popularity_failed', 'popularity_partial', 'no_campaign']) assert.notEqual(warningText(code), t('ads:warn.unknown'), code);
+  for (const code of [
+    'cap_campaigns',
+    'read_cut',
+    'currency_mismatch',
+    'popularity_failed',
+    'popularity_partial',
+    'no_campaign',
+  ])
+    assert.notEqual(warningText(code), t('ads:warn.unknown'), code);
   assert.equal(warningText('whatever'), t('ads:warn.unknown'));
   assert.notEqual(reasonKey('ads_impressions'), reasonKey('nope'));
 });
@@ -89,6 +148,11 @@ test('every warning code and the ads reason of the estimate has its own text; an
 test('an API error is shown with a fixed sentence of ours, or the server text when it has one', () => {
   assert.equal(adsErrorText(new ApiError(422, 'ads_not_linked', 'x')), t('ads:err.notLinked'));
   assert.equal(adsErrorText(new ApiError(403, 'forbidden', 'x')), t('ads:err.forbidden'));
-  assert.equal(adsErrorText(new ApiError(502, 'ads_unavailable', 'x', undefined, { message: 'Apple Ads had a problem.' })), 'Apple Ads had a problem.');
+  assert.equal(
+    adsErrorText(
+      new ApiError(502, 'ads_unavailable', 'x', undefined, { message: 'Apple Ads had a problem.' }),
+    ),
+    'Apple Ads had a problem.',
+  );
   assert.equal(adsErrorText(new Error('boom')), t('common:error.genericRetry'));
 });

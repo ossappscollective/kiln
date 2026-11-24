@@ -3,7 +3,17 @@
  * exports, Markdown and CSV, both built here from what the API answered (nothing is sent anywhere). A report is one calendar week, month
  * or year against the period before it; the server decides what is comparable, this file only words it. A missing number is never a zero.
  */
-import { type Comparison, type Platform, type ReportFigure, type ReportKind, type TimelineEvent, type TimelineMetricId, periodAfter, periodBefore, reportKinds } from '@kiln/core';
+import {
+  type Comparison,
+  type Platform,
+  type ReportFigure,
+  type ReportKind,
+  type TimelineEvent,
+  type TimelineMetricId,
+  periodAfter,
+  periodBefore,
+  reportKinds,
+} from '@kiln/core';
 import { formatDay, formatValue } from '../analytics/analytics.ts';
 import { parseViewPath } from '../app-scope.ts';
 import { formatNumber, formatPercent } from '../i18n/format.ts';
@@ -70,11 +80,13 @@ export type FigureRow = {
 /** A ratio is a share of two counts (a rate), a level or count is drawn as such; money carries its currency, never converted. */
 function valueText(f: ReportFigure, v: number | null): string {
   if (v === null) return t('timeline:report.noValue');
-  if (f.kind === 'ratio') return formatPercent(v, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  if (f.kind === 'ratio')
+    return formatPercent(v, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   return formatValue(f.currency ? 'money' : 'count', v, f.currency);
 }
 
-export const changeText = (change: number): string => formatPercent(change, { signDisplay: 'exceptZero', maximumFractionDigits: 1 });
+export const changeText = (change: number): string =>
+  formatPercent(change, { signDisplay: 'exceptZero', maximumFractionDigits: 1 });
 
 export function figureRow(f: ReportFigure): FigureRow {
   const label = t(metricKeys[f.metric]);
@@ -84,25 +96,46 @@ export function figureRow(f: ReportFigure): FigureRow {
     value: valueText(f, f.value),
     previous: valueText(f, f.previous),
     change: f.change === null ? null : changeText(f.change),
-    direction: f.change === null ? null : Math.abs(f.change) < 0.0005 ? 'flat' : f.change > 0 ? 'up' : 'down',
+    direction:
+      f.change === null
+        ? null
+        : Math.abs(f.change) < 0.0005
+          ? 'flat'
+          : f.change > 0
+            ? 'up'
+            : 'down',
     note: f.uncompared === null ? null : t(reasonKeys[f.uncompared]),
     raw: f,
   };
 }
 
-export type ReviewsRow = { count: number; previousCount: number; average: string | null; previousAverage: string | null; delta: string | null; lowSample: boolean; lowUnanswered: number } | null;
+export type ReviewsRow = {
+  count: number;
+  previousCount: number;
+  average: string | null;
+  previousAverage: string | null;
+  delta: string | null;
+  lowSample: boolean;
+  lowUnanswered: number;
+} | null;
 
 /** The written reviews of the period (the stars of reviews Kiln stored, not the store's rating). Null when there are none on either side. */
 export function reviewsRow(r: ReportApi['reviews']): ReviewsRow {
   if (r.current.count === 0 && r.previous.count === 0) return null;
-  const fmt = (v: number | null) => (v === null ? null : formatNumber(v, { minimumFractionDigits: 1, maximumFractionDigits: 2 }));
+  const fmt = (v: number | null) =>
+    v === null ? null : formatNumber(v, { minimumFractionDigits: 1, maximumFractionDigits: 2 });
   const both = r.current.average !== null && r.previous.average !== null;
   return {
     count: r.current.count,
     previousCount: r.previous.count,
     average: fmt(r.current.average),
     previousAverage: fmt(r.previous.average),
-    delta: both ? formatNumber((r.current.average as number) - (r.previous.average as number), { signDisplay: 'exceptZero', maximumFractionDigits: 2 }) : null,
+    delta: both
+      ? formatNumber((r.current.average as number) - (r.previous.average as number), {
+          signDisplay: 'exceptZero',
+          maximumFractionDigits: 2,
+        })
+      : null,
     lowSample: r.current.count < LOW_SAMPLE,
     lowUnanswered: r.current.lowUnanswered,
   };
@@ -116,9 +149,16 @@ export function periodTitle(kind: ReportKind, w: { from: string; to: string }): 
 }
 
 /** The first day of the period before and after the one shown (`on=` in the address), and whether the one after has any day with numbers. */
-export function periodNav(kind: ReportKind, comparison: Pick<Comparison, 'period'>, through: string): { prev: string; next: string | null } {
+export function periodNav(
+  kind: ReportKind,
+  comparison: Pick<Comparison, 'period'>,
+  through: string,
+): { prev: string; next: string | null } {
   const next = periodAfter(kind, comparison.period);
-  return { prev: periodBefore(kind, comparison.period).from, next: next.from > through ? null : next.from };
+  return {
+    prev: periodBefore(kind, comparison.period).from,
+    next: next.from > through ? null : next.from,
+  };
 }
 
 export type ReportNote = { id: string; text: string };
@@ -131,21 +171,65 @@ export function dataNotes(v: ReportApi): ReportNote[] {
     out.push({ id: 'notStarted', text: t('timeline:report.note.notStarted') });
     return out;
   }
-  if (v.figures.length === 0) out.push({ id: 'noFigures', text: t(v.app.platform === 'android' ? k('timeline:report.note.noFiguresAndroid') : k('timeline:report.note.noFiguresIos')) });
-  if (c.partial) out.push({ id: 'partial', text: t('timeline:report.note.partial', { count: c.currentDays, through: formatDay(c.current.to, true) }) });
-  else if (c.lengthsDiffer) out.push({ id: 'lengths', text: t('timeline:report.note.lengths', { current: c.currentDays, previous: c.previousDays }) });
-  if (v.figures.length > 0 && v.missingDays > 0) out.push({ id: 'missing', text: t('timeline:report.note.missingDays', { count: v.missingDays }) });
-  const uncompared = v.figures.filter((f) => f.uncompared === 'previous_incomplete' || f.uncompared === 'current_incomplete').length;
-  if (uncompared > 0) out.push({ id: 'uncompared', text: t('timeline:report.note.uncompared', { count: uncompared }) });
-  if (reviewsRow(v.reviews) === null) out.push({ id: 'noReviews', text: t('timeline:report.note.noReviews') });
-  else if (v.reviews.current.count < LOW_SAMPLE) out.push({ id: 'lowReviews', text: t('timeline:report.note.lowReviews', { count: v.reviews.current.count }) });
-  if (v.figures.length > 0 && v.sources.length === 0) out.push({ id: 'noSources', text: t(v.app.platform === 'android' ? k('timeline:report.note.noSourcesAndroid') : k('timeline:report.note.noSourcesIos')) });
-  if (v.figures.length > 0 && v.countries.length === 0) out.push({ id: 'noCountries', text: t('timeline:report.note.noCountries') });
+  if (v.figures.length === 0)
+    out.push({
+      id: 'noFigures',
+      text: t(
+        v.app.platform === 'android'
+          ? k('timeline:report.note.noFiguresAndroid')
+          : k('timeline:report.note.noFiguresIos'),
+      ),
+    });
+  if (c.partial)
+    out.push({
+      id: 'partial',
+      text: t('timeline:report.note.partial', {
+        count: c.currentDays,
+        through: formatDay(c.current.to, true),
+      }),
+    });
+  else if (c.lengthsDiffer)
+    out.push({
+      id: 'lengths',
+      text: t('timeline:report.note.lengths', { current: c.currentDays, previous: c.previousDays }),
+    });
+  if (v.figures.length > 0 && v.missingDays > 0)
+    out.push({
+      id: 'missing',
+      text: t('timeline:report.note.missingDays', { count: v.missingDays }),
+    });
+  const uncompared = v.figures.filter(
+    (f) => f.uncompared === 'previous_incomplete' || f.uncompared === 'current_incomplete',
+  ).length;
+  if (uncompared > 0)
+    out.push({
+      id: 'uncompared',
+      text: t('timeline:report.note.uncompared', { count: uncompared }),
+    });
+  if (reviewsRow(v.reviews) === null)
+    out.push({ id: 'noReviews', text: t('timeline:report.note.noReviews') });
+  else if (v.reviews.current.count < LOW_SAMPLE)
+    out.push({
+      id: 'lowReviews',
+      text: t('timeline:report.note.lowReviews', { count: v.reviews.current.count }),
+    });
+  if (v.figures.length > 0 && v.sources.length === 0)
+    out.push({
+      id: 'noSources',
+      text: t(
+        v.app.platform === 'android'
+          ? k('timeline:report.note.noSourcesAndroid')
+          : k('timeline:report.note.noSourcesIos'),
+      ),
+    });
+  if (v.figures.length > 0 && v.countries.length === 0)
+    out.push({ id: 'noCountries', text: t('timeline:report.note.noCountries') });
   return out;
 }
 
 /** True when the period has nothing to show at all (no figures, no reviews, no events): the screen says so in one line. */
-export const reportIsEmpty = (v: ReportApi): boolean => v.figures.length === 0 && reviewsRow(v.reviews) === null && v.events.length === 0;
+export const reportIsEmpty = (v: ReportApi): boolean =>
+  v.figures.length === 0 && reviewsRow(v.reviews) === null && v.events.length === 0;
 
 /** The source of a download (the store's own name for it, as the API gives it) is shown as written: it is data, not a message. */
 export const sourceLabel = (s: string): string => s;
@@ -158,7 +242,10 @@ const mdCell = (s: string): string => s.replace(/\r?\n/g, ' ').replace(/\|/g, '\
 const mdLine = (s: string): string => s.replace(/\r?\n/g, ' ');
 
 /** The report of one or more app records (a platform each) as Markdown, in the language of the screen. Dates and numbers are formatted as on screen. */
-export function reportMarkdown(views: readonly ReportApi[], platformName: (p: Platform) => string): string {
+export function reportMarkdown(
+  views: readonly ReportApi[],
+  platformName: (p: Platform) => string,
+): string {
   const out: string[] = [];
   const first = views[0];
   if (!first) return '';
@@ -167,25 +254,52 @@ export function reportMarkdown(views: readonly ReportApi[], platformName: (p: Pl
   for (const v of views) {
     const c = v.comparison;
     out.push(`## ${mdLine(v.app.name)} (${platformName(v.app.platform)})`, '');
-    out.push(t('timeline:report.compare', { current: periodTitle(v.kind, c.current.to < c.current.from ? c.period : c.current), previous: periodTitle(v.kind, c.previous) }), '');
+    out.push(
+      t('timeline:report.compare', {
+        current: periodTitle(v.kind, c.current.to < c.current.from ? c.period : c.current),
+        previous: periodTitle(v.kind, c.previous),
+      }),
+      '',
+    );
     const rows = v.figures.map(figureRow);
     if (rows.length > 0) {
-      out.push(`| ${t('timeline:report.col.figure')} | ${t('timeline:report.col.value')} | ${t('timeline:report.col.previous')} | ${t('timeline:report.col.change')} |`, '| --- | ---: | ---: | ---: |');
-      for (const r of rows) out.push(`| ${mdCell(r.label)} | ${mdCell(r.value)} | ${mdCell(r.previous)} | ${mdCell(r.change ?? r.note ?? '')} |`);
+      out.push(
+        `| ${t('timeline:report.col.figure')} | ${t('timeline:report.col.value')} | ${t('timeline:report.col.previous')} | ${t('timeline:report.col.change')} |`,
+        '| --- | ---: | ---: | ---: |',
+      );
+      for (const r of rows)
+        out.push(
+          `| ${mdCell(r.label)} | ${mdCell(r.value)} | ${mdCell(r.previous)} | ${mdCell(r.change ?? r.note ?? '')} |`,
+        );
       out.push('');
     }
     const rev = reviewsRow(v.reviews);
     if (rev) {
-      out.push(`### ${t('timeline:report.reviews.title')}`, '', t('timeline:report.reviews.line', { count: rev.count, average: rev.average ?? t('timeline:report.noValue'), previous: rev.previousAverage ?? t('timeline:report.noValue') }), '');
+      out.push(
+        `### ${t('timeline:report.reviews.title')}`,
+        '',
+        t('timeline:report.reviews.line', {
+          count: rev.count,
+          average: rev.average ?? t('timeline:report.noValue'),
+          previous: rev.previousAverage ?? t('timeline:report.noValue'),
+        }),
+        '',
+      );
     }
     if (v.countries.length > 0) {
       out.push(`### ${t('timeline:report.countries.title')}`, '');
-      for (const row of v.countries) out.push(`- ${row.code}: ${formatNumber(row.value)}${row.share === null ? '' : ` (${formatPercent(row.share, { maximumFractionDigits: 0 })})`}${row.change === null ? '' : `, ${changeText(row.change)}`}`);
+      for (const row of v.countries)
+        out.push(
+          `- ${row.code}: ${formatNumber(row.value)}${row.share === null ? '' : ` (${formatPercent(row.share, { maximumFractionDigits: 0 })})`}${row.change === null ? '' : `, ${changeText(row.change)}`}`,
+        );
       out.push('');
     }
     if (v.events.length > 0) {
       out.push(`### ${t('timeline:report.events.title')}`, '');
-      for (const e of v.events) out.push(`- ${formatDay(e.day, true)}: ${mdLine(t(kindLabelKeys[e.kind]))}, ${mdLine(eventText(e))}`);
+      for (const e of v.events)
+        out.push(
+          `- ${formatDay(e.day, true)}: ${mdLine(t(kindLabelKeys[e.kind]))}, ${mdLine(eventText(e))}`,
+        );
       out.push('');
     }
     const notes = dataNotes(v);
@@ -206,7 +320,19 @@ export function csvCell(value: string | number | null): string {
   return /[",\r\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export const CSV_HEADER = ['app', 'platform', 'section', 'item', 'currency', 'period_from', 'period_to', 'value', 'previous', 'change_percent', 'note'] as const;
+export const CSV_HEADER = [
+  'app',
+  'platform',
+  'section',
+  'item',
+  'currency',
+  'period_from',
+  'period_to',
+  'value',
+  'previous',
+  'change_percent',
+  'note',
+] as const;
 
 /**
  * The figures as CSV for a spreadsheet: raw numbers with a dot (never localized), ISO days, and the same rows the screen shows (figures, the written
@@ -218,16 +344,62 @@ export function reportCsv(views: readonly ReportApi[]): string {
   for (const v of views) {
     const c = v.comparison;
     const head = [v.app.name, v.app.platform];
-    const period = [c.current.to < c.current.from ? c.period.from : c.current.from, c.current.to < c.current.from ? c.period.to : c.current.to];
+    const period = [
+      c.current.to < c.current.from ? c.period.from : c.current.from,
+      c.current.to < c.current.from ? c.period.to : c.current.to,
+    ];
     const pct = (x: number | null) => (x === null ? null : Math.round(x * 10000) / 100);
-    for (const f of v.figures) push([...head, 'figure', f.id, f.currency, ...period, f.value, f.previous, pct(f.change), f.uncompared]);
+    for (const f of v.figures)
+      push([
+        ...head,
+        'figure',
+        f.id,
+        f.currency,
+        ...period,
+        f.value,
+        f.previous,
+        pct(f.change),
+        f.uncompared,
+      ]);
     const r = v.reviews;
     if (r.current.count > 0 || r.previous.count > 0) {
-      push([...head, 'reviews', 'reviews_count', null, ...period, r.current.count, r.previous.count, null, null]);
-      push([...head, 'reviews', 'reviews_average', null, ...period, r.current.average, r.previous.average, null, null]);
+      push([
+        ...head,
+        'reviews',
+        'reviews_count',
+        null,
+        ...period,
+        r.current.count,
+        r.previous.count,
+        null,
+        null,
+      ]);
+      push([
+        ...head,
+        'reviews',
+        'reviews_average',
+        null,
+        ...period,
+        r.current.average,
+        r.previous.average,
+        null,
+        null,
+      ]);
     }
-    for (const row of v.countries) push([...head, 'countries', row.code, null, ...period, row.value, null, pct(row.change), v.downloadMetric]);
-    for (const row of v.sources) push([...head, 'sources', row.source, null, ...period, row.downloads, null, null, null]);
+    for (const row of v.countries)
+      push([
+        ...head,
+        'countries',
+        row.code,
+        null,
+        ...period,
+        row.value,
+        null,
+        pct(row.change),
+        v.downloadMetric,
+      ]);
+    for (const row of v.sources)
+      push([...head, 'sources', row.source, null, ...period, row.downloads, null, null, null]);
   }
   return `﻿${lines.join('\r\n')}\r\n`;
 }
@@ -236,7 +408,11 @@ export const reportFileName = (views: readonly ReportApi[]): string => {
   const first = views[0];
   if (!first) return 'kiln-report.csv';
   const p = first.comparison.period;
-  const name = first.app.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'app';
+  const name =
+    first.app.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'app';
   return `kiln-report-${name}-${p.from}_${p.to}.csv`;
 };
 
@@ -247,7 +423,9 @@ export { reportKinds };
 
 export function reportKindOf(hash: string): ReportKind {
   const asked = parseViewPath(hash).query.get('report');
-  return (reportKinds as readonly string[]).indexOf(asked ?? '') >= 0 ? (asked as ReportKind) : 'week';
+  return (reportKinds as readonly string[]).indexOf(asked ?? '') >= 0
+    ? (asked as ReportKind)
+    : 'week';
 }
 
 export function reportDayOf(hash: string): string | null {

@@ -312,7 +312,8 @@ export function filterOptions(index: Pick<AssetIndex, 'assets'>): FilterOptions 
     if (!locales.includes(asset.locale)) locales.push(asset.locale);
     const id = asset.device ?? '';
     if (devices[id] === undefined) {
-      devices[id] = deviceText(asset.kind, asset.device, asset.deviceLabel) || t('assets:filter.noDevice');
+      devices[id] =
+        deviceText(asset.kind, asset.device, asset.deviceLabel) || t('assets:filter.noDevice');
       deviceIds.push(id);
     }
     if (!kinds.includes(asset.kind)) kinds.push(asset.kind);

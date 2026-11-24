@@ -25,11 +25,21 @@ import { appSectionDefs, parseAppAddress } from './app-scope.ts';
 const all = () => true;
 
 test('Reviews has a TestFlight view for Apple apps only, with the reviews right', () => {
-  assert.deepEqual(viewsFor('reviews', all, {}).map((v) => v.id), ['reviews', 'testflight']);
-  assert.deepEqual(viewsFor('reviews', all, { appleInScope: false }), [], 'one view is nothing to switch');
+  assert.deepEqual(
+    viewsFor('reviews', all, {}).map((v) => v.id),
+    ['reviews', 'testflight'],
+  );
+  assert.deepEqual(
+    viewsFor('reviews', all, { appleInScope: false }),
+    [],
+    'one view is nothing to switch',
+  );
   assert.equal(viewOf('reviews', '#/portfolio/a1/reviews?view=testflight'), 'testflight');
   assert.equal(viewOf('reviews', '#/portfolio/a1/reviews'), 'reviews');
-  assert.equal(resolveView('reviews', '#/portfolio/a1/reviews?view=testflight', all, { appleInScope: false }), 'reviews');
+  assert.equal(
+    resolveView('reviews', '#/portfolio/a1/reviews?view=testflight', all, { appleInScope: false }),
+    'reviews',
+  );
 });
 
 test('the left panel has exactly seven entries, in order, and no pending changes', () => {
@@ -321,16 +331,44 @@ test('a page offers a switch only for the views the role may open, and only when
   );
   assert.deepEqual(
     viewsFor('insights', all).map((v) => v.id),
-    ['overview', 'highlights', 'countries', 'ratings', 'timeline', 'keywords', 'terms', 'ads', 'experiments'],
+    [
+      'overview',
+      'highlights',
+      'countries',
+      'ratings',
+      'timeline',
+      'keywords',
+      'terms',
+      'ads',
+      'experiments',
+    ],
   );
   assert.deepEqual(
     viewsFor('insights', all, { androidInScope: false }).map((v) => v.id),
-    ['overview', 'highlights', 'countries', 'ratings', 'timeline', 'keywords', 'ads', 'experiments'],
+    [
+      'overview',
+      'highlights',
+      'countries',
+      'ratings',
+      'timeline',
+      'keywords',
+      'ads',
+      'experiments',
+    ],
   );
   // Apple Ads exists for App Store records only.
   assert.deepEqual(
     viewsFor('insights', all, { appleInScope: false }).map((v) => v.id),
-    ['overview', 'highlights', 'countries', 'ratings', 'timeline', 'keywords', 'terms', 'experiments'],
+    [
+      'overview',
+      'highlights',
+      'countries',
+      'ratings',
+      'timeline',
+      'keywords',
+      'terms',
+      'experiments',
+    ],
   );
   assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=ads'), 'ads');
   // Experiments need the ASO right, like Keywords: a role with analytics only sees Overview, Highlights and Countries.
@@ -338,16 +376,31 @@ test('a page offers a switch only for the views the role may open, and only when
   assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=highlights'), 'highlights');
   assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=countries'), 'countries');
   // Ratings and health (docs/adr/0052-ratings-health.md): needs reviews.read; every older value still resolves as before.
-  assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=ratings&section=stability'), 'ratings');
-  assert.deepEqual(viewsFor('insights', (a) => a === 'analytics.read' || a === 'reviews.read').map((v) => v.id), ['overview', 'highlights', 'countries', 'ratings', 'timeline']);
+  assert.equal(
+    viewOf('insights', '#/portfolio/a1/insights?view=ratings&section=stability'),
+    'ratings',
+  );
+  assert.deepEqual(
+    viewsFor('insights', (a) => a === 'analytics.read' || a === 'reviews.read').map((v) => v.id),
+    ['overview', 'highlights', 'countries', 'ratings', 'timeline'],
+  );
   // Timeline and reports (docs/adr/0053-timeline-and-reports.md): every role that reads analytics; the old values still resolve.
-  assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=timeline&section=reports'), 'timeline');
+  assert.equal(
+    viewOf('insights', '#/portfolio/a1/insights?view=timeline&section=reports'),
+    'timeline',
+  );
   assert.equal(canonicalInsightsView('timeline'), 'timeline');
-  assert.deepEqual(viewsFor('insights', (a) => a === 'analytics.read').map((v) => v.id), ['overview', 'highlights', 'countries', 'timeline']);
+  assert.deepEqual(
+    viewsFor('insights', (a) => a === 'analytics.read').map((v) => v.id),
+    ['overview', 'highlights', 'countries', 'timeline'],
+  );
   assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=aso'), 'keywords');
   assert.equal(canonicalInsightsView('ratings'), 'ratings');
   assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=analytics'), 'overview');
-  assert.equal(withView('#/portfolio/a1/insights?platform=ios', 'insights', 'highlights'), '#/portfolio/a1/insights?platform=ios&view=highlights');
+  assert.equal(
+    withView('#/portfolio/a1/insights?platform=ios', 'insights', 'highlights'),
+    '#/portfolio/a1/insights?platform=ios&view=highlights',
+  );
   assert.deepEqual(
     viewsFor('insights', (a) => a === 'analytics.read').map((v) => v.id),
     ['overview', 'highlights', 'countries', 'timeline'],

@@ -29,7 +29,8 @@ const SETTLE_MS = 300;
 export function appRoute(id, section = '', query = {}) {
   const base = `#/portfolio/${encodeURIComponent(id)}${section ? `/${section}` : ''}`;
   const params = new URLSearchParams();
-  for (const [k, v] of Object.entries(query)) if (v !== undefined && v !== null && v !== '') params.set(k, String(v));
+  for (const [k, v] of Object.entries(query))
+    if (v !== undefined && v !== null && v !== '') params.set(k, String(v));
   const search = params.toString();
   return search === '' ? base : `${base}?${search}`;
 }
@@ -56,7 +57,9 @@ export function appIdOf(index, name, platform) {
   const id = entry ? (platform ? entry[platform] : entry.first) : undefined;
   if (!id) {
     const known = Object.keys(index).join(', ') || 'none';
-    throw new Error(`Demo app "${name}"${platform ? ` (${platform})` : ''} not found. Apps in the demo: ${known}. Try --reset.`);
+    throw new Error(
+      `Demo app "${name}"${platform ? ` (${platform})` : ''} not found. Apps in the demo: ${known}. Try --reset.`,
+    );
   }
   return id;
 }
@@ -133,10 +136,16 @@ export function parseArgs(argv, shots = SHOTS) {
         opts.out = resolve(process.cwd(), take());
         break;
       case '--only':
-        opts.only = take().split(',').map((s) => s.trim()).filter(Boolean);
+        opts.only = take()
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
         break;
       case '--themes':
-        opts.themes = take().split(',').map((s) => s.trim()).filter(Boolean);
+        opts.themes = take()
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
         break;
       case '--scale':
         opts.scale = Number(take());
@@ -161,9 +170,11 @@ export function parseArgs(argv, shots = SHOTS) {
         throw new Error(`Unknown option ${raw}. Try --help.`);
     }
   }
-  for (const t of opts.themes) if (!THEMES.includes(t)) throw new Error(`Unknown theme "${t}" (use dark, light).`);
+  for (const t of opts.themes)
+    if (!THEMES.includes(t)) throw new Error(`Unknown theme "${t}" (use dark, light).`);
   if (opts.themes.length === 0) throw new Error('--themes is empty.');
-  if (!Number.isFinite(opts.scale) || opts.scale < 1 || opts.scale > 4) throw new Error('--scale must be a number from 1 to 4.');
+  if (!Number.isFinite(opts.scale) || opts.scale < 1 || opts.scale > 4)
+    throw new Error('--scale must be a number from 1 to 4.');
   if (opts.only) {
     const names = new Set(shots.map((s) => s.name));
     // Accept the short form too: "02" or "app-overview" select 02-app-overview.
@@ -177,7 +188,8 @@ export function parseArgs(argv, shots = SHOTS) {
   return opts;
 }
 
-export const selectShots = (opts, shots = SHOTS) => (opts.only ? shots.filter((s) => opts.only.includes(s.name)) : shots);
+export const selectShots = (opts, shots = SHOTS) =>
+  opts.only ? shots.filter((s) => opts.only.includes(s.name)) : shots;
 
 export const HELP = `Usage: node capture.mjs [options]
 
@@ -261,7 +273,8 @@ export const SHOTS = [
     name: '05-graphics',
     title: 'Graphics',
     alt: 'The store listing graphics tab with screenshots and icons for each device size.',
-    path: (ctx) => appRoute(ctx.app(NOTES, 'ios'), 'listing', { platform: 'ios', view: 'graphics' }),
+    path: (ctx) =>
+      appRoute(ctx.app(NOTES, 'ios'), 'listing', { platform: 'ios', view: 'graphics' }),
     ready: 'h1.page-title',
     before: async (page) => {
       await soft(page, 'main img', 8_000);
@@ -288,7 +301,10 @@ export const SHOTS = [
     before: async (page) => {
       await page.locator('[data-testid="pending-cart-button"]').click();
       await page.waitForSelector('dialog[data-testid="pending-cart"][open]', { timeout: 10_000 });
-      await expandFirstTextRow(page, 'dialog[data-testid="pending-cart"] button[aria-expanded="false"]');
+      await expandFirstTextRow(
+        page,
+        'dialog[data-testid="pending-cart"] button[aria-expanded="false"]',
+      );
       await soft(page, 'dialog[data-testid="pending-cart"] [data-testid="cart-preview"]', 10_000);
       await soft(page, 'dialog[data-testid="pending-cart"] [data-testid="text-diff"]', 4_000);
     },
@@ -314,7 +330,8 @@ export const SHOTS = [
     name: '10-aso',
     title: 'ASO keywords',
     alt: 'The Keywords view of Insights with tracked search terms, their ranks and rank history.',
-    path: (ctx) => appRoute(ctx.app(NOTES, 'ios'), 'insights', { platform: 'ios', view: 'keywords' }),
+    path: (ctx) =>
+      appRoute(ctx.app(NOTES, 'ios'), 'insights', { platform: 'ios', view: 'keywords' }),
     ready: 'h1.page-title',
     before: async (page) => {
       await soft(page, 'main table', 8_000);
@@ -340,7 +357,8 @@ export const SHOTS = [
     name: '12-settings-appearance',
     title: 'App appearance',
     alt: 'The Appearance section of the app settings with the app tint and a live preview.',
-    path: (ctx) => appRoute(ctx.app(NOTES, 'ios'), 'settings', { platform: 'ios', section: 'appearance' }),
+    path: (ctx) =>
+      appRoute(ctx.app(NOTES, 'ios'), 'settings', { platform: 'ios', section: 'appearance' }),
     ready: '[data-testid="tint-preview"]',
   },
   {
@@ -374,12 +392,15 @@ async function demoStatus(base) {
   }
   const body = await res.json().catch(() => null);
   if (!res.ok || body?.demo !== true) {
-    throw new Error(`${base} answered, but it is not the Kiln demo (GET /demo/status did not say demo:true).\nThis tool only runs against pnpm demo, never a real workspace.`);
+    throw new Error(
+      `${base} answered, but it is not the Kiln demo (GET /demo/status did not say demo:true).\nThis tool only runs against pnpm demo, never a real workspace.`,
+    );
   }
   return body;
 }
 
-const CSS_QUIET = '*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important;caret-color:transparent!important}';
+const CSS_QUIET =
+  '*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important;caret-color:transparent!important}';
 const CSS_NO_BANNER = '[data-testid="demo-banner"]{display:none!important}';
 
 /** Runs in the page before any script: theme and language like the app stores them, plus the quiet CSS. */
@@ -405,7 +426,11 @@ async function readySettle(page) {
   await page.evaluate(() => document.fonts?.ready).catch(() => {});
   // Skeletons and spinners announce themselves as a status with a "loading" label; wait for them to go (best effort).
   await page
-    .waitForFunction(() => !document.querySelector('[role="status"][aria-label*="oading" i], [aria-busy="true"]'), null, { timeout: 8_000 })
+    .waitForFunction(
+      () => !document.querySelector('[role="status"][aria-label*="oading" i], [aria-busy="true"]'),
+      null,
+      { timeout: 8_000 },
+    )
     .catch(() => {});
   await page
     .waitForFunction(() => [...document.images].every((i) => i.complete), null, { timeout: 8_000 })
@@ -433,9 +458,22 @@ async function takeShot(context, shot, ctx, opts, theme) {
     const file = fileNameFor(shot.name, theme);
     writeFileSync(join(opts.out, file), buf);
     const size = pngSize(buf) ?? { width: 0, height: 0 };
-    return { ok: true, entry: { name: shot.name, title: shot.title, theme, file, width: size.width, height: size.height, alt: shot.alt } };
+    return {
+      ok: true,
+      entry: {
+        name: shot.name,
+        title: shot.title,
+        theme,
+        file,
+        width: size.width,
+        height: size.height,
+        alt: shot.alt,
+      },
+    };
   } catch (e) {
-    warn(`${shot.name} (${theme}) failed at ${page.url()}\n     ${String(e.message).split('\n')[0]}`);
+    warn(
+      `${shot.name} (${theme}) failed at ${page.url()}\n     ${String(e.message).split('\n')[0]}`,
+    );
     return { ok: false, error: String(e.message).split('\n')[0] };
   } finally {
     await page.close().catch(() => {});
@@ -459,9 +497,13 @@ export async function main(argv = process.argv.slice(2)) {
     const placeholder = { app: (name, platform) => `<${name}${platform ? `:${platform}` : ''}>` };
     for (const s of shots) {
       const ready = typeof s.ready === 'function' ? '(function)' : s.ready;
-      log(`${s.name.padEnd(24)} ${s.path(placeholder)}\n${' '.repeat(25)}ready: ${ready}   clip: ${s.clip ?? 'viewport'}`);
+      log(
+        `${s.name.padEnd(24)} ${s.path(placeholder)}\n${' '.repeat(25)}ready: ${ready}   clip: ${s.clip ?? 'viewport'}`,
+      );
     }
-    log(`\n${shots.length} shots x ${opts.themes.length} themes (${opts.themes.join(', ')}) at ${VIEWPORT.width}x${VIEWPORT.height} @${opts.scale}x -> ${opts.out}`);
+    log(
+      `\n${shots.length} shots x ${opts.themes.length} themes (${opts.themes.join(', ')}) at ${VIEWPORT.width}x${VIEWPORT.height} @${opts.scale}x -> ${opts.out}`,
+    );
     return 0;
   }
 
@@ -470,7 +512,10 @@ export async function main(argv = process.argv.slice(2)) {
     status = await demoStatus(opts.base);
     if (opts.reset) {
       log('Resetting the demo (--reset) ...');
-      const r = await fetch(`${opts.base}/demo/reset`, { method: 'POST', headers: { Origin: opts.base } });
+      const r = await fetch(`${opts.base}/demo/reset`, {
+        method: 'POST',
+        headers: { Origin: opts.base },
+      });
       if (!r.ok) throw new Error(`POST /demo/reset answered ${r.status}`);
       status = await demoStatus(opts.base);
     }
@@ -483,14 +528,18 @@ export async function main(argv = process.argv.slice(2)) {
   try {
     ({ chromium } = await import('playwright'));
   } catch {
-    console.error('Playwright is not installed. Run:\n  cd scripts/screenshots && npm install && npx playwright install chromium');
+    console.error(
+      'Playwright is not installed. Run:\n  cd scripts/screenshots && npm install && npx playwright install chromium',
+    );
     return 2;
   }
   let browser;
   try {
     browser = await chromium.launch({ headless: !opts.headed });
   } catch (e) {
-    console.error(`Could not start Chromium: ${String(e.message).split('\n')[0]}\nRun: cd scripts/screenshots && npx playwright install chromium`);
+    console.error(
+      `Could not start Chromium: ${String(e.message).split('\n')[0]}\nRun: cd scripts/screenshots && npx playwright install chromium`,
+    );
     return 2;
   }
 
@@ -507,14 +556,20 @@ export async function main(argv = process.argv.slice(2)) {
         timezoneId: 'UTC',
         reducedMotion: 'reduce',
       });
-      await context.addInitScript(initScript, { theme, css: CSS_QUIET + (opts.hideDemoBanner ? CSS_NO_BANNER : '') });
+      await context.addInitScript(initScript, {
+        theme,
+        css: CSS_QUIET + (opts.hideDemoBanner ? CSS_NO_BANNER : ''),
+      });
       try {
         const login = await context.request.get(`${opts.base}/demo/login?json`);
         if (!login.ok()) throw new Error(`GET /demo/login answered ${login.status()}`);
         const wsId = status.workspace?.id;
         if (!wsId) throw new Error('/demo/status has no workspace; reset the demo (--reset).');
-        const appsRes = await context.request.get(`${opts.base}/api/workspaces/${encodeURIComponent(wsId)}/apps`);
-        if (!appsRes.ok()) throw new Error(`GET /api/workspaces/${wsId}/apps answered ${appsRes.status()}`);
+        const appsRes = await context.request.get(
+          `${opts.base}/api/workspaces/${encodeURIComponent(wsId)}/apps`,
+        );
+        if (!appsRes.ok())
+          throw new Error(`GET /api/workspaces/${wsId}/apps answered ${appsRes.status()}`);
         const index = indexApps((await appsRes.json()).apps);
         const ctx = { workspaceId: wsId, app: (name, platform) => appIdOf(index, name, platform) };
         for (const shot of shots) {
@@ -524,7 +579,9 @@ export async function main(argv = process.argv.slice(2)) {
         }
       } catch (e) {
         warn(`theme ${theme}: ${e.message}`);
-        for (const shot of shots) if (!results.some((r) => r.shot === shot.name && r.theme === theme)) results.push({ shot: shot.name, theme, ok: false, error: e.message });
+        for (const shot of shots)
+          if (!results.some((r) => r.shot === shot.name && r.theme === theme))
+            results.push({ shot: shot.name, theme, ok: false, error: e.message });
       } finally {
         await context.close().catch(() => {});
       }
@@ -542,7 +599,10 @@ export async function main(argv = process.argv.slice(2)) {
       /* none yet */
     }
     const merged = mergeManifest(previous, entries, (s) => existsSync(join(opts.out, s.file)));
-    writeFileSync(manifestPath, `${JSON.stringify(buildManifest(merged, { scale: opts.scale }), null, 2)}\n`);
+    writeFileSync(
+      manifestPath,
+      `${JSON.stringify(buildManifest(merged, { scale: opts.scale }), null, 2)}\n`,
+    );
     log(`\nWrote ${manifestPath}`);
   }
 
@@ -552,7 +612,9 @@ export async function main(argv = process.argv.slice(2)) {
     log(`${r.shot.padEnd(25)} ${r.theme.padEnd(7)} ${size}`);
   }
   const failed = results.filter((r) => !r.ok).length;
-  log(`\n${results.length - failed}/${results.length} captured${failed ? `, ${failed} failed` : ''}.`);
+  log(
+    `\n${results.length - failed}/${results.length} captured${failed ? `, ${failed} failed` : ''}.`,
+  );
   return failed > 0 ? 1 : 0;
 }
 

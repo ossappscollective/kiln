@@ -1,4 +1,10 @@
-import { type CurrentPrice, minorToPlayMoney, type PriceChange, type PricePoint, utcDate } from '@kiln/core';
+import {
+  type CurrentPrice,
+  minorToPlayMoney,
+  type PriceChange,
+  type PricePoint,
+  utcDate,
+} from '@kiln/core';
 import { StoreError } from '../errors.ts';
 import { enc, isRecord, type Json, records, text } from '../store-http.ts';
 import {
@@ -51,20 +57,32 @@ export class PlayProductPriceConnector implements StorePriceWriteConnector {
   }
 
   #id(product: StoreProductRef): string {
-    if (!PRODUCT_ID.test(product.productId)) throw new StoreError('googleplay', 'invalid_input', 'Not a valid Google Play product id.');
+    if (!PRODUCT_ID.test(product.productId))
+      throw new StoreError('googleplay', 'invalid_input', 'Not a valid Google Play product id.');
     return product.productId;
   }
 
   async #resource(product: StoreProductRef): Promise<Json> {
     const id = this.#id(product);
-    const url = this.#api.url(product.kind === 'subscription' ? `/subscriptions/${enc(id)}` : `/oneTimeProducts/${enc(id)}`);
+    const url = this.#api.url(
+      product.kind === 'subscription' ? `/subscriptions/${enc(id)}` : `/oneTimeProducts/${enc(id)}`,
+    );
     const body = await this.#api.get(url, 'reading a product', true);
-    if (body === undefined) throw new StoreError('googleplay', 'not_found', 'The store has no such product (any more). Sync the app again.', 404);
+    if (body === undefined)
+      throw new StoreError(
+        'googleplay',
+        'not_found',
+        'The store has no such product (any more). Sync the app again.',
+        404,
+      );
     return body;
   }
 
   #live(product: StoreProductRef, resource: Json, planId: string | null): LivePrices {
-    const parsed = product.kind === 'subscription' ? parsePlaySubscription(resource) : parsePlayOneTimeProduct(resource);
+    const parsed =
+      product.kind === 'subscription'
+        ? parsePlaySubscription(resource)
+        : parsePlayOneTimeProduct(resource);
     const current: CurrentPrice[] = (parsed?.prices ?? [])
       .filter((p) => planId === null || p.planId === planId)
       .map((p) => ({ territory: p.territory, currency: p.currency, amount: p.amount }));
@@ -80,48 +98,100 @@ export class PlayProductPriceConnector implements StorePriceWriteConnector {
   }
 
   async convertFromBase(base: { currency: string; amount: string }): Promise<ConvertedPrices> {
-    const body = await this.#api.postRead(this.#api.url('/pricing:convertRegionPrices'), { price: minorToPlayMoney(base.amount, base.currency) }, 'converting a price to other regions');
+    const body = await this.#api.postRead(
+      this.#api.url('/pricing:convertRegionPrices'),
+      { price: minorToPlayMoney(base.amount, base.currency) },
+      'converting a price to other regions',
+    );
     const map = isRecord(body.convertedRegionPrices) ? body.convertedRegionPrices : {};
     const prices: CurrentPrice[] = [];
     for (const [region, value] of Object.entries(map)) {
       const price = isRecord(value) ? moneyToPrice(value.price) : undefined;
-      if (/^[A-Z]{2}$/.test(region) && price) prices.push({ territory: region, currency: price.currency, amount: price.amount });
+      if (/^[A-Z]{2}$/.test(region) && price)
+        prices.push({ territory: region, currency: price.currency, amount: price.amount });
     }
     const version = isRecord(body.regionVersion) ? text(body.regionVersion.version) : undefined;
-    return { prices: prices.sort((a, b) => (a.territory < b.territory ? -1 : 1)), regionsVersion: version ?? null };
+    return {
+      prices: prices.sort((a, b) => (a.territory < b.territory ? -1 : 1)),
+      regionsVersion: version ?? null,
+    };
   }
 
   async preview(product: StoreProductRef, change: PriceChange): Promise<PricePreviewResult> {
     const id = this.#id(product);
     const sub = product.kind === 'subscription';
     const requests: PricePreviewResult['requests'] = [
-      { method: 'PATCH', path: `/applications/{package}/${sub ? 'subscriptions' : 'onetimeproducts'}/${id}?updateMask=${sub ? 'basePlans' : 'purchaseOptions'}`, summary: `${change.lines.length} regional price(s) of ${change.planId ?? 'the plan'} replaced, everything else sent back as read.` },
+      {
+        method: 'PATCH',
+        path: `/applications/{package}/${sub ? 'subscriptions' : 'onetimeproducts'}/${id}?updateMask=${sub ? 'basePlans' : 'purchaseOptions'}`,
+        summary: `${change.lines.length} regional price(s) of ${change.planId ?? 'the plan'} replaced, everything else sent back as read.`,
+      },
     ];
-    if (sub && (change.existingSubscribers === 'opt_in' || change.existingSubscribers === 'opt_out')) {
-      requests.push({ method: 'POST', path: `/applications/{package}/subscriptions/${id}/basePlans/${change.planId ?? ''}:migratePrices`, summary: `Existing subscribers are moved to the new price (${change.existingSubscribers === 'opt_in' ? 'they must accept it or the subscription is cancelled' : 'they are notified and may keep their price'}); Google Play notifies them.` });
+    if (
+      sub &&
+      (change.existingSubscribers === 'opt_in' || change.existingSubscribers === 'opt_out')
+    ) {
+      requests.push({
+        method: 'POST',
+        path: `/applications/{package}/subscriptions/${id}/basePlans/${change.planId ?? ''}:migratePrices`,
+        summary: `Existing subscribers are moved to the new price (${change.existingSubscribers === 'opt_in' ? 'they must accept it or the subscription is cancelled' : 'they are notified and may keep their price'}); Google Play notifies them.`,
+      });
     }
-    return { mode: 'local', lines: change.lines.map((l) => ({ territory: l.territory })), requests };
+    return {
+      mode: 'local',
+      lines: change.lines.map((l) => ({ territory: l.territory })),
+      requests,
+    };
   }
 
   async #regionsVersion(resource: Json): Promise<string> {
-    const own = isRecord(resource.regionsVersion) ? text(resource.regionsVersion.version) : undefined;
+    const own = isRecord(resource.regionsVersion)
+      ? text(resource.regionsVersion.version)
+      : undefined;
     if (own) return own;
-    const converted = await this.#api.postRead(this.#api.url('/pricing:convertRegionPrices'), { price: { currencyCode: 'USD', units: '1', nanos: 0 } }, 'reading the current regions version');
-    const version = isRecord(converted.regionVersion) ? text(converted.regionVersion.version) : undefined;
-    if (!version) throw new StoreError('googleplay', 'unexpected', 'Google Play did not say which regions version to use, so nothing was changed.');
+    const converted = await this.#api.postRead(
+      this.#api.url('/pricing:convertRegionPrices'),
+      { price: { currencyCode: 'USD', units: '1', nanos: 0 } },
+      'reading the current regions version',
+    );
+    const version = isRecord(converted.regionVersion)
+      ? text(converted.regionVersion.version)
+      : undefined;
+    if (!version)
+      throw new StoreError(
+        'googleplay',
+        'unexpected',
+        'Google Play did not say which regions version to use, so nothing was changed.',
+      );
     return version;
   }
 
-  async apply(product: StoreProductRef, change: PriceChange, guard: (live: LivePrices) => boolean, nowMs: number): Promise<PriceApplyResult> {
+  async apply(
+    product: StoreProductRef,
+    change: PriceChange,
+    guard: (live: LivePrices) => boolean,
+    nowMs: number,
+  ): Promise<PriceApplyResult> {
     const sub = product.kind === 'subscription';
     const planId = change.planId;
-    if (!planId || !PLAN_ID.test(planId) && !PRODUCT_ID.test(planId)) throw new StoreError('googleplay', 'invalid_input', 'The base plan or purchase option is not named.');
+    if (!planId || (!PLAN_ID.test(planId) && !PRODUCT_ID.test(planId)))
+      throw new StoreError(
+        'googleplay',
+        'invalid_input',
+        'The base plan or purchase option is not named.',
+      );
     const resource = await this.#resource(product);
     const live = this.#live(product, resource, planId);
     if (!guard(live)) throw new PriceDriftError('googleplay', live);
     const today = utcDate(nowMs);
-    const all = (outcome: PriceLineOutcome['outcome'], extra: Partial<PriceLineOutcome> = {}): PriceLineOutcome[] => change.lines.map((l) => ({ territory: l.territory, outcome, ...extra }));
-    const pending = change.lines.filter((l) => !lineAlreadyApplied(change, live, l.territory, today));
+    const all = (
+      outcome: PriceLineOutcome['outcome'],
+      extra: Partial<PriceLineOutcome> = {},
+    ): PriceLineOutcome[] =>
+      change.lines.map((l) => ({ territory: l.territory, outcome, ...extra }));
+    const pending = change.lines.filter(
+      (l) => !lineAlreadyApplied(change, live, l.territory, today),
+    );
     if (pending.length === 0) return { lines: all('already_applied') };
 
     // Find the plan or option, and make sure every region to change is one it already has.
@@ -131,12 +201,33 @@ export class PlayProductPriceConnector implements StorePriceWriteConnector {
     const plans = records(resource[key]);
     const index = plans.findIndex((p) => text(p[idKey]) === planId);
     const plan = index >= 0 ? plans[index] : undefined;
-    if (!plan) return { lines: all('failed', { code: 'product_not_found', message: `The product has no ${sub ? 'base plan' : 'purchase option'} ${planId}.` }) };
+    if (!plan)
+      return {
+        lines: all('failed', {
+          code: 'product_not_found',
+          message: `The product has no ${sub ? 'base plan' : 'purchase option'} ${planId}.`,
+        }),
+      };
     const configs = records(plan[cfgKey]);
     const missing = pending.filter((l) => !configs.some((c) => text(c.regionCode) === l.territory));
     if (missing.length > 0) {
       const names = new Set(missing.map((l) => l.territory));
-      return { lines: change.lines.map((l) => (names.has(l.territory) ? { territory: l.territory, outcome: 'failed' as const, code: 'unsupported_territory' as const, message: `The ${sub ? 'base plan' : 'purchase option'} has no price in ${l.territory}; adding a region is not done from here.` } : { territory: l.territory, outcome: 'not_sent' as const, message: 'Not sent: another region of this change was refused.' })) };
+      return {
+        lines: change.lines.map((l) =>
+          names.has(l.territory)
+            ? {
+                territory: l.territory,
+                outcome: 'failed' as const,
+                code: 'unsupported_territory' as const,
+                message: `The ${sub ? 'base plan' : 'purchase option'} has no price in ${l.territory}; adding a region is not done from here.`,
+              }
+            : {
+                territory: l.territory,
+                outcome: 'not_sent' as const,
+                message: 'Not sent: another region of this change was refused.',
+              },
+        ),
+      };
     }
     const toApply = new Map(pending.map((l) => [l.territory, l] as const));
     const nextConfigs = configs.map((c) => {
@@ -149,25 +240,51 @@ export class PlayProductPriceConnector implements StorePriceWriteConnector {
     const path = sub ? `/subscriptions/${enc(id)}` : `/onetimeproducts/${enc(id)}`;
     const url = `${this.#api.url(path)}?updateMask=${key}&regionsVersion.version=${enc(version)}`;
     const pendingNames = new Set(pending.map((l) => l.territory));
-    const outcomes = (outcome: PriceLineOutcome['outcome'], extra: Partial<PriceLineOutcome> = {}): PriceLineOutcome[] =>
-      change.lines.map((l) => (pendingNames.has(l.territory) ? { territory: l.territory, outcome, ...extra } : { territory: l.territory, outcome: 'already_applied' as const }));
+    const outcomes = (
+      outcome: PriceLineOutcome['outcome'],
+      extra: Partial<PriceLineOutcome> = {},
+    ): PriceLineOutcome[] =>
+      change.lines.map((l) =>
+        pendingNames.has(l.territory)
+          ? { territory: l.territory, outcome, ...extra }
+          : { territory: l.territory, outcome: 'already_applied' as const },
+      );
     let result: Awaited<ReturnType<PlayProductsHttp['patch']>>;
     try {
       result = await this.#api.patch(url, { [key]: nextPlans }, 'changing the price of a product');
     } catch (error) {
       if (!(error instanceof StoreError)) throw error;
-      const migration = sub && change.existingSubscribers !== 'preserve' ? { requested: true, outcome: 'not_sent' as const } : undefined;
-      return { lines: outcomes('failed', { code: priceCodeOf(error), message: error.message }), ...(migration ? { migration } : {}) };
+      const migration =
+        sub && change.existingSubscribers !== 'preserve'
+          ? { requested: true, outcome: 'not_sent' as const }
+          : undefined;
+      return {
+        lines: outcomes('failed', { code: priceCodeOf(error), message: error.message }),
+        ...(migration ? { migration } : {}),
+      };
     }
     if (!result.ok) {
-      const migration = sub && change.existingSubscribers !== 'preserve' ? { requested: true, outcome: 'not_sent' as const } : undefined;
-      return { lines: outcomes('unknown', { message: result.message }), ...(migration ? { migration } : {}) };
+      const migration =
+        sub && change.existingSubscribers !== 'preserve'
+          ? { requested: true, outcome: 'not_sent' as const }
+          : undefined;
+      return {
+        lines: outcomes('unknown', { message: result.message }),
+        ...(migration ? { migration } : {}),
+      };
     }
     const lines = outcomes('applied');
-    if (!sub || (change.existingSubscribers !== 'opt_in' && change.existingSubscribers !== 'opt_out')) return { lines };
+    if (
+      !sub ||
+      (change.existingSubscribers !== 'opt_in' && change.existingSubscribers !== 'opt_out')
+    )
+      return { lines };
 
     // Existing subscribers: only when the person chose it. Increases carry the opt-in or opt-out type; decreases carry none.
-    const type = change.existingSubscribers === 'opt_in' ? 'PRICE_INCREASE_TYPE_OPT_IN' : 'PRICE_INCREASE_TYPE_OPT_OUT';
+    const type =
+      change.existingSubscribers === 'opt_in'
+        ? 'PRICE_INCREASE_TYPE_OPT_IN'
+        : 'PRICE_INCREASE_TYPE_OPT_OUT';
     const migrations = pending.map((l) => ({
       regionCode: l.territory,
       oldestAllowedPriceVersionTime: iso(nowMs),
@@ -180,10 +297,23 @@ export class PlayProductPriceConnector implements StorePriceWriteConnector {
         'moving existing subscribers to the new price',
         'POST',
       );
-      return { lines, migration: moved.ok ? { requested: true, outcome: 'applied' } : { requested: true, outcome: 'unknown', message: moved.message } };
+      return {
+        lines,
+        migration: moved.ok
+          ? { requested: true, outcome: 'applied' }
+          : { requested: true, outcome: 'unknown', message: moved.message },
+      };
     } catch (error) {
       if (!(error instanceof StoreError)) throw error;
-      return { lines, migration: { requested: true, outcome: 'failed', code: priceCodeOf(error), message: error.message } };
+      return {
+        lines,
+        migration: {
+          requested: true,
+          outcome: 'failed',
+          code: priceCodeOf(error),
+          message: error.message,
+        },
+      };
     }
   }
 }

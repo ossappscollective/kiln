@@ -822,5 +822,9 @@ test('the classes of hard actions are the documented ones', () => {
     ],
   );
   assert.equal(defaultCoveredActions.includes('store.push_draft'), false);
-  assert.equal(defaultCoveredActions.includes('store.price'), true, 'sending prices is covered by default');
+  assert.equal(
+    defaultCoveredActions.includes('store.price'),
+    true,
+    'sending prices is covered by default',
+  );
 });

@@ -89,8 +89,11 @@ export const isReleaseLabel = (value: string): boolean => VERSION_PATTERN.test(v
 // ---------------------------------------------------------------------------------------------
 // What was decided for a release (workspace_settings, no migration)
 
-export const proposalStateKey = (appId: string, version: string | null, track: string | null): string =>
-  `app.${appId}.assetProposal.${version ?? '-'}|${track ?? '-'}`;
+export const proposalStateKey = (
+  appId: string,
+  version: string | null,
+  track: string | null,
+): string => `app.${appId}.assetProposal.${version ?? '-'}|${track ?? '-'}`;
 
 export async function readProposalState(
   sql: Sql,
@@ -99,10 +102,10 @@ export async function readProposalState(
   version: string | null,
   track: string | null,
 ): Promise<ProposalState> {
-  const [row] = await sql.query('SELECT value_json FROM workspace_settings WHERE workspace_id = ? AND key = ?', [
-    workspaceId,
-    proposalStateKey(appId, version, track),
-  ]);
+  const [row] = await sql.query(
+    'SELECT value_json FROM workspace_settings WHERE workspace_id = ? AND key = ?',
+    [workspaceId, proposalStateKey(appId, version, track)],
+  );
   if (!row) return { state: 'open', at: null };
   try {
     const raw = JSON.parse(String(row.value_json)) as { state?: unknown; at?: unknown };
@@ -115,21 +118,37 @@ export async function readProposalState(
 
 /** Deleted with the app (services/apps.ts). */
 export const deleteProposalStates = (sql: Sql, workspaceId: string, appId: string) =>
-  sql.execute('DELETE FROM workspace_settings WHERE workspace_id = ? AND key LIKE ?', [workspaceId, `app.${appId}.assetProposal.%`]);
+  sql.execute('DELETE FROM workspace_settings WHERE workspace_id = ? AND key LIKE ?', [
+    workspaceId,
+    `app.${appId}.assetProposal.%`,
+  ]);
 
 export type ProposalQuery = { version: string | null; track: string | null; build: string | null };
 
 export async function setProposalState(
   db: Database,
-  input: { workspaceId: string; appId: string; query: ProposalQuery; mode: 'skip' | 'later' | 'reopen'; actor: Actor },
+  input: {
+    workspaceId: string;
+    appId: string;
+    query: ProposalQuery;
+    mode: 'skip' | 'later' | 'reopen';
+    actor: Actor;
+  },
   now: number,
 ): Promise<{ ok: true; state: ProposalState } | Failure> {
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
-  const state: ProposalState = input.mode === 'reopen' ? { state: 'open', at: null } : { state: input.mode === 'skip' ? 'skipped' : 'later', at: now };
+  const state: ProposalState =
+    input.mode === 'reopen'
+      ? { state: 'open', at: null }
+      : { state: input.mode === 'skip' ? 'skipped' : 'later', at: now };
   await db.transaction(async (tx) => {
     const key = proposalStateKey(app.id, input.query.version, input.query.track);
-    if (state.state === 'open') await tx.execute('DELETE FROM workspace_settings WHERE workspace_id = ? AND key = ?', [input.workspaceId, key]);
+    if (state.state === 'open')
+      await tx.execute('DELETE FROM workspace_settings WHERE workspace_id = ? AND key = ?', [
+        input.workspaceId,
+        key,
+      ]);
     else
       await tx.execute(
         `INSERT INTO workspace_settings (workspace_id, key, value_json, updated_at, updated_by)
@@ -143,7 +162,12 @@ export async function setProposalState(
       actor: input.actor,
       action: 'release.asset_proposal_decided',
       target: { type: 'app', id: app.id },
-      detail: { appId: app.id, version: input.query.version, track: input.query.track, state: state.state },
+      detail: {
+        appId: app.id,
+        version: input.query.version,
+        track: input.query.track,
+        state: state.state,
+      },
       at: now,
     });
   });
@@ -155,7 +179,12 @@ export async function setProposalState(
 
 export const EDITABLE_STATES = ['draft', 'build_chosen', 'ready', 'rejected'];
 
-async function buildCommit(sql: Sql, workspaceId: string, app: ManagedApp, build: string | null): Promise<string | null> {
+async function buildCommit(
+  sql: Sql,
+  workspaceId: string,
+  app: ManagedApp,
+  build: string | null,
+): Promise<string | null> {
   if (!build) return null;
   const [row] = await sql.query(
     'SELECT head_sha FROM build_links WHERE workspace_id = ? AND app_id = ? AND platform = ? AND build_number = ?',
@@ -172,7 +201,12 @@ type Refs = { base: ProposalRef | null; target: ProposalRef | null };
  * the stored release of that version), else the default branch (resolved by the caller). Base: the newest earlier version with a build whose
  * commit is known, else the newest repository read at or before the last update of the previous release.
  */
-export async function releaseRefs(sql: Sql, workspaceId: string, app: ManagedApp, query: ProposalQuery): Promise<Refs> {
+export async function releaseRefs(
+  sql: Sql,
+  workspaceId: string,
+  app: ManagedApp,
+  query: ProposalQuery,
+): Promise<Refs> {
   const releases = await listAppReleases(sql, workspaceId, app.id);
   const mine = query.version ? releases.filter((r) => r.version === query.version) : [];
   let target: ProposalRef | null = null;
@@ -180,15 +214,29 @@ export async function releaseRefs(sql: Sql, workspaceId: string, app: ManagedApp
   if (chosen) target = { sha: chosen, source: 'build' };
   else
     for (const r of mine) {
-      const sha = await buildCommit(sql, workspaceId, app, r.build ? r.build.split(',')[0]?.trim() ?? null : null);
+      const sha = await buildCommit(
+        sql,
+        workspaceId,
+        app,
+        r.build ? (r.build.split(',')[0]?.trim() ?? null) : null,
+      );
       if (sha) {
         target = { sha, source: 'build' };
         break;
       }
     }
   const earlier = releases
-    .filter((r) => r.version !== query.version && !(r.status !== null && EDITABLE_STATES.includes(r.status)))
-    .filter((r) => query.version === null || !isDottedVersion(r.version) || !isDottedVersion(query.version) || compareDottedVersions(r.version, query.version) < 0)
+    .filter(
+      (r) =>
+        r.version !== query.version && !(r.status !== null && EDITABLE_STATES.includes(r.status)),
+    )
+    .filter(
+      (r) =>
+        query.version === null ||
+        !isDottedVersion(r.version) ||
+        !isDottedVersion(query.version) ||
+        compareDottedVersions(r.version, query.version) < 0,
+    )
     .sort((a, b) =>
       isDottedVersion(a.version) && isDottedVersion(b.version)
         ? compareDottedVersions(b.version, a.version)
@@ -196,7 +244,12 @@ export async function releaseRefs(sql: Sql, workspaceId: string, app: ManagedApp
     );
   let base: ProposalRef | null = null;
   for (const r of earlier) {
-    const sha = await buildCommit(sql, workspaceId, app, r.build ? r.build.split(',')[0]?.trim() ?? null : null);
+    const sha = await buildCommit(
+      sql,
+      workspaceId,
+      app,
+      r.build ? (r.build.split(',')[0]?.trim() ?? null) : null,
+    );
     if (sha) {
       base = { sha, source: 'previous_build' };
       break;
@@ -219,14 +272,21 @@ export async function releaseRefs(sql: Sql, workspaceId: string, app: ManagedApp
 // Text
 
 /** Control characters other than the line break and the tab are dropped: a repository's text is untrusted. */
-const clean = (value: string): string => normalizeListingValue(value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ''));
+const clean = (value: string): string =>
+  normalizeListingValue(value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ''));
 
 type TextRead = { values: Map<string, string>; found: boolean };
 
 /** The listing of the app's store in the repository at one ref: the app's listing target, the same folders as every other read. */
 async function readTextsAt(
   ctx: AssetSyncContext,
-  input: { workspaceId: string; app: ManagedApp; repository: NonNullable<Awaited<ReturnType<typeof getRepository>>>; connector: Parameters<typeof readRepositoryListing>[3]; ref: string },
+  input: {
+    workspaceId: string;
+    app: ManagedApp;
+    repository: NonNullable<Awaited<ReturnType<typeof getRepository>>>;
+    connector: Parameters<typeof readRepositoryListing>[3];
+    ref: string;
+  },
 ): Promise<{ ok: true; read: TextRead } | Failure> {
   const { repo } = ctx.assets;
   const targets = await listListingTargets(repo.db, input.workspaceId, input.repository.id);
@@ -274,7 +334,15 @@ export function planTexts(input: {
   staged: Map<string, string>;
 }): TextPlan {
   const { platform } = input;
-  const plan: TextPlan = { items: [], staged: [], issues: [], unchangedSinceRelease: 0, sameAsStore: 0, notStageable: 0, truncated: false };
+  const plan: TextPlan = {
+    items: [],
+    staged: [],
+    issues: [],
+    unchangedSinceRelease: 0,
+    sameAsStore: 0,
+    notStageable: 0,
+    truncated: false,
+  };
   const proposed = new Map<string, string>();
   const keys = [...input.target.keys()].sort();
   for (const key of keys) {
@@ -296,7 +364,13 @@ export function planTexts(input: {
     const staged = input.staged.get(key);
     const id = textItemId(locale, field);
     if (staged !== undefined) {
-      plan.staged.push({ id, kind: 'text', locale, field, state: staged === after ? 'same' : 'edited' });
+      plan.staged.push({
+        id,
+        kind: 'text',
+        locale,
+        field,
+        state: staged === after ? 'same' : 'edited',
+      });
       if (staged === after) proposed.set(key, after);
       continue;
     }
@@ -304,7 +378,15 @@ export function planTexts(input: {
       plan.truncated = true;
       continue;
     }
-    plan.items.push({ id, kind: 'text', locale, field, before: storeValue === undefined ? null : storeValue, after, hasErrors: false });
+    plan.items.push({
+      id,
+      kind: 'text',
+      locale,
+      field,
+      before: storeValue === undefined ? null : storeValue,
+      after,
+      hasErrors: false,
+    });
     proposed.set(key, after);
   }
   if (plan.items.length === 0) return plan;
@@ -315,14 +397,17 @@ export function planTexts(input: {
   for (const key of input.target.keys()) locales.add(splitKey(key).locale);
   const entries: CheckLocaleText[] = [...locales].sort().map((locale) => {
     const fields: Record<string, string | undefined> = { ...(input.store[locale] ?? {}) };
-    for (const [key, value] of input.staged) if (splitKey(key).locale === locale) fields[splitKey(key).field] = value;
-    for (const [key, value] of proposed) if (splitKey(key).locale === locale) fields[splitKey(key).field] = value;
+    for (const [key, value] of input.staged)
+      if (splitKey(key).locale === locale) fields[splitKey(key).field] = value;
+    for (const [key, value] of proposed)
+      if (splitKey(key).locale === locale) fields[splitKey(key).field] = value;
     return { locale, fields };
   });
   const ids = new Map<string, string>();
   for (const item of plan.items) ids.set(fieldKey(item.locale, item.field), item.id);
   const localeItem = new Map<string, string>();
-  for (const item of plan.items) if (!localeItem.has(item.locale)) localeItem.set(item.locale, item.id);
+  for (const item of plan.items)
+    if (!localeItem.has(item.locale)) localeItem.set(item.locale, item.id);
   const seen = new Set<string>();
   const add = (issue: ProposalIssue) => {
     if (seen.has(issue.id)) return;
@@ -331,9 +416,22 @@ export function planTexts(input: {
   };
   for (const entry of checkListing({ store, locales: entries }).locales) {
     for (const i of entry.issues) {
-      const itemId = i.field === null ? (localeItem.get(entry.locale) ?? null) : (ids.get(fieldKey(entry.locale, i.field)) ?? null);
+      const itemId =
+        i.field === null
+          ? (localeItem.get(entry.locale) ?? null)
+          : (ids.get(fieldKey(entry.locale, i.field)) ?? null);
       if (itemId === null) continue;
-      add({ id: `${itemId}:listing_check:${i.code}`, itemId, source: 'listing_check', severity: severityOf(i.severity), code: i.code, locale: entry.locale, field: i.field, params: i.params, message: null });
+      add({
+        id: `${itemId}:listing_check:${i.code}`,
+        itemId,
+        source: 'listing_check',
+        severity: severityOf(i.severity),
+        code: i.code,
+        locale: entry.locale,
+        field: i.field,
+        params: i.params,
+        message: null,
+      });
     }
   }
   const sides = new Map<string, string>(proposed);
@@ -351,12 +449,18 @@ export function planTexts(input: {
         code: p.code,
         locale,
         field,
-        params: { ...(p.limit !== undefined ? { limit: p.limit } : {}), ...(p.actual !== undefined ? { actual: p.actual } : {}), ...(p.unit ? { unit: p.unit } : {}) },
+        params: {
+          ...(p.limit !== undefined ? { limit: p.limit } : {}),
+          ...(p.actual !== undefined ? { actual: p.actual } : {}),
+          ...(p.unit ? { unit: p.unit } : {}),
+        },
         message: p.message,
       });
     }
   }
-  const errors = new Set(plan.issues.filter((i) => i.severity === 'error' && i.itemId !== null).map((i) => i.itemId));
+  const errors = new Set(
+    plan.issues.filter((i) => i.severity === 'error' && i.itemId !== null).map((i) => i.itemId),
+  );
   for (const item of plan.items) item.hasErrors = errors.has(item.id);
   return plan;
 }
@@ -376,15 +480,27 @@ function groupsOf(assets: readonly AssetView[]): Map<string, Group> {
     g.files.push(a);
     out.set(key, g);
   }
-  for (const g of out.values()) g.files.sort((a, b) => a.order - b.order || a.path.localeCompare(b.path));
+  for (const g of out.values())
+    g.files.sort((a, b) => a.order - b.order || a.path.localeCompare(b.path));
   return out;
 }
 
-const signature = (g: Group | undefined): string => (g ? g.files.map((f) => `${f.path}\u0000${f.oid ?? ''}`).join('\n') : '');
+const signature = (g: Group | undefined): string =>
+  g ? g.files.map((f) => `${f.path}\u0000${f.oid ?? ''}`).join('\n') : '';
 
-const fileOf = (a: AssetView): ProposalFile => ({ path: a.path, oid: a.oid, width: a.width, height: a.height, bytes: a.bytes, format: a.format });
+const fileOf = (a: AssetView): ProposalFile => ({
+  path: a.path,
+  oid: a.oid,
+  width: a.width,
+  height: a.height,
+  bytes: a.bytes,
+  format: a.format,
+});
 
-type GraphicsPlan = Omit<TextPlan, 'items' | 'staged'> & { items: ProposalGraphics[]; staged: ProposalStaged[] };
+type GraphicsPlan = Omit<TextPlan, 'items' | 'staged'> & {
+  items: ProposalGraphics[];
+  staged: ProposalStaged[];
+};
 
 export function planGraphics(input: {
   platform: ManagedApp['platform'];
@@ -395,7 +511,15 @@ export function planGraphics(input: {
   storeSets: readonly AssetDiffSet[] | null;
   staged: readonly StagedRow[];
 }): GraphicsPlan {
-  const plan: GraphicsPlan = { items: [], staged: [], issues: [], unchangedSinceRelease: 0, sameAsStore: 0, notStageable: 0, truncated: false };
+  const plan: GraphicsPlan = {
+    items: [],
+    staged: [],
+    issues: [],
+    unchangedSinceRelease: 0,
+    sameAsStore: 0,
+    notStageable: 0,
+    truncated: false,
+  };
   const base = input.base === null ? null : groupsOf(input.base);
   const target = groupsOf(input.target);
   const stagedBy = new Map<string, StagedRow[]>();
@@ -419,23 +543,41 @@ export function planGraphics(input: {
       plan.notStageable += 1;
       continue;
     }
-    const diff = input.storeSets?.find((s) => s.locale === g.locale && s.kind === g.slot.kind && (s.device ?? null) === g.slot.device);
+    const diff = input.storeSets?.find(
+      (s) =>
+        s.locale === g.locale && s.kind === g.slot.kind && (s.device ?? null) === g.slot.device,
+    );
     if (diff?.inSync) {
       plan.sameAsStore += 1;
       continue;
     }
     const id = graphicsItemId(g.locale, slot);
-    const rows = (stagedBy.get(`${g.locale}\u0000${slot}`) ?? []).sort((a, b) => a.ordinal - b.ordinal);
+    const rows = (stagedBy.get(`${g.locale}\u0000${slot}`) ?? []).sort(
+      (a, b) => a.ordinal - b.ordinal,
+    );
     if (rows.length > 0) {
-      const same = rows.length === g.files.length && rows.every((r, i) => r.assetPath === g.files[i]?.path && r.assetCommit === input.commit);
-      plan.staged.push({ id, kind: 'graphics', locale: g.locale, field: slot, state: same ? 'same' : 'edited' });
+      const same =
+        rows.length === g.files.length &&
+        rows.every((r, i) => r.assetPath === g.files[i]?.path && r.assetCommit === input.commit);
+      plan.staged.push({
+        id,
+        kind: 'graphics',
+        locale: g.locale,
+        field: slot,
+        state: same ? 'same' : 'edited',
+      });
       continue;
     }
     if (plan.items.length >= MAX_PROPOSAL_ITEMS) {
       plan.truncated = true;
       continue;
     }
-    const mine = input.problems.filter((p) => (p.locale === undefined || p.locale === g.locale) && p.kind === g.slot.kind && (p.device ?? null) === g.slot.device);
+    const mine = input.problems.filter(
+      (p) =>
+        (p.locale === undefined || p.locale === g.locale) &&
+        p.kind === g.slot.kind &&
+        (p.device ?? null) === g.slot.device,
+    );
     const issues: ProposalIssue[] = mine.map((p) => ({
       id: `${id}:graphics_rule:${p.rule}${p.path ? `:${p.path}` : ''}`,
       itemId: id,
@@ -456,13 +598,26 @@ export function planGraphics(input: {
       slotKind: g.slot.kind as AssetKind,
       device: g.slot.device,
       deviceLabel: g.files[0]?.deviceLabel ?? '',
-      before: diff ? diff.rows.filter((r) => r.store !== null).length : input.storeSets === null ? null : 0,
+      before: diff
+        ? diff.rows.filter((r) => r.store !== null).length
+        : input.storeSets === null
+          ? null
+          : 0,
       ...(diff
         ? {
             beforeFiles: diff.rows.flatMap((r) =>
               r.store === null
                 ? []
-                : [{ ref: r.store.ref, position: r.store.position, name: r.store.name, width: r.store.width, height: r.store.height, bytes: r.store.bytes }],
+                : [
+                    {
+                      ref: r.store.ref,
+                      position: r.store.position,
+                      name: r.store.name,
+                      width: r.store.width,
+                      height: r.store.height,
+                      bytes: r.store.bytes,
+                    },
+                  ],
             ),
           }
         : {}),
@@ -478,7 +633,12 @@ export function planGraphics(input: {
 
 export type ProposalContext = { sync: AssetSyncContext; staged: StagedContext };
 
-const empty = (app: ManagedApp, query: ProposalQuery, unavailable: ProposalUnavailable, extra: Partial<AssetProposalView> = {}): AssetProposalView => ({
+const empty = (
+  app: ManagedApp,
+  query: ProposalQuery,
+  unavailable: ProposalUnavailable,
+  extra: Partial<AssetProposalView> = {},
+): AssetProposalView => ({
   appId: app.id,
   platform: app.platform,
   version: query.version,
@@ -502,7 +662,13 @@ export type ProposalResult = { ok: true; view: AssetProposalView } | Failure;
 
 export async function getAssetProposal(
   ctx: ProposalContext,
-  input: { workspaceId: string; appId: string; query: ProposalQuery; actor: Actor; gate?: () => Failure | undefined },
+  input: {
+    workspaceId: string;
+    appId: string;
+    query: ProposalQuery;
+    actor: Actor;
+    gate?: () => Failure | undefined;
+  },
 ): Promise<ProposalResult> {
   const { workspaceId } = input;
   const db = ctx.staged.db;
@@ -518,7 +684,13 @@ export async function getAssetProposal(
   const refs = await releaseRefs(db, workspaceId, app, query);
   const notes: string[] = [];
 
-  const opened = await openConnectorForRepository(ctx.sync.assets.repo, workspaceId, repository, input.actor, 'repository.listing');
+  const opened = await openConnectorForRepository(
+    ctx.sync.assets.repo,
+    workspaceId,
+    repository,
+    input.actor,
+    'repository.listing',
+  );
   if (!opened.ok) return opened;
   let targetSha = refs.target?.sha ?? null;
   let targetRef = refs.target;
@@ -540,17 +712,38 @@ export async function getAssetProposal(
 
   let target: Awaited<ReturnType<typeof readTextsAt>>;
   try {
-    target = await readTextsAt(ctx.sync, { workspaceId, app, repository, connector: opened.connector, ref: targetName });
+    target = await readTextsAt(ctx.sync, {
+      workspaceId,
+      app,
+      repository,
+      connector: opened.connector,
+      ref: targetName,
+    });
   } catch (error) {
     return githubFailure(error, opened.secret);
   }
-  if (!target.ok) return { ok: true, view: empty(app, query, 'target_unreadable', { state, locked: lock, targetRef, notes: [String(target.body.message ?? target.body.error).slice(0, 300)] }) };
+  if (!target.ok)
+    return {
+      ok: true,
+      view: empty(app, query, 'target_unreadable', {
+        state,
+        locked: lock,
+        targetRef,
+        notes: [String(target.body.message ?? target.body.error).slice(0, 300)],
+      }),
+    };
 
   let baseTexts: Map<string, string> | null = null;
   let baseRef = refs.base;
   if (baseRef && baseRef.sha !== targetSha) {
     try {
-      const b = await readTextsAt(ctx.sync, { workspaceId, app, repository, connector: opened.connector, ref: baseRef.sha });
+      const b = await readTextsAt(ctx.sync, {
+        workspaceId,
+        app,
+        repository,
+        connector: opened.connector,
+        ref: baseRef.sha,
+      });
       if (b.ok && b.read.found) baseTexts = b.read.values;
       else {
         baseRef = null;
@@ -565,39 +758,82 @@ export async function getAssetProposal(
   }
 
   // The store's texts (the editable version's where there are any) and what the cart holds.
-  const live = await getLiveListing(db, workspaceId, { id: app.id, platform: app.platform, identifier: app.identifier });
-  const channel = live.channels.find((c) => c.channel === 'editable') ?? live.channels.find((c) => c.channel === 'live');
+  const live = await getLiveListing(db, workspaceId, {
+    id: app.id,
+    platform: app.platform,
+    identifier: app.identifier,
+  });
+  const channel =
+    live.channels.find((c) => c.channel === 'editable') ??
+    live.channels.find((c) => c.channel === 'live');
   const storeTexts: Record<string, Record<string, string>> = channel ? channel.locales : {};
   const rows = await loadStagedRows(db, workspaceId, app.id);
   const stagedTexts = new Map<string, string>();
-  for (const r of rows) if (r.kind === 'listing_text' && r.ordinal === 0 && r.valueText !== null) stagedTexts.set(fieldKey(r.locale, r.target), clean(r.valueText));
+  for (const r of rows)
+    if (r.kind === 'listing_text' && r.ordinal === 0 && r.valueText !== null)
+      stagedTexts.set(fieldKey(r.locale, r.target), clean(r.valueText));
 
   // Graphics: the index of both commits (cached per commit), the store's images from the cached store read.
   let graphicsTarget: Awaited<ReturnType<typeof openAssets>> | null = null;
   let graphicsBase: Awaited<ReturnType<typeof openAssets>> | null = null;
-  graphicsTarget = await openAssets(ctx.sync.assets, { workspaceId, app, ...(targetSha ? { commit: targetSha } : {}) }, input.actor, { ...(input.gate ? { onCompute: input.gate } : {}) });
+  graphicsTarget = await openAssets(
+    ctx.sync.assets,
+    { workspaceId, app, ...(targetSha ? { commit: targetSha } : {}) },
+    input.actor,
+    { ...(input.gate ? { onCompute: input.gate } : {}) },
+  );
   if (!graphicsTarget.ok && graphicsTarget.status === 429) return graphicsTarget;
   if (baseRef && baseRef.sha !== targetSha && graphicsTarget.ok) {
-    graphicsBase = await openAssets(ctx.sync.assets, { workspaceId, app, commit: baseRef.sha }, input.actor, { ...(input.gate ? { onCompute: input.gate } : {}) });
+    graphicsBase = await openAssets(
+      ctx.sync.assets,
+      { workspaceId, app, commit: baseRef.sha },
+      input.actor,
+      { ...(input.gate ? { onCompute: input.gate } : {}) },
+    );
     if (!graphicsBase.ok && graphicsBase.status === 429) return graphicsBase;
   }
-  const textPlan = planTexts({ platform: app.platform, base: baseTexts, target: target.read.values, store: storeTexts, staged: stagedTexts });
+  const textPlan = planTexts({
+    platform: app.platform,
+    base: baseTexts,
+    target: target.read.values,
+    store: storeTexts,
+    staged: stagedTexts,
+  });
 
   let graphicsPlan: GraphicsPlan | null = null;
   let storeUnread = false;
   const targetView = graphicsTarget.ok ? graphicsTarget.handle.view : null;
-  if (targetView && targetView.status === 'ok' && targetView.commit && isCommitSha(targetView.commit)) {
-    const baseView = graphicsBase && graphicsBase.ok && graphicsBase.handle.view.status === 'ok' ? graphicsBase.handle.view : null;
+  if (
+    targetView &&
+    targetView.status === 'ok' &&
+    targetView.commit &&
+    isCommitSha(targetView.commit)
+  ) {
+    const baseView =
+      graphicsBase && graphicsBase.ok && graphicsBase.handle.view.status === 'ok'
+        ? graphicsBase.handle.view
+        : null;
     if (baseRef && baseRef.sha !== targetSha && !baseView) {
       // The text read of the base worked but its media did not: the graphics are judged against the store alone.
       notes.push('base_media_unreadable');
     }
-    const diff = await buildAssetDiff(ctx.sync, { workspaceId, app, actor: input.actor, commit: targetView.commit, ...(input.gate ? { gate: input.gate } : {}) });
+    const diff = await buildAssetDiff(ctx.sync, {
+      workspaceId,
+      app,
+      actor: input.actor,
+      commit: targetView.commit,
+      ...(input.gate ? { gate: input.gate } : {}),
+    });
     if (!diff.ok && diff.status === 429) return diff;
     if (!diff.ok) storeUnread = true;
     graphicsPlan = planGraphics({
       platform: app.platform,
-      base: baseRef && baseRef.sha === targetSha ? targetView.assets : baseView ? baseView.assets : null,
+      base:
+        baseRef && baseRef.sha === targetSha
+          ? targetView.assets
+          : baseView
+            ? baseView.assets
+            : null,
       target: targetView.assets,
       commit: targetView.commit,
       problems: targetView.problems,
@@ -606,8 +842,19 @@ export async function getAssetProposal(
     });
   } else if (graphicsTarget && !graphicsTarget.ok) notes.push('graphics_unreadable');
 
-  const noMetadata = !target.read.found && (!targetView || targetView.assets.filter((a) => a.origin === 'store').length === 0);
-  if (noMetadata) return { ok: true, view: empty(app, query, 'no_repo_metadata', { state, locked: lock, baseRef: null, targetRef }) };
+  const noMetadata =
+    !target.read.found &&
+    (!targetView || targetView.assets.filter((a) => a.origin === 'store').length === 0);
+  if (noMetadata)
+    return {
+      ok: true,
+      view: empty(app, query, 'no_repo_metadata', {
+        state,
+        locked: lock,
+        baseRef: null,
+        targetRef,
+      }),
+    };
 
   const changes: ProposalItem[] = [...textPlan.items, ...(graphicsPlan?.items ?? [])];
   const issues = orderIssues([...textPlan.issues, ...(graphicsPlan?.issues ?? [])]);
@@ -628,7 +875,8 @@ export async function getAssetProposal(
     issues,
     summary: summarizeProposal(changes, issues),
     skipped: {
-      unchangedSinceRelease: textPlan.unchangedSinceRelease + (graphicsPlan?.unchangedSinceRelease ?? 0),
+      unchangedSinceRelease:
+        textPlan.unchangedSinceRelease + (graphicsPlan?.unchangedSinceRelease ?? 0),
       sameAsStore: textPlan.sameAsStore + (graphicsPlan?.sameAsStore ?? 0),
       notStageable: textPlan.notStageable + (graphicsPlan?.notStageable ?? 0),
     },
@@ -640,13 +888,27 @@ export async function getAssetProposal(
 // ---------------------------------------------------------------------------------------------
 // Staging
 
-export type StageResult = { id: string; status: 'staged' | 'already_staged' | 'kept_edited' | 'not_proposed' | 'failed'; code?: string };
+export type StageResult = {
+  id: string;
+  status: 'staged' | 'already_staged' | 'kept_edited' | 'not_proposed' | 'failed';
+  code?: string;
+};
 
-const hasIssues = (view: AssetProposalView, id: string): boolean => view.changes.some((c) => c.id === id && c.hasErrors);
+const hasIssues = (view: AssetProposalView, id: string): boolean =>
+  view.changes.some((c) => c.id === id && c.hasErrors);
 
 export async function stageProposal(
   ctx: ProposalContext,
-  input: { workspaceId: string; appId: string; query: ProposalQuery; itemIds: string[]; acceptIssues: boolean; actor: Actor; gate?: () => Failure | undefined; budgetMs?: number },
+  input: {
+    workspaceId: string;
+    appId: string;
+    query: ProposalQuery;
+    itemIds: string[];
+    acceptIssues: boolean;
+    actor: Actor;
+    gate?: () => Failure | undefined;
+    budgetMs?: number;
+  },
 ): Promise<{ ok: true; results: StageResult[] } | Failure> {
   const { workspaceId } = input;
   const db = ctx.staged.db;
@@ -654,14 +916,29 @@ export async function stageProposal(
   if (!app) return failure(404, 'not_found');
   const locked = await metadataLockedFailure(db, workspaceId, app);
   if (locked) return locked;
-  const proposal = await getAssetProposal(ctx, { workspaceId, appId: app.id, query: input.query, actor: input.actor, ...(input.gate ? { gate: input.gate } : {}) });
+  const proposal = await getAssetProposal(ctx, {
+    workspaceId,
+    appId: app.id,
+    query: input.query,
+    actor: input.actor,
+    ...(input.gate ? { gate: input.gate } : {}),
+  });
   if (!proposal.ok) return proposal;
   const view = proposal.view;
-  if (view.unavailable) return failure(422, 'no_proposal', 'There is nothing to stage for this release.', { reason: view.unavailable, ...coded('assetProposal.unavailable') });
+  if (view.unavailable)
+    return failure(422, 'no_proposal', 'There is nothing to stage for this release.', {
+      reason: view.unavailable,
+      ...coded('assetProposal.unavailable'),
+    });
   const ids = [...new Set(input.itemIds)];
   const bad = ids.filter((id) => hasIssues(view, id));
   if (bad.length > 0 && !input.acceptIssues)
-    return failure(409, 'has_issues', 'Some of the selected items have errors. Confirm them to stage anyway.', { itemIds: bad, ...coded('assetProposal.hasIssues') });
+    return failure(
+      409,
+      'has_issues',
+      'Some of the selected items have errors. Confirm them to stage anyway.',
+      { itemIds: bad, ...coded('assetProposal.hasIssues') },
+    );
   const results: StageResult[] = [];
   const staged = view.alreadyStaged;
   const stopAt = Date.now() + (input.budgetMs ?? STAGE_BUDGET_MS);
@@ -674,12 +951,27 @@ export async function stageProposal(
     const item = view.changes.find((c) => c.id === id);
     if (!item) {
       const already = staged.find((s) => s.id === id);
-      results.push({ id, status: already ? (already.state === 'same' ? 'already_staged' : 'kept_edited') : 'not_proposed' });
+      results.push({
+        id,
+        status: already
+          ? already.state === 'same'
+            ? 'already_staged'
+            : 'kept_edited'
+          : 'not_proposed',
+      });
       continue;
     }
     const done =
       item.kind === 'text'
-        ? await stageText(ctx.staged, { workspaceId, appId: app.id, locale: item.locale, field: item.field, from: 'local', value: item.after, actor: input.actor })
+        ? await stageText(ctx.staged, {
+            workspaceId,
+            appId: app.id,
+            locale: item.locale,
+            field: item.field,
+            from: 'local',
+            value: item.after,
+            actor: input.actor,
+          })
         : await stageAssets(ctx.staged, {
             workspaceId,
             appId: app.id,
@@ -691,7 +983,9 @@ export async function stageProposal(
             actor: input.actor,
             ...(input.gate ? { gate: input.gate } : {}),
           });
-    results.push(done.ok ? { id, status: 'staged' } : { id, status: 'failed', code: String(done.body.error) });
+    results.push(
+      done.ok ? { id, status: 'staged' } : { id, status: 'failed', code: String(done.body.error) },
+    );
   }
   const stagedIds = results.filter((r) => r.status === 'staged').map((r) => r.id);
   if (stagedIds.length > 0)
@@ -701,7 +995,14 @@ export async function stageProposal(
       action: 'release.asset_proposal_staged',
       target: { type: 'app', id: app.id },
       // Item ids (locale and field or slot) and commits: never a text.
-      detail: { appId: app.id, version: input.query.version, itemIds: stagedIds, base: view.baseRef?.sha ?? null, target: view.targetRef?.sha ?? null, acceptedIssues: bad.length > 0 },
+      detail: {
+        appId: app.id,
+        version: input.query.version,
+        itemIds: stagedIds,
+        base: view.baseRef?.sha ?? null,
+        target: view.targetRef?.sha ?? null,
+        acceptedIssues: bad.length > 0,
+      },
       at: ctx.staged.now(),
     });
   return { ok: true, results };

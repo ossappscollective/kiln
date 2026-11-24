@@ -16,14 +16,14 @@ Open Screenshot Generator (MIT) was read for comparison: its Keywords tool track
 A pure function from signals to `{ popularity, difficulty, opportunity }`, each with a 0 to 100 `score` or `null`, a `confidence` (low, medium, high), an `origin` (`own_data` or `public_signals`) and `reasons`: the list of inputs with their parameters, the 0 to 100 each alone suggests and its weight.
 The web shows that list, so a number can always be checked. The formula, the weights and the thresholds are written in [api/aso](../api/aso.md#estimates) and are constants in one file; `KEYWORD_ESTIMATE_MODEL = 'v1'` is stored with each row for information.
 
-| Signal                                          | Feeds                    | Source                                                                  |
-| ----------------------------------------------- | ------------------------ | ----------------------------------------------------------------------- |
-| Own visitors for the term (a lower bound)       | popularity, strongest    | Google Play search terms file, already imported by the team             |
-| Position in the App Store search hints          | popularity               | `search.itunes.apple.com` hints, public                                 |
-| Rating counts of the first results              | popularity (weak), difficulty | the iTunes search of the rank check, public, no extra request      |
-| Words of the term in the first results' names   | difficulty               | the same results                                                        |
-| Result count against the depth asked            | difficulty (minor)       | the same results                                                        |
-| Rank volatility over the last checks            | difficulty (minor)       | our own rank history                                                    |
+| Signal                                        | Feeds                         | Source                                                        |
+| --------------------------------------------- | ----------------------------- | ------------------------------------------------------------- |
+| Own visitors for the term (a lower bound)     | popularity, strongest         | Google Play search terms file, already imported by the team   |
+| Position in the App Store search hints        | popularity                    | `search.itunes.apple.com` hints, public                       |
+| Rating counts of the first results            | popularity (weak), difficulty | the iTunes search of the rank check, public, no extra request |
+| Words of the term in the first results' names | difficulty                    | the same results                                              |
+| Result count against the depth asked          | difficulty (minor)            | the same results                                              |
+| Rank volatility over the last checks          | difficulty (minor)            | our own rank history                                          |
 
 Honest rules, enforced by tests: no signal is `null` ("No estimate"), never 0; Google Play keywords get a popularity only from the team's own file and never a difficulty; public signals alone never give `high`; difficulty never gives `high`; every sentence in the web says "estimate".
 

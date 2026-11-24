@@ -40,32 +40,84 @@ export type CartItem = {
   ref: { locale?: string; field?: string; slot?: string; reviewId?: string };
   /** A price change (kind `price`): per territory before and after in minor units; risk `financial`, always needs the typed phrase. */
   price?: StagedPriceChange;
-  review?: { rating: number; excerpt: string; language: string | null; territory: string | null; status: string };
+  review?: {
+    rating: number;
+    excerpt: string;
+    language: string | null;
+    territory: string | null;
+    status: string;
+  };
 };
 
 /** An image of a detail: a same origin address of the server's own image routes. */
-export type CartImageRef = { position: number; name: string | null; width: number | null; height: number | null; bytes: number | null; url: string };
+export type CartImageRef = {
+  position: number;
+  name: string | null;
+  width: number | null;
+  height: number | null;
+  bytes: number | null;
+  url: string;
+};
 
 /** `GET /apps/{id}/pending/cart/detail?id=`: the full before and after of one item (ADR 0067). */
 export type CartDetail = {
   id: string;
   kind: CartKind;
   version: string;
-  text?: { field: string; locale: string | null; before: string | null; after: string; limit: number | null; unit: 'characters' | 'bytes'; truncated: boolean };
-  graphics?: { before: CartImageRef[] | null; beforeReadAt: number | null; after: CartImageRef[]; truncated: boolean };
+  text?: {
+    field: string;
+    locale: string | null;
+    before: string | null;
+    after: string;
+    limit: number | null;
+    unit: 'characters' | 'bytes';
+    truncated: boolean;
+  };
+  graphics?: {
+    before: CartImageRef[] | null;
+    beforeReadAt: number | null;
+    after: CartImageRef[];
+    truncated: boolean;
+  };
   reply?: {
     text: string;
     truncated: boolean;
-    review: { rating: number; title: string | null; body: string; language: string | null; territory: string | null; truncated: boolean };
+    review: {
+      rating: number;
+      title: string | null;
+      body: string;
+      language: string | null;
+      territory: string | null;
+      truncated: boolean;
+    };
   };
 };
 
-export type CartRights = { push: boolean; reply: boolean; price: boolean; discardStaged: boolean; discardReply: boolean };
+export type CartRights = {
+  push: boolean;
+  reply: boolean;
+  price: boolean;
+  discardStaged: boolean;
+  discardReply: boolean;
+};
 export type CartResponse = { cart: { items: CartItem[]; can: CartRights; generatedAt: number } };
 
-export type CartOutcome = { status: 'ok' | 'failed' | 'skipped'; reason: string | null; /** A price item: what the store showed after the write. */ price?: PriceResultDetail };
+export type CartOutcome = {
+  status: 'ok' | 'failed' | 'skipped';
+  reason: string | null /** A price item: what the store showed after the write. */;
+  price?: PriceResultDetail;
+};
 export type CartResultResponse = {
-  result: { results: { id: string; status: CartOutcome['status']; reason: string | null; httpStatus?: number; price?: PriceResultDetail }[]; remaining: number };
+  result: {
+    results: {
+      id: string;
+      status: CartOutcome['status'];
+      reason: string | null;
+      httpStatus?: number;
+      price?: PriceResultDetail;
+    }[];
+    remaining: number;
+  };
 };
 
 /** An item as the page holds it: with the record (app id) it belongs to, because one app can have an iOS and an Android record. */
@@ -79,7 +131,9 @@ export type CartGroup = { kind: CartKind; rows: CartRow[] };
 
 /** Rows in the order of the kinds, empty kinds left out; the order inside a kind is kept. */
 export function groupRows(rows: readonly CartRow[]): CartGroup[] {
-  return CART_KINDS.map((kind) => ({ kind, rows: rows.filter((r) => r.kind === kind) })).filter((g) => g.rows.length > 0);
+  return CART_KINDS.map((kind) => ({ kind, rows: rows.filter((r) => r.kind === kind) })).filter(
+    (g) => g.rows.length > 0,
+  );
 }
 
 // ----- selection ---------------------------------------------------------------------------------
@@ -89,7 +143,9 @@ export const noSelection: Selection = new Set<string>();
 
 /** The rows that go together with this one: the members of its bundle in the same record (all or none), or itself. */
 export function withBundle(rows: readonly CartRow[], row: CartRow): CartRow[] {
-  return row.bundle === null ? [row] : rows.filter((r) => r.appId === row.appId && r.bundle === row.bundle);
+  return row.bundle === null
+    ? [row]
+    : rows.filter((r) => r.appId === row.appId && r.bundle === row.bundle);
 }
 
 /** Only rows that can be published are selectable; the rest are listed with their reason. */
@@ -105,7 +161,8 @@ export function toggle(rows: readonly CartRow[], selection: Selection, key: stri
   return next;
 }
 
-export const selectAll = (rows: readonly CartRow[]): Selection => new Set(rows.filter(selectable).map((r) => r.key));
+export const selectAll = (rows: readonly CartRow[]): Selection =>
+  new Set(rows.filter(selectable).map((r) => r.key));
 
 /** Drops keys that are no longer in the list (after a refresh), keeping the rest. */
 export const prune = (rows: readonly CartRow[], selection: Selection): Selection => {
@@ -113,7 +170,8 @@ export const prune = (rows: readonly CartRow[], selection: Selection): Selection
   return new Set([...selection].filter((k) => keys.has(k)));
 };
 
-export const selectedRows = (rows: readonly CartRow[], selection: Selection): CartRow[] => rows.filter((r) => selection.has(r.key));
+export const selectedRows = (rows: readonly CartRow[], selection: Selection): CartRow[] =>
+  rows.filter((r) => selection.has(r.key));
 
 export type CartCounts = {
   total: number;
@@ -135,7 +193,13 @@ export type CartCounts = {
 
 export function countsOf(rows: readonly CartRow[], selection: Selection): CartCounts {
   const chosen = selectedRows(rows, selection);
-  const byKind: Record<CartKind, number> = { listing: 0, graphics: 0, release: 0, price: 0, review_reply: 0 };
+  const byKind: Record<CartKind, number> = {
+    listing: 0,
+    graphics: 0,
+    release: 0,
+    price: 0,
+    review_reply: 0,
+  };
   for (const r of chosen) byKind[r.kind] += 1;
   return {
     total: rows.length,
@@ -162,7 +226,10 @@ export function allState(rows: readonly CartRow[], selection: Selection): 'none'
 // ----- requests and results ----------------------------------------------------------------------
 
 /** One request per record: the `{ id, version }` pairs of what was selected, in list order. */
-export function publishRequests(rows: readonly CartRow[], selection: Selection): Map<string, { id: string; version: string }[]> {
+export function publishRequests(
+  rows: readonly CartRow[],
+  selection: Selection,
+): Map<string, { id: string; version: string }[]> {
   const out = new Map<string, { id: string; version: string }[]>();
   for (const r of selectedRows(rows, selection)) {
     const list = out.get(r.appId) ?? [];
@@ -176,7 +243,10 @@ export function publishRequests(rows: readonly CartRow[], selection: Selection):
  * The phrase to type for the price items selected, ONE PER RECORD: a publish is one request per record and the server checks the phrase of the
  * price items of that request (their number and the largest change among them). Empty when no price item is selected.
  */
-export function pricePhrases(rows: readonly CartRow[], selection: Selection): { appId: string; count: number; phrase: string }[] {
+export function pricePhrases(
+  rows: readonly CartRow[],
+  selection: Selection,
+): { appId: string; count: number; phrase: string }[] {
   const byApp = new Map<string, StagedPriceChange[]>();
   for (const r of selectedRows(rows, selection)) {
     if (r.kind !== 'price' || !r.price) continue;
@@ -184,10 +254,17 @@ export function pricePhrases(rows: readonly CartRow[], selection: Selection): { 
     list.push(r.price);
     byApp.set(r.appId, list);
   }
-  return [...byApp].map(([appId, items]) => ({ appId, count: items.length, phrase: confirmationPhrase(items) }));
+  return [...byApp].map(([appId, items]) => ({
+    appId,
+    count: items.length,
+    phrase: confirmationPhrase(items),
+  }));
 }
 
-export function discardRequests(rows: readonly CartRow[], selection: Selection): Map<string, string[]> {
+export function discardRequests(
+  rows: readonly CartRow[],
+  selection: Selection,
+): Map<string, string[]> {
   const out = new Map<string, string[]>();
   for (const r of selectedRows(rows, selection).filter((x) => x.canDiscard)) {
     const list = out.get(r.appId) ?? [];
@@ -200,14 +277,28 @@ export function discardRequests(rows: readonly CartRow[], selection: Selection):
 /** Outcomes by row key; `running` rows have no outcome yet. */
 export type Outcomes = Readonly<Record<string, CartOutcome>>;
 
-export function mergeResults(previous: Outcomes, appId: string, results: CartResultResponse['result']['results']): Outcomes {
+export function mergeResults(
+  previous: Outcomes,
+  appId: string,
+  results: CartResultResponse['result']['results'],
+): Outcomes {
   const next: Record<string, CartOutcome> = { ...previous };
-  for (const r of results) next[rowKey(appId, r.id)] = { status: r.status, reason: r.reason, ...(r.price ? { price: r.price } : {}) };
+  for (const r of results)
+    next[rowKey(appId, r.id)] = {
+      status: r.status,
+      reason: r.reason,
+      ...(r.price ? { price: r.price } : {}),
+    };
   return next;
 }
 
 /** A whole request that failed (network, step-up, a 4xx): every row of it failed with that code. */
-export function failAll(previous: Outcomes, appId: string, ids: readonly string[], reason: string): Outcomes {
+export function failAll(
+  previous: Outcomes,
+  appId: string,
+  ids: readonly string[],
+  reason: string,
+): Outcomes {
   const next: Record<string, CartOutcome> = { ...previous };
   for (const id of ids) next[rowKey(appId, id)] = { status: 'failed', reason };
   return next;
@@ -223,7 +314,10 @@ export function tally(outcomes: Outcomes): { ok: number; failed: number; skipped
 }
 
 /** Rows of a run, from the snapshot taken before it started (they are gone from the cart when sent). */
-export const outcomeRows = (snapshot: readonly CartRow[], outcomes: Outcomes): { row: CartRow; outcome: CartOutcome }[] =>
+export const outcomeRows = (
+  snapshot: readonly CartRow[],
+  outcomes: Outcomes,
+): { row: CartRow; outcome: CartOutcome }[] =>
   snapshot.flatMap((row) => {
     const outcome = outcomes[row.key];
     return outcome ? [{ row, outcome }] : [];
@@ -231,7 +325,13 @@ export const outcomeRows = (snapshot: readonly CartRow[], outcomes: Outcomes): {
 
 // ----- places and signals ------------------------------------------------------------------------
 
-const SECTION: Record<CartKind, AppSection> = { listing: 'listing', graphics: 'assets', release: 'releases', price: 'products', review_reply: 'reviews' };
+const SECTION: Record<CartKind, AppSection> = {
+  listing: 'listing',
+  graphics: 'assets',
+  release: 'releases',
+  price: 'products',
+  review_reply: 'reviews',
+};
 
 /** Where the item was made: the page of the app that holds it. */
 export const placeOf = (row: CartRow, groupId: string, platform: PlatformScope | null): string =>
@@ -240,7 +340,9 @@ export const placeOf = (row: CartRow, groupId: string, platform: PlatformScope |
 export const CART_ADDED_EVENT = 'kiln:cart-added';
 
 /** A page staged something: the cart button pulses once and says so. Safe where there is no window (tests, servers). */
-export function announceCartAdded(target: EventTarget | undefined = typeof window === 'undefined' ? undefined : window): void {
+export function announceCartAdded(
+  target: EventTarget | undefined = typeof window === 'undefined' ? undefined : window,
+): void {
   target?.dispatchEvent(new CustomEvent(CART_ADDED_EVENT));
 }
 
@@ -249,7 +351,9 @@ export const CART_OPEN_EVENT = 'kiln:cart-open';
 /** Opens the cart drawer, scrolled to the items of one locale (the "2 staged" chip of a locale row). `locale: null` just opens it. */
 export function announceCartOpen(
   locale: string | null,
-  target: Pick<EventTarget, 'dispatchEvent'> | undefined = typeof window === 'undefined' ? undefined : window,
+  target: Pick<EventTarget, 'dispatchEvent'> | undefined = typeof window === 'undefined'
+    ? undefined
+    : window,
 ): void {
   target?.dispatchEvent(new CustomEvent(CART_OPEN_EVENT, { detail: { locale } }));
 }
@@ -286,7 +390,9 @@ const REASON_KEYS = {
 } as const;
 type ReasonCode = keyof typeof REASON_KEYS;
 const reasonCode = (code: string | null | undefined): ReasonCode =>
-  code !== null && code !== undefined && Object.prototype.hasOwnProperty.call(REASON_KEYS, code) ? (code as ReasonCode) : 'other';
+  code !== null && code !== undefined && Object.prototype.hasOwnProperty.call(REASON_KEYS, code)
+    ? (code as ReasonCode)
+    : 'other';
 export const reasonKey = (code: string | null | undefined): string => REASON_KEYS[reasonCode(code)];
 export const reasonText = (code: string | null | undefined): string => {
   const c = reasonCode(code);
@@ -331,7 +437,9 @@ const RESULT_KEYS = {
 } as const;
 type ResultCode = keyof typeof RESULT_KEYS;
 const resultCode = (code: string | null | undefined): ResultCode =>
-  code !== null && code !== undefined && Object.prototype.hasOwnProperty.call(RESULT_KEYS, code) ? (code as ResultCode) : 'other';
+  code !== null && code !== undefined && Object.prototype.hasOwnProperty.call(RESULT_KEYS, code)
+    ? (code as ResultCode)
+    : 'other';
 export const resultKey = (code: string | null | undefined): string => RESULT_KEYS[resultCode(code)];
 export const resultText = (code: string | null | undefined): string => {
   const c = resultCode(code);

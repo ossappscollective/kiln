@@ -841,11 +841,16 @@ function checkSets(store: AssetStore, assets: readonly AssetFacts[], out: AssetP
   for (const set of summarizeAssets(store, assets)) {
     if (set.max !== null && set.rule !== null && set.count > set.max) {
       out.push(
-        problem(set.rule, 'error', `${[set.locale, describeDevice(store, set.kind, set.device)].filter(Boolean).join(' ')}: ${set.count} found.`, {
-          locale: set.locale,
-          kind: set.kind,
-          device: set.device,
-        }),
+        problem(
+          set.rule,
+          'error',
+          `${[set.locale, describeDevice(store, set.kind, set.device)].filter(Boolean).join(' ')}: ${set.count} found.`,
+          {
+            locale: set.locale,
+            kind: set.kind,
+            device: set.device,
+          },
+        ),
       );
     }
   }

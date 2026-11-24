@@ -14,14 +14,21 @@ export type ClientKind = Extract<SyncKind, 'products' | 'testflight'>;
 type RunApi = Pick<Api, 'syncAppAll' | 'syncAppProducts' | 'syncAppTestflight'>;
 
 /** The kinds the browser runs after the queue, for this record and role. Pure. */
-export function clientKinds(platform: Platform, allowed: (action: Action) => boolean): ClientKind[] {
+export function clientKinds(
+  platform: Platform,
+  allowed: (action: Action) => boolean,
+): ClientKind[] {
   const out: ClientKind[] = [];
   if (allowed('apps.sync')) out.push('products');
   if (allowed('apps.sync') && platform === 'ios') out.push('testflight');
   return out;
 }
 
-export type EverythingResult = { plan: SyncPlanEntry[]; extra: Partial<Record<ClientKind, RunState>>; problem: string | null };
+export type EverythingResult = {
+  plan: SyncPlanEntry[];
+  extra: Partial<Record<ClientKind, RunState>>;
+  problem: string | null;
+};
 
 /** `onextra` is told when a client kind starts and ends, so the Status popover can show each kind's progress. */
 export async function syncRest(
@@ -34,10 +41,14 @@ export async function syncRest(
   only?: { kinds: readonly SyncKind[]; sources?: readonly string[] | undefined },
 ): Promise<EverythingResult> {
   const result: EverythingResult = { plan: [], extra: {}, problem: null };
-  const queueKinds = only ? only.kinds.filter((kind) => kind !== 'app' && kind !== 'products' && kind !== 'testflight') : [];
+  const queueKinds = only
+    ? only.kinds.filter((kind) => kind !== 'app' && kind !== 'products' && kind !== 'testflight')
+    : [];
   if (!only || queueKinds.length > 0) {
     try {
-      const opts = only ? { kinds: queueKinds, ...(only.sources ? { sources: only.sources } : {}) } : { without: 'app' as const };
+      const opts = only
+        ? { kinds: queueKinds, ...(only.sources ? { sources: only.sources } : {}) }
+        : { without: 'app' as const };
       result.plan = (await api.syncAppAll(workspaceId, app.id, opts)).plan;
     } catch (e) {
       result.problem = e instanceof ApiError ? e.message : String(e);
@@ -52,7 +63,10 @@ export async function syncRest(
       else await api.syncAppTestflight(workspaceId, app.id);
     } catch (e) {
       // A store that has no products or no TestFlight is not a failure of the sync: 4xx means "does not apply here".
-      state = e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 429 ? 'skipped' : 'failed';
+      state =
+        e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 429
+          ? 'skipped'
+          : 'failed';
     }
     result.extra[kind] = state;
     onextra?.(kind, state);

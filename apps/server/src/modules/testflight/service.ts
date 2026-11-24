@@ -1,4 +1,8 @@
-import { type BetaScreenshotLink, StoreRateLimitError, type StoreBetaFeedback } from '@kiln/connectors';
+import {
+  type BetaScreenshotLink,
+  StoreRateLimitError,
+  type StoreBetaFeedback,
+} from '@kiln/connectors';
 import { supports } from '@kiln/core';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
@@ -102,7 +106,15 @@ export async function listTestflight(
   if (!api) {
     return {
       ok: true,
-      view: { app: appView(app), api, counts: emptyCounts(), builds: [], items: [], nextCursor: null, sync: null },
+      view: {
+        app: appView(app),
+        api,
+        counts: emptyCounts(),
+        builds: [],
+        items: [],
+        nextCursor: null,
+        sync: null,
+      },
     };
   }
   const page = await listFeedback(ctx.db, { ...input, appId: app.id });
@@ -178,52 +190,79 @@ export async function syncTestflight(
     return f;
   };
 
-  const connected = await connect(ctx, input.workspaceId, app, TESTFLIGHT_SYNC_PURPOSE, input.actor);
+  const connected = await connect(
+    ctx,
+    input.workspaceId,
+    app,
+    TESTFLIGHT_SYNC_PURPOSE,
+    input.actor,
+  );
   if (!connected.ok) return failed(connected, true);
   const { connection } = connected;
   const baseline = !(await hasSynced(ctx.db, input.workspaceId, app.id));
-  const alreadyWithoutLog = await crashesWithoutLog(ctx.db, input.workspaceId, app.id, MAX_CRASH_LOGS_PER_SYNC);
+  const alreadyWithoutLog = await crashesWithoutLog(
+    ctx.db,
+    input.workspaceId,
+    app.id,
+    MAX_CRASH_LOGS_PER_SYNC,
+  );
 
   let read: Read;
   try {
-    read = await withConnector(ctx.readFactory, connection.input, ctx.readTimeoutMs, async (connector): Promise<Read> => {
-      if (!connector) throw new Error('no connector');
-      const listed = await connector.listFeedback();
-      const warnings = [...listed.warnings];
-      const known = await existingIds(
-        ctx.db,
-        input.workspaceId,
-        app.id,
-        listed.items.map((i) => i.id),
-      );
-      // Crash logs to read: the new crashes (newest first), then stored ones still without a log, up to the cap.
-      const wanted: string[] = [];
-      for (const i of listed.items) if (i.kind === 'crash' && !known.has(i.id)) wanted.push(i.id);
-      for (const idValue of alreadyWithoutLog) if (!wanted.includes(idValue)) wanted.push(idValue);
-      const logs = new Map<string, string | null>();
-      let skipped = 0;
-      for (const idValue of wanted.slice(0, MAX_CRASH_LOGS_PER_SYNC)) {
-        try {
-          logs.set(idValue, await connector.readCrashLog(idValue));
-        } catch (error) {
-          // A rate limit stops the read of logs (the rest wait for the next sync); a refusal or any other failure leaves this one unread.
-          if (error instanceof StoreRateLimitError) break;
-          skipped++;
+    read = await withConnector(
+      ctx.readFactory,
+      connection.input,
+      ctx.readTimeoutMs,
+      async (connector): Promise<Read> => {
+        if (!connector) throw new Error('no connector');
+        const listed = await connector.listFeedback();
+        const warnings = [...listed.warnings];
+        const known = await existingIds(
+          ctx.db,
+          input.workspaceId,
+          app.id,
+          listed.items.map((i) => i.id),
+        );
+        // Crash logs to read: the new crashes (newest first), then stored ones still without a log, up to the cap.
+        const wanted: string[] = [];
+        for (const i of listed.items) if (i.kind === 'crash' && !known.has(i.id)) wanted.push(i.id);
+        for (const idValue of alreadyWithoutLog)
+          if (!wanted.includes(idValue)) wanted.push(idValue);
+        const logs = new Map<string, string | null>();
+        let skipped = 0;
+        for (const idValue of wanted.slice(0, MAX_CRASH_LOGS_PER_SYNC)) {
+          try {
+            logs.set(idValue, await connector.readCrashLog(idValue));
+          } catch (error) {
+            // A rate limit stops the read of logs (the rest wait for the next sync); a refusal or any other failure leaves this one unread.
+            if (error instanceof StoreRateLimitError) break;
+            skipped++;
+          }
         }
-      }
-      if (wanted.length > MAX_CRASH_LOGS_PER_SYNC) {
-        warnings.push('Some crash logs are not read yet: too many in one sync. They are read by the next ones.');
-      }
-      if (skipped > 0) warnings.push('Some crash logs could not be read. They are tried again by the next sync.');
-      return { items: listed.items, complete: listed.complete, warnings, logs };
-    });
+        if (wanted.length > MAX_CRASH_LOGS_PER_SYNC) {
+          warnings.push(
+            'Some crash logs are not read yet: too many in one sync. They are read by the next ones.',
+          );
+        }
+        if (skipped > 0)
+          warnings.push(
+            'Some crash logs could not be read. They are tried again by the next sync.',
+          );
+        return { items: listed.items, complete: listed.complete, warnings, logs };
+      },
+    );
   } catch (error) {
     if (error instanceof StoreTimeout) return failed(timeoutFailure(), true);
     const mapped = mapStoreError(error, connection.secret);
     return failed(mapped.failure, !(error instanceof StoreRateLimitError));
   }
 
-  const known = await existingIds(ctx.db, input.workspaceId, app.id, read.items.map((i) => i.id));
+  const known = await existingIds(
+    ctx.db,
+    input.workspaceId,
+    app.id,
+    read.items.map((i) => i.id),
+  );
   const added = { feedback: 0, crashes: 0 };
   await ctx.db.transaction(async (tx) => {
     const upserted = await upsertSubmissions(tx, {
@@ -273,7 +312,12 @@ export async function syncTestflight(
             workspaceId: input.workspaceId,
             type: kind === 'crash' ? 'testflight.crash' : 'testflight.feedback',
             subject: { appId: app.id },
-            payload: { appId: app.id, platform: app.platform, grouped: true, count: fresh.length - single.length },
+            payload: {
+              appId: app.id,
+              platform: app.platform,
+              grouped: true,
+              count: fresh.length - single.length,
+            },
             at,
           });
         }
@@ -348,7 +392,9 @@ export async function triageItem(
         detail: {
           appId: app.id,
           changed: result.changed,
-          ...(result.changed.includes('status') ? { statusFrom: result.from.status, statusTo: result.item.status } : {}),
+          ...(result.changed.includes('status')
+            ? { statusFrom: result.from.status, statusTo: result.item.status }
+            : {}),
           ...(result.changed.includes('assignee')
             ? { assigneeFrom: result.from.assigneeUserId, assigneeTo: result.item.assigneeUserId }
             : {}),
@@ -358,7 +404,8 @@ export async function triageItem(
     }
     return result;
   });
-  if (!done.ok) return done.error === 'not_found' ? feedbackNotFoundFailure() : assigneeNotMemberFailure();
+  if (!done.ok)
+    return done.error === 'not_found' ? feedbackNotFoundFailure() : assigneeNotMemberFailure();
   return { ok: true, item: done.item };
 }
 
@@ -373,16 +420,31 @@ export async function screenshotLinks(
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
   if (!supports(app.platform, 'testflightFeedbackApi')) return notSupportedFailure();
-  const ref = await appleRefOf(ctx.db, { workspaceId: input.workspaceId, appId: app.id, id: input.id });
+  const ref = await appleRefOf(ctx.db, {
+    workspaceId: input.workspaceId,
+    appId: app.id,
+    id: input.id,
+  });
   if (!ref) return feedbackNotFoundFailure();
   if (ref.kind !== 'feedback' || ref.screenshots === 0) return { ok: true, screenshots: [] };
-  const connected = await connect(ctx, input.workspaceId, app, TESTFLIGHT_SCREENSHOT_PURPOSE, input.actor);
+  const connected = await connect(
+    ctx,
+    input.workspaceId,
+    app,
+    TESTFLIGHT_SCREENSHOT_PURPOSE,
+    input.actor,
+  );
   if (!connected.ok) return connected;
   try {
-    const screenshots = await withConnector(ctx.readFactory, connected.connection.input, ctx.readTimeoutMs, async (connector) => {
-      if (!connector) throw new Error('no connector');
-      return connector.readScreenshots(ref.appleId);
-    });
+    const screenshots = await withConnector(
+      ctx.readFactory,
+      connected.connection.input,
+      ctx.readTimeoutMs,
+      async (connector) => {
+        if (!connector) throw new Error('no connector');
+        return connector.readScreenshots(ref.appleId);
+      },
+    );
     return { ok: true, screenshots };
   } catch (error) {
     if (error instanceof StoreTimeout) return timeoutFailure();

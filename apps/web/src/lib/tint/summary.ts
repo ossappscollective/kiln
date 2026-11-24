@@ -27,15 +27,38 @@ function measure(id: TokenRow['id'], t: SchemeTokens, scheme: Scheme): number {
   if (id === 'accentInk') return ratio(px(t.accentInk), surface);
   if (id === 'accentSolid') return ratio(px(t.onAccent), px(t.accentSolid));
   // Body text on the subtle tint, the weakest of the text colours over it.
-  const under = over(parseColor(t.tintSubtle) as NonNullable<ReturnType<typeof parseColor>>, surface);
+  const under = over(
+    parseColor(t.tintSubtle) as NonNullable<ReturnType<typeof parseColor>>,
+    surface,
+  );
   return Math.min(...themeSurfaces[scheme].texts.map((x) => ratio(x.fg, under)));
 }
 
-const SPEC: { id: TokenRow['id']; labelKey: string; min: number; pick: (t: SchemeTokens) => string }[] = [
+const SPEC: {
+  id: TokenRow['id'];
+  labelKey: string;
+  min: number;
+  pick: (t: SchemeTokens) => string;
+}[] = [
   { id: 'accent', labelKey: k('app:appearance.token.accent'), min: 3, pick: (t) => t.accent },
-  { id: 'accentInk', labelKey: k('app:appearance.token.accentInk'), min: 4.5, pick: (t) => t.accentInk },
-  { id: 'accentSolid', labelKey: k('app:appearance.token.accentSolid'), min: 4.5, pick: (t) => t.accentSolid },
-  { id: 'tintSubtle', labelKey: k('app:appearance.token.tint'), min: 4.5, pick: (t) => t.tintSubtle },
+  {
+    id: 'accentInk',
+    labelKey: k('app:appearance.token.accentInk'),
+    min: 4.5,
+    pick: (t) => t.accentInk,
+  },
+  {
+    id: 'accentSolid',
+    labelKey: k('app:appearance.token.accentSolid'),
+    min: 4.5,
+    pick: (t) => t.accentSolid,
+  },
+  {
+    id: 'tintSubtle',
+    labelKey: k('app:appearance.token.tint'),
+    min: 4.5,
+    pick: (t) => t.tintSubtle,
+  },
 ];
 
 export function tokenRows(tint: AppTint): TokenRow[] {
@@ -47,4 +70,3 @@ export function tokenRows(tint: AppTint): TokenRow[] {
     ratio: { light: measure(s.id, tint.light, 'light'), dark: measure(s.id, tint.dark, 'dark') },
   }));
 }
-

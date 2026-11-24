@@ -431,7 +431,27 @@ test('plan errors for the rollout codes show the server sentence', () => {
 
 test('releasesOfVersion lists tracks production first, internal after the closed and open ones', async () => {
   const { releasesOfVersion } = await import('./release.ts');
-  const r = (track: string, id: string) => ({ id, appId: 'a', platform: 'android', version: '1.0', track, build: null, status: 'live', rawState: 'completed', rolloutFraction: null, versionCodes: ['1'], storeUpdatedAt: null, syncedAt: 0 }) as never;
-  const out = releasesOfVersion([r('internal', 'i'), r('alpha', 'a'), r('production', 'p'), r('beta', 'b')], '1.0');
-  assert.deepEqual(out.map((x) => (x as { track: string }).track), ['production', 'beta', 'alpha', 'internal']);
+  const r = (track: string, id: string) =>
+    ({
+      id,
+      appId: 'a',
+      platform: 'android',
+      version: '1.0',
+      track,
+      build: null,
+      status: 'live',
+      rawState: 'completed',
+      rolloutFraction: null,
+      versionCodes: ['1'],
+      storeUpdatedAt: null,
+      syncedAt: 0,
+    }) as never;
+  const out = releasesOfVersion(
+    [r('internal', 'i'), r('alpha', 'a'), r('production', 'p'), r('beta', 'b')],
+    '1.0',
+  );
+  assert.deepEqual(
+    out.map((x) => (x as { track: string }).track),
+    ['production', 'beta', 'alpha', 'internal'],
+  );
 });

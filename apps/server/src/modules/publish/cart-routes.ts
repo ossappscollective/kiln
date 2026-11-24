@@ -14,7 +14,15 @@ import {
   type ReviewReplyConnectorFactory,
   type ReviewReplyContext,
 } from '../reviews/replies.ts';
-import { type CartContext, type CartRights, cartItemDetail, cartSummary, discardCart, getCart, publishCart } from './cart.ts';
+import {
+  type CartContext,
+  type CartRights,
+  cartItemDetail,
+  cartSummary,
+  discardCart,
+  getCart,
+  publishCart,
+} from './cart.ts';
 import {
   type DraftConnectorFactory,
   type DraftContext,
@@ -69,9 +77,7 @@ export const cartPublishBody = z
     confirmation: z.string().max(80).optional(),
   })
   .strict();
-export const cartDiscardBody = z
-  .object({ ids: z.array(itemId).min(1).max(200) })
-  .strict();
+export const cartDiscardBody = z.object({ ids: z.array(itemId).min(1).max(200) }).strict();
 
 const STAGED_PREFIXES = ['listing:', 'graphics:', 'release:'];
 const PRICE_PREFIX = 'price:';
@@ -157,9 +163,20 @@ export function cartRoutes(ctx: CartRoutesContext) {
   routes.get('/:workspaceId/apps/:id/pending/cart/detail', needs('listing.read'), async (c) => {
     const id = itemId.safeParse(c.req.query('id') ?? '');
     if (!id.success) {
-      return c.json({ error: 'invalid_request', issues: [{ path: 'id', message: 'The id of a cart item: <kind>:<id>.' }] }, 400);
+      return c.json(
+        {
+          error: 'invalid_request',
+          issues: [{ path: 'id', message: 'The id of a cart item: <kind>:<id>.' }],
+        },
+        400,
+      );
     }
-    const done = await cartItemDetail(cart, { workspaceId: ws(c), appId: param(c, 'id'), id: id.data, rights: rightsOf(c) });
+    const done = await cartItemDetail(cart, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      id: id.data,
+      rights: rightsOf(c),
+    });
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ detail: done.detail }) : respond(c, done);
   });
@@ -176,7 +193,9 @@ export function cartRoutes(ctx: CartRoutesContext) {
     }
     // Sending a price is the strictest step-up action: asked before anything is read, only when the request names a price.
     if (body.data.items.some((i) => i.id.startsWith(PRICE_PREFIX))) {
-      const refusal = await requireStepUp({ db, now: ctx.now }, c, PRICE_STEP_UP, { id: param(c, 'id') });
+      const refusal = await requireStepUp({ db, now: ctx.now }, c, PRICE_STEP_UP, {
+        id: param(c, 'id'),
+      });
       if (refusal) return refusal;
     }
     const done = await publishCart(cart, {

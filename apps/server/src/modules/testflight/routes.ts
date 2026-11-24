@@ -15,7 +15,13 @@ import {
   triageItem,
 } from './service.ts';
 import { rateLimitedBody, type TestflightContext } from './shared.ts';
-import { isTriageStatus, type ListFilter, MAX_NOTE_CHARS, TRIAGE_STATUSES, type TriageStatus } from './store.ts';
+import {
+  isTriageStatus,
+  type ListFilter,
+  MAX_NOTE_CHARS,
+  TRIAGE_STATUSES,
+  type TriageStatus,
+} from './store.ts';
 
 /**
  * TestFlight beta feedback and crash submissions of an app (docs/api/testflight-feedback.md). Reads and the sync are read-only toward Apple; the
@@ -41,7 +47,10 @@ const triageBody = z
     internalNote: z.string().max(MAX_NOTE_CHARS).nullable().optional(),
   })
   .strict()
-  .refine((v) => Object.keys(v).length > 0, 'Send at least one of status, assigneeUserId and internalNote.');
+  .refine(
+    (v) => Object.keys(v).length > 0,
+    'Send at least one of status, assigneeUserId and internalNote.',
+  );
 
 type Issue = { path: string; message: string };
 
@@ -52,11 +61,17 @@ const list = (c: Context<AppEnv>, name: string): string[] =>
     .filter((v) => v !== '');
 
 /** The filter and paging of `GET /testflight`, or the issues to answer 400 with. */
-export function parseListQuery(c: Context<AppEnv>): { ok: true; filter: ListFilter } | { ok: false; issues: Issue[] } {
+export function parseListQuery(
+  c: Context<AppEnv>,
+): { ok: true; filter: ListFilter } | { ok: false; issues: Issue[] } {
   const issues: Issue[] = [];
   const kindRaw = c.req.query('kind') ?? 'feedback';
-  if (kindRaw !== 'feedback' && kindRaw !== 'crash') issues.push({ path: 'kind', message: 'Use feedback or crash.' });
-  const filter: ListFilter = { kind: kindRaw === 'crash' ? 'crash' : 'feedback', limit: DEFAULT_PAGE };
+  if (kindRaw !== 'feedback' && kindRaw !== 'crash')
+    issues.push({ path: 'kind', message: 'Use feedback or crash.' });
+  const filter: ListFilter = {
+    kind: kindRaw === 'crash' ? 'crash' : 'feedback',
+    limit: DEFAULT_PAGE,
+  };
   const build = c.req.query('build');
   if (build) {
     if (build.length <= 100) filter.build = build;
@@ -75,7 +90,11 @@ export function parseListQuery(c: Context<AppEnv>): { ok: true; filter: ListFilt
   const tester = c.req.query('tester');
   if (tester) {
     if (/^[0-9A-Fa-f]{6}$/.test(tester)) filter.tester = tester.toUpperCase();
-    else issues.push({ path: 'tester', message: 'The six character code of a tester, as the list shows it.' });
+    else
+      issues.push({
+        path: 'tester',
+        message: 'The six character code of a tester, as the list shows it.',
+      });
   }
   const signature = c.req.query('signature');
   if (signature) {
@@ -83,7 +102,8 @@ export function parseListQuery(c: Context<AppEnv>): { ok: true; filter: ListFilt
     else issues.push({ path: 'signature', message: 'At most 200 characters.' });
   }
   const limit = queryInt(c.req.query('limit'), { fallback: DEFAULT_PAGE, max: MAX_PAGE });
-  if (limit === undefined) issues.push({ path: 'limit', message: `A whole number from 1 to ${MAX_PAGE}.` });
+  if (limit === undefined)
+    issues.push({ path: 'limit', message: `A whole number from 1 to ${MAX_PAGE}.` });
   else filter.limit = limit;
   const cursor = c.req.query('cursor');
   if (cursor) {
@@ -159,7 +179,12 @@ export function testflightRoutes(ctx: TestflightContext) {
       c.header('Retry-After', String(wait));
       return c.json(rateLimitedBody(wait), 429);
     }
-    const done = await screenshotLinks(ctx, { workspaceId: ws(c), appId, id: param(c, 'id'), actor: actor(c) });
+    const done = await screenshotLinks(ctx, {
+      workspaceId: ws(c),
+      appId,
+      id: param(c, 'id'),
+      actor: actor(c),
+    });
     if (!done.ok) return respond(c, done);
     // Short lived links: nothing to keep in a cache.
     c.header('Cache-Control', 'no-store');

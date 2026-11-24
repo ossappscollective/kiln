@@ -5,7 +5,14 @@ import { fileURLToPath } from 'node:url';
 import { hexRatio, over, parseColor, ratio } from './contrast.ts';
 import { hueDistance, maxChroma, oklchToHex, parseHex, rgbToOklch } from './oklch.ts';
 import { extractPalette, NEUTRAL_PALETTE } from './palette.ts';
-import { deriveScheme, deriveTint, failures, themeSurfaces, tintStyle, type Scheme } from './tokens.ts';
+import {
+  deriveScheme,
+  deriveTint,
+  failures,
+  themeSurfaces,
+  tintStyle,
+  type Scheme,
+} from './tokens.ts';
 
 const css = readFileSync(fileURLToPath(new URL('../../styles/theme.css', import.meta.url)), 'utf8');
 
@@ -15,22 +22,41 @@ function block(selector: string): Record<string, string> {
   assert.ok(start >= 0, selector);
   const end = css.indexOf('\n}', start);
   const out: Record<string, string> = {};
-  for (const m of css.slice(start, end).matchAll(/--([a-z-]+):\s*(#[0-9a-fA-F]{6});/g)) out[m[1] as string] = m[2] as string;
+  for (const m of css.slice(start, end).matchAll(/--([a-z-]+):\s*(#[0-9a-fA-F]{6});/g))
+    out[m[1] as string] = m[2] as string;
   return out;
 }
 
 test('the surfaces the tint is judged against are the ones theme.css defines', () => {
   const light = block(':root {');
   const dark = block(':root[data-theme="dark"] {');
-  for (const name of ['ground', 'sidebar', 'surface', 'surface-sunken', 'surface-hover', 'surface-active', 'ink', 'muted', 'faint']) {
+  for (const name of [
+    'ground',
+    'sidebar',
+    'surface',
+    'surface-sunken',
+    'surface-hover',
+    'surface-active',
+    'ink',
+    'muted',
+    'faint',
+  ]) {
     assert.ok(light[name], `light ${name}`);
     assert.ok(dark[name], `dark ${name}`);
   }
   const rgb = (hex: string) => parseHex(hex);
   assert.deepEqual(themeSurfaces.light.ground, rgb(light.ground as string));
   assert.deepEqual(themeSurfaces.dark.ground, rgb(dark.ground as string));
-  assert.deepEqual(themeSurfaces.light.backgrounds, ['ground', 'sidebar', 'surface', 'surface-sunken', 'surface-hover', 'surface-active'].map((n) => rgb(light[n] as string)));
-  assert.deepEqual(themeSurfaces.dark.texts.map((t) => t.fg), ['ink', 'muted', 'faint'].map((n) => rgb(dark[n] as string)));
+  assert.deepEqual(
+    themeSurfaces.light.backgrounds,
+    ['ground', 'sidebar', 'surface', 'surface-sunken', 'surface-hover', 'surface-active'].map((n) =>
+      rgb(light[n] as string),
+    ),
+  );
+  assert.deepEqual(
+    themeSurfaces.dark.texts.map((t) => t.fg),
+    ['ink', 'muted', 'faint'].map((n) => rgb(dark[n] as string)),
+  );
 });
 
 test('OKLCH round trip and gamut clamp', () => {
@@ -62,7 +88,15 @@ function pixels(spec: [number, number, number, number][], each = 50): number[] {
 }
 
 test('palette: primary by chroma and population, secondary distinct, deterministic', () => {
-  const data = pixels([[220, 40, 40, 255], [40, 80, 220, 255], [255, 255, 255, 255], [0, 0, 0, 255]], 100);
+  const data = pixels(
+    [
+      [220, 40, 40, 255],
+      [40, 80, 220, 255],
+      [255, 255, 255, 255],
+      [0, 0, 0, 255],
+    ],
+    100,
+  );
   // red x1, blue x1 equal weight; add more blue
   const more = [...data, ...pixels([[40, 80, 220, 255]], 200)];
   const p = extractPalette(more);
@@ -74,7 +108,17 @@ test('palette: primary by chroma and population, secondary distinct, determinist
 });
 
 test('palette: transparent, white, black and grey pixels are dropped; a mark with no chroma is neutral', () => {
-  assert.deepEqual(extractPalette(pixels([[255, 255, 255, 255], [0, 0, 0, 255], [128, 128, 128, 255], [200, 30, 30, 10]])), NEUTRAL_PALETTE);
+  assert.deepEqual(
+    extractPalette(
+      pixels([
+        [255, 255, 255, 255],
+        [0, 0, 0, 255],
+        [128, 128, 128, 255],
+        [200, 30, 30, 10],
+      ]),
+    ),
+    NEUTRAL_PALETTE,
+  );
   assert.deepEqual(extractPalette([]), NEUTRAL_PALETTE);
   // A tiny coloured speck on white is below the share: neutral.
   const speck = [...pixels([[255, 255, 255, 255]], 1000), ...pixels([[220, 40, 40, 255]], 5)];
@@ -87,7 +131,17 @@ test('palette: transparent, white, black and grey pixels are dropped; a mark wit
 });
 
 test('palette: merges neighbouring hues into one colour, returns at most three', () => {
-  const data = pixels([[220, 40, 40, 255], [225, 60, 30, 255], [40, 80, 220, 255], [40, 200, 80, 255], [230, 200, 30, 255], [160, 40, 200, 255]], 60);
+  const data = pixels(
+    [
+      [220, 40, 40, 255],
+      [225, 60, 30, 255],
+      [40, 80, 220, 255],
+      [40, 200, 80, 255],
+      [230, 200, 30, 255],
+      [160, 40, 200, 255],
+    ],
+    60,
+  );
   const p = extractPalette(data);
   assert.ok(p.colors.length <= 3);
   assert.equal(new Set(p.colors).size, p.colors.length);
@@ -117,7 +171,10 @@ test('every derived pair passes WCAG over all hues, chroma levels and both theme
             const sub = parseColor(t.tintSubtle) as never;
             const under = over(sub, bg);
             const r = { r: Math.round(under.r), g: Math.round(under.g), b: Math.round(under.b) };
-            assert.ok(ratio(parseHex(t.accentInk) as never, r) >= 4.5, `ink on subtle ${scheme} ${hex}`);
+            assert.ok(
+              ratio(parseHex(t.accentInk) as never, r) >= 4.5,
+              `ink on subtle ${scheme} ${hex}`,
+            );
           }
         }
       }
@@ -129,7 +186,18 @@ test('every derived pair passes WCAG over all hues, chroma levels and both theme
 });
 
 test('yellow, lime and deep blue extremes derive safe tokens (or fall back)', () => {
-  for (const hex of ['#ffff00', '#ffe600', '#c6ff00', '#bfff00', '#00008b', '#0a0aff', '#000080', '#1a1aa6', '#ff00ff', '#00ffff']) {
+  for (const hex of [
+    '#ffff00',
+    '#ffe600',
+    '#c6ff00',
+    '#bfff00',
+    '#00008b',
+    '#0a0aff',
+    '#000080',
+    '#1a1aa6',
+    '#ff00ff',
+    '#00ffff',
+  ]) {
     for (const scheme of schemes) {
       const t = deriveScheme(hex, scheme);
       if (t) assert.deepEqual(failures(t, themeSurfaces[scheme]), [], `${scheme} ${hex}`);
@@ -138,11 +206,24 @@ test('yellow, lime and deep blue extremes derive safe tokens (or fall back)', ()
   // Yellow keeps its hue in the accent text (a dark gold in light, the bright one in dark).
   const y = deriveScheme('#ffe600', 'light');
   assert.ok(y);
-  assert.ok(hueDistance(rgbToOklch(parseHex(y.accentInk) as never).h, rgbToOklch(parseHex('#ffe600') as never).h) < 12);
+  assert.ok(
+    hueDistance(
+      rgbToOklch(parseHex(y.accentInk) as never).h,
+      rgbToOklch(parseHex('#ffe600') as never).h,
+    ) < 12,
+  );
 });
 
 test('monochrome or grey input gives no tint', () => {
-  for (const hex of ['#000000', '#ffffff', '#808080', '#8a8b8c', '#f0f0f0', 'not a colour', '#12']) {
+  for (const hex of [
+    '#000000',
+    '#ffffff',
+    '#808080',
+    '#8a8b8c',
+    '#f0f0f0',
+    'not a colour',
+    '#12',
+  ]) {
     assert.equal(deriveTint(hex), null, hex);
   }
 });
@@ -159,7 +240,16 @@ test('tintStyle writes both themes and nothing for no tint', () => {
   assert.equal(tintStyle(null), '');
   const s = tintStyle(deriveTint('#e8590c'));
   for (const prefix of ['l', 'd'])
-    for (const key of ['accent', 'accent-ink', 'accent-hover', 'accent-solid', 'on-accent', 'tint-subtle', 'tint-strong', 'glow'])
+    for (const key of [
+      'accent',
+      'accent-ink',
+      'accent-hover',
+      'accent-solid',
+      'on-accent',
+      'tint-subtle',
+      'tint-strong',
+      'glow',
+    ])
       assert.ok(s.includes(`--tint-${prefix}-${key}:#`), `${prefix} ${key}`);
   assert.ok(!/--accent\b|--ink\b/.test(s), 'the style names no token the UI reads');
 });

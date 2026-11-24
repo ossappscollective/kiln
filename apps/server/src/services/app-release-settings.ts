@@ -154,12 +154,10 @@ export async function updateAppReleaseSettings(
     } else issues.push({ path: key, message: 'Not a release setting of an app.' });
   }
   if (issues.length > 0)
-    return failure(
-      422,
-      'invalid_setting',
-      'A release setting is not valid.',
-      { issues, ...coded('app.releaseSettingInvalid') },
-    );
+    return failure(422, 'invalid_setting', 'A release setting is not valid.', {
+      issues,
+      ...coded('app.releaseSettingInvalid'),
+    });
   return db.transaction(async (tx) => {
     const before = await readAppReleaseSettings(tx, input.workspaceId, input.appId);
     const after: AppReleaseSettings = { ...before, ...next };

@@ -452,7 +452,13 @@ export async function pendingItemsOf(
 // What a row of the Pending page that is NOT in the cart contains (docs/api/pending.md, docs/adr/0067-diff-and-preview.md)
 
 /** The kinds that are not staged rows: their facts come from the push record, the last sync and the release plans. Staged kinds are read as cart items. */
-export const PENDING_DETAIL_KINDS = ['pushed_draft', 'draft_release', 'in_review', 'approved', 'rollout_step'] as const;
+export const PENDING_DETAIL_KINDS = [
+  'pushed_draft',
+  'draft_release',
+  'in_review',
+  'approved',
+  'rollout_step',
+] as const;
 export type PendingDetailKind = (typeof PENDING_DETAIL_KINDS)[number];
 /** Most texts and sets listed in the detail of a pushed draft. */
 export const PENDING_DETAIL_MAX = 200;
@@ -472,7 +478,12 @@ export type PendingItemDetail = {
   /** Google Play: a draft release that waits for the release step. */
   draftRelease?: { track: string; codes: string[]; since: number | null };
   /** A version in review or approved, as of the last store sync. */
-  release?: { version: string; track: string | null; status: 'in_review' | 'approved'; since: number | null };
+  release?: {
+    version: string;
+    track: string | null;
+    status: 'in_review' | 'approved';
+    since: number | null;
+  };
   /** A due step of a release plan. */
   rolloutStep?: { planVersion: string; percent: number; plannedAt: number };
 };
@@ -487,8 +498,14 @@ export async function pendingItemDetail(
 ): Promise<{ ok: true; detail: PendingItemDetail } | Failure> {
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
-  const facts = await loadPendingFacts(db, { workspaceId: input.workspaceId, appId: app.id, now: input.now });
-  const item = itemsOf(app, facts, undefined).find((i) => i.kind === input.kind && i.id === input.id);
+  const facts = await loadPendingFacts(db, {
+    workspaceId: input.workspaceId,
+    appId: app.id,
+    now: input.now,
+  });
+  const item = itemsOf(app, facts, undefined).find(
+    (i) => i.kind === input.kind && i.id === input.id,
+  );
   if (!item) return failure(404, 'not_found');
   const detail: PendingItemDetail = { kind: input.kind, id: input.id };
   if (input.kind === 'pushed_draft') {
@@ -497,12 +514,24 @@ export async function pendingItemDetail(
     detail.pushedDraft = {
       versionString: r.versionString,
       pushedAt: r.pushedAt,
-      texts: r.manifest.text.slice(0, PENDING_DETAIL_MAX).map((t) => ({ locale: t.locale, field: t.field })),
+      texts: r.manifest.text
+        .slice(0, PENDING_DETAIL_MAX)
+        .map((t) => ({ locale: t.locale, field: t.field })),
       sets: r.manifest.assets
         .slice(0, PENDING_DETAIL_MAX)
-        .map((a) => ({ locale: a.locale, key: a.key, kind: String(a.kind), device: a.device, files: a.files.length })),
-      release: r.manifest.release ? { track: r.manifest.release.track, codes: [...r.manifest.release.codes] } : null,
-      truncated: r.manifest.text.length > PENDING_DETAIL_MAX || r.manifest.assets.length > PENDING_DETAIL_MAX,
+        .map((a) => ({
+          locale: a.locale,
+          key: a.key,
+          kind: String(a.kind),
+          device: a.device,
+          files: a.files.length,
+        })),
+      release: r.manifest.release
+        ? { track: r.manifest.release.track, codes: [...r.manifest.release.codes] }
+        : null,
+      truncated:
+        r.manifest.text.length > PENDING_DETAIL_MAX ||
+        r.manifest.assets.length > PENDING_DETAIL_MAX,
     };
   } else if (input.kind === 'draft_release') {
     const d = draftReleasesOf(app, facts).find((x) => x.id === input.id);
@@ -511,7 +540,12 @@ export async function pendingItemDetail(
   } else if (input.kind === 'in_review' || input.kind === 'approved') {
     const r = (facts.releases.get(app.id) ?? []).find((x) => `release:${x.id}` === input.id);
     if (!r) return failure(404, 'not_found');
-    detail.release = { version: r.version, track: r.track === '' ? null : r.track, status: input.kind, since: r.since };
+    detail.release = {
+      version: r.version,
+      track: r.track === '' ? null : r.track,
+      status: input.kind,
+      since: r.since,
+    };
   } else {
     const s = (facts.steps.get(app.id) ?? []).find((x) => `rollout:${x.id}` === input.id);
     if (!s) return failure(404, 'not_found');

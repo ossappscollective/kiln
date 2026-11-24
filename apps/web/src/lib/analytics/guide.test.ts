@@ -28,12 +28,21 @@ test('each cause has its own guide; codes that need no guide have none', () => {
 
 test('the links carry the real developer account and bucket; without a bucket they fall back to the Play Console home', () => {
   const links = guideLinks(google());
-  assert.equal(links.usersAndPermissions, 'https://play.google.com/console/u/0/developers/01234567890123456789/users-and-permissions');
-  assert.equal(links.bucket, `https://console.cloud.google.com/storage/browser/${BUCKET};tab=permissions`);
+  assert.equal(
+    links.usersAndPermissions,
+    'https://play.google.com/console/u/0/developers/01234567890123456789/users-and-permissions',
+  );
+  assert.equal(
+    links.bucket,
+    `https://console.cloud.google.com/storage/browser/${BUCKET};tab=permissions`,
+  );
   const none = guideLinks(google({ bucketId: null }));
   assert.equal(none.usersAndPermissions, 'https://play.google.com/console');
   assert.equal(none.bucket, null);
-  assert.equal(links.vendor, 'https://appstoreconnect.apple.com/itc/payments_and_financial_reports');
+  assert.equal(
+    links.vendor,
+    'https://appstoreconnect.apple.com/itc/payments_and_financial_reports',
+  );
   assert.equal(links.usersAndAccess, 'https://appstoreconnect.apple.com/access/users');
 });
 
@@ -56,7 +65,13 @@ test('a refused Play source shows the guide, no dead "Grant the Play permission"
         lastOkAt: null,
         firstDay: null,
         lastDay: null,
-        setup: { code: 'play_sales_forbidden', nextStep: 'grant_play_financial_permission', alternatives: [], optional: false, message: '' },
+        setup: {
+          code: 'play_sales_forbidden',
+          nextStep: 'grant_play_financial_permission',
+          alternatives: [],
+          optional: false,
+          message: '',
+        },
         lastError: { code: 'play_sales_forbidden', message: '' },
       }),
       sourceOf({ source: 'play_reports' }),

@@ -16,7 +16,11 @@ export type CartSummaryLine = {
   count: number;
   kinds: Record<string, number | undefined>;
 };
-export type CartSummary = { apps: CartSummaryLine[]; totals: { apps: number; count: number }; generatedAt: number };
+export type CartSummary = {
+  apps: CartSummaryLine[];
+  totals: { apps: number; count: number };
+  generatedAt: number;
+};
 
 export const SUMMARY_KINDS = ['listing', 'graphics', 'release', 'price', 'review_reply'] as const;
 export const KIND_LABEL: Readonly<Record<(typeof SUMMARY_KINDS)[number], string>> = {
@@ -38,7 +42,10 @@ export type PendingRow = {
 };
 
 /** The lines of the summary merged per product (records of the same product join, as everywhere else); most pending first, then by name. */
-export function pendingRows(summary: CartSummary | null, apps: readonly AppSummary[] | null): PendingRow[] {
+export function pendingRows(
+  summary: CartSummary | null,
+  apps: readonly AppSummary[] | null,
+): PendingRow[] {
   if (summary === null) return [];
   const known = apps ?? [];
   const groups: AppGroup[] = groupApps(known);
@@ -46,7 +53,14 @@ export function pendingRows(summary: CartSummary | null, apps: readonly AppSumma
   for (const line of summary.apps) {
     const group = groups.find((g) => g.members.some((m) => m.id === line.appId));
     const key = group?.key ?? line.appId;
-    const row = byKey.get(key) ?? { key, name: group?.name ?? line.app.name, platforms: [], count: 0, kinds: [], appIds: [] };
+    const row = byKey.get(key) ?? {
+      key,
+      name: group?.name ?? line.app.name,
+      platforms: [],
+      count: 0,
+      kinds: [],
+      appIds: [],
+    };
     if (!row.platforms.includes(line.app.platform)) row.platforms.push(line.app.platform);
     row.count += line.count;
     row.appIds.push(line.appId);
@@ -60,19 +74,28 @@ export function pendingRows(summary: CartSummary | null, apps: readonly AppSumma
     byKey.set(key, row);
   }
   const rows = [...byKey.values()];
-  for (const r of rows) r.kinds.sort((a, b) => SUMMARY_KINDS.indexOf(a.kind) - SUMMARY_KINDS.indexOf(b.kind));
-  return rows.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name) || (a.key < b.key ? -1 : 1));
+  for (const r of rows)
+    r.kinds.sort((a, b) => SUMMARY_KINDS.indexOf(a.kind) - SUMMARY_KINDS.indexOf(b.kind));
+  return rows.sort(
+    (a, b) => b.count - a.count || a.name.localeCompare(b.name) || (a.key < b.key ? -1 : 1),
+  );
 }
 
 /** What the badge counts: the changes and the apps (products) that hold them; null when nothing is known, 0 apps when nothing is pending. */
-export function pendingTotals(rows: readonly PendingRow[], summary: CartSummary | null): { changes: number; apps: number } | null {
+export function pendingTotals(
+  rows: readonly PendingRow[],
+  summary: CartSummary | null,
+): { changes: number; apps: number } | null {
   if (summary === null) return null;
   return { changes: rows.reduce((n, r) => n + r.count, 0), apps: rows.length };
 }
 
 /** "12 pending changes across 4 apps": the whole label of the badge, for assistive technology and the tooltip. */
 export const pendingAcrossText = (totals: { changes: number; apps: number }): string =>
-  t('shell:badge.pendingAcross', { count: totals.apps, changes: t('shell:badge.pendingChanges', { count: totals.changes }) });
+  t('shell:badge.pendingAcross', {
+    count: totals.apps,
+    changes: t('shell:badge.pendingChanges', { count: totals.changes }),
+  });
 
 // ---------------------------------------------------------------------------------------------
 // The loader
@@ -131,7 +154,8 @@ export function createSummaryLoader(opts: {
     }
   }
   return {
-    summaryOf: (workspaceId: string): CartSummary | null => (workspaceId === workspace ? summary : null),
+    summaryOf: (workspaceId: string): CartSummary | null =>
+      workspaceId === workspace ? summary : null,
     refresh,
     request(workspaceId: string): void {
       scope(workspaceId);

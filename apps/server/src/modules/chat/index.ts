@@ -6,14 +6,21 @@ import { type ChatRoutesContext, chatRoutes } from './routes.ts';
  * summary and the delivery log. Alerts reach them through `raiseAlert` (modules/alerts/service.ts calls `routeAlertToChat`); the
  * worker sends them (`createChatDeliveryHandler`, queue `chat.deliver`).
  */
-export type ChatDeps = Partial<Pick<ChatRoutesContext, 'allowPrivate' | 'resolve' | 'send' | 'timeoutMs' | 'limiter'>>;
+export type ChatDeps = Partial<
+  Pick<ChatRoutesContext, 'allowPrivate' | 'resolve' | 'send' | 'timeoutMs' | 'limiter'>
+>;
 
 export const chatModule: ServerModule<ChatDeps> = {
   id: 'chat',
   mount(app, services, deps) {
     app.route(
       '/api/workspaces',
-      chatRoutes({ db: services.db, masterKey: services.masterKey, now: services.now, ...(deps ?? {}) }),
+      chatRoutes({
+        db: services.db,
+        masterKey: services.masterKey,
+        now: services.now,
+        ...(deps ?? {}),
+      }),
     );
   },
 };

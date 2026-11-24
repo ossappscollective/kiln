@@ -129,12 +129,13 @@ export function cleanTexts(input: {
 }): { ok: true; texts: LocalizationTexts } | Failure {
   const name = input.name.replace(/\r\n?/g, '\n').trim();
   const description = input.description.replace(/\r\n?/g, '\n').trim();
-  if (name === '') return failure(
-    422,
-    'invalid_text',
-    'The display name cannot be empty.',
-    coded('monetization.nameEmpty'),
-  );
+  if (name === '')
+    return failure(
+      422,
+      'invalid_text',
+      'The display name cannot be empty.',
+      coded('monetization.nameEmpty'),
+    );
   if (name.includes('\n'))
     return failure(
       422,
@@ -271,12 +272,13 @@ async function resolve(
       coded('notFound.product'),
     );
   const stored = await readStoredProductRef(ctx.db, input.workspaceId, app.id, input.productId);
-  if (!stored) return failure(
-    404,
-    'product_not_found',
-    'No such product. Sync the app first.',
-    coded('notFound.product'),
-  );
+  if (!stored)
+    return failure(
+      404,
+      'product_not_found',
+      'No such product. Sync the app first.',
+      coded('notFound.product'),
+    );
   const texts = cleanTexts(input);
   if (!('texts' in texts)) return texts;
   return {

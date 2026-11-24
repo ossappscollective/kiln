@@ -3,7 +3,14 @@
  * the charts. Events come from `GET .../apps/{appId}/timeline` (docs/api/timeline.md); a Kiln event is a code with parameters and is
  * translated here, a person's own event carries the title they wrote. Nothing in this file reads the network or the clock.
  */
-import { type Platform, type TimelineEvent, type TimelineEventKind, addDays, daysBetween, timelineEventKinds } from '@kiln/core';
+import {
+  type Platform,
+  type TimelineEvent,
+  type TimelineEventKind,
+  addDays,
+  daysBetween,
+  timelineEventKinds,
+} from '@kiln/core';
 import { type PlatformScope, appAddress } from '../app-scope.ts';
 import { formatDay } from '../analytics/analytics.ts';
 import { asoViewHref } from '../aso/aso.ts';
@@ -85,11 +92,16 @@ export function eventText(e: Pick<TimelineEvent, 'kind' | 'origin' | 'title' | '
   const count = Number(p.count ?? 0);
   switch (label?.code) {
     case 'release':
-      return p.track ? t(labelKeys.releaseTrack, { version: String(p.version ?? ''), track: String(p.track) }) : t(labelKeys.release, { version: String(p.version ?? '') });
+      return p.track
+        ? t(labelKeys.releaseTrack, { version: String(p.version ?? ''), track: String(p.track) })
+        : t(labelKeys.release, { version: String(p.version ?? '') });
     case 'releaseRollingOut':
       return t(labelKeys.releaseRollingOut, { version: String(p.version ?? '') });
     case 'rolloutStep':
-      return t(labelKeys.rolloutStep, { version: String(p.version ?? ''), percent: Number(p.percent ?? 0) });
+      return t(labelKeys.rolloutStep, {
+        version: String(p.version ?? ''),
+        percent: Number(p.percent ?? 0),
+      });
     case 'graphics':
       return t(labelKeys.graphics, { count });
     case 'listingText':
@@ -114,20 +126,25 @@ export function eventText(e: Pick<TimelineEvent, 'kind' | 'origin' | 'title' | '
   }
 }
 
-const withParam = (href: string, key: string, value: string): string => `${href}${href.indexOf('?') < 0 ? '?' : '&'}${key}=${value}`;
+const withParam = (href: string, key: string, value: string): string =>
+  `${href}${href.indexOf('?') < 0 ? '?' : '&'}${key}=${value}`;
 
 /**
  * The page of the object an event is about, or null (a person's own event, a version that is not known). Release and rollout events
  * open the release; page changes open the Store listing (graphics: its Graphics view); experiments open Insights, Experiments.
  * The API has no review or build events, so there is no link to either.
  */
-export function eventHref(e: Pick<TimelineEntry, 'kind' | 'origin' | 'version' | 'appId' | 'platform'>): string | null {
+export function eventHref(
+  e: Pick<TimelineEntry, 'kind' | 'origin' | 'version' | 'appId' | 'platform'>,
+): string | null {
   if (e.origin === 'manual') return null;
   const scope: PlatformScope = e.platform;
   switch (e.kind) {
     case 'release':
     case 'rollout':
-      return e.version ? appAddress(e.appId, 'releases', scope, e.version) : appAddress(e.appId, 'releases', scope);
+      return e.version
+        ? appAddress(e.appId, 'releases', scope, e.version)
+        : appAddress(e.appId, 'releases', scope);
     case 'graphics':
       return withParam(appAddress(e.appId, 'listing', scope), 'view', 'graphics');
     case 'listing_text':
@@ -143,34 +160,57 @@ export function eventHref(e: Pick<TimelineEntry, 'kind' | 'origin' | 'version' |
   }
 }
 
-const kindOrder = (kind: TimelineEventKind): number => (timelineEventKinds as readonly string[]).indexOf(kind);
+const kindOrder = (kind: TimelineEventKind): number =>
+  (timelineEventKinds as readonly string[]).indexOf(kind);
 
 /** Newest day first; inside a day the order of kinds the server uses, then the platform, then the id (stable across reads). */
 export function sortEntries(entries: readonly TimelineEntry[]): TimelineEntry[] {
   return entries
     .slice()
-    .sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0) || kindOrder(a.kind) - kindOrder(b.kind) || (a.platform < b.platform ? -1 : a.platform > b.platform ? 1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    .sort(
+      (a, b) =>
+        (a.day < b.day ? 1 : a.day > b.day ? -1 : 0) ||
+        kindOrder(a.kind) - kindOrder(b.kind) ||
+        (a.platform < b.platform ? -1 : a.platform > b.platform ? 1 : 0) ||
+        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+    );
 }
 
 /** The events of every app record as one list (an event id is only unique inside one app, so the app is part of the key). */
-export const entriesOf = (reads: readonly { app: { id: string; platform: Platform }; events: readonly TimelineEvent[] }[]): TimelineEntry[] =>
-  sortEntries(reads.flatMap((r) => r.events.map((e) => ({ ...e, appId: r.app.id, platform: r.app.platform }))));
+export const entriesOf = (
+  reads: readonly { app: { id: string; platform: Platform }; events: readonly TimelineEvent[] }[],
+): TimelineEntry[] =>
+  sortEntries(
+    reads.flatMap((r) =>
+      r.events.map((e) => ({ ...e, appId: r.app.id, platform: r.app.platform })),
+    ),
+  );
 
 export const entryKey = (e: Pick<TimelineEntry, 'appId' | 'id'>): string => `${e.appId}/${e.id}`;
 
 /** The chips of the filter row: only kinds that occur, in the fixed order, each with its count. */
-export function kindCounts(entries: readonly TimelineEntry[]): { kind: TimelineEventKind; count: number }[] {
+export function kindCounts(
+  entries: readonly TimelineEntry[],
+): { kind: TimelineEventKind; count: number }[] {
   const counts = new Map<TimelineEventKind, number>();
   for (const e of entries) counts.set(e.kind, (counts.get(e.kind) ?? 0) + 1);
-  return timelineEventKinds.filter((kind) => counts.has(kind)).map((kind) => ({ kind, count: counts.get(kind) ?? 0 }));
+  return timelineEventKinds
+    .filter((kind) => counts.has(kind))
+    .map((kind) => ({ kind, count: counts.get(kind) ?? 0 }));
 }
 
 /** No chip pressed means every kind. */
-export const filterEntries = (entries: readonly TimelineEntry[], kinds: ReadonlySet<TimelineEventKind>): TimelineEntry[] =>
+export const filterEntries = (
+  entries: readonly TimelineEntry[],
+  kinds: ReadonlySet<TimelineEventKind>,
+): TimelineEntry[] =>
   kinds.size === 0 ? entries.slice() : entries.filter((e) => kinds.has(e.kind));
 
 /** One chip toggled; the set is never mutated. */
-export function toggleKind(kinds: ReadonlySet<TimelineEventKind>, kind: TimelineEventKind): Set<TimelineEventKind> {
+export function toggleKind(
+  kinds: ReadonlySet<TimelineEventKind>,
+  kind: TimelineEventKind,
+): Set<TimelineEventKind> {
   const next = new Set(kinds);
   if (next.has(kind)) next.delete(kind);
   else next.add(kind);
@@ -194,13 +234,17 @@ export function groupByDay(entries: readonly TimelineEntry[]): DayGroup[] {
 export const PAGE_SIZE = 60;
 
 /** The first `limit` events as day groups (a burst on one day may be cut in the middle), and how many are left. */
-export function pageOf(entries: readonly TimelineEntry[], limit: number): { groups: DayGroup[]; shown: number; rest: number } {
+export function pageOf(
+  entries: readonly TimelineEntry[],
+  limit: number,
+): { groups: DayGroup[]; shown: number; rest: number } {
   const shown = Math.min(entries.length, Math.max(0, limit));
   return { groups: groupByDay(entries.slice(0, shown)), shown, rest: entries.length - shown };
 }
 
 /** The day heading: a date, with the year when it is not the year of `today`. */
-export const dayHeading = (day: string, today: string): string => formatDay(day, day.slice(0, 4) !== today.slice(0, 4));
+export const dayHeading = (day: string, today: string): string =>
+  formatDay(day, day.slice(0, 4) !== today.slice(0, 4));
 
 // ---------------------------------------------------------------------------------------------
 // Markers on the charts
@@ -218,10 +262,14 @@ export const MARKER_LINES = 3;
  * at most `cap` markers. When more days have events, the days with the most events stay (the newest first among equals); `hidden`
  * is how many days were left out, so the screen can say so.
  */
-export function markersFor(entries: readonly Pick<TimelineEntry, 'day' | 'kind' | 'origin' | 'title' | 'label'>[], dates: readonly string[], cap = MAX_MARKERS): { markers: DayMarker[]; hidden: number } {
+export function markersFor(
+  entries: readonly Pick<TimelineEntry, 'day' | 'kind' | 'origin' | 'title' | 'label'>[],
+  dates: readonly string[],
+  cap = MAX_MARKERS,
+): { markers: DayMarker[]; hidden: number } {
   const index = new Map<string, number>();
   dates.forEach((d, i) => index.set(d, i));
-  const perDay = new Map<string, typeof entries[number][]>();
+  const perDay = new Map<string, (typeof entries)[number][]>();
   for (const e of entries) {
     if (!index.has(e.day)) continue;
     const list = perDay.get(e.day);
@@ -231,14 +279,27 @@ export function markersFor(entries: readonly Pick<TimelineEntry, 'day' | 'kind' 
   const all: DayMarker[] = [];
   perDay.forEach((list, day) => {
     const sorted = list.slice().sort((a, b) => kindOrder(a.kind) - kindOrder(b.kind));
-    all.push({ i: index.get(day) ?? 0, day, count: sorted.length, lines: sorted.slice(0, MARKER_LINES).map(eventText), more: Math.max(0, sorted.length - MARKER_LINES) });
+    all.push({
+      i: index.get(day) ?? 0,
+      day,
+      count: sorted.length,
+      lines: sorted.slice(0, MARKER_LINES).map(eventText),
+      more: Math.max(0, sorted.length - MARKER_LINES),
+    });
   });
-  const kept = all.length <= cap ? all : all.slice().sort((a, b) => b.count - a.count || b.i - a.i).slice(0, Math.max(0, cap));
+  const kept =
+    all.length <= cap
+      ? all
+      : all
+          .slice()
+          .sort((a, b) => b.count - a.count || b.i - a.i)
+          .slice(0, Math.max(0, cap));
   return { markers: kept.sort((a, b) => a.i - b.i), hidden: all.length - kept.length };
 }
 
 /** The sentence a screen reader hears for the marker of the day the cursor is on. */
-export const markerSpeech = (m: DayMarker): string => t('timeline:marker.spoken', { count: m.count, events: m.lines.join('; ') });
+export const markerSpeech = (m: DayMarker): string =>
+  t('timeline:marker.spoken', { count: m.count, events: m.lines.join('; ') });
 
 // ---------------------------------------------------------------------------------------------
 // Address
@@ -257,8 +318,11 @@ export function withTimelineSection(hash: string, id: string): string {
 /** The API reads at most 400 days including its impact window; a range as long as that is cut to its newest days. */
 export const MAX_WINDOW_DAYS = 380;
 export function windowFor(from: string, to: string): { from: string; to: string; cut: boolean } {
-  return daysBetween(from, to) + 1 > MAX_WINDOW_DAYS ? { from: addDays(to, -(MAX_WINDOW_DAYS - 1)), to, cut: true } : { from, to, cut: false };
+  return daysBetween(from, to) + 1 > MAX_WINDOW_DAYS
+    ? { from: addDays(to, -(MAX_WINDOW_DAYS - 1)), to, cut: true }
+    : { from, to, cut: false };
 }
 
 /** The id the API takes for a person's own event (`m:<id>` in a list, `<id>` in the address). */
-export const manualId = (e: Pick<TimelineEvent, 'id'>): string => (e.id.indexOf('m:') === 0 ? e.id.slice(2) : e.id);
+export const manualId = (e: Pick<TimelineEvent, 'id'>): string =>
+  e.id.indexOf('m:') === 0 ? e.id.slice(2) : e.id;

@@ -22,7 +22,8 @@ export function escapeTeams(value: string): string {
 const colorOf = { critical: 'Attention', warning: 'Warning', info: 'Accent' } as const;
 const styleOf = { critical: 'attention', warning: 'warning', info: 'accent' } as const;
 
-const safeUrl = (url: string) => url.replace(/\s/g, '%20').replace(/\)/g, '%29').replace(/\(/g, '%28');
+const safeUrl = (url: string) =>
+  url.replace(/\s/g, '%20').replace(/\)/g, '%29').replace(/\(/g, '%28');
 const open = (b: { label: string; url: string }) => ({
   type: 'Action.OpenUrl',
   title: b.label.slice(0, 100),
@@ -61,8 +62,21 @@ function messageCard(m: ChatMessage, bodyText: string): TeamsPayload {
       style: styleOf[m.severity],
       bleed: true,
       items: [
-        { type: 'TextBlock', text: escapeTeams(m.title), weight: 'Bolder', size: 'Large', wrap: true },
-        { type: 'TextBlock', text: escapeTeams(m.severityLabel), color: colorOf[m.severity], isSubtle: true, spacing: 'None', wrap: true },
+        {
+          type: 'TextBlock',
+          text: escapeTeams(m.title),
+          weight: 'Bolder',
+          size: 'Large',
+          wrap: true,
+        },
+        {
+          type: 'TextBlock',
+          text: escapeTeams(m.severityLabel),
+          color: colorOf[m.severity],
+          isSubtle: true,
+          spacing: 'None',
+          wrap: true,
+        },
       ],
     },
     { type: 'TextBlock', text: escapeTeams(bodyText), wrap: true },
@@ -86,7 +100,13 @@ function messageCard(m: ChatMessage, bodyText: string): TeamsPayload {
   for (const note of [m.repeated, m.noLink]) {
     if (note) body.push({ type: 'TextBlock', text: escapeTeams(note), wrap: true, isSubtle: true });
   }
-  body.push({ type: 'TextBlock', text: escapeTeams(m.footer), size: 'Small', isSubtle: true, wrap: true });
+  body.push({
+    type: 'TextBlock',
+    text: escapeTeams(m.footer),
+    size: 'Small',
+    isSubtle: true,
+    wrap: true,
+  });
   return envelope(body, m.buttons.slice(0, 6).map(open));
 }
 
@@ -109,8 +129,20 @@ function digestCard(d: ChatDigest, keep: number): TeamsPayload {
       style: 'accent',
       bleed: true,
       items: [
-        { type: 'TextBlock', text: escapeTeams(d.title), weight: 'Bolder', size: 'Large', wrap: true },
-        { type: 'TextBlock', text: escapeTeams(d.heading), isSubtle: true, spacing: 'None', wrap: true },
+        {
+          type: 'TextBlock',
+          text: escapeTeams(d.title),
+          weight: 'Bolder',
+          size: 'Large',
+          wrap: true,
+        },
+        {
+          type: 'TextBlock',
+          text: escapeTeams(d.heading),
+          isSubtle: true,
+          spacing: 'None',
+          wrap: true,
+        },
       ],
     },
     ...items.map((item) => ({
@@ -121,8 +153,15 @@ function digestCard(d: ChatDigest, keep: number): TeamsPayload {
       }`,
     })),
   ];
-  if (d.more) body.push({ type: 'TextBlock', text: escapeTeams(d.more), wrap: true, isSubtle: true });
-  body.push({ type: 'TextBlock', text: escapeTeams(d.footer), size: 'Small', isSubtle: true, wrap: true });
+  if (d.more)
+    body.push({ type: 'TextBlock', text: escapeTeams(d.more), wrap: true, isSubtle: true });
+  body.push({
+    type: 'TextBlock',
+    text: escapeTeams(d.footer),
+    size: 'Small',
+    isSubtle: true,
+    wrap: true,
+  });
   return envelope(body, d.buttons.slice(0, 6).map(open));
 }
 

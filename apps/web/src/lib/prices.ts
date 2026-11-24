@@ -40,17 +40,27 @@ export type PriceBlock = { kind: 'role' | 'server' | 'workspace'; message: strin
 
 /** The first reason a person cannot edit prices, in the order the server checks them; null when they can. Never a reason to hide the prices. */
 export function priceBlock(view: PriceWriteView | null, role: Role): PriceBlock | null {
-  if (!can(role, 'monetization.price')) return { kind: 'role', message: t('products:price.blockRole') };
+  if (!can(role, 'monetization.price'))
+    return { kind: 'role', message: t('products:price.blockRole') };
   if (view === null) return null;
   if (view.reason === 'server_switch')
-    return { kind: 'server', message: t('products:price.blockServer', { env: view.envName || PRICE_ENV }) };
-  if (view.reason === 'workspace_setting') return { kind: 'workspace', message: t('products:price.blockWorkspace', { setting: PRICE_SETTING }) };
+    return {
+      kind: 'server',
+      message: t('products:price.blockServer', { env: view.envName || PRICE_ENV }),
+    };
+  if (view.reason === 'workspace_setting')
+    return {
+      kind: 'workspace',
+      message: t('products:price.blockWorkspace', { setting: PRICE_SETTING }),
+    };
   return null;
 }
 
 // ----- reading what was typed --------------------------------------------------------------------
 
-export type AmountRead = { ok: true; minor: string } | { ok: false; problem: 'empty' | 'format' | 'precision' | 'zero' };
+export type AmountRead =
+  | { ok: true; minor: string }
+  | { ok: false; problem: 'empty' | 'format' | 'precision' | 'zero' };
 
 /**
  * `4.99`, `4,99` and `1,299.00` read as money in the currency's own number of decimals. More decimals than the currency has are refused,
@@ -62,7 +72,10 @@ export function readAmount(text: string, currency: string): AmountRead {
   if (s.includes(',') && !s.includes('.')) {
     const parts = s.split(',');
     // One comma with 1-2 digits after it is a decimal comma; groups of three digits are thousands separators.
-    s = parts.length === 2 && (parts[1] as string).length !== 3 ? `${parts[0]}.${parts[1]}` : parts.join('');
+    s =
+      parts.length === 2 && (parts[1] as string).length !== 3
+        ? `${parts[0]}.${parts[1]}`
+        : parts.join('');
   } else s = s.replace(/,/g, '');
   if (!/^\d+(\.\d+)?$/.test(s)) return { ok: false, problem: 'format' };
   const minor = parseDecimalMinor(s, currency);
@@ -76,17 +89,29 @@ const PROBLEM_KEYS = {
   precision: k('products:price.problem.precision'),
   zero: k('products:price.problem.zero'),
 } as const;
-export const amountProblemText = (problem: keyof typeof PROBLEM_KEYS, currency: string): string => t(PROBLEM_KEYS[problem], { currency });
+export const amountProblemText = (problem: keyof typeof PROBLEM_KEYS, currency: string): string =>
+  t(PROBLEM_KEYS[problem], { currency });
 
 // ----- the rows of the editor --------------------------------------------------------------------
 
 /** One territory of the editor: the current price (minor units), the text typed, and for Apple the price point picked. */
-export type PriceRow = { territory: string; currency: string; current: string; input: string; pricePointId: string | null };
+export type PriceRow = {
+  territory: string;
+  currency: string;
+  current: string;
+  input: string;
+  pricePointId: string | null;
+};
 
 export type RowChange =
   | { state: 'unchanged' }
   | { state: 'invalid'; problem: Extract<AmountRead, { ok: false }>['problem'] }
-  | { state: 'changed'; minor: string; bp: number | null; direction: 'increase' | 'decrease' | 'same' };
+  | {
+      state: 'changed';
+      minor: string;
+      bp: number | null;
+      direction: 'increase' | 'decrease' | 'same';
+    };
 
 export function rowChange(row: PriceRow): RowChange {
   if (row.input.trim() === '') return { state: 'unchanged' };
@@ -98,15 +123,21 @@ export function rowChange(row: PriceRow): RowChange {
   return { state: 'changed', minor: read.minor, bp, direction };
 }
 
-export const changedRows = (rows: readonly PriceRow[]): (PriceRow & { minor: string; bp: number | null })[] =>
+export const changedRows = (
+  rows: readonly PriceRow[],
+): (PriceRow & { minor: string; bp: number | null })[] =>
   rows.flatMap((r) => {
     const c = rowChange(r);
     return c.state === 'changed' ? [{ ...r, minor: c.minor, bp: c.bp }] : [];
   });
 
-export const hasInvalid = (rows: readonly PriceRow[]): boolean => rows.some((r) => rowChange(r).state === 'invalid');
+export const hasInvalid = (rows: readonly PriceRow[]): boolean =>
+  rows.some((r) => rowChange(r).state === 'invalid');
 
-export const stageLines = (rows: readonly PriceRow[], applePoints: boolean): PriceStageRequest['lines'] =>
+export const stageLines = (
+  rows: readonly PriceRow[],
+  applePoints: boolean,
+): PriceStageRequest['lines'] =>
   changedRows(rows).map((r) => ({
     territory: r.territory,
     newAmount: r.minor,
@@ -120,7 +151,8 @@ export const moneyChange = (before: string, after: string, currency: string): st
     to: formatMinorUnits(after, currency) || `${after} ${currency}`,
   });
 
-export const money = (amount: string, currency: string): string => formatMinorUnits(amount, currency) || `${amount} ${currency}`;
+export const money = (amount: string, currency: string): string =>
+  formatMinorUnits(amount, currency) || `${amount} ${currency}`;
 
 /** `+20%` (up), `-10%` (down); null when the current price is not a positive amount. */
 export const bpText = (bp: number | null): string => (bp === null ? '' : percentLabel(bp));
@@ -132,7 +164,12 @@ export const subscriberRules = (store: string, kind: ProductKind): readonly Pric
 
 export function limitsOf(view: PriceWriteView | null): PriceLimits {
   if (!view) return DEFAULT_PRICE_LIMITS;
-  return { ...DEFAULT_PRICE_LIMITS, relativeBp: Math.round(view.limits.relativeChangePercent * 100), absoluteMajor: view.limits.absoluteChangeMajor, maxTerritories: view.limits.maxTerritories };
+  return {
+    ...DEFAULT_PRICE_LIMITS,
+    relativeBp: Math.round(view.limits.relativeChangePercent * 100),
+    absoluteMajor: view.limits.absoluteChangeMajor,
+    maxTerritories: view.limits.maxTerritories,
+  };
 }
 
 /** The acknowledgements this draft needs, from its own numbers (the same function the server runs); the server stays the judge. */
@@ -150,7 +187,12 @@ export function neededAcks(input: {
     kind: input.kind,
     planId: null,
     baseTerritory: null,
-    lines: changedRows(input.rows).map((r) => ({ territory: r.territory, currency: r.currency, currentAmount: r.current, newAmount: r.minor })),
+    lines: changedRows(input.rows).map((r) => ({
+      territory: r.territory,
+      currency: r.currency,
+      currentAmount: r.current,
+      newAmount: r.minor,
+    })),
     effectiveDate: null,
     existingSubscribers: input.rule,
     acknowledgements: [],
@@ -159,13 +201,21 @@ export function neededAcks(input: {
 }
 
 /** The phrase for a set of price items: their number and the largest change among them (what the server computes from the same rows). */
-export const confirmationPhrase = (items: readonly Pick<StagedPriceChange, 'largestBp'>[]): string =>
-  priceConfirmationPhrase(items.length, items.reduce((m, i) => Math.max(m, i.largestBp), 0));
+export const confirmationPhrase = (
+  items: readonly Pick<StagedPriceChange, 'largestBp'>[],
+): string =>
+  priceConfirmationPhrase(
+    items.length,
+    items.reduce((m, i) => Math.max(m, i.largestBp), 0),
+  );
 
-export const samePhrase = (typed: string, expected: string): boolean => typed.trim().replace(/\s+/g, ' ') === expected;
+export const samePhrase = (typed: string, expected: string): boolean =>
+  typed.trim().replace(/\s+/g, ' ') === expected;
 
 /** Per currency: how many lines go up and down. Never a total: a euro and a dollar are not added. */
-export function perCurrency(lines: readonly StagedPriceChange['lines'][number][]): { currency: string; up: number; down: number }[] {
+export function perCurrency(
+  lines: readonly StagedPriceChange['lines'][number][],
+): { currency: string; up: number; down: number }[] {
   const out = new Map<string, { currency: string; up: number; down: number }>();
   for (const l of lines) {
     const row = out.get(l.currency) ?? { currency: l.currency, up: 0, down: 0 };
@@ -209,10 +259,15 @@ const ISSUE_KEYS = {
 
 /** One issue as a sentence, with the territory in front; an unknown code reads as the generic sentence. */
 export function issueText(issue: PriceIssueView, currency?: string): string {
-  const key = Object.prototype.hasOwnProperty.call(ISSUE_KEYS, issue.code) ? ISSUE_KEYS[issue.code as keyof typeof ISSUE_KEYS] : k('products:price.issue.other');
+  const key = Object.prototype.hasOwnProperty.call(ISSUE_KEYS, issue.code)
+    ? ISSUE_KEYS[issue.code as keyof typeof ISSUE_KEYS]
+    : k('products:price.issue.other');
   const base = t(key);
   const near = issue.detail?.nearest;
-  const hint = near && near.length > 0 && currency ? ` ${t('products:price.nearest', { list: near.map((p) => money(p.amount, p.currency)).join(', ') })}` : '';
+  const hint =
+    near && near.length > 0 && currency
+      ? ` ${t('products:price.nearest', { list: near.map((p) => money(p.amount, p.currency)).join(', ') })}`
+      : '';
   return `${issue.territory ? `${issue.territory}: ` : ''}${base}${hint}`;
 }
 
@@ -223,14 +278,23 @@ export type PriceFailure = {
 };
 
 const issuesOf = (value: unknown): PriceIssueView[] =>
-  Array.isArray(value) ? value.filter((v): v is PriceIssueView => typeof v === 'object' && v !== null && typeof (v as { code?: unknown }).code === 'string') : [];
+  Array.isArray(value)
+    ? value.filter(
+        (v): v is PriceIssueView =>
+          typeof v === 'object' && v !== null && typeof (v as { code?: unknown }).code === 'string',
+      )
+    : [];
 
 /** What a failed stage, convert, price-point read or dry run means for the person. The message is a sentence; nothing was sent to a store. */
 export function classifyPriceFailure(error: unknown): PriceFailure {
-  if (!(error instanceof ApiError)) return { kind: 'other', message: t('products:price.failure.network'), issues: [] };
+  if (!(error instanceof ApiError))
+    return { kind: 'other', message: t('products:price.failure.network'), issues: [] };
   const step = stepUpMessage(error.code, error.retryAfter);
   if (step !== undefined) return { kind: 'other', message: step, issues: [] };
-  const message = typeof error.body.message === 'string' && error.body.message !== '' ? error.body.message : error.message;
+  const message =
+    typeof error.body.message === 'string' && error.body.message !== ''
+      ? error.body.message
+      : error.message;
   switch (error.code) {
     case 'price_writes_disabled':
       return { kind: 'disabled', message, issues: [] };
@@ -242,7 +306,11 @@ export function classifyPriceFailure(error: unknown): PriceFailure {
     case 'forbidden':
       return { kind: 'other', message: t('products:price.blockRole'), issues: [] };
     default:
-      return { kind: error.status === 422 ? 'invalid' : 'other', message, issues: issuesOf(error.body.issues) };
+      return {
+        kind: error.status === 422 ? 'invalid' : 'other',
+        message,
+        issues: issuesOf(error.body.issues),
+      };
   }
 }
 
@@ -250,7 +318,14 @@ export function classifyPriceFailure(error: unknown): PriceFailure {
 
 export type PriceResultDetail = {
   productId: string;
-  lines: { territory: string; currency: string; before: string; after: string; outcome: string; code?: string }[];
+  lines: {
+    territory: string;
+    currency: string;
+    before: string;
+    after: string;
+    outcome: string;
+    code?: string;
+  }[];
   verification: 'confirmed' | 'store_shows' | 'unverified' | 'not_sent';
   mismatches: { territory: string; expected: string; actual: string | null }[];
   migration?: { requested: boolean; outcome: string; code?: string };

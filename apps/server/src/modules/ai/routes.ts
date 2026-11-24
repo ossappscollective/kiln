@@ -15,7 +15,12 @@ import { memberRole } from '../../services/accounts.ts';
 import { getApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { getAppContext, setAppContext } from './ai-app-context.ts';
-import { deleteAppSummaries, getAppReviewPolicy, previewReviewPayload, setAppReviewPolicy } from './ai-review-policy.ts';
+import {
+  deleteAppSummaries,
+  getAppReviewPolicy,
+  previewReviewPayload,
+  setAppReviewPolicy,
+} from './ai-review-policy.ts';
 import { type AiFailure, updateAiConfig } from './ai-config.ts';
 import { listAiModels } from './ai-models.ts';
 import { getReviewTags } from './ai-review-classes.ts';
@@ -65,7 +70,11 @@ const REVIEW_TASKS = new Set(['review_summary', 'fix_next', 'review_classify']);
 export const runTaskBody = z
   .object({
     appId: z.string().min(1).max(100),
-    locale: z.string().max(20).regex(/^[A-Za-z0-9_-]+$/).optional(),
+    locale: z
+      .string()
+      .max(20)
+      .regex(/^[A-Za-z0-9_-]+$/)
+      .optional(),
     /** Review summary: the language the summary is written in, and a new summary even when the stored one has the same reviews. */
     outputLanguage: z.enum(['en', 'fr', 'es', 'de']).optional(),
     refresh: z.boolean().optional(),
@@ -364,25 +373,40 @@ export function aiRoutes(ctx: AiRoutesContext) {
     if (!app) return c.json({ error: 'not_found' }, 404);
     const body = await parseBody(c, reviewPolicyBody);
     if (!body.ok) return body.response;
-    const done = await setAppReviewPolicy(db, { workspaceId: ws(c), appId: app.id, actor: actor(c), body: body.data, at: ctx.now() });
+    const done = await setAppReviewPolicy(db, {
+      workspaceId: ws(c),
+      appId: app.id,
+      actor: actor(c),
+      body: body.data,
+      at: ctx.now(),
+    });
     if (!done.ok) return respond(c, done);
     c.header('Cache-Control', 'no-store');
     return c.json(await policyView(c, app.id));
   });
 
   /** What would be sent for the first three reviews under the policy in force. Reads stored reviews only: no provider, nothing stored. */
-  routes.post('/:workspaceId/apps/:id/ai/review-privacy/preview', needs('reviews.read'), async (c) => {
-    const app = await getApp(db, ws(c), param(c, 'id'));
-    if (!app) return c.json({ error: 'not_found' }, 404);
-    const policy = await getAppReviewPolicy(db, ws(c), app.id);
-    c.header('Cache-Control', 'no-store');
-    return c.json({ preview: await previewReviewPayload(db, ws(c), app.id, policy) });
-  });
+  routes.post(
+    '/:workspaceId/apps/:id/ai/review-privacy/preview',
+    needs('reviews.read'),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return c.json({ error: 'not_found' }, 404);
+      const policy = await getAppReviewPolicy(db, ws(c), app.id);
+      c.header('Cache-Control', 'no-store');
+      return c.json({ preview: await previewReviewPayload(db, ws(c), app.id, policy) });
+    },
+  );
 
   routes.delete('/:workspaceId/apps/:id/ai/summaries', needs('apps.write'), async (c) => {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return c.json({ error: 'not_found' }, 404);
-    const deleted = await deleteAppSummaries(db, { workspaceId: ws(c), appId: app.id, actor: actor(c), at: ctx.now() });
+    const deleted = await deleteAppSummaries(db, {
+      workspaceId: ws(c),
+      appId: app.id,
+      actor: actor(c),
+      at: ctx.now(),
+    });
     c.header('Cache-Control', 'no-store');
     return c.json({ deleted });
   });

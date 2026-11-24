@@ -29,7 +29,7 @@ inputs:
     default: ghcr.io/ossappscollective/kiln
   token:
     description: Token for ghcr.io (release mode only).
-    default: ''
+    default: ""
 
 outputs:
   digest:

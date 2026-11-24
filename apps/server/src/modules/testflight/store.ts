@@ -27,7 +27,11 @@ const num = (v: unknown): number | null => (v === null || v === undefined ? null
 export function testerKey(workspaceId: string, email: string | null): string | null {
   const e = (email ?? '').trim().toLowerCase();
   if (e === '') return null;
-  return createHash('sha256').update(`${workspaceId}\u0000${e}`).digest('hex').slice(0, 6).toUpperCase();
+  return createHash('sha256')
+    .update(`${workspaceId}\u0000${e}`)
+    .digest('hex')
+    .slice(0, 6)
+    .toUpperCase();
 }
 
 export type FeedbackKind = 'feedback' | 'crash';
@@ -136,7 +140,8 @@ function toItem(r: Record<string, unknown>, mayViewEmail: boolean): FeedbackItem
     crashLogState: logState(r.crash_log_state),
     crashLogTruncated: Number(r.crash_log_truncated) === 1,
     signature: text(r.signature),
-    symbolicated: r.symbolicated === null || r.symbolicated === undefined ? null : Number(r.symbolicated) === 1,
+    symbolicated:
+      r.symbolicated === null || r.symbolicated === undefined ? null : Number(r.symbolicated) === 1,
     status: isTriageStatus(status) ? status : 'new',
     assigneeUserId: text(r.assignee_user_id),
     internalNote: text(r.internal_note),
@@ -383,7 +388,11 @@ export type SyncStatus = {
   warnings: string[];
 };
 
-export async function readSyncStatus(sql: Sql, workspaceId: string, appId: string): Promise<SyncStatus | null> {
+export async function readSyncStatus(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<SyncStatus | null> {
   const [row] = await sql.query(
     `SELECT last_attempt_at, last_synced_at, last_error, failures, complete, warnings_json
        FROM testflight_sync WHERE app_id = ? AND workspace_id = ?`,
@@ -443,7 +452,8 @@ export async function existingIds(
       `SELECT id, apple_id, crash_log_state FROM testflight_feedback WHERE workspace_id = ? AND app_id = ? AND apple_id IN (${chunk.map(() => '?').join(', ')})`,
       [workspaceId, appId, ...chunk],
     );
-    for (const r of rows) out.set(String(r.apple_id), { id: String(r.id), crashLogState: String(r.crash_log_state) });
+    for (const r of rows)
+      out.set(String(r.apple_id), { id: String(r.id), crashLogState: String(r.crash_log_state) });
   }
   return out;
 }
@@ -503,10 +513,37 @@ export async function upsertSubmissions(
            first_seen_at, fetched_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          id, input.workspaceId, input.appId, item.id, item.kind, created, item.buildId, item.buildNumber, item.version, item.platform, item.bundleId,
-          key, item.email, item.deviceModel, item.deviceFamily, item.osVersion, item.locale, item.timeZone, item.architecture, item.connectionType,
-          item.pairedWatch, item.appUptimeMs, item.diskFreeBytes, item.diskTotalBytes, item.batteryPercent, item.screenWidth, item.screenHeight,
-          item.comment, sizes, input.at, input.at,
+          id,
+          input.workspaceId,
+          input.appId,
+          item.id,
+          item.kind,
+          created,
+          item.buildId,
+          item.buildNumber,
+          item.version,
+          item.platform,
+          item.bundleId,
+          key,
+          item.email,
+          item.deviceModel,
+          item.deviceFamily,
+          item.osVersion,
+          item.locale,
+          item.timeZone,
+          item.architecture,
+          item.connectionType,
+          item.pairedWatch,
+          item.appUptimeMs,
+          item.diskFreeBytes,
+          item.diskTotalBytes,
+          item.batteryPercent,
+          item.screenWidth,
+          item.screenHeight,
+          item.comment,
+          sizes,
+          input.at,
+          input.at,
         ],
       );
       result.inserted.push({ id, item });
@@ -517,7 +554,19 @@ export async function upsertSubmissions(
       `UPDATE testflight_feedback SET build_id = COALESCE(?, build_id), build_number = COALESCE(?, build_number), version = COALESCE(?, version),
          tester_key = COALESCE(?, tester_key), tester_email = COALESCE(?, tester_email), comment = ?, screenshots_json = ?, fetched_at = ?
        WHERE id = ? AND app_id = ? AND workspace_id = ?`,
-      [item.buildId, item.buildNumber, item.version, key, item.email, item.comment, sizes, input.at, known.id, input.appId, input.workspaceId],
+      [
+        item.buildId,
+        item.buildNumber,
+        item.version,
+        key,
+        item.email,
+        item.comment,
+        sizes,
+        input.at,
+        known.id,
+        input.appId,
+        input.workspaceId,
+      ],
     );
     result.updated++;
   }
@@ -560,7 +609,13 @@ export async function storeCrashLog(
 /** Counts, completeness and warnings of a sync, as the state of the last sync. */
 export async function recordSyncSuccess(
   tx: Sql,
-  input: { workspaceId: string; appId: string; at: number; complete: boolean; warnings: readonly string[] },
+  input: {
+    workspaceId: string;
+    appId: string;
+    at: number;
+    complete: boolean;
+    warnings: readonly string[];
+  },
 ): Promise<void> {
   const count = async (kind: FeedbackKind) => {
     const [row] = await tx.query(
@@ -598,20 +653,32 @@ export type TriageInput = {
 };
 
 export type TriageResult =
-  | { ok: true; item: FeedbackItem; changed: string[]; from: { status: TriageStatus; assigneeUserId: string | null } }
+  | {
+      ok: true;
+      item: FeedbackItem;
+      changed: string[];
+      from: { status: TriageStatus; assigneeUserId: string | null };
+    }
   | { ok: false; error: 'not_found' | 'assignee_not_member' };
 
 export async function triage(
   sql: Sql,
-  input: { workspaceId: string; appId: string; id: string; actorId: string; at: number; mayViewEmail: boolean } & TriageInput,
+  input: {
+    workspaceId: string;
+    appId: string;
+    id: string;
+    actorId: string;
+    at: number;
+    mayViewEmail: boolean;
+  } & TriageInput,
 ): Promise<TriageResult> {
   const current = await getFeedback(sql, input);
   if (!current) return { ok: false, error: 'not_found' };
   if (input.assigneeUserId) {
-    const [member] = await sql.query('SELECT user_id FROM workspace_members WHERE workspace_id = ? AND user_id = ?', [
-      input.workspaceId,
-      input.assigneeUserId,
-    ]);
+    const [member] = await sql.query(
+      'SELECT user_id FROM workspace_members WHERE workspace_id = ? AND user_id = ?',
+      [input.workspaceId, input.assigneeUserId],
+    );
     if (!member) return { ok: false, error: 'assignee_not_member' };
   }
   const changed: string[] = [];
@@ -628,7 +695,8 @@ export async function triage(
     changed.push('assignee');
   }
   if (input.internalNote !== undefined) {
-    const note = input.internalNote === null || input.internalNote.trim() === '' ? null : input.internalNote;
+    const note =
+      input.internalNote === null || input.internalNote.trim() === '' ? null : input.internalNote;
     if (note !== current.internalNote) {
       sets.push('internal_note = ?');
       params.push(note);
@@ -636,23 +704,30 @@ export async function triage(
     }
   }
   if (sets.length > 0) {
-    await sql.execute(`UPDATE testflight_feedback SET ${sets.join(', ')} WHERE id = ? AND app_id = ? AND workspace_id = ?`, [
-      ...params,
-      input.id,
-      input.appId,
-      input.workspaceId,
-    ]);
+    await sql.execute(
+      `UPDATE testflight_feedback SET ${sets.join(', ')} WHERE id = ? AND app_id = ? AND workspace_id = ?`,
+      [...params, input.id, input.appId, input.workspaceId],
+    );
   }
   const item = (await getFeedback(sql, input)) as FeedbackItem & { crashLog: string | null };
   const { crashLog: _log, ...view } = item;
-  return { ok: true, item: view, changed, from: { status: current.status, assigneeUserId: current.assigneeUserId } };
+  return {
+    ok: true,
+    item: view,
+    changed,
+    from: { status: current.status, assigneeUserId: current.assigneeUserId },
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
 // Retention and removal
 
 /** Data protection: deletes submissions older than `olderThan` (Apple's date), a bounded number per run. */
-export async function pruneTestflight(sql: Sql, olderThan: number, maxRows = 1000): Promise<number> {
+export async function pruneTestflight(
+  sql: Sql,
+  olderThan: number,
+  maxRows = 1000,
+): Promise<number> {
   const limit = Math.max(1, Math.trunc(maxRows));
   return sql.execute(
     `DELETE FROM testflight_feedback WHERE id IN (SELECT id FROM testflight_feedback WHERE created_at < ? ORDER BY created_at LIMIT ?)`,

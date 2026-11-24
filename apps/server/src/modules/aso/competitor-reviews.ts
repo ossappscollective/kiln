@@ -35,7 +35,8 @@ const label = (v: unknown): string => {
   const x = (v as { label?: unknown } | undefined)?.label;
   return typeof x === 'string' ? x : '';
 };
-const clipText = (text: string, max: number): string => Array.from(text.trim()).slice(0, max).join('');
+const clipText = (text: string, max: number): string =>
+  Array.from(text.trim()).slice(0, max).join('');
 
 /** The entries of an Apple customer-reviews feed (JSON). An entry without a star rating (the app's own entry) is skipped. The author is ignored. */
 export function parseAppleReviewFeed(json: unknown): FeedReview[] {
@@ -47,7 +48,15 @@ export function parseAppleReviewFeed(json: unknown): FeedReview[] {
     const rating = Number(label(entry['im:rating']));
     const id = label(entry.id).trim();
     const at = Date.parse(label(entry.updated));
-    if (!Number.isInteger(rating) || rating < 1 || rating > 5 || id === '' || id.length > 120 || !Number.isFinite(at)) continue;
+    if (
+      !Number.isInteger(rating) ||
+      rating < 1 ||
+      rating > 5 ||
+      id === '' ||
+      id.length > 120 ||
+      !Number.isFinite(at)
+    )
+      continue;
     const version = label(entry['im:version']).trim();
     out.push({
       id,
@@ -61,10 +70,23 @@ export function parseAppleReviewFeed(json: unknown): FeedReview[] {
   return out;
 }
 
-export type StoredCompetitorForReviews = { id: string; appId: string; store: string; externalId: string; country: string };
+export type StoredCompetitorForReviews = {
+  id: string;
+  appId: string;
+  store: string;
+  externalId: string;
+  country: string;
+};
 
 export type RefreshOutcome =
-  | { ok: true; state: 'read' | 'recent' | 'unchanged'; fetched: number; stored: number; checkedAt: number; newCount: number }
+  | {
+      ok: true;
+      state: 'read' | 'recent' | 'unchanged';
+      fetched: number;
+      stored: number;
+      checkedAt: number;
+      newCount: number;
+    }
   | { ok: false; reason: 'play_not_available' };
 
 export type RefreshOptions = {
@@ -79,32 +101,56 @@ export type ReviewReader = (input: { id: string; country: string }) => Promise<F
 /** Reads the feed of one Apple competitor (unless it was read in the last 15 minutes), stores what is new or edited, and prunes. */
 export async function refreshCompetitorReviews(
   ctx: { db: Database; now: () => number; read: ReviewReader },
-  input: { workspaceId: string; competitor: StoredCompetitorForReviews; actorId: string; options?: RefreshOptions },
+  input: {
+    workspaceId: string;
+    competitor: StoredCompetitorForReviews;
+    actorId: string;
+    options?: RefreshOptions;
+  },
 ): Promise<RefreshOutcome> {
   const { competitor } = input;
   const options = input.options ?? {};
   if (competitor.store !== 'app_store') return { ok: false, reason: 'play_not_available' };
   const now = ctx.now();
-  const [row] = await ctx.db.query('SELECT reviews_checked_at AS at, reviews_last_seen_id AS seen FROM aso_competitors WHERE id = ?', [competitor.id]);
+  const [row] = await ctx.db.query(
+    'SELECT reviews_checked_at AS at, reviews_last_seen_id AS seen FROM aso_competitors WHERE id = ?',
+    [competitor.id],
+  );
   const last = row?.at === null || row?.at === undefined ? null : Number(row.at);
   if (last !== null && now - last < COMPETITOR_REVIEWS_MIN_INTERVAL_MS)
     return { ok: true, state: 'recent', fetched: 0, stored: 0, checkedAt: last, newCount: 0 };
   const read = await ctx.read({ id: competitor.externalId, country: competitor.country });
   // Newest first, then the volume guard: a scheduled read looks at the newest N only.
   const sorted = read.slice().sort((a, b) => b.at - a.at);
-  const feed = options.maxReviews === undefined ? sorted : sorted.slice(0, Math.max(1, options.maxReviews));
+  const feed =
+    options.maxReviews === undefined ? sorted : sorted.slice(0, Math.max(1, options.maxReviews));
   const cutoff = now - COMPETITOR_REVIEW_RETENTION_DAYS * DAY_MS;
   const newestId = feed[0]?.id ?? null;
   // The cursor: the newest review of the last read. A scheduled read that finds the same one has nothing new; it writes nothing but the time.
   if (options.scheduled && newestId !== null && row?.seen === newestId) {
-    await ctx.db.execute('UPDATE aso_competitors SET reviews_checked_at = ?, reviews_new_count = 0 WHERE id = ?', [now, competitor.id]);
-    return { ok: true, state: 'unchanged', fetched: feed.length, stored: 0, checkedAt: now, newCount: 0 };
+    await ctx.db.execute(
+      'UPDATE aso_competitors SET reviews_checked_at = ?, reviews_new_count = 0 WHERE id = ?',
+      [now, competitor.id],
+    );
+    return {
+      ok: true,
+      state: 'unchanged',
+      fetched: feed.length,
+      stored: 0,
+      checkedAt: now,
+      newCount: 0,
+    };
   }
   let stored = 0;
   let newCount = 0;
   await ctx.db.transaction(async (tx) => {
     const known = new Set(
-      (await tx.query('SELECT store_review_id AS id FROM aso_competitor_reviews WHERE competitor_id = ?', [competitor.id])).map((r) => String(r.id)),
+      (
+        await tx.query(
+          'SELECT store_review_id AS id FROM aso_competitor_reviews WHERE competitor_id = ?',
+          [competitor.id],
+        )
+      ).map((r) => String(r.id)),
     );
     for (const r of feed) {
       if (r.at < cutoff) continue;
@@ -113,11 +159,27 @@ export async function refreshCompetitorReviews(
         `INSERT INTO aso_competitor_reviews (id, workspace_id, competitor_id, app_id, country, store_review_id, rating, title, body, app_version, reviewed_at, fetched_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (competitor_id, store_review_id) DO UPDATE SET rating = excluded.rating, title = excluded.title, body = excluded.body, app_version = excluded.app_version, reviewed_at = excluded.reviewed_at, fetched_at = excluded.fetched_at`,
-        [randomUUID(), input.workspaceId, competitor.id, competitor.appId, competitor.country, r.id, r.rating, r.title, r.body, r.version, r.at, now],
+        [
+          randomUUID(),
+          input.workspaceId,
+          competitor.id,
+          competitor.appId,
+          competitor.country,
+          r.id,
+          r.rating,
+          r.title,
+          r.body,
+          r.version,
+          r.at,
+          now,
+        ],
       );
       stored += 1;
     }
-    await tx.execute('DELETE FROM aso_competitor_reviews WHERE competitor_id = ? AND reviewed_at < ?', [competitor.id, cutoff]);
+    await tx.execute(
+      'DELETE FROM aso_competitor_reviews WHERE competitor_id = ? AND reviewed_at < ?',
+      [competitor.id, cutoff],
+    );
     await tx.execute(
       `DELETE FROM aso_competitor_reviews WHERE competitor_id = ? AND id NOT IN (
          SELECT id FROM aso_competitor_reviews WHERE competitor_id = ? ORDER BY reviewed_at DESC, id DESC LIMIT ${COMPETITOR_REVIEWS_MAX})`,
@@ -129,11 +191,21 @@ export async function refreshCompetitorReviews(
     );
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
-      actor: options.scheduled ? { type: 'system', id: input.actorId } : { type: 'user', id: input.actorId },
+      actor: options.scheduled
+        ? { type: 'system', id: input.actorId }
+        : { type: 'user', id: input.actorId },
       action: 'aso.competitor_reviews_read',
       target: { type: 'aso_competitor', id: competitor.id },
       // Ids and counts. Never review text.
-      detail: { competitorId: competitor.id, appId: competitor.appId, country: competitor.country, fetched: feed.length, stored, newCount, ...(options.scheduled ? { scheduled: true } : {}) },
+      detail: {
+        competitorId: competitor.id,
+        appId: competitor.appId,
+        country: competitor.country,
+        fetched: feed.length,
+        stored,
+        newCount,
+        ...(options.scheduled ? { scheduled: true } : {}),
+      },
       at: now,
     });
   });
@@ -154,7 +226,14 @@ export type CompetitorReviewStats = {
   /** Mean of the first and of the second half of the period (null without reviews in a half). */
   trend: { earlier: number | null; recent: number | null };
   stars: [number, number, number, number, number];
-  latest: { id: string; rating: number; title: string; text: string; version: string | null; at: number }[];
+  latest: {
+    id: string;
+    rating: number;
+    title: string;
+    text: string;
+    version: string | null;
+    at: number;
+  }[];
 };
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
@@ -179,7 +258,16 @@ export async function competitorReviewStats(
       checkedAt: c.checked === null || c.checked === undefined ? null : Number(c.checked),
     };
     if (base.store !== 'app_store') {
-      out.push({ ...base, state: 'unavailable', reason: 'play_has_no_review_api', count: 0, average: null, trend: { earlier: null, recent: null }, stars: [0, 0, 0, 0, 0], latest: [] });
+      out.push({
+        ...base,
+        state: 'unavailable',
+        reason: 'play_has_no_review_api',
+        count: 0,
+        average: null,
+        trend: { earlier: null, recent: null },
+        stars: [0, 0, 0, 0, 0],
+        latest: [],
+      });
       continue;
     }
     const rows = await db.query(
@@ -233,7 +321,11 @@ export async function competitorReviewStats(
 export async function ownReviewStats(
   db: Sql,
   input: { workspaceId: string; appId: string; days: number; now: number },
-): Promise<{ count: number; average: number | null; trend: { earlier: number | null; recent: number | null } }> {
+): Promise<{
+  count: number;
+  average: number | null;
+  trend: { earlier: number | null; recent: number | null };
+}> {
   const from = input.now - input.days * DAY_MS;
   const mid = Math.floor((from + input.now) / 2);
   const q = async (a: number, b: number) => {
@@ -242,7 +334,10 @@ export async function ownReviewStats(
       [input.workspaceId, input.appId, a, b],
     );
     const n = Number(row?.n ?? 0);
-    return { n, avg: n > 0 && row?.avg !== null && row?.avg !== undefined ? Number(row.avg) : null };
+    return {
+      n,
+      avg: n > 0 && row?.avg !== null && row?.avg !== undefined ? Number(row.avg) : null,
+    };
   };
   const early = await q(from, mid);
   const late = await q(mid, input.now + 1);
@@ -251,6 +346,9 @@ export async function ownReviewStats(
   return {
     count: n,
     average: n > 0 ? round2(total / n) : null,
-    trend: { earlier: early.avg === null ? null : round2(early.avg), recent: late.avg === null ? null : round2(late.avg) },
+    trend: {
+      earlier: early.avg === null ? null : round2(early.avg),
+      recent: late.avg === null ? null : round2(late.avg),
+    },
   };
 }

@@ -92,7 +92,10 @@ export const COUNTRY_CODES: readonly string[] = Object.keys(APP_STORE_LANGUAGE);
  * The language (`de`, `pt`, `zh-Hans`) a shopper in this country most likely reads the store page in, or null for a country the table does not
  * know. `store` picks the languages the store offers (`google_play` has a few more).
  */
-export function mainLanguageOf(country: string, store: 'app_store' | 'google_play' = 'app_store'): string | null {
+export function mainLanguageOf(
+  country: string,
+  store: 'app_store' | 'google_play' = 'app_store',
+): string | null {
   const code = normalizeCountryCode(country);
   if (code === null) return null;
   return (store === 'google_play' ? PLAY_LANGUAGE : APP_STORE_LANGUAGE)[code] ?? null;
@@ -104,7 +107,11 @@ export function mainLanguageOf(country: string, store: 'app_store' | 'google_pla
  * `zh` is simplified. Null for text that is not a language tag.
  */
 export function languageKey(tag: string): string | null {
-  const parts = tag.trim().replace(/_/g, '-').split('-').filter((p) => p !== '');
+  const parts = tag
+    .trim()
+    .replace(/_/g, '-')
+    .split('-')
+    .filter((p) => p !== '');
   const primary = (parts[0] ?? '').toLowerCase();
   if (!/^[a-z]{2,3}$/.test(primary)) return null;
   if (primary === 'zh') {

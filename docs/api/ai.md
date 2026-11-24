@@ -170,19 +170,19 @@ one read, `GET /v1/models` (Anthropic, OpenAI) or `GET <baseUrl>/models` (a comp
 **Show `disclosure` and `provider.privacy` before the first use of a task.** `status: "planned"` tasks are listed with their disclosure plan and answer
 `409 task_not_available` when run: `release_notes`, `rank_drop_explain`.
 
-| Task                    | Scope (body fields)                                                                          | Proposal           | Accepting                                                                 |
-| ----------------------- | -------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------- |
-| `keyword_ideas`         | `locale` (required), `country`, `goal`                                                       | `keywords`         | tracks the chosen terms (`aso.write`)                                     |
-| `listing_improve`       | `locale` (required), `fields`, `goal`                                                        | `listing_text`     | stages the texts, source `ai` (`changesets.write`)                        |
-| `review_reply_draft`    | `reviewId` (required), `tone` (`friendly`, `neutral`, `apologetic`), `replyLanguage`, `goal` | `reply_draft`      | saves a reply draft (`reviews.triage`, needs `KILN_REVIEW_REPLY_ENABLED`) |
+| Task                    | Scope (body fields)                                                                                 | Proposal           | Accepting                                                                 |
+| ----------------------- | --------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------- |
+| `keyword_ideas`         | `locale` (required), `country`, `goal`                                                              | `keywords`         | tracks the chosen terms (`aso.write`)                                     |
+| `listing_improve`       | `locale` (required), `fields`, `goal`                                                               | `listing_text`     | stages the texts, source `ai` (`changesets.write`)                        |
+| `review_reply_draft`    | `reviewId` (required), `tone` (`friendly`, `neutral`, `apologetic`), `replyLanguage`, `goal`        | `reply_draft`      | saves a reply draft (`reviews.triage`, needs `KILN_REVIEW_REPLY_ENABLED`) |
 | `review_summary`        | `days`, `limit`, `locale`, `outputLanguage`, `refresh` (see [review-summary.md](review-summary.md)) | `insight`          | marks it reviewed (`ai.use`)                                              |
-| `review_classify`       | `days` (default 90), `limit` (1 to 40, default 20), `reviewIds`                              | `insight`          | marks it reviewed; the tags are stored by the run                         |
-| `fix_next`              | `days` (default 30), `limit` (5 to 80, default 40)                                           | `insight`          | marks it reviewed                                                         |
-| `listing_audit`         | `locale` (required), `goal`                                                                  | `insight`          | marks it reviewed                                                         |
-| `aso_health`            | none                                                                                         | `insight`          | marks it reviewed                                                         |
-| `keyword_ideas_reviews` | `locale` (required), `country`, `days` (default 90), `goal`                                  | `keywords`         | tracks the chosen terms (`aso.write`)                                     |
-| `listing_variants`      | `locale` (required), `fields`, `count` (2 to 5, default 3), `goal`                           | `listing_variants` | stages one chosen variant per field (`changesets.write`)                  |
-| `listing_translate`     | `sourceLocale` and `locale` (the target), both required, `fields`                            | `listing_text`     | stages the texts (`changesets.write`)                                     |
+| `review_classify`       | `days` (default 90), `limit` (1 to 40, default 20), `reviewIds`                                     | `insight`          | marks it reviewed; the tags are stored by the run                         |
+| `fix_next`              | `days` (default 30), `limit` (5 to 80, default 40)                                                  | `insight`          | marks it reviewed                                                         |
+| `listing_audit`         | `locale` (required), `goal`                                                                         | `insight`          | marks it reviewed                                                         |
+| `aso_health`            | none                                                                                                | `insight`          | marks it reviewed                                                         |
+| `keyword_ideas_reviews` | `locale` (required), `country`, `days` (default 90), `goal`                                         | `keywords`         | tracks the chosen terms (`aso.write`)                                     |
+| `listing_variants`      | `locale` (required), `fields`, `count` (2 to 5, default 3), `goal`                                  | `listing_variants` | stages one chosen variant per field (`changesets.write`)                  |
+| `listing_translate`     | `sourceLocale` and `locale` (the target), both required, `fields`                                   | `listing_text`     | stages the texts (`changesets.write`)                                     |
 
 `goal` is at most 300 characters (longer is `400`, not cut). Review text is data: it is delimited, cut to 2,000 characters, and the name, device and
 version of the reviewer are not sent.

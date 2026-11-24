@@ -5,14 +5,14 @@
 
 ## Body
 
-| Field            | Meaning                                                                                                                         |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `appId`          | Required. The app (so the store: an iOS and an Android app are summarised separately).                                          |
-| `days`           | 1 to 180, default 30 (the screen offers 7, 28, 90).                                                                              |
+| Field            | Meaning                                                                                                                                                                                                               |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `appId`          | Required. The app (so the store: an iOS and an Android app are summarised separately).                                                                                                                                |
+| `days`           | 1 to 180, default 30 (the screen offers 7, 28, 90).                                                                                                                                                                   |
 | `limit`          | 5 to 80, default 40: the hard cap of reviews sent. A quarter of them (from a limit of 8) are the most recent 1 and 2 star reviews, the rest the newest of all. Each is cut to 80 characters of title and 280 of text. |
-| `locale`         | Only reviews stored with this language code (`fr`). Default: all languages. The reviews are sent in their own language.         |
-| `outputLanguage` | `en`, `fr`, `es` or `de`: the language of the overview, the labels, the sentences and the change line. Default `en`.             |
-| `refresh`        | `true`: ask the model again even when a stored summary has the same reviews.                                                     |
+| `locale`         | Only reviews stored with this language code (`fr`). Default: all languages. The reviews are sent in their own language.                                                                                               |
+| `outputLanguage` | `en`, `fr`, `es` or `de`: the language of the overview, the labels, the sentences and the change line. Default `en`.                                                                                                  |
+| `refresh`        | `true`: ask the model again even when a stored summary has the same reviews.                                                                                                                                          |
 
 ## Answer
 

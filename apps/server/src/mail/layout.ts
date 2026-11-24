@@ -36,7 +36,13 @@ type Scheme = {
 };
 
 export const emailTokens = {
-  brand: { blue: '#7f99ff', violet: '#a98bff', ember: '#ffb04a', blueViolet: '#a98bff', violetEmber: '#d49fa4' },
+  brand: {
+    blue: '#7f99ff',
+    violet: '#a98bff',
+    ember: '#ffb04a',
+    blueViolet: '#a98bff',
+    violetEmber: '#d49fa4',
+  },
   /** The header band is the same deep indigo in both schemes, so the wordmark always sits on the same background. */
   header: { bg: '#0b0d22', ink: '#eceeff' },
   light: {
@@ -94,8 +100,7 @@ export type EmailTone = keyof Scheme['tones'];
 const gradient = (from: string, to: string): string => `linear-gradient(135deg,${from},${to})`;
 
 /** Languages written right to left get `dir="rtl"`; the catalogs have none today. */
-const dirOf = (lang: string): 'ltr' | 'rtl' =>
-  /^(ar|he|fa|ur)(-|$)/i.test(lang) ? 'rtl' : 'ltr';
+const dirOf = (lang: string): 'ltr' | 'rtl' => (/^(ar|he|fa|ur)(-|$)/i.test(lang) ? 'rtl' : 'ltr');
 
 /** The dark scheme, applied only where the client supports it. `!important` is what lets it beat the inline light styles. */
 const darkCss = (): string => {
@@ -149,7 +154,12 @@ const emailLogo = (): string => {
  * The whole document around `rows` (table rows built with the helpers below). `preheader` is the preview line clients show beside
  * the subject; `title` is the document title (the subject, ideally).
  */
-export const emailShell = (rows: string, preheader: string, lang = 'en', title = 'Kiln'): string => {
+export const emailShell = (
+  rows: string,
+  preheader: string,
+  lang = 'en',
+  title = 'Kiln',
+): string => {
   const hide =
     'display:none !important;visibility:hidden;mso-hide:all;max-height:0;max-width:0;overflow:hidden;opacity:0;font-size:1px;line-height:1px;color:' +
     L.ground;
@@ -199,7 +209,9 @@ export const emailCodeBox = (code: string): string =>
   `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:separate;"><tr><td class="k-sunken" align="center" bgcolor="${L.sunken}" style="background-color:${L.sunken};color:${L.ink};border-radius:${T.radius.box}px;padding:20px 16px;font-family:${T.font.mono};font-size:34px;line-height:1;font-weight:700;letter-spacing:.3em;">${escapeHtml(code)}</td></tr></table>`;
 
 /** Label and value pairs as rows of a small table. */
-export const emailKeyValueRows = (pairs: readonly (readonly [label: string, value: string])[]): string =>
+export const emailKeyValueRows = (
+  pairs: readonly (readonly [label: string, value: string])[],
+): string =>
   `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">${pairs
     .map(
       ([k, v]) =>

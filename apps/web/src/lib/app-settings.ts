@@ -264,7 +264,12 @@ export function appSettingsGroups(input: AppSettingsInput): RailGroup[] {
       entries: [
         ...(input.android ? [entry(ids.playBucket, t(k('app:settings.part.playBucket')))] : []),
         entry(ids.notifications, t(k('app:settings.part.notifications'))),
-        ...(input.ai ? [entry(ids.ai, t(k('app:settings.part.ai'))), entry(ids.aiPrivacy, t(k('app:settings.part.aiPrivacy')))] : []),
+        ...(input.ai
+          ? [
+              entry(ids.ai, t(k('app:settings.part.ai'))),
+              entry(ids.aiPrivacy, t(k('app:settings.part.aiPrivacy'))),
+            ]
+          : []),
       ],
     },
     {
@@ -336,7 +341,10 @@ export function effectiveAnalyticsValues(
       key: 'vendorNumber',
       label: t('app:stores.effective.vendorNumber'),
       value: apple.vendorNumber,
-      origin: apple.vendorNumberSource === 'credential' ? t('app:stores.effective.fromCredential') : t('app:stores.effective.fromWorkspace'),
+      origin:
+        apple.vendorNumberSource === 'credential'
+          ? t('app:stores.effective.fromCredential')
+          : t('app:stores.effective.fromWorkspace'),
     });
   }
   const google = status.google;

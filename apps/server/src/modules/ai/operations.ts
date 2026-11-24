@@ -101,8 +101,12 @@ const configSchema = z.object({
       .describe(
         'The most the estimated cost of a month may reach, in whole cents. 0: no cost cap.',
       ),
-    reviewsToAi: z.boolean().describe('The workspace ceiling for your own reviews going to the provider.'),
-    competitorReviewsToAi: z.boolean().describe('The workspace ceiling for competitor reviews going to the provider.'),
+    reviewsToAi: z
+      .boolean()
+      .describe('The workspace ceiling for your own reviews going to the provider.'),
+    competitorReviewsToAi: z
+      .boolean()
+      .describe('The workspace ceiling for competitor reviews going to the provider.'),
   }),
   defaults: z.object({
     monthlyTokenBudget: z.number().int(),
@@ -203,10 +207,25 @@ const taskSchema = z.object({
 });
 
 const reviewSwitch = z.enum(['on', 'off']).nullable();
-const reviewKindState = z.object({ choice: reviewSwitch, allowed: z.boolean(), locked: z.boolean(), reason: z.enum(['workspace_off', 'app_off']).nullable() });
+const reviewKindState = z.object({
+  choice: reviewSwitch,
+  allowed: z.boolean(),
+  locked: z.boolean(),
+  reason: z.enum(['workspace_off', 'app_off']).nullable(),
+});
 const reviewPolicySchema = z.object({
-  stored: z.object({ ownReviews: reviewSwitch, competitorReviews: reviewSwitch, detail: z.enum(['full', 'text', 'ratings']), redact: z.boolean() }),
-  effective: z.object({ own: reviewKindState, competitor: reviewKindState, detail: z.enum(['full', 'text', 'ratings']), redact: z.boolean() }),
+  stored: z.object({
+    ownReviews: reviewSwitch,
+    competitorReviews: reviewSwitch,
+    detail: z.enum(['full', 'text', 'ratings']),
+    redact: z.boolean(),
+  }),
+  effective: z.object({
+    own: reviewKindState,
+    competitor: reviewKindState,
+    detail: z.enum(['full', 'text', 'ratings']),
+    redact: z.boolean(),
+  }),
   ceiling: z.object({ ownReviews: z.boolean(), competitorReviews: z.boolean() }),
   updatedAt: z.number().int().nullable(),
   updatedBy: z.string().nullable(),
@@ -564,7 +583,16 @@ export const aiOperations: Operation[] = [
             reason: z.enum(['workspace_off', 'app_off']).nullable(),
             detail: z.enum(['full', 'text', 'ratings']),
             redact: z.boolean(),
-            reviews: z.array(z.object({ stars: z.number().int(), title: z.string().optional(), text: z.string().optional(), lang: z.string().optional(), version: z.string().optional(), day: z.string().optional() })),
+            reviews: z.array(
+              z.object({
+                stars: z.number().int(),
+                title: z.string().optional(),
+                text: z.string().optional(),
+                lang: z.string().optional(),
+                version: z.string().optional(),
+                day: z.string().optional(),
+              }),
+            ),
             sampleOf: z.number().int(),
           }),
         }),
@@ -582,7 +610,12 @@ export const aiOperations: Operation[] = [
     risk: 'destructive',
     access: { action: 'apps.write' },
     appScope: { kind: 'param', name: 'id' },
-    responses: { '200': { description: 'How many were deleted.', schema: z.object({ deleted: z.number().int() }) } },
+    responses: {
+      '200': {
+        description: 'How many were deleted.',
+        schema: z.object({ deleted: z.number().int() }),
+      },
+    },
   },
   {
     id: 'listReviewAiTags',

@@ -13,38 +13,82 @@ const facts = (over: Partial<SyncFacts> = {}): SyncFacts => ({
   queued: new Set(),
   ...over,
 });
-const summary = (d: ReturnType<typeof planKinds>) => d.map((x) => `${x.kind}:${x.run ? 'run' : x.reason}`);
+const summary = (d: ReturnType<typeof planKinds>) =>
+  d.map((x) => `${x.kind}:${x.run ? 'run' : x.reason}`);
 
 test('the order is critical first: app, reviews, eas, analytics, then Apple Ads', () => {
   assert.deepEqual(
-    planKinds('owner', facts({ easLinked: true, analyticsEnabled: true, analyticsAppleReady: true })).map((d) => d.kind),
+    planKinds(
+      'owner',
+      facts({ easLinked: true, analyticsEnabled: true, analyticsAppleReady: true }),
+    ).map((d) => d.kind),
     ['app', 'reviews', 'eas', 'analytics', 'ads'],
   );
 });
 
 test('what does not apply says why', () => {
-  assert.deepEqual(summary(planKinds('owner', facts())), ['app:run', 'reviews:run', 'eas:not_linked', 'analytics:off', 'ads:not_linked']);
+  assert.deepEqual(summary(planKinds('owner', facts())), [
+    'app:run',
+    'reviews:run',
+    'eas:not_linked',
+    'analytics:off',
+    'ads:not_linked',
+  ]);
   assert.equal(summary(planKinds('owner', facts({ adsLinked: true })))[4], 'ads:run');
-  assert.equal(summary(planKinds('owner', facts({ analyticsEnabled: true })))[3], 'analytics:not_ready');
-  assert.equal(summary(planKinds('owner', facts({ analyticsEnabled: true, platform: 'android' })))[3], 'analytics:run');
-  assert.equal(summary(planKinds('owner', facts({ hasStoreAppId: false })))[1], 'reviews:not_ready');
-  assert.equal(summary(planKinds('owner', facts({ platform: 'macos', reviewsOwnedByIos: true })))[1], 'reviews:not_ready');
+  assert.equal(
+    summary(planKinds('owner', facts({ analyticsEnabled: true })))[3],
+    'analytics:not_ready',
+  );
+  assert.equal(
+    summary(planKinds('owner', facts({ analyticsEnabled: true, platform: 'android' })))[3],
+    'analytics:run',
+  );
+  assert.equal(
+    summary(planKinds('owner', facts({ hasStoreAppId: false })))[1],
+    'reviews:not_ready',
+  );
+  assert.equal(
+    summary(planKinds('owner', facts({ platform: 'macos', reviewsOwnedByIos: true })))[1],
+    'reviews:not_ready',
+  );
 });
 
 test('rights: a viewer runs nothing, a member cannot manage analytics, queued kinds are not queued twice', () => {
-  assert.ok(summary(planKinds('viewer', facts({ easLinked: true }))).every((s) => s.endsWith('forbidden')));
-  assert.equal(summary(planKinds('member', facts({ analyticsEnabled: true, analyticsAppleReady: true })))[3], 'analytics:forbidden');
-  assert.equal(summary(planKinds('owner', facts({ queued: new Set(['app']) })))[0], 'app:already_queued');
+  assert.ok(
+    summary(planKinds('viewer', facts({ easLinked: true }))).every((s) => s.endsWith('forbidden')),
+  );
+  assert.equal(
+    summary(planKinds('member', facts({ analyticsEnabled: true, analyticsAppleReady: true })))[3],
+    'analytics:forbidden',
+  );
+  assert.equal(
+    summary(planKinds('owner', facts({ queued: new Set(['app']) })))[0],
+    'app:already_queued',
+  );
 });
 
 test('the query: kinds and analytics sources are checked, repeated values count once', () => {
-  assert.deepEqual(parseSyncAllQuery({}), { ok: true, query: { without: [], kinds: undefined, sources: undefined } });
-  assert.deepEqual(parseSyncAllQuery({ without: 'app', kinds: 'reviews, analytics,reviews', sources: 'play_vitals' }), {
+  assert.deepEqual(parseSyncAllQuery({}), {
     ok: true,
-    query: { without: ['app'], kinds: ['reviews', 'analytics'], sources: ['play_vitals'] },
+    query: { without: [], kinds: undefined, sources: undefined },
   });
+  assert.deepEqual(
+    parseSyncAllQuery({
+      without: 'app',
+      kinds: 'reviews, analytics,reviews',
+      sources: 'play_vitals',
+    }),
+    {
+      ok: true,
+      query: { without: ['app'], kinds: ['reviews', 'analytics'], sources: ['play_vitals'] },
+    },
+  );
   assert.equal(parseSyncAllQuery({ kinds: 'products' }).ok, false);
   assert.equal(parseSyncAllQuery({ sources: 'nope' }).ok, false);
   assert.equal(parseSyncAllQuery({ without: 'eas' }).ok, false);
-  assert.equal(parseSyncAllQuery({ kinds: 'reviews', sources: 'play_vitals' }).ok, false, 'sources need the analytics kind');
+  assert.equal(
+    parseSyncAllQuery({ kinds: 'reviews', sources: 'play_vitals' }).ok,
+    false,
+    'sources need the analytics kind',
+  );
 });

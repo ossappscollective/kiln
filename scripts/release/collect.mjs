@@ -30,7 +30,8 @@ export function collect({ bundleDir, version, os, arch, bundles, out }) {
       // The .app is a folder: ship it as a tar.gz made here (Tauri only makes one for the updater).
       const macosDir = join(bundleDir, 'macos');
       const apps = readdirSync(macosDir).filter((n) => n.endsWith('.app'));
-      if (apps.length !== 1) throw new Error(`Expected one .app in ${macosDir}, found ${apps.length}.`);
+      if (apps.length !== 1)
+        throw new Error(`Expected one .app in ${macosDir}, found ${apps.length}.`);
       const dest = join(out, `${base}.app.tar.gz`);
       execFileSync('tar', ['-czf', dest, '-C', macosDir, apps[0]]);
       written.push(dest);
@@ -82,7 +83,9 @@ function main() {
     });
     for (const f of files) console.log(f);
   } catch (error) {
-    console.error(process.env.GITHUB_ACTIONS ? `::error::${error.message}` : `error: ${error.message}`);
+    console.error(
+      process.env.GITHUB_ACTIONS ? `::error::${error.message}` : `error: ${error.message}`,
+    );
     process.exit(1);
   }
 }

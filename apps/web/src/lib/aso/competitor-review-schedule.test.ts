@@ -1,18 +1,50 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { competitorStateLines, isScheduleDirty, readErrorText, scheduleChanges, scheduleSentence, scheduleToForm, validateSchedule, weekdayOrder, type CompetitorReviewState } from './competitor-review-schedule.ts';
+import {
+  competitorStateLines,
+  isScheduleDirty,
+  readErrorText,
+  scheduleChanges,
+  scheduleSentence,
+  scheduleToForm,
+  validateSchedule,
+  weekdayOrder,
+  type CompetitorReviewState,
+} from './competitor-review-schedule.ts';
 
-const view = { schedule: { mode: 'weekly' as const, weekday: 1, timezone: null }, paused: false, maxCompetitors: 5, maxReviews: 20 };
+const view = {
+  schedule: { mode: 'weekly' as const, weekday: 1, timezone: null },
+  paused: false,
+  maxCompetitors: 5,
+  maxReviews: 20,
+};
 const limits = { maxCompetitors: 10, maxReviews: 50 };
 const NOW = Date.UTC(2026, 10, 24, 12);
 const comp = (over: Partial<CompetitorReviewState> = {}): CompetitorReviewState => ({
-  competitorId: 'c1', name: 'Rival', store: 'apple', supported: true, override: null,
+  competitorId: 'c1',
+  name: 'Rival',
+  store: 'apple',
+  supported: true,
+  override: null,
   effective: { mode: 'weekly', weekday: 1, timezone: null },
-  lastReadAt: NOW - 2 * 86_400_000, newCount: 3, failures: 0, lastError: null, backoffUntil: null, nextRunAt: NOW + 86_400_000, ...over,
+  lastReadAt: NOW - 2 * 86_400_000,
+  newCount: 3,
+  failures: 0,
+  lastError: null,
+  backoffUntil: null,
+  nextRunAt: NOW + 86_400_000,
+  ...over,
 });
 
 test('the form mirrors the view and week starts on Monday', () => {
-  assert.deepEqual(scheduleToForm(view), { mode: 'weekly', weekday: 1, timezone: '', paused: false, maxCompetitors: '5', maxReviews: '20' });
+  assert.deepEqual(scheduleToForm(view), {
+    mode: 'weekly',
+    weekday: 1,
+    timezone: '',
+    paused: false,
+    maxCompetitors: '5',
+    maxReviews: '20',
+  });
   assert.deepEqual(weekdayOrder, [1, 2, 3, 4, 5, 6, 0]);
 });
 
@@ -29,15 +61,30 @@ test('only changes go to the PUT; the weekday goes with a switch to weekly', () 
   const form = scheduleToForm(view);
   assert.deepEqual(scheduleChanges(view, form), {});
   assert.equal(isScheduleDirty(view, form), false);
-  assert.deepEqual(scheduleChanges(view, { ...form, weekday: 3, maxReviews: '30' }), { weekday: 3, maxReviews: 30 });
-  assert.deepEqual(scheduleChanges(view, { ...form, timezone: 'Europe/Paris' }), { timezone: 'Europe/Paris' });
-  const off = { ...view, schedule: { mode: 'off' as const, weekday: null, timezone: 'Europe/Paris' } };
-  assert.deepEqual(scheduleChanges(off, { ...scheduleToForm(off), mode: 'weekly', timezone: '' }), { mode: 'weekly', weekday: 1, timezone: null });
+  assert.deepEqual(scheduleChanges(view, { ...form, weekday: 3, maxReviews: '30' }), {
+    weekday: 3,
+    maxReviews: 30,
+  });
+  assert.deepEqual(scheduleChanges(view, { ...form, timezone: 'Europe/Paris' }), {
+    timezone: 'Europe/Paris',
+  });
+  const off = {
+    ...view,
+    schedule: { mode: 'off' as const, weekday: null, timezone: 'Europe/Paris' },
+  };
+  assert.deepEqual(scheduleChanges(off, { ...scheduleToForm(off), mode: 'weekly', timezone: '' }), {
+    mode: 'weekly',
+    weekday: 1,
+    timezone: null,
+  });
 });
 
 test('sentences: every Monday, every day, none', () => {
   assert.match(scheduleSentence({ mode: 'weekly', weekday: 1, timezone: null }), /Monday/);
-  assert.notEqual(scheduleSentence({ mode: 'daily', weekday: null, timezone: null }), scheduleSentence({ mode: 'off', weekday: null, timezone: null }));
+  assert.notEqual(
+    scheduleSentence({ mode: 'daily', weekday: null, timezone: null }),
+    scheduleSentence({ mode: 'off', weekday: null, timezone: null }),
+  );
 });
 
 test('error codes read as reasons and an unknown code as a general failure', () => {
@@ -60,7 +107,11 @@ test('the state line gives schedule, last read with the count, and next run', ()
 test('a failure and a play competitor', () => {
   const failed = competitorStateLines(comp({ failures: 2, lastError: 'timeout' }), false, NOW);
   assert.match(failed.failure, /2 reads in a row/);
-  const waiting = competitorStateLines(comp({ failures: 0, lastError: 'rate_limited' }), false, NOW);
+  const waiting = competitorStateLines(
+    comp({ failures: 0, lastError: 'rate_limited' }),
+    false,
+    NOW,
+  );
   assert.match(waiting.failure, /Waiting/);
   const play = competitorStateLines(comp({ supported: false, store: 'play' }), false, NOW);
   assert.match(play.schedule, /Google Play/);

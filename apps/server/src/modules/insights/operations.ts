@@ -12,18 +12,45 @@ const target = z.object({
 });
 
 const card = z.object({
-  id: z.string().describe('The rule and its subject: `visibility`, `localize:de`, `complaints:crash`. Stable.'),
-  fingerprint: z.string().describe('The finding (direction and size band, the items in it). A dismissed card shows again when this changes.'),
-  category: z.enum(['visibility', 'conversion', 'downloads', 'markets', 'reviews', 'keywords', 'listing']),
+  id: z
+    .string()
+    .describe('The rule and its subject: `visibility`, `localize:de`, `complaints:crash`. Stable.'),
+  fingerprint: z
+    .string()
+    .describe(
+      'The finding (direction and size band, the items in it). A dismissed card shows again when this changes.',
+    ),
+  category: z.enum([
+    'visibility',
+    'conversion',
+    'downloads',
+    'markets',
+    'reviews',
+    'keywords',
+    'listing',
+  ]),
   severity: z.enum(['problem', 'warning', 'good', 'info']),
-  code: z.string().describe('Names the sentence (`insights:card.<code>.headline`); `params` fill it.'),
+  code: z
+    .string()
+    .describe('Names the sentence (`insights:card.<code>.headline`); `params` fill it.'),
   params: z.record(z.string(), z.union([z.string(), z.number()])),
-  evidence: z.array(z.object({ key: z.string(), value: z.union([z.number(), z.string()]), format: z.string() })),
+  evidence: z.array(
+    z.object({ key: z.string(), value: z.union([z.number(), z.string()]), format: z.string() }),
+  ),
   actions: z.array(z.object({ code: z.string(), target })),
   weight: z.number(),
 });
 
-const skipped = z.array(z.object({ rule: z.string(), reason: z.string().describe('`no_data`, `too_little_data`, `no_countries`, `no_listing`, `no_reviews`, `no_keywords`, `not_for_store` or `no_access`.') }));
+const skipped = z.array(
+  z.object({
+    rule: z.string(),
+    reason: z
+      .string()
+      .describe(
+        '`no_data`, `too_little_data`, `no_countries`, `no_listing`, `no_reviews`, `no_keywords`, `not_for_store` or `no_access`.',
+      ),
+  }),
+);
 
 const appId = z.string().describe('Kiln\u2019s id of the app.');
 
@@ -59,19 +86,23 @@ export const insightsOperations: Draft[] = [
     method: 'get',
     path: `${W}/apps/{appId}/insights/count`,
     tags: ['insights'],
-    summary: 'How many Insights cards of an app are not dismissed (the badge of the Insights entry)',
+    summary:
+      'How many Insights cards of an app are not dismissed (the badge of the Insights entry)',
     description: 'The same computation as `getAppInsights`, answering the number only.',
     risk: 'read',
     access: { action: 'analytics.read' },
     appScope: { kind: 'param', name: 'appId' },
-    responses: { '200': { description: 'The number.', schema: z.object({ count: z.number().int() }) } },
+    responses: {
+      '200': { description: 'The number.', schema: z.object({ count: z.number().int() }) },
+    },
   },
   {
     id: 'getAppInsightsCountries',
     method: 'get',
     path: `${W}/apps/{appId}/insights/countries`,
     tags: ['insights'],
-    summary: 'New downloads by country with the main language of each country, against the languages of the live store page',
+    summary:
+      'New downloads by country with the main language of each country, against the languages of the live store page',
     description:
       'Downloads of the last 28 days by country (App Store only: Google Play reports Kiln reads carry no country split), joined with a maintained table of the main language per country, and the locales of the live store page. `unavailable` says why there is no table: `no_countries`, `no_listing` (the live page was never read) or `no_access`.',
     risk: 'read',
@@ -90,8 +121,32 @@ export const insightsOperations: Draft[] = [
               total: z.number(),
               uncoveredShare: z.number(),
               unknownCount: z.number(),
-              languages: z.array(z.object({ language: z.string(), count: z.number(), share: z.number(), coveredBy: z.string().nullable(), countries: z.array(z.object({ country: z.string(), count: z.number(), share: z.number(), language: z.string().nullable(), coveredBy: z.string().nullable() })) })),
-              countries: z.array(z.object({ country: z.string(), count: z.number(), share: z.number(), language: z.string().nullable(), coveredBy: z.string().nullable() })),
+              languages: z.array(
+                z.object({
+                  language: z.string(),
+                  count: z.number(),
+                  share: z.number(),
+                  coveredBy: z.string().nullable(),
+                  countries: z.array(
+                    z.object({
+                      country: z.string(),
+                      count: z.number(),
+                      share: z.number(),
+                      language: z.string().nullable(),
+                      coveredBy: z.string().nullable(),
+                    }),
+                  ),
+                }),
+              ),
+              countries: z.array(
+                z.object({
+                  country: z.string(),
+                  count: z.number(),
+                  share: z.number(),
+                  language: z.string().nullable(),
+                  coveredBy: z.string().nullable(),
+                }),
+              ),
             })
             .nullable(),
         }),
@@ -103,7 +158,8 @@ export const insightsOperations: Draft[] = [
     method: 'get',
     path: `${W}/apps/{appId}/insights/listing-checks`,
     tags: ['insights'],
-    summary: 'Checks of the live store page of an app, per locale: a score, the findings and a rewritten text where one is safe',
+    summary:
+      'Checks of the live store page of an app, per locale: a score, the findings and a rewritten text where one is safe',
     description:
       'Computed on read from the stored copy of the live store page (field lengths against the store limits, wasted keyword space, a subtitle that repeats the name, untranslated text, missing screenshots). `unavailable` is `no_listing` when the live page was never read. A finding has `code` and `params` for the sentence, a `severity` (`problem`, `warning`, `tip`) and, only for some, `fix` (the field and the rewritten text). Nothing is sent to a store.',
     risk: 'read',
@@ -118,7 +174,11 @@ export const insightsOperations: Draft[] = [
           unavailable: z.enum(['no_listing']).nullable(),
           score: z.number().nullable(),
           issueCount: z.number().int(),
-          counts: z.object({ problems: z.number().int(), warnings: z.number().int(), tips: z.number().int() }),
+          counts: z.object({
+            problems: z.number().int(),
+            warnings: z.number().int(),
+            tips: z.number().int(),
+          }),
           locales: z.array(
             z.object({
               locale: z.string(),
@@ -158,13 +218,19 @@ export const insightsOperations: Draft[] = [
     path: `${W}/apps/{appId}/insights/restore`,
     tags: ['insights'],
     summary: 'Show dismissed Insights cards again',
-    description: 'Body `{ cardId }` restores one card; no body or `{}` restores all of the app. Audited as `insights.restored` (a count).',
+    description:
+      'Body `{ cardId }` restores one card; no body or `{}` restores all of the app. Audited as `insights.restored` (a count).',
     risk: 'write',
     access: { action: 'aso.write' },
     appScope: { kind: 'param', name: 'appId' },
     body: z.object({ cardId: z.string().min(1).max(200).optional() }),
     bodyOptional: true,
     bodyLimit: 1024,
-    responses: { '200': { description: 'How many dismissals were removed.', schema: z.object({ restored: z.number().int() }) } },
+    responses: {
+      '200': {
+        description: 'How many dismissals were removed.',
+        schema: z.object({ restored: z.number().int() }),
+      },
+    },
   },
 ];

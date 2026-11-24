@@ -12,7 +12,8 @@ import type { AlertData } from './catalog-core.ts';
  */
 
 /** `in_review` to `inReview`: catalog keys are dot-separated camelCase segments (scripts/i18n.mjs). */
-export const camel = (s: string): string => s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+export const camel = (s: string): string =>
+  s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
 /** A key with snake_case alert ids (`release.in_review.title`) as a catalog key; a `_one`/`_other` plural suffix stays. */
 export const camelKey = (key: string): string =>
   key
@@ -26,7 +27,8 @@ export const camelKey = (key: string): string =>
 type Msg = readonly [key: string, params?: Params];
 type Spec = { title: Msg; body: Msg };
 
-const text = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
+const text = (v: unknown): string | undefined =>
+  typeof v === 'string' && v !== '' ? v : undefined;
 const number = (v: unknown): number | undefined =>
   typeof v === 'number' && Number.isFinite(v) ? v : undefined;
 
@@ -83,11 +85,13 @@ function formatter(t: Translate, d: AlertData): Fmt {
     }
   };
   // A word of a closed list becomes its translation; anything else (a value this build does not know) stays as written.
-  const known = (prefix: string, ids: readonly string[]) => (v: unknown): string => {
-    const s = text(v);
-    if (!s) return t(`alerts:common.unknown`);
-    return ids.includes(s) ? t(`alerts:${prefix}.${camel(s)}`) : s;
-  };
+  const known =
+    (prefix: string, ids: readonly string[]) =>
+    (v: unknown): string => {
+      const s = text(v);
+      if (!s) return t(`alerts:common.unknown`);
+      return ids.includes(s) ? t(`alerts:${prefix}.${camel(s)}`) : s;
+    };
   const app = String(d.appName ?? d.appId ?? t('alerts:common.anApp'));
   const version = text(d.version);
   return {
@@ -104,7 +108,16 @@ function formatter(t: Translate, d: AlertData): Fmt {
   };
 }
 
-const LISTING_KINDS = ['screenshots', 'icon', 'name', 'description', 'releaseNotes', 'category', 'price', 'version'];
+const LISTING_KINDS = [
+  'screenshots',
+  'icon',
+  'name',
+  'description',
+  'releaseNotes',
+  'category',
+  'price',
+  'version',
+];
 
 const STATES = [
   'draft',
@@ -120,7 +133,8 @@ const STATES = [
 ] as const;
 
 const store = (d: AlertData): string | undefined =>
-  text(d.store) ?? (d.platform === 'ios' ? 'App Store' : d.platform === 'android' ? 'Google Play' : undefined);
+  text(d.store) ??
+  (d.platform === 'ios' ? 'App Store' : d.platform === 'android' ? 'Google Play' : undefined);
 
 /** Title and body of each alert type: which key, which values. A type that is not here has no translation (its stored text is used). */
 /** `2.5.0 (42)`, `42`, `2.5.0` or undefined: how a build is named in a TestFlight alert. */
@@ -134,7 +148,11 @@ function easSpec(f: Fmt, kind: 'build_failed' | 'submission_failed'): Spec {
   const base = `eas.${kind}`;
   const build = testflightBuild(f.d);
   const platform = text(f.d.platform);
-  const params = { app: f.app, build, platform: platform ? platformLabel(platform as Platform) : undefined };
+  const params = {
+    app: f.app,
+    build,
+    platform: platform ? platformLabel(platform as Platform) : undefined,
+  };
   return {
     title: [`${base}.title`, { app: f.app }],
     body: build ? [`${base}.body`, params] : [`${base}.body.noBuild`, { app: f.app }],
@@ -145,7 +163,11 @@ function easRolloutSpec(f: Fmt): Spec {
   const percentage = number(f.d.percentage);
   const channel = text(f.d.channel);
   const hours = number(f.d.hours);
-  if (percentage === undefined || channel === undefined) return { title: ['eas.updateRolloutStuck.title', { app: f.app }], body: ['eas.updateRolloutStuck.body.short', { app: f.app }] };
+  if (percentage === undefined || channel === undefined)
+    return {
+      title: ['eas.updateRolloutStuck.title', { app: f.app }],
+      body: ['eas.updateRolloutStuck.body.short', { app: f.app }],
+    };
   return {
     title: ['eas.updateRolloutStuck.title', { app: f.app }],
     body: ['eas.updateRolloutStuck.body', { app: f.app, channel, percentage, hours: hours ?? 0 }],
@@ -164,7 +186,9 @@ function testflightSpec(f: Fmt, kind: 'feedback' | 'crash'): Spec {
   const build = testflightBuild(f.d);
   return {
     title: [`${base}.title`, { app: f.app }],
-    body: build ? [`${base}.body`, { app: f.app, build }] : [`${base}.body.noBuild`, { app: f.app }],
+    body: build
+      ? [`${base}.body`, { app: f.app, build }]
+      : [`${base}.body.noBuild`, { app: f.app }],
   };
 }
 
@@ -343,7 +367,13 @@ const specs: Record<string, (f: Fmt) => Spec> = {
       title: ['health.crash_regression.title', { app: f.app, version }],
       body: [
         play ? 'health.crash_regression.body.share' : 'health.crash_regression.body.perSessions',
-        { app: f.app, version, previous: text(f.d.previous) ?? '?', before: shown(f.d.before), after: shown(f.d.after) },
+        {
+          app: f.app,
+          version,
+          previous: text(f.d.previous) ?? '?',
+          before: shown(f.d.before),
+          after: shown(f.d.after),
+        },
       ],
     };
   },
@@ -403,11 +433,10 @@ const specs: Record<string, (f: Fmt) => Spec> = {
   'ci.run_failed': (f) => {
     const conclusion = text(f.d.conclusion) ?? 'failure';
     const run = text(f.d.runId) ?? '?';
-    const kind = conclusion === 'failure' ? 'failure' : conclusion === 'timed_out' ? 'timedOut' : '';
+    const kind =
+      conclusion === 'failure' ? 'failure' : conclusion === 'timed_out' ? 'timedOut' : '';
     return {
-      title: f.d.appId
-        ? ['ci.run_failed.title', { app: f.app }]
-        : ['ci.run_failed.title.noApp'],
+      title: f.d.appId ? ['ci.run_failed.title', { app: f.app }] : ['ci.run_failed.title.noApp'],
       body: kind
         ? [`ci.run_failed.body.${kind}`, { run }]
         : ['ci.run_failed.body', { run, conclusion }],

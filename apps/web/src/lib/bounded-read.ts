@@ -30,7 +30,11 @@ export function settle<T>(
       resolve(out);
     };
     const timer = setTimeout(() => {
-      finish({ ok: false, timedOut: true, error: new ApiError(0, 'client_timeout', options.timeoutMessage) });
+      finish({
+        ok: false,
+        timedOut: true,
+        error: new ApiError(0, 'client_timeout', options.timeoutMessage),
+      });
       controller.abort();
     }, ms);
     let started: Promise<T>;

@@ -56,7 +56,8 @@ export type AddressBook = {
   repo: (path: string, commit: string) => string;
 };
 
-const setKey = (locale: string, kind: string, device: string | null) => `${locale}/${kind}/${device ?? ''}`;
+const setKey = (locale: string, kind: string, device: string | null) =>
+  `${locale}/${kind}/${device ?? ''}`;
 
 export function buildGraphicSets(args: {
   platform: Platform;
@@ -103,16 +104,34 @@ export function buildGraphicSets(args: {
     if (a.pushed) continue;
     const key = setKey(a.locale, a.slot.kind, a.slot.device);
     const found = sets.get(key);
-    const rows: GraphicRow[] = stagedFileRows(stagedSetOf(staged, a.locale, a.slot.kind, a.slot.device)).map((r) => {
-      const url = r.upload ? urls.blob(r.oid) : r.commit !== '' ? urls.repo(r.path, r.commit) : null;
-      return { key: `staged:${r.position}:${r.oid}`, position: r.position, name: r.name, width: r.width, height: r.height, bytes: r.bytes, thumb: url, full: url, staged: true };
+    const rows: GraphicRow[] = stagedFileRows(
+      stagedSetOf(staged, a.locale, a.slot.kind, a.slot.device),
+    ).map((r) => {
+      const url = r.upload
+        ? urls.blob(r.oid)
+        : r.commit !== ''
+          ? urls.repo(r.path, r.commit)
+          : null;
+      return {
+        key: `staged:${r.position}:${r.oid}`,
+        position: r.position,
+        name: r.name,
+        width: r.width,
+        height: r.height,
+        bytes: r.bytes,
+        thumb: url,
+        full: url,
+        staged: true,
+      };
     });
     sets.set(key, {
       id: key,
       locale: a.locale,
       kind: a.slot.kind,
       device: a.slot.device,
-      deviceLabel: found?.deviceLabel ?? deviceText(a.slot.kind, a.slot.device, deviceLabel(store, a.slot.device)),
+      deviceLabel:
+        found?.deviceLabel ??
+        deviceText(a.slot.kind, a.slot.device, deviceLabel(store, a.slot.device)),
       staged: true,
       storeCount: found?.storeCount ?? 0,
       rows,
@@ -126,15 +145,23 @@ export function buildGraphicSets(args: {
     if (own) own.sets.push(set);
     else out.push({ locale: set.locale, sets: [set] });
   }
-  for (const l of out) l.sets.sort((a, b) => a.kind.localeCompare(b.kind) || (a.device ?? '').localeCompare(b.device ?? ''));
+  for (const l of out)
+    l.sets.sort(
+      (a, b) => a.kind.localeCompare(b.kind) || (a.device ?? '').localeCompare(b.device ?? ''),
+    );
   return out.sort((a, b) => a.locale.localeCompare(b.locale));
 }
 
 /** A move of the image at `from` by `delta` places (-1 earlier, +1 later), or null when it cannot move that way. 1-based. */
-export function moveBy(from: number, delta: number, count: number): { from: number; to: number } | null {
+export function moveBy(
+  from: number,
+  delta: number,
+  count: number,
+): { from: number; to: number } | null {
   const to = from + delta;
   return from >= 1 && from <= count && to >= 1 && to <= count && to !== from ? { from, to } : null;
 }
 
 /** Whether another image can be added to the set. */
-export const canAddMore = (set: Pick<GraphicSet, 'rows' | 'max'>): boolean => set.max === 0 || set.rows.length < set.max;
+export const canAddMore = (set: Pick<GraphicSet, 'rows' | 'max'>): boolean =>
+  set.max === 0 || set.rows.length < set.max;

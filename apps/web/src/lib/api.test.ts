@@ -323,7 +323,9 @@ test('cart discard, cart publish, unstage and stage each announce the app once (
     seen.push(`${d.appId}:${d.reason}`);
   });
   try {
-    const { fetchImpl } = fake(() => jsonResponse({ result: { results: [], remaining: 0 }, staged: {} }));
+    const { fetchImpl } = fake(() =>
+      jsonResponse({ result: { results: [], remaining: 0 }, staged: {} }),
+    );
     const api = createApi({ fetch: fetchImpl });
     await api.discardPendingCart('w', 'a1', ['listing:x']);
     await api.publishPendingCart('w', 'a2', [{ id: 'listing:x', version: 'v' }]);

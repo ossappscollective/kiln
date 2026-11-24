@@ -387,7 +387,10 @@ dbTest('planRow proposes the one app with this identifier and a fitting store ty
   assert.deepEqual(row.proposal, { projectId: 'p1', revenueCatAppId: 'a_ios' });
   assert.equal(row.ambiguous, false);
   // Only apps that fit the iOS store are offered: not the Play app, not Stripe.
-  assert.deepEqual(row.candidates.map((c) => c.revenueCatAppId), ['a_ios', 'a_other']);
+  assert.deepEqual(
+    row.candidates.map((c) => c.revenueCatAppId),
+    ['a_ios', 'a_other'],
+  );
 });
 
 dbTest('planRow never picks when two projects match, or when nothing does', async () => {
@@ -407,47 +410,66 @@ dbTest('planRow never picks when two projects match, or when nothing does', asyn
   assert.equal(none.candidates.length, 1, 'still offered to choose by hand');
 });
 
-dbTest('planRow prefers the Mac App Store app of a macOS record; a linked record is left alone', async () => {
-  const row = planRow(rec('macos'), [
-    {
-      project: p1,
-      apps: [rcApp('shared', 'app_store', 'com.acme.one'), rcApp('mac', 'mac_app_store', 'com.acme.one')],
-    },
-  ]);
-  assert.equal(row.proposal?.revenueCatAppId, 'mac');
-  const linked = planRow(rec('ios'), [{ project: p1, apps: [rcApp('a', 'app_store', 'com.acme.one')] }], true);
-  assert.deepEqual([linked.linked, linked.proposal, linked.candidates], [true, null, []]);
-});
+dbTest(
+  'planRow prefers the Mac App Store app of a macOS record; a linked record is left alone',
+  async () => {
+    const row = planRow(rec('macos'), [
+      {
+        project: p1,
+        apps: [
+          rcApp('shared', 'app_store', 'com.acme.one'),
+          rcApp('mac', 'mac_app_store', 'com.acme.one'),
+        ],
+      },
+    ]);
+    assert.equal(row.proposal?.revenueCatAppId, 'mac');
+    const linked = planRow(
+      rec('ios'),
+      [{ project: p1, apps: [rcApp('a', 'app_store', 'com.acme.one')] }],
+      true,
+    );
+    assert.deepEqual([linked.linked, linked.proposal, linked.candidates], [true, null, []]);
+  },
+);
 
-dbTest('the plan route reads RevenueCat once and proposes a link per record; it saves nothing', async (db) => {
-  const t = await bootRevenueCat(db);
-  const ios = await t.addApp('ios');
-  const android = await t.addApp('android');
-  const done = await t.linked('ios');
-  t.rc.seedApps(await t.identifierOf(ios));
-  const res = await t.call(t.owner, 'GET', `/revenuecat/plan?credentialId=${t.rcCredential}`);
-  assert.equal(res.status, 200, res.text);
-  const rows = res.body.plan.rows as { appId: string; linked: boolean; proposal: unknown }[];
-  const byId = Object.fromEntries(rows.map((r) => [r.appId, r]));
-  assert.equal(byId[done]?.linked, true);
-  assert.equal(byId[done]?.proposal, null);
-  assert.ok((byId[ios]?.proposal as { projectId: string }).projectId === PROJECT_ID);
-  assert.equal(byId[android]?.proposal, null, 'no RevenueCat app has its package name');
-  assert.equal(res.headers.get('cache-control'), 'no-store');
-  assert.equal((await db.query('SELECT 1 FROM app_revenuecat_links WHERE app_id = ?', [ios])).length, 0);
-  assert.equal((await t.call(t.owner, 'GET', '/revenuecat/plan')).status, 400);
-  assert.equal(
-    (await t.call(t.owner, 'GET', '/revenuecat/plan?credentialId=nope')).body.error,
-    'credential_not_found',
-  );
-  assert.ok(!(await t.everything()).includes(REVENUECAT_KEY));
-});
+dbTest(
+  'the plan route reads RevenueCat once and proposes a link per record; it saves nothing',
+  async (db) => {
+    const t = await bootRevenueCat(db);
+    const ios = await t.addApp('ios');
+    const android = await t.addApp('android');
+    const done = await t.linked('ios');
+    t.rc.seedApps(await t.identifierOf(ios));
+    const res = await t.call(t.owner, 'GET', `/revenuecat/plan?credentialId=${t.rcCredential}`);
+    assert.equal(res.status, 200, res.text);
+    const rows = res.body.plan.rows as { appId: string; linked: boolean; proposal: unknown }[];
+    const byId = Object.fromEntries(rows.map((r) => [r.appId, r]));
+    assert.equal(byId[done]?.linked, true);
+    assert.equal(byId[done]?.proposal, null);
+    assert.ok((byId[ios]?.proposal as { projectId: string }).projectId === PROJECT_ID);
+    assert.equal(byId[android]?.proposal, null, 'no RevenueCat app has its package name');
+    assert.equal(res.headers.get('cache-control'), 'no-store');
+    assert.equal(
+      (await db.query('SELECT 1 FROM app_revenuecat_links WHERE app_id = ?', [ios])).length,
+      0,
+    );
+    assert.equal((await t.call(t.owner, 'GET', '/revenuecat/plan')).status, 400);
+    assert.equal(
+      (await t.call(t.owner, 'GET', '/revenuecat/plan?credentialId=nope')).body.error,
+      'credential_not_found',
+    );
+    assert.ok(!(await t.everything()).includes(REVENUECAT_KEY));
+  },
+);
 
-dbTest('integration-links lists the linked records of both integrations (database only)', async (db) => {
-  const t = await bootRevenueCat(db);
-  const linked = await t.linked('ios');
-  await t.addApp('android');
-  const res = await t.call(t.owner, 'GET', '/integration-links');
-  assert.equal(res.status, 200, res.text);
-  assert.deepEqual(res.body, { revenuecat: [linked], expo: [] });
-});
+dbTest(
+  'integration-links lists the linked records of both integrations (database only)',
+  async (db) => {
+    const t = await bootRevenueCat(db);
+    const linked = await t.linked('ios');
+    await t.addApp('android');
+    const res = await t.call(t.owner, 'GET', '/integration-links');
+    assert.equal(res.status, 200, res.text);
+    assert.deepEqual(res.body, { revenuecat: [linked], expo: [] });
+  },
+);

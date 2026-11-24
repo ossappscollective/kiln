@@ -4,7 +4,10 @@
  */
 
 /** The inline style of a row: the tint of the first record of the app that has one ('' when none is known yet: the row is neutral). */
-export function rowTintStyle(item: { key: string; ids: readonly string[] }, styleOf: (appId: string) => string): string {
+export function rowTintStyle(
+  item: { key: string; ids: readonly string[] },
+  styleOf: (appId: string) => string,
+): string {
   for (const id of [item.key, ...item.ids]) {
     const style = styleOf(id);
     if (style) return style;

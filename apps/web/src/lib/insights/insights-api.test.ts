@@ -14,7 +14,8 @@ function fake(respond: (call: Call) => Response) {
   return { calls, api: createApi({ fetch: fetchImpl }) };
 }
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const line = (c: Call) => `${c.init?.method ?? 'GET'} ${c.path}`;
 
 test('the Insights reads use the app paths with ids escaped, and the count is its own cheap call', async () => {
@@ -49,5 +50,8 @@ test('dismissing posts to the card, restoring sends one card or none, and a card
 
 test('an unknown card is an ApiError the screen can show', async () => {
   const { api } = fake(() => json({ error: 'not_found' }, 404));
-  await assert.rejects(api.dismissInsight('w1', 'a1', 'gone'), (e: unknown) => e instanceof ApiError && e.status === 404);
+  await assert.rejects(
+    api.dismissInsight('w1', 'a1', 'gone'),
+    (e: unknown) => e instanceof ApiError && e.status === 404,
+  );
 });

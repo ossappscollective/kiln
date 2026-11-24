@@ -244,7 +244,12 @@ test('exactly one primary action per state', () => {
 
 test('Follow the review opens the store page in a new tab when one can be built, else the release page', () => {
   const trains = releaseTrains([inReview]);
-  const external = chooseNextStep(input({ trains, reviewUrlOf: () => 'https://appstoreconnect.apple.com/apps/1/appstore/ios/version/inflight' }));
+  const external = chooseNextStep(
+    input({
+      trains,
+      reviewUrlOf: () => 'https://appstoreconnect.apple.com/apps/1/appstore/ios/version/inflight',
+    }),
+  );
   assert.deepEqual(external.primary, {
     label: 'Follow the review',
     href: 'https://appstoreconnect.apple.com/apps/1/appstore/ios/version/inflight',
@@ -253,8 +258,12 @@ test('Follow the review opens the store page in a new tab when one can be built,
   const none = chooseNextStep(input({ trains, reviewUrlOf: () => null }));
   assert.ok(none.primary && 'href' in none.primary && none.primary.external === undefined);
   // Only the review's button goes to the store: an approved release goes to its own step.
-  const approvedStep = chooseNextStep(input({ trains: releaseTrains([approved]), reviewUrlOf: () => 'https://x' }));
-  assert.ok(approvedStep.primary && 'href' in approvedStep.primary && !approvedStep.primary.external);
+  const approvedStep = chooseNextStep(
+    input({ trains: releaseTrains([approved]), reviewUrlOf: () => 'https://x' }),
+  );
+  assert.ok(
+    approvedStep.primary && 'href' in approvedStep.primary && !approvedStep.primary.external,
+  );
 });
 
 test('an approved release names its platform in the headline and the sentence', () => {
@@ -270,7 +279,12 @@ test('an approved release names its platform in the headline and the sentence', 
 // on iOS") and the release page looked at every record. The trains of the card come from every record of the app.
 test('an approved iOS release is not hidden by an Android record that is live (page scoped to Android)', () => {
   const pipeline = (platform: 'ios' | 'android', state: TrainInput['state'], version: string) => ({
-    app: { id: platform, name: 'Acme', platform, store: platform === 'ios' ? 'app-store' : 'google-play' },
+    app: {
+      id: platform,
+      name: 'Acme',
+      platform,
+      store: platform === 'ios' ? 'app-store' : 'google-play',
+    },
     pipeline: {
       appId: platform,
       platform,
@@ -286,7 +300,10 @@ test('an approved iOS release is not hidden by an Android record that is live (p
     },
     lastSyncedAt: 1,
   });
-  const data = [pipeline('ios', 'approved', '2.0.1'), pipeline('android', 'live', '2.0.1')] as never;
+  const data = [
+    pipeline('ios', 'approved', '2.0.1'),
+    pipeline('android', 'live', '2.0.1'),
+  ] as never;
   const trains = nextStepTrains(data);
   const s = chooseNextStep(input({ trains, scope: 'android' }));
   assert.equal(s.kind, 'train');
@@ -294,7 +311,9 @@ test('an approved iOS release is not hidden by an Android record that is live (p
   assert.equal(s.waiting?.who, 'you');
   assert.match(s.text, /on iOS is approved/);
   // The same facts give the same step whatever the order of the records or the scope of the page.
-  const reversed = chooseNextStep(input({ trains: nextStepTrains([...data].reverse() as never), scope: 'ios' }));
+  const reversed = chooseNextStep(
+    input({ trains: nextStepTrains([...data].reverse() as never), scope: 'ios' }),
+  );
   assert.equal(reversed.title, s.title);
   assert.equal(reversed.text, s.text);
 });

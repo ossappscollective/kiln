@@ -15,7 +15,15 @@ import { type CountryCount, languageCoverage } from './language-coverage.ts';
 import { checkListing, type CheckLocaleText } from './listing-checks.ts';
 import { complaintThemes, type ReviewTheme } from './review-themes.ts';
 
-export const INSIGHT_CATEGORIES = ['visibility', 'conversion', 'downloads', 'markets', 'reviews', 'keywords', 'listing'] as const;
+export const INSIGHT_CATEGORIES = [
+  'visibility',
+  'conversion',
+  'downloads',
+  'markets',
+  'reviews',
+  'keywords',
+  'listing',
+] as const;
 export type InsightCategory = (typeof INSIGHT_CATEGORIES)[number];
 export type InsightSeverity = 'problem' | 'warning' | 'good' | 'info';
 
@@ -49,12 +57,34 @@ export type InsightCard = {
   weight: number;
 };
 
-export type InsightRule = 'visibility' | 'conversion' | 'downloads' | 'featured' | 'localize' | 'complaints' | 'version_rating' | 'keywords' | 'listing';
-export type SkipReason = 'no_data' | 'too_little_data' | 'no_countries' | 'no_listing' | 'no_reviews' | 'no_keywords' | 'not_for_store' | 'no_access';
+export type InsightRule =
+  | 'visibility'
+  | 'conversion'
+  | 'downloads'
+  | 'featured'
+  | 'localize'
+  | 'complaints'
+  | 'version_rating'
+  | 'keywords'
+  | 'listing';
+export type SkipReason =
+  | 'no_data'
+  | 'too_little_data'
+  | 'no_countries'
+  | 'no_listing'
+  | 'no_reviews'
+  | 'no_keywords'
+  | 'not_for_store'
+  | 'no_access';
 
 export type DayValue = { day: string; value: number };
 export type InsightReview = { rating: number; text: string; day: string; version: string | null };
-export type InsightKeyword = { term: string; country: string; rank: number | null; change: RankChange | null };
+export type InsightKeyword = {
+  term: string;
+  country: string;
+  rank: number | null;
+  change: RankChange | null;
+};
 
 export type InsightsInput = {
   store: ListingStore;
@@ -89,7 +119,8 @@ export type InsightsResult = {
 
 const DAY_MS = 86_400_000;
 const dayMs = (day: string) => Date.parse(`${day}T00:00:00Z`);
-const addDays = (day: string, n: number) => new Date(dayMs(day) + n * DAY_MS).toISOString().slice(0, 10);
+const addDays = (day: string, n: number) =>
+  new Date(dayMs(day) + n * DAY_MS).toISOString().slice(0, 10);
 
 type Window = { from: string; to: string };
 const sumIn = (series: readonly DayValue[], w: Window): { total: number; days: number } => {
@@ -105,11 +136,17 @@ const sumIn = (series: readonly DayValue[], w: Window): { total: number; days: n
 };
 
 /** The two 14 day windows that end on the newest day with data (not after `today`). Null when the series has no day. */
-function windows(series: readonly DayValue[], today: string): { current: Window; previous: Window } | null {
+function windows(
+  series: readonly DayValue[],
+  today: string,
+): { current: Window; previous: Window } | null {
   let end: string | null = null;
   for (const p of series) if (p.day <= today && (end === null || p.day > end)) end = p.day;
   if (end === null) return null;
-  return { current: { from: addDays(end, -13), to: end }, previous: { from: addDays(end, -27), to: addDays(end, -14) } };
+  return {
+    current: { from: addDays(end, -13), to: end },
+    previous: { from: addDays(end, -27), to: addDays(end, -14) },
+  };
 }
 
 const MIN_DAYS = 10;
@@ -117,7 +154,12 @@ const band = (value: number, step: number) => Math.round(value / step) * step;
 const pct = (ratio: number) => Math.round(ratio * 100);
 
 /** Two proportions compared with a pooled z test; true at roughly 95% confidence. */
-export function rateDiffers(aHits: number, aTrials: number, bHits: number, bTrials: number): boolean {
+export function rateDiffers(
+  aHits: number,
+  aTrials: number,
+  bHits: number,
+  bTrials: number,
+): boolean {
   if (aTrials <= 0 || bTrials <= 0) return false;
   const pooled = (aHits + bHits) / (aTrials + bTrials);
   const se = Math.sqrt(pooled * (1 - pooled) * (1 / aTrials + 1 / bTrials));
@@ -128,7 +170,9 @@ export function rateDiffers(aHits: number, aTrials: number, bHits: number, bTria
 const median = (values: number[]): number => {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? (sorted[mid] as number) : ((sorted[mid - 1] as number) + (sorted[mid] as number)) / 2;
+  return sorted.length % 2
+    ? (sorted[mid] as number)
+    : ((sorted[mid - 1] as number) + (sorted[mid] as number)) / 2;
 };
 
 /** Compares `1.10.0` with `1.9.2` by numbers, part by part. */
@@ -146,7 +190,8 @@ export function compareVersions(a: string, b: string): number {
 // rules
 
 type Ctx = { input: InsightsInput; cards: InsightCard[]; skipped: InsightsResult['skipped'] };
-const skip = (ctx: Ctx, rule: InsightRule, reason: SkipReason) => ctx.skipped.push({ rule, reason });
+const skip = (ctx: Ctx, rule: InsightRule, reason: SkipReason) =>
+  ctx.skipped.push({ rule, reason });
 
 const MIN_SEEN = 500;
 const MIN_DOWNLOADS = 50;
@@ -179,7 +224,12 @@ function visibility(ctx: Ctx) {
       { key: 'current', value: cur.total, format: 'count' },
       { key: 'previous', value: prev.total, format: 'count' },
     ],
-    actions: [{ code: up ? 'openOverview' : 'openKeywords', target: { section: 'insights', view: up ? 'overview' : 'keywords' } }],
+    actions: [
+      {
+        code: up ? 'openOverview' : 'openKeywords',
+        target: { section: 'insights', view: up ? 'overview' : 'keywords' },
+      },
+    ],
     weight: Math.min(90, 35 + Math.round(Math.abs(change) * 60)),
   });
 }
@@ -197,16 +247,23 @@ function conversion(ctx: Ctx) {
   }
   const s = { cur: sumIn(seen, w.current), prev: sumIn(seen, w.previous) };
   const a = { cur: sumIn(acquired, w.current), prev: sumIn(acquired, w.previous) };
-  if (s.cur.days < MIN_DAYS || s.prev.days < MIN_DAYS || s.cur.total < 1000 || s.prev.total < 1000 || a.prev.total < 20) {
+  if (
+    s.cur.days < MIN_DAYS ||
+    s.prev.days < MIN_DAYS ||
+    s.cur.total < 1000 ||
+    s.prev.total < 1000 ||
+    a.prev.total < 20
+  ) {
     {
-    skip(ctx, 'conversion', 'too_little_data');
-    return;
-  }
+      skip(ctx, 'conversion', 'too_little_data');
+      return;
+    }
   }
   const now = a.cur.total / s.cur.total;
   const before = a.prev.total / s.prev.total;
   const change = now / before - 1;
-  if (Math.abs(change) < 0.1 || !rateDiffers(a.cur.total, s.cur.total, a.prev.total, s.prev.total)) return;
+  if (Math.abs(change) < 0.1 || !rateDiffers(a.cur.total, s.cur.total, a.prev.total, s.prev.total))
+    return;
   const up = change > 0;
   ctx.cards.push({
     id: 'conversion',
@@ -219,7 +276,10 @@ function conversion(ctx: Ctx) {
       { key: 'rateNow', value: now, format: 'percent' },
       { key: 'ratePrevious', value: before, format: 'percent' },
     ],
-    actions: [{ code: 'openGraphics', target: { section: 'listing', view: 'graphics' } }, { code: 'openText', target: { section: 'listing', view: 'text' } }],
+    actions: [
+      { code: 'openGraphics', target: { section: 'listing', view: 'graphics' } },
+      { code: 'openText', target: { section: 'listing', view: 'text' } },
+    ],
     weight: up ? 60 : 88,
   });
 }
@@ -233,7 +293,14 @@ function downloads(ctx: Ctx) {
   const w = windows(series, today);
   const cur = w && sumIn(series, w.current);
   const prev = w && sumIn(series, w.previous);
-  if (!w || !cur || !prev || cur.days < MIN_DAYS || prev.days < MIN_DAYS || prev.total < MIN_DOWNLOADS) {
+  if (
+    !w ||
+    !cur ||
+    !prev ||
+    cur.days < MIN_DAYS ||
+    prev.days < MIN_DAYS ||
+    prev.total < MIN_DOWNLOADS
+  ) {
     skip(ctx, 'downloads', 'too_little_data');
     return;
   }
@@ -273,7 +340,9 @@ function featured(ctx: Ctx) {
     skip(ctx, 'featured', 'no_data');
     return;
   }
-  const baseline = recent.filter((p) => p.day <= addDays(last.day, -10) && p.day >= addDays(last.day, -38)).map((p) => p.value);
+  const baseline = recent
+    .filter((p) => p.day <= addDays(last.day, -10) && p.day >= addDays(last.day, -38))
+    .map((p) => p.value);
   if (baseline.length < 21) {
     skip(ctx, 'featured', 'too_little_data');
     return;
@@ -291,7 +360,11 @@ function featured(ctx: Ctx) {
     category: 'visibility',
     severity: 'good',
     code: 'featured.spike',
-    params: { day: spike.day, count: spike.value, times: Math.max(1, Math.round(spike.value / Math.max(1, usual))) },
+    params: {
+      day: spike.day,
+      count: spike.value,
+      times: Math.max(1, Math.round(spike.value / Math.max(1, usual))),
+    },
     evidence: [
       { key: 'browseDay', value: spike.value, format: 'count' },
       { key: 'browseUsual', value: Math.round(usual), format: 'count' },
@@ -318,7 +391,9 @@ function localize(ctx: Ctx) {
     skip(ctx, 'localize', 'too_little_data');
     return;
   }
-  for (const lang of cov.languages.filter((l) => l.coveredBy === null && l.share >= 0.04 && l.count >= 15).slice(0, 3)) {
+  for (const lang of cov.languages
+    .filter((l) => l.coveredBy === null && l.share >= 0.04 && l.count >= 15)
+    .slice(0, 3)) {
     const share = pct(lang.share);
     ctx.cards.push({
       id: `localize:${lang.language}`,
@@ -326,7 +401,14 @@ function localize(ctx: Ctx) {
       category: 'markets',
       severity: 'warning',
       code: 'localize',
-      params: { percent: share, language: lang.language, countries: lang.countries.slice(0, 3).map((c) => c.country).join(',') },
+      params: {
+        percent: share,
+        language: lang.language,
+        countries: lang.countries
+          .slice(0, 3)
+          .map((c) => c.country)
+          .join(','),
+      },
       evidence: [
         { key: 'share', value: lang.share, format: 'percent' },
         { key: 'downloads', value: lang.count, format: 'count' },
@@ -428,20 +510,47 @@ function keywords(ctx: Ctx) {
     return;
   }
   const moves = list.filter((k) => k.change && isBigMove(k.change, rankThreshold ?? 5));
-  const gain = (k: InsightKeyword) => (k.change?.kind === 'entered' ? 1000 : k.change?.kind === 'dropped' ? -1000 : (k.change?.delta ?? 0));
+  const gain = (k: InsightKeyword) =>
+    k.change?.kind === 'entered'
+      ? 1000
+      : k.change?.kind === 'dropped'
+        ? -1000
+        : (k.change?.delta ?? 0);
   for (const dir of ['down', 'up'] as const) {
-    const side = moves.filter((k) => (dir === 'up' ? gain(k) > 0 : gain(k) < 0)).sort((a, b) => Math.abs(gain(b)) - Math.abs(gain(a)));
+    const side = moves
+      .filter((k) => (dir === 'up' ? gain(k) > 0 : gain(k) < 0))
+      .sort((a, b) => Math.abs(gain(b)) - Math.abs(gain(a)));
     if (side.length === 0) continue;
     const top = side[0] as InsightKeyword;
     ctx.cards.push({
       id: `keywords:${dir}`,
-      fingerprint: side.map((k) => `${k.term}@${k.country}:${k.rank ?? '-'}`).sort().join('|'),
+      fingerprint: side
+        .map((k) => `${k.term}@${k.country}:${k.rank ?? '-'}`)
+        .sort()
+        .join('|'),
       category: 'keywords',
       severity: dir === 'up' ? 'good' : 'warning',
       code: `keywords.${dir}`,
-      params: { count: side.length, term: top.term, country: top.country.toUpperCase(), from: top.change?.from ?? 0, to: top.change?.to ?? 0 },
-      evidence: side.slice(0, 3).map((k) => ({ key: `${k.term} (${k.country.toUpperCase()})`, value: k.rank ?? 0, format: 'rank' as const })),
-      actions: [{ code: 'openRank', target: { section: 'insights', view: 'keywords', term: top.term, country: top.country } }],
+      params: {
+        count: side.length,
+        term: top.term,
+        country: top.country.toUpperCase(),
+        from: top.change?.from ?? 0,
+        to: top.change?.to ?? 0,
+      },
+      evidence: side
+        .slice(0, 3)
+        .map((k) => ({
+          key: `${k.term} (${k.country.toUpperCase()})`,
+          value: k.rank ?? 0,
+          format: 'rank' as const,
+        })),
+      actions: [
+        {
+          code: 'openRank',
+          target: { section: 'insights', view: 'keywords', term: top.term, country: top.country },
+        },
+      ],
       weight: dir === 'down' ? 70 : 55,
     });
   }
@@ -454,36 +563,73 @@ function listing(ctx: Ctx) {
     return;
   }
   const out = checkListing({ store, locales: page.locales, baseLocale: page.baseLocale });
-  const problems = out.locales.flatMap((l) => l.issues.filter((i) => i.severity !== 'tip').map((i) => ({ ...i, locale: l.locale })));
+  const problems = out.locales.flatMap((l) =>
+    l.issues.filter((i) => i.severity !== 'tip').map((i) => ({ ...i, locale: l.locale })),
+  );
   if (problems.length === 0) return;
-  const worst = [...out.locales].sort((a, b) => a.score - b.score)[0] as { locale: string; score: number };
+  const worst = [...out.locales].sort((a, b) => a.score - b.score)[0] as {
+    locale: string;
+    score: number;
+  };
   // The headline counts what must be fixed; advice is counted apart. Only a real problem makes the card red.
   const hard = out.counts.problems;
   const soft = out.counts.warnings;
   ctx.cards.push({
     id: 'listing',
-    fingerprint: problems.map((i) => i.id).sort().join('|'),
+    fingerprint: problems
+      .map((i) => i.id)
+      .sort()
+      .join('|'),
     category: 'listing',
     severity: hard > 0 ? 'problem' : 'warning',
     code: hard > 0 ? 'listing.issues' : 'listing.review',
-    params: { count: hard > 0 ? hard : soft, problems: hard, warnings: soft, score: out.score, locale: worst.locale },
+    params: {
+      count: hard > 0 ? hard : soft,
+      problems: hard,
+      warnings: soft,
+      score: out.score,
+      locale: worst.locale,
+    },
     evidence: [
       { key: 'score', value: out.score, format: 'count' },
       { key: 'issues', value: hard, format: 'count' },
       { key: 'warnings', value: soft, format: 'count' },
     ],
-    actions: [{ code: 'openChecks', target: { section: 'listing', view: 'text', locale: worst.locale } }],
+    actions: [
+      { code: 'openChecks', target: { section: 'listing', view: 'text', locale: worst.locale } },
+    ],
     weight: hard > 0 ? 75 : 50,
   });
 }
 
-const SEVERITY_ORDER: Record<InsightSeverity, number> = { problem: 0, warning: 1, good: 2, info: 3 };
+const SEVERITY_ORDER: Record<InsightSeverity, number> = {
+  problem: 0,
+  warning: 1,
+  good: 2,
+  info: 3,
+};
 
 /** Runs every rule. Cards come sorted: problems first, then by weight. */
 export function buildInsights(input: InsightsInput): InsightsResult {
   const ctx: Ctx = { input, cards: [], skipped: [] };
-  for (const rule of [visibility, conversion, downloads, featured, localize, complaints, versionRating, keywords, listing]) rule(ctx);
-  ctx.cards.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || b.weight - a.weight || a.id.localeCompare(b.id));
+  for (const rule of [
+    visibility,
+    conversion,
+    downloads,
+    featured,
+    localize,
+    complaints,
+    versionRating,
+    keywords,
+    listing,
+  ])
+    rule(ctx);
+  ctx.cards.sort(
+    (a, b) =>
+      SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] ||
+      b.weight - a.weight ||
+      a.id.localeCompare(b.id),
+  );
   return { cards: ctx.cards, skipped: ctx.skipped };
 }
 
@@ -492,7 +638,8 @@ export function applyDismissals(
   cards: readonly InsightCard[],
   dismissed: ReadonlyMap<string, string> | Record<string, string>,
 ): { visible: InsightCard[]; hidden: InsightCard[] } {
-  const get = (id: string) => (dismissed instanceof Map ? dismissed.get(id) : (dismissed as Record<string, string>)[id]);
+  const get = (id: string) =>
+    dismissed instanceof Map ? dismissed.get(id) : (dismissed as Record<string, string>)[id];
   const visible: InsightCard[] = [];
   const hidden: InsightCard[] = [];
   for (const card of cards) (get(card.id) === card.fingerprint ? hidden : visible).push(card);

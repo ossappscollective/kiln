@@ -66,7 +66,12 @@ const sentimentFromRating = (rating: number): AiSentiment =>
 
 export const REVIEW_SUMMARY_VERSION = 2;
 const SUMMARY_CACHE_DAYS = 7;
-const OUTPUT_LANGUAGES: Record<string, string> = { en: 'English', fr: 'French', es: 'Spanish', de: 'German' };
+const OUTPUT_LANGUAGES: Record<string, string> = {
+  en: 'English',
+  fr: 'French',
+  es: 'Spanish',
+  de: 'German',
+};
 const THEMES_MAX = 10;
 
 const SUMMARY_SYSTEM = `You summarise app store reviews for the developer of the app.
@@ -168,14 +173,22 @@ export const reviewSummaryTask: ReadyTask = {
       description:
         'How many reviews to send, 5 to 80. Default 40. More reviews need a larger input limit in the AI settings.',
     },
-    { name: 'locale', required: false, description: 'Only reviews written in this language, such as fr. Default: all.' },
+    {
+      name: 'locale',
+      required: false,
+      description: 'Only reviews written in this language, such as fr. Default: all.',
+    },
     {
       name: 'outputLanguage',
       required: false,
       description: 'The language the summary is written in: en, fr, es or de. Default en.',
       values: Object.keys(OUTPUT_LANGUAGES),
     },
-    { name: 'refresh', required: false, description: 'true: make a new summary even when the same reviews were summarised before.' },
+    {
+      name: 'refresh',
+      required: false,
+      description: 'true: make a new summary even when the same reviews were summarised before.',
+    },
   ],
   system: SUMMARY_SYSTEM,
   schema: SUMMARY_SCHEMA,
@@ -190,13 +203,21 @@ export const reviewSummaryTask: ReadyTask = {
     const rawLocale = typeof scope.locale === 'string' ? scope.locale.trim() : '';
     // The route checks the shape of the code; anything else here is ignored (all languages).
     const locale = /^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8})?$/.test(rawLocale) ? rawLocale : null;
-    const outputLanguage = typeof scope.outputLanguage === 'string' && scope.outputLanguage in OUTPUT_LANGUAGES ? scope.outputLanguage : 'en';
+    const outputLanguage =
+      typeof scope.outputLanguage === 'string' && scope.outputLanguage in OUTPUT_LANGUAGES
+        ? scope.outputLanguage
+        : 'en';
     const policy = ctx.reviewPolicy ?? DEFAULT_SEND_POLICY;
     const ratingsOnly = policy.detail === 'ratings';
     // Ratings only: no review is read for the prompt at all; the summary is made from the counts (docs/adr/0065).
     const now = ctx.now();
     const loaded: LoadedReviews = ratingsOnly
-      ? { window: { days, from: now - days * 86_400_000, to: now }, inPeriod: 0, reviews: [], sampled: { newest: 0, lowest: 0 } }
+      ? {
+          window: { days, from: now - days * 86_400_000, to: now },
+          inPeriod: 0,
+          reviews: [],
+          sampled: { newest: 0, lowest: 0 },
+        }
       : await loadReviewsForAi(ctx.db, {
           workspaceId: ctx.workspaceId,
           appId: ctx.app.id,
@@ -227,16 +248,26 @@ export const reviewSummaryTask: ReadyTask = {
     if (ratingsOnly) {
       loaded.inPeriod = stats.stars.reduce((n, c) => n + c, 0);
       if (loaded.inPeriod === 0) {
-        return aiFail(422, 'no_reviews', 'There are no reviews in this period. Sync the reviews, or choose more days.', {
-          field: 'days',
-          ...coded('ai.noReviewsInPeriod'),
-        });
+        return aiFail(
+          422,
+          'no_reviews',
+          'There are no reviews in this period. Sync the reviews, or choose more days.',
+          {
+            field: 'days',
+            ...coded('ai.noReviewsInPeriod'),
+          },
+        );
       }
     }
     // The themes (labels and shares only, no review text) of the last summary of the same period and language.
-    let previous: { day: string; themes: { label: string; kind: string; sharePercent: number }[] } | undefined;
+    let previous:
+      | { day: string; themes: { label: string; kind: string; sharePercent: number }[] }
+      | undefined;
     let previousAt: number | null = null;
-    const earlier = await listSuggestions(ctx.db, ctx.workspaceId, ctx.app.id, { task: 'review_summary', limit: 10 });
+    const earlier = await listSuggestions(ctx.db, ctx.workspaceId, ctx.app.id, {
+      task: 'review_summary',
+      limit: 10,
+    });
     for (const old of earlier) {
       const p = old.proposal;
       if (p.kind !== 'insight' || p.insight !== 'review_summary') continue;
@@ -263,7 +294,13 @@ export const reviewSummaryTask: ReadyTask = {
       ...(ratingsOnly
         ? {
             mode: 'ratings_only',
-            starCounts: { '1': stats.stars[0], '2': stats.stars[1], '3': stats.stars[2], '4': stats.stars[3], '5': stats.stars[4] },
+            starCounts: {
+              '1': stats.stars[0],
+              '2': stats.stars[1],
+              '3': stats.stars[2],
+              '4': stats.stars[3],
+              '5': stats.stars[4],
+            },
             meanStars: { firstHalf: stats.earlier.average, secondHalf: stats.recent.average },
           }
         : {}),
@@ -275,10 +312,28 @@ export const reviewSummaryTask: ReadyTask = {
         ...(policy.detail === 'full' && r.language ? { lang: r.language } : {}),
       })),
     };
-    const facts: SummaryFacts = { loaded, locale, outputLanguage, stats, previousAt, detail: policy.detail };
+    const facts: SummaryFacts = {
+      loaded,
+      locale,
+      outputLanguage,
+      stats,
+      previousAt,
+      detail: policy.detail,
+    };
     // `key` is what makes two runs "the same data": the options and the reviews sent (not the last summary), hashed. Never text.
     const key = createHash('sha256')
-      .update(JSON.stringify([days, limit, locale, outputLanguage, policy.detail, policy.redact, loaded.reviews.map((r) => [r.id, r.rating, r.title, r.text])]), 'utf8')
+      .update(
+        JSON.stringify([
+          days,
+          limit,
+          locale,
+          outputLanguage,
+          policy.detail,
+          policy.redact,
+          loaded.reviews.map((r) => [r.id, r.rating, r.title, r.text]),
+        ]),
+        'utf8',
+      )
       .digest('hex');
     return { input, scope: { days, limit, locale, outputLanguage, key }, facts };
   },
@@ -358,7 +413,10 @@ export const reviewSummaryTask: ReadyTask = {
       sampled: loaded.sampled ?? { newest: loaded.reviews.length, lowest: 0 },
       changes: previousAt === null || detail === 'ratings' ? '' : paragraphOf(answer.changes, 300),
       previousAt,
-      latestReviewAt: loaded.reviews.reduce<number | null>((m, r) => (m === null || r.createdAt > m ? r.createdAt : m), null),
+      latestReviewAt: loaded.reviews.reduce<number | null>(
+        (m, r) => (m === null || r.createdAt > m ? r.createdAt : m),
+        null,
+      ),
       reviewIdsUsed: loaded.reviews.map((r) => r.id),
       detail,
     };

@@ -9,7 +9,14 @@ import { type Platform, supports } from '../platform.ts';
 import { compareDottedVersions, isDottedVersion } from './store-version.ts';
 
 /** The stored release states in which Apple's metadata no longer changes. */
-export const LOCKED_RELEASE_STATES = ['live', 'rolling_out', 'propagating', 'halted', 'in_review', 'approved'] as const;
+export const LOCKED_RELEASE_STATES = [
+  'live',
+  'rolling_out',
+  'propagating',
+  'halted',
+  'in_review',
+  'approved',
+] as const;
 export type LockedReleaseState = (typeof LOCKED_RELEASE_STATES)[number];
 
 export type MetadataLock = {
@@ -40,7 +47,10 @@ export function computeMetadataLock(
   const locking = known.filter((r) => isLockedState(r.status));
   if (locking.length === 0) return OPEN_METADATA;
   const newest = locking.reduce((a, b) => {
-    const order = isDottedVersion(a.version) && isDottedVersion(b.version) ? compareDottedVersions(a.version, b.version) : a.version.localeCompare(b.version);
+    const order =
+      isDottedVersion(a.version) && isDottedVersion(b.version)
+        ? compareDottedVersions(a.version, b.version)
+        : a.version.localeCompare(b.version);
     return order >= 0 ? a : b;
   });
   return { locked: true, reason: newest.status as LockedReleaseState, liveVersion: newest.version };

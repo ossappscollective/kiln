@@ -111,7 +111,11 @@ const invitationSchema = z.object({
 });
 
 const appAppearanceSchema = z.object({
-  tint: z.enum(['auto', 'off', 'custom']).describe('`auto`: the colours of the app icon. `off`: no tint for this app. `custom`: `color`.'),
+  tint: z
+    .enum(['auto', 'off', 'custom'])
+    .describe(
+      '`auto`: the colours of the app icon. `off`: no tint for this app. `custom`: `color`.',
+    ),
   color: z.string().optional().describe('`#rrggbb`, only with `custom`.'),
 });
 
@@ -283,7 +287,13 @@ const settingsBody = z.object({
       'A keyword that moves this many places or more between two checks raises `aso.rank_changed`. Default 5. Entering or leaving the results raises it only within the top 10.',
     ),
   'translation.enabled': z.boolean().nullable().optional().describe('Default false.'),
-  'prices.writeEnabled': z.boolean().nullable().optional().describe('Default false. Allows price changes of in-app products to be staged and sent; the server switch and the other gates are still needed.'),
+  'prices.writeEnabled': z
+    .boolean()
+    .nullable()
+    .optional()
+    .describe(
+      'Default false. Allows price changes of in-app products to be staged and sent; the server switch and the other gates are still needed.',
+    ),
   'translation.provider': z
     .enum(translationProviders)
     .nullable()
@@ -700,7 +710,12 @@ export const workspaceOperations: Draft[] = [
     risk: 'read',
     access: { action: 'apps.read' },
     appScope: { kind: 'list' },
-    responses: { '200': { description: 'The overrides by app id.', schema: z.object({ apps: z.record(z.string(), appAppearanceSchema) }) } },
+    responses: {
+      '200': {
+        description: 'The overrides by app id.',
+        schema: z.object({ apps: z.record(z.string(), appAppearanceSchema) }),
+      },
+    },
   },
   {
     id: 'updateAppAppearance',
@@ -713,8 +728,21 @@ export const workspaceOperations: Draft[] = [
     risk: 'write',
     access: { action: 'apps.write' },
     appScope: { kind: 'param', name: 'id' },
-    body: z.object({ tint: z.enum(['auto', 'off', 'custom']), color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional() }).strict(),
-    responses: { '200': { description: 'The value after the change.', schema: z.object({ appearance: appAppearanceSchema, changed: z.boolean() }) } },
+    body: z
+      .object({
+        tint: z.enum(['auto', 'off', 'custom']),
+        color: z
+          .string()
+          .regex(/^#[0-9a-fA-F]{6}$/)
+          .optional(),
+      })
+      .strict(),
+    responses: {
+      '200': {
+        description: 'The value after the change.',
+        schema: z.object({ appearance: appAppearanceSchema, changed: z.boolean() }),
+      },
+    },
   },
   {
     id: 'getSyncActivity',
@@ -869,8 +897,14 @@ export const workspaceOperations: Draft[] = [
     rateLimited: true,
     query: z.object({
       without: z.enum(['app']).optional(),
-      kinds: z.string().optional().describe('Comma list of `app`, `reviews`, `eas`, `analytics`, `ads`: only these kinds.'),
-      sources: z.string().optional().describe('Comma list of analytics sources: only these (with the `analytics` kind).'),
+      kinds: z
+        .string()
+        .optional()
+        .describe('Comma list of `app`, `reviews`, `eas`, `analytics`, `ads`: only these kinds.'),
+      sources: z
+        .string()
+        .optional()
+        .describe('Comma list of analytics sources: only these (with the `analytics` kind).'),
     }),
     responses: {
       '202': {
@@ -881,7 +915,9 @@ export const workspaceOperations: Draft[] = [
               kind: z.enum(['app', 'reviews', 'eas', 'analytics', 'ads']),
               state: z.enum(['queued', 'skipped']),
               jobId: z.string().optional(),
-              reason: z.enum(['forbidden', 'not_linked', 'off', 'not_ready', 'already_queued']).optional(),
+              reason: z
+                .enum(['forbidden', 'not_linked', 'off', 'not_ready', 'already_queued'])
+                .optional(),
             }),
           ),
         }),

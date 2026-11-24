@@ -25,7 +25,11 @@ const defaultStore = (): StoreLike | null => {
 };
 
 /** The remembered choice of this person, or `fallback` (also when storage cannot be read). */
-export function loadCollapsed(userId: string, fallback = false, store: StoreLike | null = defaultStore()): boolean {
+export function loadCollapsed(
+  userId: string,
+  fallback = false,
+  store: StoreLike | null = defaultStore(),
+): boolean {
   try {
     return parseCollapsed(store?.getItem(sidebarStorageKey(userId))) ?? fallback;
   } catch {
@@ -34,7 +38,11 @@ export function loadCollapsed(userId: string, fallback = false, store: StoreLike
 }
 
 /** Remembers the choice; a failure (private mode, quota) is ignored. */
-export function saveCollapsed(userId: string, collapsed: boolean, store: StoreLike | null = defaultStore()): void {
+export function saveCollapsed(
+  userId: string,
+  collapsed: boolean,
+  store: StoreLike | null = defaultStore(),
+): void {
   try {
     store?.setItem(sidebarStorageKey(userId), collapsed ? '1' : '0');
   } catch {

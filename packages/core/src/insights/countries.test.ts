@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { COUNTRY_CODES, languageKey, localeCovering, mainLanguageOf, normalizeCountryCode } from './countries.ts';
+import {
+  COUNTRY_CODES,
+  languageKey,
+  localeCovering,
+  mainLanguageOf,
+  normalizeCountryCode,
+} from './countries.ts';
 
 test('the main language of a country, for both stores', () => {
   assert.equal(mainLanguageOf('DE'), 'de');

@@ -39,7 +39,11 @@ import {
   ownReviewStats,
   refreshCompetitorReviews,
 } from './competitor-reviews.ts';
-import { reviewScheduleView, setAppReviewSchedule, setCompetitorOverride } from './competitor-review-schedule.ts';
+import {
+  reviewScheduleView,
+  setAppReviewSchedule,
+  setCompetitorOverride,
+} from './competitor-review-schedule.ts';
 import {
   COMPETITOR_IMAGE_REF,
   competitorImageSizeOf,
@@ -388,13 +392,17 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     return c.json(await estimatesForApp(db, ws(c), app));
   });
 
-  routes.get('/:workspaceId/apps/:id/aso/keywords/:keywordId/estimate', needs('aso.read'), async (c) => {
-    const app = await getApp(db, ws(c), param(c, 'id'));
-    if (!app) return notFound(c);
-    const keyword = await getKeyword(db, ws(c), app.id, param(c, 'keywordId'));
-    if (!keyword) return notFound(c);
-    return c.json(await estimateDetail(db, ws(c), app, keyword));
-  });
+  routes.get(
+    '/:workspaceId/apps/:id/aso/keywords/:keywordId/estimate',
+    needs('aso.read'),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return notFound(c);
+      const keyword = await getKeyword(db, ws(c), app.id, param(c, 'keywordId'));
+      if (!keyword) return notFound(c);
+      return c.json(await estimateDetail(db, ws(c), app, keyword));
+    },
+  );
 
   routes.get('/:workspaceId/apps/:id/aso/keyword-suggestions', needs('aso.read'), async (c) => {
     const app = await getApp(db, ws(c), param(c, 'id'));
@@ -402,11 +410,14 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     const limit = queryInt(c.req.query('limit'), { fallback: 30, max: 100 });
     const country = c.req.query('country');
     const issues: Issue[] = [];
-    if (limit === undefined) issues.push({ path: 'limit', message: 'A whole number from 1 to 100.' });
+    if (limit === undefined)
+      issues.push({ path: 'limit', message: 'A whole number from 1 to 100.' });
     if (country !== undefined && country !== '' && !/^[a-z]{2}$/.test(country))
       issues.push({ path: 'country', message: 'Two lower case letters.' });
     if (issues.length > 0 || limit === undefined) return bad(c, issues);
-    return c.json(await suggestionsForApp(db, ws(c), app, { limit, ...(country ? { country } : {}) }));
+    return c.json(
+      await suggestionsForApp(db, ws(c), app, { limit, ...(country ? { country } : {}) }),
+    );
   });
 
   // ----- competitors ----------------------------------------------------------------------------------
@@ -425,10 +436,14 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     if (!app) return notFound(c);
     const q = (c.req.query('q') ?? '').replace(/\s+/g, ' ').trim();
     const rawCountry = c.req.query('country');
-    const country = rawCountry === undefined || rawCountry === '' ? 'us' : normalizeCountry(rawCountry);
+    const country =
+      rawCountry === undefined || rawCountry === '' ? 'us' : normalizeCountry(rawCountry);
     const issues: Issue[] = [];
     if (q.length < COMPETITOR_QUERY_MIN || q.length > COMPETITOR_QUERY_MAX)
-      issues.push({ path: 'q', message: `${COMPETITOR_QUERY_MIN} to ${COMPETITOR_QUERY_MAX} characters.` });
+      issues.push({
+        path: 'q',
+        message: `${COMPETITOR_QUERY_MIN} to ${COMPETITOR_QUERY_MAX} characters.`,
+      });
     if (!country) issues.push({ path: 'country', message: 'Two letters, such as us or de.' });
     if (issues.length > 0 || !country) return bad(c, issues);
     const stop = limited(c);
@@ -497,88 +512,170 @@ export function asoRoutes(ctx: AsoRoutesContext) {
   );
 
   // ----- the listing watch of a competitor (docs/adr/0056-competitor-listing-watch.md) ------------------
-  routes.get('/:workspaceId/apps/:id/aso/competitors/:competitorId/changes', needs('aso.read'), async (c) => {
-    const app = await getApp(db, ws(c), param(c, 'id'));
-    if (!app) return notFound(c);
-    const competitor = await getCompetitor(db, ws(c), app.id, param(c, 'competitorId'));
-    if (!competitor) return notFound(c);
-    const limit = limitQuery(c, 10, CHANGES_PAGE_MAX);
-    const rawBefore = c.req.query('before');
-    const before = rawBefore === undefined || rawBefore === '' ? undefined : Number(rawBefore);
-    if (limit === undefined) return bad(c, [{ path: 'limit', message: `A whole number from 1 to ${CHANGES_PAGE_MAX}.` }]);
-    if (before !== undefined && !(Number.isInteger(before) && before > 0))
-      return bad(c, [{ path: 'before', message: 'A time in milliseconds (the detectedAt of the last change you have).' }]);
-    const page = await listCompetitorChanges(db, {
-      workspaceId: ws(c),
-      competitorId: competitor.id,
-      limit,
-      ...(before !== undefined ? { before } : {}),
-    });
-    return c.json({
-      competitorId: competitor.id,
-      // Honest about where the history starts: Kiln can only compare what it read after the competitor was followed.
-      watching: competitor.store === 'app_store' ? { state: 'watched', since: competitor.addedAt } : { state: 'not_watched', reason: 'play_pages_not_read' },
-      lastCheckedAt: competitor.lastCheckedAt,
-      retentionDays: COMPETITOR_CHANGE_RETENTION_DAYS,
-      ...page,
-    });
-  });
+  routes.get(
+    '/:workspaceId/apps/:id/aso/competitors/:competitorId/changes',
+    needs('aso.read'),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return notFound(c);
+      const competitor = await getCompetitor(db, ws(c), app.id, param(c, 'competitorId'));
+      if (!competitor) return notFound(c);
+      const limit = limitQuery(c, 10, CHANGES_PAGE_MAX);
+      const rawBefore = c.req.query('before');
+      const before = rawBefore === undefined || rawBefore === '' ? undefined : Number(rawBefore);
+      if (limit === undefined)
+        return bad(c, [
+          { path: 'limit', message: `A whole number from 1 to ${CHANGES_PAGE_MAX}.` },
+        ]);
+      if (before !== undefined && !(Number.isInteger(before) && before > 0))
+        return bad(c, [
+          {
+            path: 'before',
+            message: 'A time in milliseconds (the detectedAt of the last change you have).',
+          },
+        ]);
+      const page = await listCompetitorChanges(db, {
+        workspaceId: ws(c),
+        competitorId: competitor.id,
+        limit,
+        ...(before !== undefined ? { before } : {}),
+      });
+      return c.json({
+        competitorId: competitor.id,
+        // Honest about where the history starts: Kiln can only compare what it read after the competitor was followed.
+        watching:
+          competitor.store === 'app_store'
+            ? { state: 'watched', since: competitor.addedAt }
+            : { state: 'not_watched', reason: 'play_pages_not_read' },
+        lastCheckedAt: competitor.lastCheckedAt,
+        retentionDays: COMPETITOR_CHANGE_RETENTION_DAYS,
+        ...page,
+      });
+    },
+  );
 
-  routes.post('/:workspaceId/apps/:id/aso/competitors/:competitorId/check', needs('aso.write'), async (c) => {
-    const app = await getApp(db, ws(c), param(c, 'id'));
-    if (!app) return notFound(c);
-    const competitor = await getCompetitor(db, ws(c), app.id, param(c, 'competitorId'));
-    if (!competitor) return notFound(c);
-    if (competitor.store !== 'app_store') return respond(c, (await checkCompetitorNow(ctx, { workspaceId: ws(c), app, competitorId: competitor.id })) as Failure);
-    const stop = limited(c);
-    if (stop) return stop;
-    const done = await checkCompetitorNow(ctx, { workspaceId: ws(c), app, competitorId: competitor.id });
-    if (!done) return notFound(c);
-    return done.ok ? c.json({ competitorId: competitor.id, state: done.state, changes: done.changes, checkedAt: done.checkedAt }) : respond(c, done);
-  });
+  routes.post(
+    '/:workspaceId/apps/:id/aso/competitors/:competitorId/check',
+    needs('aso.write'),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return notFound(c);
+      const competitor = await getCompetitor(db, ws(c), app.id, param(c, 'competitorId'));
+      if (!competitor) return notFound(c);
+      if (competitor.store !== 'app_store')
+        return respond(
+          c,
+          (await checkCompetitorNow(ctx, {
+            workspaceId: ws(c),
+            app,
+            competitorId: competitor.id,
+          })) as Failure,
+        );
+      const stop = limited(c);
+      if (stop) return stop;
+      const done = await checkCompetitorNow(ctx, {
+        workspaceId: ws(c),
+        app,
+        competitorId: competitor.id,
+      });
+      if (!done) return notFound(c);
+      return done.ok
+        ? c.json({
+            competitorId: competitor.id,
+            state: done.state,
+            changes: done.changes,
+            checkedAt: done.checkedAt,
+          })
+        : respond(c, done);
+    },
+  );
 
   const imageResponse = async (c: Context<AppEnv>, url: string, etagBase: string) => {
     const size = competitorImageSizeOf(c.req.query('size'));
     const etag = `"ci-${etagBase}-${size}"`;
     if (matchesEtag(c.req.header('If-None-Match'), etag))
-      return new Response(null, { status: 304, headers: { ETag: etag, 'Cache-Control': THUMB_CACHE_CONTROL, 'X-Content-Type-Options': 'nosniff' } });
-    const done = await competitorThumbnail({ ...(ctx.net ? { net: ctx.net } : {}), limiter: imageLimiter }, { workspaceId: ws(c), url, size });
+      return new Response(null, {
+        status: 304,
+        headers: {
+          ETag: etag,
+          'Cache-Control': THUMB_CACHE_CONTROL,
+          'X-Content-Type-Options': 'nosniff',
+        },
+      });
+    const done = await competitorThumbnail(
+      { ...(ctx.net ? { net: ctx.net } : {}), limiter: imageLimiter },
+      { workspaceId: ws(c), url, size },
+    );
     if (!done.ok) return respond(c, done);
-    return new Response(asBody(done.bytes), { status: 200, headers: safeImageHeaders(IMAGE_TYPES[done.format], etag, done.bytes.length, THUMB_CACHE_CONTROL) });
+    return new Response(asBody(done.bytes), {
+      status: 200,
+      headers: safeImageHeaders(
+        IMAGE_TYPES[done.format],
+        etag,
+        done.bytes.length,
+        THUMB_CACHE_CONTROL,
+      ),
+    });
   };
 
   // A thumbnail of a stored screenshot or icon: the client sends a ref into what Kiln stored, never an address.
-  routes.get('/:workspaceId/apps/:id/aso/competitors/:competitorId/image', needs('aso.read'), async (c) => {
-    const app = await getApp(db, ws(c), param(c, 'id'));
-    if (!app) return notFound(c);
-    const competitor = await getCompetitor(db, ws(c), app.id, param(c, 'competitorId'));
-    if (!competitor) return notFound(c);
-    const ref = c.req.query('ref') ?? '';
-    if (!COMPETITOR_IMAGE_REF.test(ref)) return bad(c, [{ path: 'ref', message: 'The ref of a stored image: icon, s.p.<n>, s.i.<n> or c.<change>.<b|a>.<icon|p|i>.<n>.' }]);
-    const url = await resolveStoredImage(db, ws(c), competitor.id, ref);
-    if (url === undefined) return notFound(c);
-    return imageResponse(c, url, `${competitor.id}-${ref}-${createHash('sha256').update(url).digest('hex').slice(0, 12)}`);
-  });
+  routes.get(
+    '/:workspaceId/apps/:id/aso/competitors/:competitorId/image',
+    needs('aso.read'),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return notFound(c);
+      const competitor = await getCompetitor(db, ws(c), app.id, param(c, 'competitorId'));
+      if (!competitor) return notFound(c);
+      const ref = c.req.query('ref') ?? '';
+      if (!COMPETITOR_IMAGE_REF.test(ref))
+        return bad(c, [
+          {
+            path: 'ref',
+            message:
+              'The ref of a stored image: icon, s.p.<n>, s.i.<n> or c.<change>.<b|a>.<icon|p|i>.<n>.',
+          },
+        ]);
+      const url = await resolveStoredImage(db, ws(c), competitor.id, ref);
+      if (url === undefined) return notFound(c);
+      return imageResponse(
+        c,
+        url,
+        `${competitor.id}-${ref}-${createHash('sha256').update(url).digest('hex').slice(0, 12)}`,
+      );
+    },
+  );
 
   // The icon of a search result (the add dialog): an opaque ref the search handed out.
-  routes.get('/:workspaceId/apps/:id/aso/competitors/search-image', needs('aso.write'), async (c) => {
-    const app = await getApp(db, ws(c), param(c, 'id'));
-    if (!app) return notFound(c);
-    const ref = c.req.query('ref') ?? '';
-    if (!SEARCH_IMAGE_REF.test(ref)) return bad(c, [{ path: 'ref', message: 'The iconRef of a search result.' }]);
-    const url = resolveSearchImage(ref, ws(c), app.id, ctx.now());
-    if (url === undefined) return notFound(c);
-    return imageResponse(c, url, `s-${ref}`);
-  });
+  routes.get(
+    '/:workspaceId/apps/:id/aso/competitors/search-image',
+    needs('aso.write'),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return notFound(c);
+      const ref = c.req.query('ref') ?? '';
+      if (!SEARCH_IMAGE_REF.test(ref))
+        return bad(c, [{ path: 'ref', message: 'The iconRef of a search result.' }]);
+      const url = resolveSearchImage(ref, ws(c), app.id, ctx.now());
+      if (url === undefined) return notFound(c);
+      return imageResponse(c, url, `s-${ref}`);
+    },
+  );
 
   // ----- reviews of the followed competitors: Apple's public feed only ----------------------------------
   routes.get('/:workspaceId/apps/:id/aso/competitor-reviews', needs('aso.read'), async (c) => {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return notFound(c);
     const days = queryInt(c.req.query('days'), { fallback: 28, max: 90 });
-    if (days === undefined) return bad(c, [{ path: 'days', message: 'A whole number from 1 to 90.' }]);
+    if (days === undefined)
+      return bad(c, [{ path: 'days', message: 'A whole number from 1 to 90.' }]);
     const at = ctx.now();
-    const stats = await competitorReviewStats(db, { workspaceId: ws(c), appId: app.id, days, now: at });
+    const stats = await competitorReviewStats(db, {
+      workspaceId: ws(c),
+      appId: app.id,
+      days,
+      now: at,
+    });
     // Our own side needs the right to read reviews; without it the comparison is left out, not guessed.
     const own = can(c.get('role'), 'reviews.read')
       ? await ownReviewStats(db, { workspaceId: ws(c), appId: app.id, days, now: at })
@@ -589,7 +686,8 @@ export function asoRoutes(ctx: AsoRoutesContext) {
       own,
       retentionDays: COMPETITOR_REVIEW_RETENTION_DAYS,
       source: 'App Store customer reviews feed (public)',
-      notice: 'Google Play has no official way to read the reviews of an app you do not own, and Kiln does not scrape it: Play competitors have no reviews here.',
+      notice:
+        'Google Play has no official way to read the reviews of an app you do not own, and Kiln does not scrape it: Play competitors have no reviews here.',
     });
   });
 
@@ -603,7 +701,11 @@ export function asoRoutes(ctx: AsoRoutesContext) {
       if (!competitor) return notFound(c);
       if (competitor.store !== 'app_store')
         return c.json(
-          { error: 'play_reviews_not_available', message: 'Google Play has no official way to read the reviews of another app, and Kiln does not scrape it.' },
+          {
+            error: 'play_reviews_not_available',
+            message:
+              'Google Play has no official way to read the reviews of another app, and Kiln does not scrape it.',
+          },
           409,
         );
       const read = ctx.sources.appleReviews?.bind(ctx.sources);
@@ -616,7 +718,14 @@ export function asoRoutes(ctx: AsoRoutesContext) {
           { workspaceId: ws(c), competitor, actorId: c.get('user').id },
         );
         if (!done.ok) return notFound(c);
-        return c.json({ competitorId: competitor.id, state: done.state, fetched: done.fetched, stored: done.stored, checkedAt: done.checkedAt, newCount: done.newCount });
+        return c.json({
+          competitorId: competitor.id,
+          state: done.state,
+          fetched: done.fetched,
+          stored: done.stored,
+          checkedAt: done.checkedAt,
+          newCount: done.newCount,
+        });
       } catch (error) {
         return respond(c, asoFailure(error));
       }
@@ -635,7 +744,10 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     })
     .strict();
   const overrideBody = z
-    .object({ mode: z.enum(['off', 'daily', 'weekly']).nullable(), weekday: z.number().int().min(0).max(6).nullable().optional() })
+    .object({
+      mode: z.enum(['off', 'daily', 'weekly']).nullable(),
+      weekday: z.number().int().min(0).max(6).nullable().optional(),
+    })
     .strict();
 
   const scheduleResponse = async (c: Context<AppEnv>, appId: string) => {
@@ -643,42 +755,73 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     return c.json({
       ...(await reviewScheduleView(db, ws(c), appId, ctx.now())),
       canEdit: can(c.get('role'), 'aso.write'),
-      notice: 'Apple only: Google Play has no official way to read the reviews of an app you do not own, and Kiln does not scrape it.',
+      notice:
+        'Apple only: Google Play has no official way to read the reviews of an app you do not own, and Kiln does not scrape it.',
     });
   };
 
-  routes.get('/:workspaceId/apps/:id/aso/competitor-review-schedule', needs('aso.read'), async (c) => {
-    const app = await getApp(db, ws(c), param(c, 'id'));
-    if (!app) return notFound(c);
-    return scheduleResponse(c, app.id);
-  });
+  routes.get(
+    '/:workspaceId/apps/:id/aso/competitor-review-schedule',
+    needs('aso.read'),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return notFound(c);
+      return scheduleResponse(c, app.id);
+    },
+  );
 
-  routes.put('/:workspaceId/apps/:id/aso/competitor-review-schedule', needs('aso.write'), async (c) => {
-    const app = await getApp(db, ws(c), param(c, 'id'));
-    if (!app) return notFound(c);
-    const body = await parseBody(c, scheduleBody);
-    if (!body.ok) return body.response;
-    const done = await setAppReviewSchedule(db, { workspaceId: ws(c), appId: app.id, actorId: c.get('user').id, body: body.data, at: ctx.now() });
-    if (!done.ok) return bad(c, done.issues);
-    return scheduleResponse(c, app.id);
-  });
+  routes.put(
+    '/:workspaceId/apps/:id/aso/competitor-review-schedule',
+    needs('aso.write'),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return notFound(c);
+      const body = await parseBody(c, scheduleBody);
+      if (!body.ok) return body.response;
+      const done = await setAppReviewSchedule(db, {
+        workspaceId: ws(c),
+        appId: app.id,
+        actorId: c.get('user').id,
+        body: body.data,
+        at: ctx.now(),
+      });
+      if (!done.ok) return bad(c, done.issues);
+      return scheduleResponse(c, app.id);
+    },
+  );
 
-  routes.put('/:workspaceId/apps/:id/aso/competitors/:competitorId/review-schedule', needs('aso.write'), async (c) => {
-    const app = await getApp(db, ws(c), param(c, 'id'));
-    if (!app) return notFound(c);
-    const competitor = await getCompetitor(db, ws(c), app.id, param(c, 'competitorId'));
-    if (!competitor) return notFound(c);
-    if (competitor.store !== 'app_store')
-      return c.json(
-        { error: 'play_reviews_not_available', message: 'Google Play has no official way to read the reviews of another app, and Kiln does not scrape it.', ...coded('aso.playReviewsNotAvailable') },
-        409,
-      );
-    const body = await parseBody(c, overrideBody);
-    if (!body.ok) return body.response;
-    const done = await setCompetitorOverride(db, { workspaceId: ws(c), appId: app.id, competitorId: competitor.id, actorId: c.get('user').id, body: body.data, at: ctx.now() });
-    if (!done.ok) return bad(c, done.issues);
-    return scheduleResponse(c, app.id);
-  });
+  routes.put(
+    '/:workspaceId/apps/:id/aso/competitors/:competitorId/review-schedule',
+    needs('aso.write'),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return notFound(c);
+      const competitor = await getCompetitor(db, ws(c), app.id, param(c, 'competitorId'));
+      if (!competitor) return notFound(c);
+      if (competitor.store !== 'app_store')
+        return c.json(
+          {
+            error: 'play_reviews_not_available',
+            message:
+              'Google Play has no official way to read the reviews of another app, and Kiln does not scrape it.',
+            ...coded('aso.playReviewsNotAvailable'),
+          },
+          409,
+        );
+      const body = await parseBody(c, overrideBody);
+      if (!body.ok) return body.response;
+      const done = await setCompetitorOverride(db, {
+        workspaceId: ws(c),
+        appId: app.id,
+        competitorId: competitor.id,
+        actorId: c.get('user').id,
+        body: body.data,
+        at: ctx.now(),
+      });
+      if (!done.ok) return bad(c, done.issues);
+      return scheduleResponse(c, app.id);
+    },
+  );
 
   // ----- what can be worked out from what is stored (no store is read) --------------------------------
   routes.get('/:workspaceId/apps/:id/aso/fit', needs('aso.read'), async (c) => {

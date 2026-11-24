@@ -17,8 +17,14 @@ test('a row takes the tint of its own app, never the surrounding one', () => {
 });
 
 test('an app whose palette is not known has no tint, and a later record of the app is tried', () => {
-  assert.equal(rowTintStyle({ key: 'x', ids: ['x', 'y'] }, () => ''), '');
-  assert.equal(rowTintStyle({ key: 'x', ids: ['x', 'y'] }, (id) => (id === 'y' ? '--a:1;' : '')), '--a:1;');
+  assert.equal(
+    rowTintStyle({ key: 'x', ids: ['x', 'y'] }, () => ''),
+    '',
+  );
+  assert.equal(
+    rowTintStyle({ key: 'x', ids: ['x', 'y'] }, (id) => (id === 'y' ? '--a:1;' : '')),
+    '--a:1;',
+  );
 });
 
 test('the limiter runs at most N jobs at once and each key once', async () => {
@@ -47,9 +53,15 @@ test('the switcher list scopes each row, and the popup resets the surrounding ti
   assert.match(list, /rowTintStyle\(item, \(id\) => tint\.style\(id\)\)/);
   // The icon is plain: no ring, circle or coloured tile behind it.
   assert.match(list, /<AppIcon [^>]*\bneutral\b/);
-  assert.doesNotMatch(list.slice(list.indexOf('<style>')), /\.ico\b|border-radius:\s*(50%|var\(--radius-full\))/);
+  assert.doesNotMatch(
+    list.slice(list.indexOf('<style>')),
+    /\.ico\b|border-radius:\s*(50%|var\(--radius-full\))/,
+  );
   assert.doesNotMatch(list.slice(list.indexOf('<style>')), /box-shadow:\s*0 0 0 \d+px/);
-  assert.match(list.slice(list.indexOf('<style>')), /li\.open \{\s*box-shadow: inset 3px 0 0 var\(--app-accent/);
+  assert.match(
+    list.slice(list.indexOf('<style>')),
+    /li\.open \{\s*box-shadow: inset 3px 0 0 var\(--app-accent/,
+  );
   // The open app is not marked by being the one tinted name.
   assert.doesNotMatch(list.slice(list.indexOf('<style>')), /li\.open \.name \{[^}]*color:/);
   assert.match(list, /name="check"/);
@@ -74,7 +86,10 @@ test('the This app group tints its entries and the workspace group does not', ()
   const nav = read('../../components/app/AppNav.svelte');
   assert.match(nav, /<nav class="this-app"[^>]*data-app-tint=/);
   assert.match(nav, /nav\.this-app a :global\(\.icon\)\s*\{\s*color: var\(--app-accent-ink/);
-  assert.match(nav, /nav\.this-app a:not\(\[aria-current='page'\]\):hover\s*\{\s*background: var\(--app-tint-subtle/);
+  assert.match(
+    nav,
+    /nav\.this-app a:not\(\[aria-current='page'\]\):hover\s*\{\s*background: var\(--app-tint-subtle/,
+  );
   assert.doesNotMatch(nav, /nav\.workspace[^{]*\{[^}]*--app-/);
   assert.match(nav, /<nav class="workspace"(?![^>]*data-app-tint)/);
 });

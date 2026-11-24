@@ -6,7 +6,11 @@ import { z } from 'zod';
 import { coded, type ErrorParams } from '../../i18n/problem.ts';
 import { enqueue } from '../../jobs.ts';
 import { recordAudit } from '../../services/audit.ts';
-import { checkWebhookUrl, type Resolver, type sendPinned } from '../../services/webhook-transport.ts';
+import {
+  checkWebhookUrl,
+  type Resolver,
+  type sendPinned,
+} from '../../services/webhook-transport.ts';
 import { alertCatalog, alertSeverities, isAlertType } from '../alerts/catalog.ts';
 import { isValidTimeZone } from '../alerts/time.ts';
 import { buildTestMessage } from './message.ts';
@@ -66,7 +70,10 @@ export const routeInput = z
   .strict();
 export type RouteInput = z.infer<typeof routeInput>;
 
-const timezone = z.string().max(64).refine(isValidTimeZone, 'Use an IANA time zone such as Europe/Paris.');
+const timezone = z
+  .string()
+  .max(64)
+  .refine(isValidTimeZone, 'Use an IANA time zone such as Europe/Paris.');
 const name = z.string().trim().min(1).max(80);
 const url = z.string().trim().min(1).max(2048);
 
@@ -213,16 +220,15 @@ export function defaultRoutes(): RouteInput[] {
 }
 
 export async function listDestinations(sql: Sql, workspaceId: string): Promise<DestinationView[]> {
-  const rows = await sql.query(`${SELECT} WHERE g.workspace_id = ? ORDER BY g.created_at, g.id`, [workspaceId]);
+  const rows = await sql.query(`${SELECT} WHERE g.workspace_id = ? ORDER BY g.created_at, g.id`, [
+    workspaceId,
+  ]);
   const routes = await sql.query(
     'SELECT id, destination_id, alert_types, min_severity, app_ids, platforms, enabled FROM chat_routes WHERE workspace_id = ? ORDER BY position, id',
     [workspaceId],
   );
   return rows.map((r) =>
-    toDestination(
-      r,
-      routes.filter((x) => String(x.destination_id) === String(r.id)).map(toRoute),
-    ),
+    toDestination(r, routes.filter((x) => String(x.destination_id) === String(r.id)).map(toRoute)),
   );
 }
 
@@ -276,7 +282,10 @@ async function writeRoutes(
   routes: readonly RouteInput[],
   at: number,
 ) {
-  await tx.execute('DELETE FROM chat_routes WHERE destination_id = ? AND workspace_id = ?', [destinationId, workspaceId]);
+  await tx.execute('DELETE FROM chat_routes WHERE destination_id = ? AND workspace_id = ?', [
+    destinationId,
+    workspaceId,
+  ]);
   let position = 0;
   for (const r of routes) {
     await tx.execute(
@@ -305,12 +314,18 @@ export async function createDestination(
   actor: Actor,
 ): Promise<{ ok: true; destination: DestinationView } | ChatFailure> {
   const allowAnyHost = input.allowAnyHost === true;
-  const bad = checkChatUrl(input.provider, input.url, { allowAnyHost, allowPrivate: ctx.allowPrivate });
+  const bad = checkChatUrl(input.provider, input.url, {
+    allowAnyHost,
+    allowPrivate: ctx.allowPrivate,
+  });
   if (bad) return bad;
   const id = randomUUID();
   const at = ctx.now();
   const outcome = await ctx.db.transaction(async (tx) => {
-    const [count] = await tx.query('SELECT COUNT(*) AS n FROM chat_destinations WHERE workspace_id = ?', [input.workspaceId]);
+    const [count] = await tx.query(
+      'SELECT COUNT(*) AS n FROM chat_destinations WHERE workspace_id = ?',
+      [input.workspaceId],
+    );
     if (Number(count?.n ?? 0) >= MAX_DESTINATIONS) return 'too_many' as const;
     await tx.execute(
       `INSERT INTO chat_destinations
@@ -354,7 +369,10 @@ export async function createDestination(
       ...coded('chat.tooManyDestinations', { count: MAX_DESTINATIONS }),
     };
   }
-  return { ok: true, destination: (await getDestination(ctx.db, input.workspaceId, id)) as DestinationView };
+  return {
+    ok: true,
+    destination: (await getDestination(ctx.db, input.workspaceId, id)) as DestinationView,
+  };
 }
 
 export async function updateDestination(
@@ -362,10 +380,10 @@ export async function updateDestination(
   input: UpdateDestinationInput & { workspaceId: string; id: string },
   actor: Actor,
 ): Promise<{ ok: true; destination: DestinationView } | ChatFailure> {
-  const [row] = await ctx.db.query('SELECT provider, allow_any_host FROM chat_destinations WHERE id = ? AND workspace_id = ?', [
-    input.id,
-    input.workspaceId,
-  ]);
+  const [row] = await ctx.db.query(
+    'SELECT provider, allow_any_host FROM chat_destinations WHERE id = ? AND workspace_id = ?',
+    [input.id, input.workspaceId],
+  );
   if (!row) return { ok: false, status: 404, error: 'not_found', message: 'Not found.' };
   const provider = String(row.provider) as ChatProvider;
   const allowAnyHost = input.allowAnyHost ?? Number(row.allow_any_host) === 1;
@@ -383,23 +401,26 @@ export async function updateDestination(
   };
   if (input.name !== undefined) set('name', input.name, 'name');
   if (input.url !== undefined) {
-    set('ciphertext', encryptSecret(input.url, ctx.masterKey, chatAad(input.workspaceId, input.id)), 'url');
+    set(
+      'ciphertext',
+      encryptSecret(input.url, ctx.masterKey, chatAad(input.workspaceId, input.id)),
+      'url',
+    );
     set('url_hint', urlHint(input.url), 'urlHint');
   }
   if (input.locale !== undefined) set('locale', input.locale, 'locale');
   if (input.enabled !== undefined) set('enabled', input.enabled ? 1 : 0, 'enabled');
-  if (input.allowAnyHost !== undefined) set('allow_any_host', input.allowAnyHost ? 1 : 0, 'allowAnyHost');
+  if (input.allowAnyHost !== undefined)
+    set('allow_any_host', input.allowAnyHost ? 1 : 0, 'allowAnyHost');
   if (input.digest !== undefined) set('digest', input.digest, 'digest');
   if (input.digestHour !== undefined) set('digest_hour', input.digestHour, 'digestHour');
   if (input.timezone !== undefined) set('timezone', input.timezone, 'timezone');
   const at = ctx.now();
   await ctx.db.transaction(async (tx) => {
-    await tx.execute(`UPDATE chat_destinations SET ${sets.join(', ')}, updated_at = ? WHERE id = ? AND workspace_id = ?`, [
-      ...params,
-      at,
-      input.id,
-      input.workspaceId,
-    ]);
+    await tx.execute(
+      `UPDATE chat_destinations SET ${sets.join(', ')}, updated_at = ? WHERE id = ? AND workspace_id = ?`,
+      [...params, at, input.id, input.workspaceId],
+    );
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor,
@@ -409,7 +430,10 @@ export async function updateDestination(
       at,
     });
   });
-  return { ok: true, destination: (await getDestination(ctx.db, input.workspaceId, input.id)) as DestinationView };
+  return {
+    ok: true,
+    destination: (await getDestination(ctx.db, input.workspaceId, input.id)) as DestinationView,
+  };
 }
 
 export async function replaceRoutes(
@@ -417,8 +441,12 @@ export async function replaceRoutes(
   input: { workspaceId: string; id: string; routes: RouteInput[] },
   actor: Actor,
 ): Promise<{ ok: true; destination: DestinationView } | ChatFailure> {
-  const exists = await ctx.db.query('SELECT 1 AS x FROM chat_destinations WHERE id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
-  if (exists.length === 0) return { ok: false, status: 404, error: 'not_found', message: 'Not found.' };
+  const exists = await ctx.db.query(
+    'SELECT 1 AS x FROM chat_destinations WHERE id = ? AND workspace_id = ?',
+    [input.id, input.workspaceId],
+  );
+  if (exists.length === 0)
+    return { ok: false, status: 404, error: 'not_found', message: 'Not found.' };
   const at = ctx.now();
   await ctx.db.transaction(async (tx) => {
     await writeRoutes(tx, input.workspaceId, input.id, input.routes, at);
@@ -432,7 +460,10 @@ export async function replaceRoutes(
       at,
     });
   });
-  return { ok: true, destination: (await getDestination(ctx.db, input.workspaceId, input.id)) as DestinationView };
+  return {
+    ok: true,
+    destination: (await getDestination(ctx.db, input.workspaceId, input.id)) as DestinationView,
+  };
 }
 
 export async function deleteDestination(
@@ -442,20 +473,33 @@ export async function deleteDestination(
 ): Promise<boolean> {
   const at = ctx.now();
   return ctx.db.transaction(async (tx) => {
-    const [row] = await tx.query('SELECT provider, name, url_hint FROM chat_destinations WHERE id = ? AND workspace_id = ?', [
+    const [row] = await tx.query(
+      'SELECT provider, name, url_hint FROM chat_destinations WHERE id = ? AND workspace_id = ?',
+      [input.id, input.workspaceId],
+    );
+    if (!row) return false;
+    await tx.execute('DELETE FROM chat_deliveries WHERE destination_id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,
     ]);
-    if (!row) return false;
-    await tx.execute('DELETE FROM chat_deliveries WHERE destination_id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
-    await tx.execute('DELETE FROM chat_routes WHERE destination_id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
-    await tx.execute('DELETE FROM chat_destinations WHERE id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
+    await tx.execute('DELETE FROM chat_routes WHERE destination_id = ? AND workspace_id = ?', [
+      input.id,
+      input.workspaceId,
+    ]);
+    await tx.execute('DELETE FROM chat_destinations WHERE id = ? AND workspace_id = ?', [
+      input.id,
+      input.workspaceId,
+    ]);
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor,
       action: 'chat.destination.delete',
       target: { type: 'chat_destination', id: input.id },
-      detail: { provider: String(row.provider), name: String(row.name), urlHint: String(row.url_hint) },
+      detail: {
+        provider: String(row.provider),
+        name: String(row.name),
+        urlHint: String(row.url_hint),
+      },
       at,
     });
     return true;
@@ -466,7 +510,12 @@ export async function deleteDestination(
 
 export const MAX_DELIVERIES_LIMIT = 100;
 
-export async function listDeliveries(sql: Sql, workspaceId: string, destinationId: string, limit: number): Promise<DeliveryView[]> {
+export async function listDeliveries(
+  sql: Sql,
+  workspaceId: string,
+  destinationId: string,
+  limit: number,
+): Promise<DeliveryView[]> {
   const rows = await sql.query(
     `SELECT d.id, d.destination_id, d.alert_id, d.kind, d.status, d.outcome, d.http_status, d.attempts, d.created_at, d.delivered_at, a.title
        FROM chat_deliveries d LEFT JOIN alerts a ON a.id = d.alert_id
@@ -480,11 +529,13 @@ export async function listDeliveries(sql: Sql, workspaceId: string, destinationI
     kind: String(r.kind),
     status: String(r.status),
     outcome: String(r.outcome),
-    httpStatus: r.http_status === null || r.http_status === undefined ? null : Number(r.http_status),
+    httpStatus:
+      r.http_status === null || r.http_status === undefined ? null : Number(r.http_status),
     attempts: Number(r.attempts),
     title: r.title === null || r.title === undefined ? null : String(r.title),
     createdAt: Number(r.created_at),
-    deliveredAt: r.delivered_at === null || r.delivered_at === undefined ? null : Number(r.delivered_at),
+    deliveredAt:
+      r.delivered_at === null || r.delivered_at === undefined ? null : Number(r.delivered_at),
   }));
 }
 
@@ -504,7 +555,16 @@ export async function queueChatDelivery(
   await sql.execute(
     `INSERT INTO chat_deliveries (id, workspace_id, destination_id, alert_id, kind, status, outcome, attempts, payload, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, 'queued', 'queued', 0, ?, ?, ?)`,
-    [id, input.workspaceId, input.destinationId, input.alertId, input.kind, JSON.stringify(input.payload), input.at, input.at],
+    [
+      id,
+      input.workspaceId,
+      input.destinationId,
+      input.alertId,
+      input.kind,
+      JSON.stringify(input.payload),
+      input.at,
+      input.at,
+    ],
   );
   await enqueue(sql, CHAT_QUEUE, { deliveryId: id }, { now: input.at });
   return id;
@@ -515,10 +575,10 @@ export async function sendTestMessage(
   input: { workspaceId: string; id: string },
   actor: Actor,
 ): Promise<{ ok: true; deliveryId: string } | ChatFailure> {
-  const [row] = await ctx.db.query('SELECT provider, name, locale FROM chat_destinations WHERE id = ? AND workspace_id = ?', [
-    input.id,
-    input.workspaceId,
-  ]);
+  const [row] = await ctx.db.query(
+    'SELECT provider, name, locale FROM chat_destinations WHERE id = ? AND workspace_id = ?',
+    [input.id, input.workspaceId],
+  );
   if (!row) return { ok: false, status: 404, error: 'not_found', message: 'Not found.' };
   const at = ctx.now();
   const payload = renderMessage(
@@ -547,6 +607,11 @@ export async function sendTestMessage(
 }
 
 /** The address of a destination, decrypted: for the delivery job only. */
-export function readDestinationUrl(ctx: Pick<ChatContext, 'masterKey'>, workspaceId: string, id: string, ciphertext: string): string {
+export function readDestinationUrl(
+  ctx: Pick<ChatContext, 'masterKey'>,
+  workspaceId: string,
+  id: string,
+  ciphertext: string,
+): string {
   return decryptSecret(ciphertext, ctx.masterKey, chatAad(workspaceId, id));
 }

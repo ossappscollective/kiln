@@ -76,10 +76,7 @@ export function linkedIds(resource: Json, name: string): string[] | undefined {
 }
 
 /** The media of a localization as counts, from the placements (and sets) the answer included for it. */
-export function assetCounts(
-  localization: Json,
-  byId: ReadonlyMap<string, Json>,
-): StoreAssetCounts {
+export function assetCounts(localization: Json, byId: ReadonlyMap<string, Json>): StoreAssetCounts {
   const counts = emptyAssetCounts();
   for (const placementId of linkedIds(localization, 'placements') ?? []) {
     const type = (text(attrs(byId.get(placementId) ?? {}).placementType) ?? '').toUpperCase();

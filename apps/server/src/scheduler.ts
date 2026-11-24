@@ -132,7 +132,12 @@ export type SchedulerOptions = {
    * The scheduled reads of competitor reviews (modules/aso/competitor-review-schedule.ts): each app opts in (off by default), so this only
    * turns the check on. It queues `aso.competitor_reviews` jobs, bounded and spaced, sharing `limiter`. No loop of its own.
    */
-  competitorReviews?: { perTick?: number; perWorkspace?: number; spacingMs?: number; maxJitterMs?: number };
+  competitorReviews?: {
+    perTick?: number;
+    perWorkspace?: number;
+    spacingMs?: number;
+    maxJitterMs?: number;
+  };
   /**
    * Milliseconds between scheduled analytics syncs of one app (KILN_ANALYTICS_INTERVAL_MINUTES, default 360). 0 or absent turns them
    * off. They queue `analytics.sync` jobs (services/analytics-schedule.ts), bounded and spaced by `analytics`, sharing `limiter`. A

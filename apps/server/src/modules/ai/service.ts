@@ -374,7 +374,10 @@ async function buildRun(ctx: AiServices, input: RunInput): Promise<Built | AiFai
       workspaceId: input.workspaceId,
       app,
       context,
-      reviewPolicy: { detail: reviewPolicy.effective.detail, redact: reviewPolicy.effective.redact },
+      reviewPolicy: {
+        detail: reviewPolicy.effective.detail,
+        redact: reviewPolicy.effective.redact,
+      },
     },
     input.scope,
   );
@@ -492,9 +495,16 @@ export async function runAiTask(
   const key = prepared.scope.key;
   if (task.cacheDays !== undefined && typeof key === 'string' && refresh !== true) {
     const since = ctx.now() - task.cacheDays * 86_400_000;
-    const stored = await listSuggestions(ctx.db, input.workspaceId, app.id, { task: task.id, limit: 20 });
+    const stored = await listSuggestions(ctx.db, input.workspaceId, app.id, {
+      task: task.id,
+      limit: 20,
+    });
     const hit = stored.find(
-      (s) => s.taskVersion === task.version && s.createdAt >= since && s.scope.key === key && s.status !== 'dismissed',
+      (s) =>
+        s.taskVersion === task.version &&
+        s.createdAt >= since &&
+        s.scope.key === key &&
+        s.status !== 'dismissed',
     );
     if (hit) return { ok: true, suggestion: hit, warning: null, cached: true };
   }
@@ -921,12 +931,8 @@ export async function dismissSuggestion(
   id: string,
 ): Promise<AiOutcome<{ suggestion: AiSuggestionView }>> {
   const found = await getSuggestion(ctx.db, who.workspaceId, id);
-  if (!found) return aiFail(
-    404,
-    'not_found',
-    'There is no such suggestion.',
-    coded('notFound.suggestion'),
-  );
+  if (!found)
+    return aiFail(404, 'not_found', 'There is no such suggestion.', coded('notFound.suggestion'));
   if (found.status !== 'proposed') return notProposed(found);
   const at = ctx.now();
   const won = await ctx.db.transaction(async (tx) => {
@@ -975,12 +981,8 @@ export async function acceptSuggestion(
   body: AcceptBody,
 ): Promise<AiOutcome<{ suggestion: AiSuggestionView; result: AiAcceptedRef }>> {
   const found = await getSuggestion(ctx.db, who.workspaceId, id);
-  if (!found) return aiFail(
-    404,
-    'not_found',
-    'There is no such suggestion.',
-    coded('notFound.suggestion'),
-  );
+  if (!found)
+    return aiFail(404, 'not_found', 'There is no such suggestion.', coded('notFound.suggestion'));
   if (found.status !== 'proposed') return notProposed(found);
   const action = aiAcceptAction[found.kind];
   if (!who.allowed(action)) {
@@ -992,12 +994,13 @@ export async function acceptSuggestion(
     );
   }
   const app = await getApp(ctx.db, who.workspaceId, found.appId);
-  if (!app) return aiFail(
-    404,
-    'not_found',
-    'The app of this suggestion no longer exists.',
-    coded('ai.suggestionAppGone'),
-  );
+  if (!app)
+    return aiFail(
+      404,
+      'not_found',
+      'The app of this suggestion no longer exists.',
+      coded('ai.suggestionAppGone'),
+    );
 
   // What would be created is decided (and refused) BEFORE the claim, so a refusal changes nothing.
   const plan = planAccept(found.proposal, body);

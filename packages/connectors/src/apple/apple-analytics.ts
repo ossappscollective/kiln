@@ -402,10 +402,14 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
       // HTTP 400 is a parameter Apple refused. Which one is read from its error (UNVERIFIED wording): a vendor number it does not
       // know is a setup problem; a report date it has no report for (too new, too old) is "nothing for that day", not a failure.
       const said = appleErrorDetails(this.#toStoreReply(reply).json)
-        .map((d) => `${d.parameter ?? ''} ${d.pointer ?? ''} ${d.code ?? ''} ${d.title ?? ''} ${d.detail ?? ''}`)
+        .map(
+          (d) =>
+            `${d.parameter ?? ''} ${d.pointer ?? ''} ${d.code ?? ''} ${d.title ?? ''} ${d.detail ?? ''}`,
+        )
         .join(' ')
         .toLowerCase();
-      if (said.includes('vendor')) throw new AnalyticsError('vendor_number_invalid', undefined, 400);
+      if (said.includes('vendor'))
+        throw new AnalyticsError('vendor_number_invalid', undefined, 400);
       if (said.includes('reportdate') || said.includes('report date')) return null;
     }
     throw this.#mapError(this.#toStoreReply(reply), `reading ${what}`);

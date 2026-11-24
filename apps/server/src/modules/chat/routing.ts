@@ -19,14 +19,28 @@ export type RouteRule = {
   platforms: readonly string[] | null;
 };
 
-export type AlertFacts = { type: string; severity: AlertSeverity; appId: string | null; platform: string | null };
+export type AlertFacts = {
+  type: string;
+  severity: AlertSeverity;
+  appId: string | null;
+  platform: string | null;
+};
 
 /** Whether one rule takes an alert. Pure. */
 export function ruleMatches(rule: RouteRule, alert: AlertFacts): boolean {
   if (!(rule.alertTypes.includes('*') || rule.alertTypes.includes(alert.type))) return false;
   if (severityRank[alert.severity] < severityRank[rule.minSeverity]) return false;
-  if (rule.appIds && rule.appIds.length > 0 && (alert.appId === null || !rule.appIds.includes(alert.appId))) return false;
-  if (rule.platforms && rule.platforms.length > 0 && (alert.platform === null || !rule.platforms.includes(alert.platform)))
+  if (
+    rule.appIds &&
+    rule.appIds.length > 0 &&
+    (alert.appId === null || !rule.appIds.includes(alert.appId))
+  )
+    return false;
+  if (
+    rule.platforms &&
+    rule.platforms.length > 0 &&
+    (alert.platform === null || !rule.platforms.includes(alert.platform))
+  )
     return false;
   return true;
 }
@@ -46,7 +60,7 @@ export type RoutedAlert = {
 /** Writes a delivery for each enabled destination with a matching rule. Returns how many destinations took it. */
 export async function routeAlertToChat(sql: Sql, a: RoutedAlert): Promise<number> {
   const destinations = await sql.query(
-    "SELECT id, provider, locale, digest FROM chat_destinations WHERE workspace_id = ? AND enabled = 1",
+    'SELECT id, provider, locale, digest FROM chat_destinations WHERE workspace_id = ? AND enabled = 1',
     [a.workspaceId],
   );
   if (destinations.length === 0) return 0;

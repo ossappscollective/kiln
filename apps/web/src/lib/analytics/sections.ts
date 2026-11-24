@@ -14,7 +14,14 @@ import type { ChartCard } from './view.ts';
  */
 export type InsightsPart = 'overview' | 'acquisition' | 'quality' | 'revenue' | 'next' | 'sources';
 
-export const INSIGHTS_PARTS: readonly InsightsPart[] = ['overview', 'acquisition', 'quality', 'revenue', 'next', 'sources'];
+export const INSIGHTS_PARTS: readonly InsightsPart[] = [
+  'overview',
+  'acquisition',
+  'quality',
+  'revenue',
+  'next',
+  'sources',
+];
 
 /** Which part a chart card belongs to; an unknown card is shown under Acquisition rather than lost. */
 export type CardPart = 'acquisition' | 'quality' | 'revenue';
@@ -26,14 +33,17 @@ export const cardPart = (card: Pick<ChartCard, 'id'>): CardPart =>
   QUALITY.has(card.id) ? 'quality' : REVENUE.has(card.id) ? 'revenue' : 'acquisition';
 
 /** The cards of one part, in their reading order. */
-export const cardsOfPart = (cards: readonly ChartCard[], part: CardPart): ChartCard[] => cards.filter((c) => cardPart(c) === part);
+export const cardsOfPart = (cards: readonly ChartCard[], part: CardPart): ChartCard[] =>
+  cards.filter((c) => cardPart(c) === part);
 
 /**
  * The cards of a part when the headline chart is drawn in Overview: Overview shows the headline chart, Acquisition shows the other
  * acquisition cards. Nothing is dropped: every card is in exactly one part.
  */
-export const withoutHeadline = (cards: readonly ChartCard[], headlineId: string | null): ChartCard[] =>
-  headlineId === null ? [...cards] : cards.filter((c) => c.id !== headlineId);
+export const withoutHeadline = (
+  cards: readonly ChartCard[],
+  headlineId: string | null,
+): ChartCard[] => (headlineId === null ? [...cards] : cards.filter((c) => c.id !== headlineId));
 
 /** How many columns the platforms of the scope get: side by side when there are two or more, one column otherwise. */
 export const platformColumns = (platformsInScope: number): 1 | 2 => (platformsInScope > 1 ? 2 : 1);
@@ -52,11 +62,21 @@ export type InsightsCounts = {
 };
 
 /** The rail is drawn only when the tab has two or more sections; one section is just the content. */
-export const railWorthDrawing = (groups: readonly RailGroup[]): boolean => groups.reduce((n, g) => n + g.entries.length, 0) >= 2;
+export const railWorthDrawing = (groups: readonly RailGroup[]): boolean =>
+  groups.reduce((n, g) => n + g.entries.length, 0) >= 2;
 
 /** `withNumbers`: something is stored, so Acquisition, Quality and Revenue exist; without data they would be three empty pages. */
-export function insightsGroups(counts: InsightsCounts, showNext: boolean, withNumbers = true): RailGroup[] {
-  const entry = (id: InsightsPart, labelKey: string, count?: number | null, note?: string) => ({ id, label: t(labelKey), count, note });
+export function insightsGroups(
+  counts: InsightsCounts,
+  showNext: boolean,
+  withNumbers = true,
+): RailGroup[] {
+  const entry = (id: InsightsPart, labelKey: string, count?: number | null, note?: string) => ({
+    id,
+    label: t(labelKey),
+    count,
+    note,
+  });
   return [
     {
       id: 'numbers',
@@ -81,7 +101,9 @@ export function insightsGroups(counts: InsightsCounts, showNext: boolean, withNu
           'sources',
           k('analytics:rail.sources'),
           counts.failedSources !== null && counts.failedSources > 0 ? counts.failedSources : null,
-          counts.failedSources ? t(k('analytics:rail.sourcesFailed'), { count: counts.failedSources }) : undefined,
+          counts.failedSources
+            ? t(k('analytics:rail.sourcesFailed'), { count: counts.failedSources })
+            : undefined,
         ),
       ],
     },
@@ -90,12 +112,15 @@ export function insightsGroups(counts: InsightsCounts, showNext: boolean, withNu
 
 /** One state for the whole scope: a failed read first, then a missing setup, then waiting; ready when any platform reads; off when all are off. */
 export function worstState(states: readonly SourceState[]): SourceState {
-  for (const wanted of ['error', 'needs_setup', 'waiting'] as SourceState[]) if (states.includes(wanted)) return wanted;
+  for (const wanted of ['error', 'needs_setup', 'waiting'] as SourceState[])
+    if (states.includes(wanted)) return wanted;
   return states.includes('ready') ? 'ready' : 'off';
 }
 
 /** The sources that failed their last read, across the platforms of the scope. */
-export const failedSourceCount = (statuses: readonly { sources: readonly { state: string }[] }[]): number =>
+export const failedSourceCount = (
+  statuses: readonly { sources: readonly { state: string }[] }[],
+): number =>
   statuses.reduce((n, s) => n + s.sources.filter((x) => stateOf(x.state) === 'error').length, 0);
 
 /** The newest read of any source of any platform, or null when nothing was read. */

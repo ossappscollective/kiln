@@ -69,7 +69,11 @@ function coachActions() {
       listingLocales: [
         {
           locale: 'en-US',
-          fields: { title: 'Water Tracker', subtitle: 'Drink water', keywords: 'tracker, hydration,,Tracker' },
+          fields: {
+            title: 'Water Tracker',
+            subtitle: 'Drink water',
+            keywords: 'tracker, hydration,,Tracker',
+          },
         },
         { locale: 'de-DE', fields: { title: 'Wasser', subtitle: 'x', keywords: '' } },
       ],
@@ -77,7 +81,9 @@ function coachActions() {
     }),
   );
   const none = buildCoach(coachInput({}));
-  const unchecked = buildCoach(coachInput({ keywords: [kw('a', 'water', { lastCheckedAt: null })], lastCheckAt: null }));
+  const unchecked = buildCoach(
+    coachInput({ keywords: [kw('a', 'water', { lastCheckedAt: null })], lastCheckAt: null }),
+  );
   const play = buildCoach(
     coachInput({
       platform: 'android',
@@ -92,7 +98,16 @@ function coachActions() {
 test('core text: every key core emits for the coach is known to the web', () => {
   const actions = coachActions();
   const kinds = new Set(actions.map((a) => a.kind));
-  for (const kind of ['track_keywords', 'check_ranks', 'rank_dropped', 'not_in_listing', 'competitor_above', 'keyword_field_waste', 'unused_characters', 'untapped_locale']) {
+  for (const kind of [
+    'track_keywords',
+    'check_ranks',
+    'rank_dropped',
+    'not_in_listing',
+    'competitor_above',
+    'keyword_field_waste',
+    'unused_characters',
+    'untapped_locale',
+  ]) {
     assert.equal(kinds.has(kind as never), true, kind);
   }
   for (const a of actions) {
@@ -103,7 +118,8 @@ test('core text: every key core emits for the coach is known to the web', () => 
 });
 
 test('core text: in English the key and parameters give the sentence core wrote', () => {
-  const field = (f: string) => ({ title: 'Name', subtitle: 'Subtitle', keywords: 'Keyword field' })[f] ?? f;
+  const field = (f: string) =>
+    ({ title: 'Name', subtitle: 'Subtitle', keywords: 'Keyword field' })[f] ?? f;
   for (const a of coachActions()) {
     const w = coachWords(a, field);
     assert.equal(w.title, a.title, a.kind);
@@ -127,10 +143,17 @@ test('core text: the coach reads in French and falls back to English for an unkn
     assert.match(w.items.join('|'), /de 2 à 9/);
     const unused = actions.find((a) => a.kind === 'unused_characters');
     assert.ok(unused);
-    assert.match(coachWords(unused, (f) => `<${f}>`).items[0] as string, /<(title|subtitle|keywords)>/);
+    assert.match(
+      coachWords(unused, (f) => `<${f}>`).items[0] as string,
+      /<(title|subtitle|keywords)>/,
+    );
     for (const a of actions) {
       const words = coachWords(a, (f) => f);
-      assert.doesNotMatch([words.title, words.detail, words.linkLabel, ...words.items].join(' '), /\{\{|core:/, a.kind);
+      assert.doesNotMatch(
+        [words.title, words.detail, words.linkLabel, ...words.items].join(' '),
+        /\{\{|core:/,
+        a.kind,
+      );
     }
     const old = { ...dropped, titleText: { key: 'coach.nope', params: {} }, itemTexts: [] };
     assert.equal(coachWords(old, (f) => f).title, dropped.title);
@@ -144,7 +167,15 @@ test('core text: the rollout comparison, rules, templates and keyword reasons', 
     { id: 'a', percent: 5, status: 'done' as const },
     { id: 'b', percent: 20, status: 'done' as const },
     { id: 'c', percent: 50, status: 'planned' as const },
-  ].map((s) => ({ ...s, plannedAt: null, note: null, doneAt: null, doneBy: null, doneSource: null, due: false }));
+  ].map((s) => ({
+    ...s,
+    plannedAt: null,
+    note: null,
+    doneAt: null,
+    doneBy: null,
+    doneSource: null,
+    due: false,
+  }));
   const play = { platform: 'android' as const, rawState: 'inProgress', syncedAt: 1 };
   const comparisons = [
     compareRollout(steps, storeRollout({ ...play, status: 'rolling_out', fraction: 0.2 })),
@@ -162,7 +193,9 @@ test('core text: the rollout comparison, rules, templates and keyword reasons', 
   }
   const issues = [
     validateRolloutSteps([], { planCreatedAt: 0 }),
-    validateRolloutSteps([{ percent: 0, note: 'a\nb' }, { id: 'zz', percent: 5 }, { percent: 5 }], { planCreatedAt: 10 }),
+    validateRolloutSteps([{ percent: 0, note: 'a\nb' }, { id: 'zz', percent: 5 }, { percent: 5 }], {
+      planCreatedAt: 10,
+    }),
   ].flatMap((r) => (r.ok ? [] : r.issues));
   assert.ok(issues.length >= 5);
   for (const issue of issues) {
@@ -183,10 +216,22 @@ test('core text: the rollout comparison, rules, templates and keyword reasons', 
 
   useLocale('de');
   try {
-    assert.match(rolloutComparisonMessage(comparisons[0] as never), /^Der Store meldet 20\s?%, laut Plan ist Stufe 2 von 3 \(20\s?%\) erledigt: Beides stimmt überein\.$/);
-    assert.match(rolloutComparisonMessage(comparisons[1] as never), /dem Plan voraus.*Sie können die nächste Stufe/);
-    assert.match(rolloutComparisonMessage(comparisons[3] as never), /Der Store hat die Einführung angehalten\.$/);
-    assert.equal(rolloutComparisonMessage(comparisons[6] as never), 'Der Store hat diese Version noch nicht gemeldet.');
+    assert.match(
+      rolloutComparisonMessage(comparisons[0] as never),
+      /^Der Store meldet 20\s?%, laut Plan ist Stufe 2 von 3 \(20\s?%\) erledigt: Beides stimmt überein\.$/,
+    );
+    assert.match(
+      rolloutComparisonMessage(comparisons[1] as never),
+      /dem Plan voraus.*Sie können die nächste Stufe/,
+    );
+    assert.match(
+      rolloutComparisonMessage(comparisons[3] as never),
+      /Der Store hat die Einführung angehalten\.$/,
+    );
+    assert.equal(
+      rolloutComparisonMessage(comparisons[6] as never),
+      'Der Store hat diese Version noch nicht gemeldet.',
+    );
     assert.equal(coreMessage({ key: 'rollout.nope', params: {} }, 'English'), 'English');
     const first = issues[0];
     assert.ok(first);
@@ -203,12 +248,32 @@ test('core text: Google Play checks and the reason no staged rollout is offered'
       { listingLocales: [], trackReleases: [] },
     ),
     checkPlayProposal(
-      { track: 'production', releaseName: 'v', versionCodes: ['5', '3', 'x'], notes: [{ locale: 'en-US', text: 'x'.repeat(600) }], userFraction: 1 },
-      { listingLocales: ['fr-FR'], trackReleases: [{ status: 'completed', versionCodes: ['5', '9'] }] },
+      {
+        track: 'production',
+        releaseName: 'v',
+        versionCodes: ['5', '3', 'x'],
+        notes: [{ locale: 'en-US', text: 'x'.repeat(600) }],
+        userFraction: 1,
+      },
+      {
+        listingLocales: ['fr-FR'],
+        trackReleases: [{ status: 'completed', versionCodes: ['5', '9'] }],
+      },
     ),
   ].flat();
   const codes = checks.map((c) => c.code);
-  for (const code of ['track_missing', 'codes_missing', 'fraction_out_of_range', 'name_empty', 'code_already_live', 'code_not_newer', 'code_invalid', 'full_rollout', 'notes_over_limit', 'notes_missing'])
+  for (const code of [
+    'track_missing',
+    'codes_missing',
+    'fraction_out_of_range',
+    'name_empty',
+    'code_already_live',
+    'code_not_newer',
+    'code_invalid',
+    'full_rollout',
+    'notes_over_limit',
+    'notes_missing',
+  ])
     assert.equal(codes.includes(code), true, code);
   for (const c of checks) {
     assert.equal(knowsCoreText(c.text), true, c.text.key);
@@ -221,7 +286,10 @@ test('core text: Google Play checks and the reason no staged rollout is offered'
   for (const offer of offers) assert.equal(rolloutOfferMessage(offer), offer.message);
   useLocale('es');
   try {
-    assert.match(playCheckMessage(checks.find((c) => c.code === 'notes_missing') as never), /No hay notas de la versión para fr-FR/);
+    assert.match(
+      playCheckMessage(checks.find((c) => c.code === 'notes_missing') as never),
+      /No hay notas de la versión para fr-FR/,
+    );
     assert.match(rolloutOfferMessage(offers[1] as never), /primer lanzamiento/);
   } finally {
     useLocale('en');

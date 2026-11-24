@@ -7,7 +7,10 @@ const PREFIX = 'kiln.timeline.markers';
 export const markersKey = (userId: string): string => `${PREFIX}.${userId}`;
 
 /** The remembered choice of "Show events" on the charts; off when nothing was chosen or storage cannot be read. */
-export function loadShowEvents(userId: string, store: StorageLike | null = browserStorage()): boolean {
+export function loadShowEvents(
+  userId: string,
+  store: StorageLike | null = browserStorage(),
+): boolean {
   try {
     return store?.getItem(markersKey(userId)) === '1';
   } catch {
@@ -16,7 +19,11 @@ export function loadShowEvents(userId: string, store: StorageLike | null = brows
 }
 
 /** Remembers the choice; a failure (private mode, quota) is ignored: the toggle still works for this visit. */
-export function saveShowEvents(userId: string, on: boolean, store: StorageLike | null = browserStorage()): void {
+export function saveShowEvents(
+  userId: string,
+  on: boolean,
+  store: StorageLike | null = browserStorage(),
+): void {
   try {
     (store as Storage | null)?.setItem(markersKey(userId), on ? '1' : '0');
   } catch {

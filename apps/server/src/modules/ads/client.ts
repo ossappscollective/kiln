@@ -23,7 +23,12 @@ import type { AdsDeps } from './index.ts';
  */
 type Actor = { type: ActorType; id: string };
 
-export type AdsUse = { actor: Actor; purpose: string; now: number; signal?: AbortSignal | undefined };
+export type AdsUse = {
+  actor: Actor;
+  purpose: string;
+  now: number;
+  signal?: AbortSignal | undefined;
+};
 export type AdsClientResult = { ok: true; client: AppleAdsClient; secret: string } | Failure;
 
 export async function adsClientFor(
@@ -34,21 +39,50 @@ export async function adsClientFor(
   deps: AdsDeps | undefined,
   use: AdsUse,
 ): Promise<AdsClientResult> {
-  const [row] = await db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [credentialId, workspaceId]);
+  const [row] = await db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [
+    credentialId,
+    workspaceId,
+  ]);
   if (!row) {
-    return failure(422, 'credential_not_found', 'That credential does not exist in this workspace (it may have been deleted).', coded('credential.notInWorkspace'));
+    return failure(
+      422,
+      'credential_not_found',
+      'That credential does not exist in this workspace (it may have been deleted).',
+      coded('credential.notInWorkspace'),
+    );
   }
   if (String(row.kind) !== 'apple_ads') {
-    return failure(422, 'credential_kind', 'Apple Ads needs a credential of the Apple Ads API user key kind.', coded('credential.notAppleAdsKind'));
+    return failure(
+      422,
+      'credential_kind',
+      'Apple Ads needs a credential of the Apple Ads API user key kind.',
+      coded('credential.notAppleAdsKind'),
+    );
   }
   let secret: string | undefined;
   try {
-    secret = await useCredentialSecret(db, masterKey, { workspaceId, id: credentialId, purpose: use.purpose }, use.actor, use.now);
+    secret = await useCredentialSecret(
+      db,
+      masterKey,
+      { workspaceId, id: credentialId, purpose: use.purpose },
+      use.actor,
+      use.now,
+    );
   } catch {
-    return failure(422, 'credential_unreadable', 'The credential could not be decrypted. Enter its secret again.', coded('credential.undecryptable'));
+    return failure(
+      422,
+      'credential_unreadable',
+      'The credential could not be decrypted. Enter its secret again.',
+      coded('credential.undecryptable'),
+    );
   }
   if (secret === undefined) {
-    return failure(422, 'credential_not_found', 'That credential does not exist.', coded('credential.notFound'));
+    return failure(
+      422,
+      'credential_not_found',
+      'That credential does not exist.',
+      coded('credential.notFound'),
+    );
   }
   try {
     const client = createAppleAdsClient({
@@ -69,7 +103,12 @@ const withCoding = (error: AppleAdsError) => (error.coding ? coded(error.coding.
 /** A response for whatever a call to Apple Ads threw. Messages are fixed sentences, redacted once more against the secret in use. */
 export function adsFailure(error: unknown, secret = ''): Failure {
   if (!(error instanceof AppleAdsError)) {
-    return failure(502, 'ads_unavailable', 'The Apple Ads request could not be completed. Try again in a moment.', coded('ads.requestFailed'));
+    return failure(
+      502,
+      'ads_unavailable',
+      'The Apple Ads request could not be completed. Try again in a moment.',
+      coded('ads.requestFailed'),
+    );
   }
   const message = redactSecrets(error.message, secret ? secretStrings(secret) : []);
   const extra = withCoding(error);
@@ -91,12 +130,19 @@ export function adsFailure(error: unknown, secret = ''): Failure {
       return {
         ok: false,
         status: 429,
-        body: { error: 'rate_limited', message, ...coded('ads.rateLimited'), retryAfterSeconds: wait },
+        body: {
+          error: 'rate_limited',
+          message,
+          ...coded('ads.rateLimited'),
+          retryAfterSeconds: wait,
+        },
         headers: { 'Retry-After': String(wait) },
       };
     }
     case 'network':
-      return error.timedOut ? failure(504, 'timeout', message, extra) : failure(502, 'ads_unavailable', message, extra);
+      return error.timedOut
+        ? failure(504, 'timeout', message, extra)
+        : failure(502, 'ads_unavailable', message, extra);
     case 'server':
     case 'unexpected':
       return failure(502, 'ads_unavailable', message, extra);

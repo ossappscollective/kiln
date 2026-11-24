@@ -29,14 +29,20 @@ export const cacheKey = (appId: string): string => `${CACHE_PREFIX}${appId}`;
 export function parseEntry(raw: unknown): CacheEntry | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const r = raw as { url?: unknown; colors?: unknown; neutral?: unknown };
-  if (typeof r.url !== 'string' || typeof r.neutral !== 'boolean' || !Array.isArray(r.colors)) return null;
-  const colors = r.colors.filter((c): c is string => typeof c === 'string' && HEX.test(c)).slice(0, 3);
+  if (typeof r.url !== 'string' || typeof r.neutral !== 'boolean' || !Array.isArray(r.colors))
+    return null;
+  const colors = r.colors
+    .filter((c): c is string => typeof c === 'string' && HEX.test(c))
+    .slice(0, 3);
   if (colors.length !== r.colors.length) return null;
   if (r.neutral !== (colors.length === 0)) return null;
   return { url: r.url, palette: { colors, neutral: r.neutral } };
 }
 
-export function readEntry(appId: string, storage: Reader | undefined = defaultStorage()): CacheEntry | null {
+export function readEntry(
+  appId: string,
+  storage: Reader | undefined = defaultStorage(),
+): CacheEntry | null {
   try {
     const raw = storage?.getItem(cacheKey(appId));
     return raw ? parseEntry(JSON.parse(raw)) : null;
@@ -45,9 +51,20 @@ export function readEntry(appId: string, storage: Reader | undefined = defaultSt
   }
 }
 
-export function writeEntry(appId: string, entry: CacheEntry, storage: Writer | undefined = defaultStorage()): void {
+export function writeEntry(
+  appId: string,
+  entry: CacheEntry,
+  storage: Writer | undefined = defaultStorage(),
+): void {
   try {
-    storage?.setItem(cacheKey(appId), JSON.stringify({ url: entry.url, colors: entry.palette.colors, neutral: entry.palette.neutral }));
+    storage?.setItem(
+      cacheKey(appId),
+      JSON.stringify({
+        url: entry.url,
+        colors: entry.palette.colors,
+        neutral: entry.palette.neutral,
+      }),
+    );
   } catch {
     // Not cached.
   }

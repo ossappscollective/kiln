@@ -61,7 +61,11 @@ function oklabToLinear(l: number, a: number, b: number): [number, number, number
 
 export function oklabToRgb(l: number, a: number, b: number): Rgb {
   const [r, g, bl] = oklabToLinear(l, a, b);
-  return { r: byte(fromLinear(Math.max(0, Math.min(1, r)))), g: byte(fromLinear(Math.max(0, Math.min(1, g)))), b: byte(fromLinear(Math.max(0, Math.min(1, bl)))) };
+  return {
+    r: byte(fromLinear(Math.max(0, Math.min(1, r)))),
+    g: byte(fromLinear(Math.max(0, Math.min(1, g)))),
+    b: byte(fromLinear(Math.max(0, Math.min(1, bl)))),
+  };
 }
 
 export function rgbToOklch(c: Rgb): Oklch {

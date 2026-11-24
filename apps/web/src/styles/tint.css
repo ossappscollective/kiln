@@ -137,7 +137,11 @@
 
   /* 3. The page glow of an app page: only the ambient light behind the content (one layer, so its peak is the single opacity that was checked), on the one element that paints it. */
   [data-app-tint-glow] {
-    --ambient: radial-gradient(ellipse 620px 320px at calc(100% - 140px) 0, var(--app-glow), transparent 70%);
+    --ambient: radial-gradient(
+      ellipse 620px 320px at calc(100% - 140px) 0,
+      var(--app-glow),
+      transparent 70%
+    );
   }
 
   /* 4. Put the defaults back where a global surface sits inside a tinted subtree: every dialog (showModal draws in the top layer
