@@ -30,6 +30,7 @@
   } from '../../lib/app-header.ts';
   import { asoViewFromHash } from '../../lib/aso/aso.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
+  import { tint } from '../../lib/tint/store.svelte.ts';
   import { dataChips } from '../../lib/app-chips.ts';
   import { canonicalAppHash, canonicalSection, pageTitle, resolveView, showsScope, viewsFor } from '../../lib/app-nav.ts';
   import { PUBLISHED_EVENT, pendingBar, pendingPlacement } from '../../lib/app-page.ts';
@@ -62,6 +63,8 @@
   import ScopeControl from './ScopeControl.svelte';
 
   let { api, workspaceId, role, id }: { api: Api; workspaceId: string; role: Role; id: string } = $props();
+  /** The app tint (docs/adr/0068-app-tint.md): re-maps the accent tokens inside this page only. Empty: no tint. */
+  const tintStyle = $derived(tint.style(id));
 
   const canSync = $derived(can(role, 'apps.sync'));
 
@@ -300,7 +303,7 @@
   });
 </script>
 
-<section aria-busy={loading}>
+<section aria-busy={loading} data-app-tint={tintStyle ? '' : undefined} style={tintStyle || undefined}>
   {#if loading && !group}
     <div role="status" aria-label={t('app:shell.loading')}>
       <div class="skeleton-head"><Skeleton width="240px" height="28px" /><Skeleton width="160px" height="16px" /></div>
@@ -422,6 +425,11 @@
     gap: var(--space-2) var(--space-3);
     align-items: center;
     min-width: 12rem;
+  }
+
+  /* The icon surround: a ring in the app's accent (a shadow, so nothing moves). --app-accent only exists inside a tinted subtree; without it the ring is transparent. */
+  .id :global(.app-icon) {
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--app-accent, transparent);
   }
 
   .titles {

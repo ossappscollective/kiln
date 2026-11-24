@@ -79,3 +79,12 @@ test('both themes derive for a spread of ordinary icon colours', () => {
   for (let h = 0; h < 360; h += 5) for (const c of [0.06, 0.12, 0.18]) for (const l of [0.4, 0.6, 0.8]) if (!deriveTint(oklchToHex(l, c, h))) missing += 1;
   assert.equal(missing, 0);
 });
+
+test('tokenRows reports the contrast each pair was derived for, in both themes', async () => {
+  const { tokenRows } = await import('./summary.ts');
+  const tint = deriveTint('#3b82f6');
+  assert.ok(tint);
+  const rows = tokenRows(tint);
+  assert.deepEqual(rows.map((r) => r.id), ['accent', 'accentInk', 'accentSolid', 'tintSubtle']);
+  for (const r of rows) for (const s of ['light', 'dark'] as const) assert.ok(r.ratio[s] >= r.min, `${r.id} ${s} ${r.ratio[s]}`);
+});

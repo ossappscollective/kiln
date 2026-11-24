@@ -88,6 +88,7 @@
   "api.unauthenticated": "Your session has ended. Sign in again.",
   "api.unknownPath": "A choice names a file that is not in this change set. Reload and try again.",
   "app.alreadyAdded": "{{identifier}} is already added for {{platform}}.",
+  "app.appearanceInvalid": "The appearance of the app is not valid.",
   "app.discoverKinds": "Apps can be found with an App Store Connect API key or a Google Play service account credential.",
   "app.listingSettingInvalid": "A listing setting is not valid.",
   "app.notInWorkspace": "That app is not in this workspace.",

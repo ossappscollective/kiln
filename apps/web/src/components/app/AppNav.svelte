@@ -45,6 +45,7 @@
     workspaceItems = [],
     counts = { reviews: null, releases: null },
     status = [],
+    tintStyle = '',
     switcher = null,
     mod = 'Ctrl',
     onopenswitcher,
@@ -69,6 +70,8 @@
     counts?: { reviews: number | null; releases: number | null; pending?: number | null; pendingBlocking?: boolean; insights?: number | null } | undefined;
     /** One line per platform of the app (lib/app-status.ts); empty draws no summary. */
     status?: PlatformStatusLine[] | undefined;
+    /** The inline style of the app tint (lib/tint); empty is no tint. Only the app card and the "This app" group carry it, never the workspace group. */
+    tintStyle?: string | undefined;
   } = $props();
 
   const badgeFor = (id: string): { count: number | null; labelKey: string; tone: 'warn' | 'accent' } | null =>
@@ -93,7 +96,7 @@
 </script>
 
 <div class="app-nav" class:chord={navSignals.chordPending}>
-  <div class="app-card" class:rail={collapsed}>
+  <div class="app-card" class:rail={collapsed} data-app-tint={tintStyle ? '' : undefined} style={tintStyle || undefined}>
     {#if collapsed}
       {#if onpickapp}
         <AppSwitcherField compact items={switcher} appId={address.id} fallbackName={appContext.name} {mod} onopen={onopenswitcher} onpick={onpickapp} />
@@ -130,7 +133,7 @@
       </ul>
     {/if}
   </div>
-  <nav aria-label={t('app:nav.thisApp')}>
+  <nav aria-label={t('app:nav.thisApp')} data-app-tint={tintStyle ? '' : undefined} style={tintStyle || undefined}>
     <p class="group-label" aria-hidden="true">{t('app:nav.thisApp')}</p>
     <ul>
       {#each entries as s (s.id)}

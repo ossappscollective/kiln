@@ -128,6 +128,8 @@
   "theme.dark": "Dunkel",
   "theme.label": "Design",
   "theme.light": "Hell",
+  "tint.hint": "Auf den Seiten einer App folgen die Akzente den Farben ihres Symbols. Kontrast und Statusfarben ändern sich nie.",
+  "tint.label": "Oberfläche in den Farben der App einfärben",
   "toast.dismiss": "Benachrichtigung schließen",
   "toast.region": "Benachrichtigungen",
   "validation.emailInvalid": "Geben Sie eine E-Mail-Adresse wie name@beispiel.de ein.",

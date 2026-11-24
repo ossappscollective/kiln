@@ -222,6 +222,7 @@ export const appSettingsPartIds = {
   notifications: 'notifications',
   ai: 'ai',
   aiPrivacy: 'ai-privacy',
+  appearance: 'appearance',
   danger: 'danger',
 } as const;
 
@@ -265,6 +266,11 @@ export function appSettingsGroups(input: AppSettingsInput): RailGroup[] {
         entry(ids.notifications, t(k('app:settings.part.notifications'))),
         ...(input.ai ? [entry(ids.ai, t(k('app:settings.part.ai'))), entry(ids.aiPrivacy, t(k('app:settings.part.aiPrivacy')))] : []),
       ],
+    },
+    {
+      id: 'display',
+      label: t(k('app:settings.group.display')),
+      entries: [entry(ids.appearance, t(k('app:settings.part.appearance')))],
     },
     {
       id: 'danger',

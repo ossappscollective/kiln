@@ -88,6 +88,7 @@
   "api.unauthenticated": "Tu sesión ha terminado. Inicia sesión de nuevo.",
   "api.unknownPath": "Una de las opciones nombra un archivo que no está en este conjunto de cambios. Recarga la página e inténtalo de nuevo.",
   "app.alreadyAdded": "{{identifier}} ya está añadido para {{platform}}.",
+  "app.appearanceInvalid": "La apariencia de la app no es válida.",
   "app.discoverKinds": "Las apps se pueden encontrar con una clave de API de App Store Connect o una credencial de cuenta de servicio de Google Play.",
   "app.listingSettingInvalid": "Un ajuste de la ficha no es válido.",
   "app.notInWorkspace": "Esa app no está en este espacio de trabajo.",

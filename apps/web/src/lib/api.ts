@@ -213,6 +213,7 @@ import { announceCartAdded, type CartDetail, type CartResponse, type CartResultR
 import type { PendingItemDetail } from './pending-preview.ts';
 import { announceStagedChanged, type StagedChangeReason } from './staged-sync.ts';
 import type { ProposalSummary } from './asset-proposal-hint.ts';
+import type { AppAppearance } from './tint/prefs.ts';
 import type { CartSummary } from './cart-summary.ts';
 import {
   type CodeSent,
@@ -2299,6 +2300,15 @@ export function createApi(options: ApiOptions = {}) {
         'PUT',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing-settings`,
         changes,
+      ),
+    // How the interface is tinted per app (docs/adr/0068-app-tint.md): the overrides of the workspace in one read, and one app's value.
+    appAppearances: (workspaceId: string) =>
+      request<{ apps: Record<string, AppAppearance> }>('GET', `${workspace(workspaceId)}/apps/appearance`),
+    updateAppAppearance: (workspaceId: string, appId: string, value: AppAppearance) =>
+      request<{ appearance: AppAppearance; changed: boolean }>(
+        'PUT',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/appearance`,
+        value,
       ),
     updateAppReleaseSettings: (
       workspaceId: string,

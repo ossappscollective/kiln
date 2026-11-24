@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { coded } from '../i18n/problem.ts';
 import { memberRole } from '../services/accounts.ts';
+import { readAppearances, updateAppAppearance } from '../services/app-appearance.ts';
 import {
   type AppsContext,
   checkIdentifier,
@@ -39,6 +40,10 @@ const respond = (c: Context<AppEnv>, f: Failure) => {
   for (const [name, value] of Object.entries(f.headers ?? {})) c.header(name, value);
   return c.json(f.body, f.status);
 };
+
+const appearanceBody = z
+  .object({ tint: z.enum(['auto', 'off', 'custom']), color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional() })
+  .strict();
 
 const registerBody = z
   .object({
@@ -141,6 +146,26 @@ export function appRoutes(ctx: AppRoutesContext) {
   app.get('/:workspaceId/apps', needs('apps.read'), async (c) =>
     c.json({ apps: await listApps(db, ws(c)) }),
   );
+
+  // How the web app tints its interface for each app (docs/adr/0068-app-tint.md): the stored overrides of the workspace in one read.
+  app.get('/:workspaceId/apps/appearance', needs('apps.read'), async (c) => {
+    const all = await readAppearances(db, ws(c));
+    const allowed = c.get('token')?.appIds ?? undefined;
+    const apps = allowed ? Object.fromEntries(Object.entries(all).filter(([id]) => allowed.includes(id))) : all;
+    c.header('Cache-Control', 'no-store');
+    return c.json({ apps });
+  });
+
+  app.put('/:workspaceId/apps/:id/appearance', needs('apps.write'), async (c) => {
+    const body = await parseBody(c, appearanceBody);
+    if (!body.ok) return body.response;
+    const done = await updateAppAppearance(
+      db,
+      { workspaceId: ws(c), appId: param(c, 'id'), value: body.data, actor: actor(c) },
+      ctx.now(),
+    );
+    return done.ok ? c.json({ appearance: done.appearance, changed: done.changed }) : respond(c, done);
+  });
 
   app.post('/:workspaceId/apps', needs('apps.write'), async (c) => {
     const body = await parseBody(c, registerBody);

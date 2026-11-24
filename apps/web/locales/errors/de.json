@@ -88,6 +88,7 @@
   "api.unauthenticated": "Ihre Sitzung ist beendet. Melden Sie sich erneut an.",
   "api.unknownPath": "Eine Auswahl nennt eine Datei, die nicht in diesem Änderungssatz enthalten ist. Laden Sie die Seite neu und versuchen Sie es erneut.",
   "app.alreadyAdded": "{{identifier}} ist bereits für {{platform}} hinzugefügt.",
+  "app.appearanceInvalid": "Das Erscheinungsbild der App ist nicht gültig.",
   "app.discoverKinds": "Apps lassen sich mit einem App-Store-Connect-API-Schlüssel oder den Zugangsdaten eines Google-Play-Dienstkontos finden.",
   "app.listingSettingInvalid": "Eine Einstellung des Eintrags ist nicht gültig.",
   "app.notInWorkspace": "Diese App ist nicht in diesem Arbeitsbereich.",

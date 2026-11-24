@@ -110,6 +110,11 @@ const invitationSchema = z.object({
   createdByName: z.string().nullable(),
 });
 
+const appAppearanceSchema = z.object({
+  tint: z.enum(['auto', 'off', 'custom']).describe('`auto`: the colours of the app icon. `off`: no tint for this app. `custom`: `color`.'),
+  color: z.string().optional().describe('`#rrggbb`, only with `custom`.'),
+});
+
 const appSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -683,6 +688,33 @@ export const workspaceOperations: Draft[] = [
     access: { action: 'apps.read' },
     appScope: { kind: 'list' },
     responses: { '200': { description: 'Apps.', schema: z.object({ apps: z.array(appSchema) }) } },
+  },
+  {
+    id: 'getAppAppearances',
+    method: 'get',
+    path: `${W}/apps/appearance`,
+    tags: ['apps'],
+    summary: 'How the web app tints its interface for each app (the stored overrides)',
+    description:
+      'Needs `apps.read`. Reads the database only. Only apps with an override are listed (`off`, or `custom` with a colour); every other app is `auto`: the colours of its icon. A token restricted to some apps sees only those.',
+    risk: 'read',
+    access: { action: 'apps.read' },
+    appScope: { kind: 'list' },
+    responses: { '200': { description: 'The overrides by app id.', schema: z.object({ apps: z.record(z.string(), appAppearanceSchema) }) } },
+  },
+  {
+    id: 'updateAppAppearance',
+    method: 'put',
+    path: `${W}/apps/{id}/appearance`,
+    tags: ['apps'],
+    summary: 'Set how the web app tints its interface for one app',
+    description:
+      'Needs `apps.write` (admin and up). Replaces the value: `{ "tint": "auto" }` (the default, removes the override), `{ "tint": "off" }`, or `{ "tint": "custom", "color": "#3b82f6" }`. `422 invalid_setting` for anything else. Only changes how this web app is drawn; nothing is written to a store. Audited as `app.appearance_update` (the app id and the old and new values). An app of another workspace is `404`.',
+    risk: 'write',
+    access: { action: 'apps.write' },
+    appScope: { kind: 'param', name: 'id' },
+    body: z.object({ tint: z.enum(['auto', 'off', 'custom']), color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional() }).strict(),
+    responses: { '200': { description: 'The value after the change.', schema: z.object({ appearance: appAppearanceSchema, changed: z.boolean() }) } },
   },
   {
     id: 'getSyncActivity',

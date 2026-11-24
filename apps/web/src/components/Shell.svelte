@@ -21,6 +21,7 @@
   import { roleLabel } from '../lib/role-label.ts';
   import { pipelineStore } from '../lib/pipeline-store.svelte.ts';
   import { navSignals } from '../lib/nav-signals.svelte.ts';
+  import { tint } from '../lib/tint/store.svelte.ts';
   import { pendingAcrossText, pendingRows, pendingTotals } from '../lib/cart-summary.ts';
   import { cartSummaryStore } from '../lib/cart-summary.svelte.ts';
   import { onStagedChanged } from '../lib/staged-sync.ts';
@@ -43,6 +44,7 @@
   import StepUpHost from './StepUpHost.svelte';
   import Logo from './ui/Logo.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
+  import TintToggle from './ui/TintToggle.svelte';
   import { productName } from './ui/brand.ts';
   import { isIconName } from './ui/icons.ts';
 
@@ -166,6 +168,27 @@
     const ids = group ? group.members.map((m) => m.id) : [id];
     untrack(() => void navSignals.ensureInsightsCounts(api, space, ids));
   });
+  // The app tint (docs/adr/0068-app-tint.md): the workspace's per-app overrides once, and the palette of the open app's icon (from the
+  // cache at once, else read from the icon). Nothing here can fail visibly: no palette, no override, no tint.
+  $effect(() => {
+    const space = workspaceId;
+    if (space === '' || !workspace || !can(workspace.role, 'apps.read')) return;
+    let current = true;
+    untrack(() =>
+      api.appAppearances(space).then((r) => current && tint.setOverrides(r.apps)).catch(() => {}),
+    );
+    return () => {
+      current = false;
+    };
+  });
+  $effect(() => {
+    const id = appAddr?.id;
+    const apps = navSignals.appsOf(workspaceId);
+    const icon = id && apps ? apps.find((a) => a.id === id)?.iconUrl : null;
+    if (id && icon) untrack(() => tint.track(id, icon));
+  });
+  /** The tint of the open app: the inline style of the wrappers below; empty is no tint and the attribute is left off. */
+  const appTintStyle = $derived(appAddr ? tint.style(appAddr.id) : '');
   // The alert bell's count and newest alerts, read while a workspace is open (lib/alert-store.svelte.ts).
   $effect(() => {
     const space = workspaceId;
@@ -457,7 +480,7 @@
 
     <div bind:this={navEl} id="sidebar-nav" class="nav-wrap" class:chord={navSignals.chordPending}>
       {#if appAddr && workspace}
-        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} {attention} {unanswered} pending={pendingNav} workspaceItems={railItems} counts={appCounts} status={appStatus} switcher={switcherList} mod={modKey} collapsed={rail} onexpand={toggleRail} onopenswitcher={() => void navSignals.ensureApps(api, workspaceId)} onpickapp={pickApp} />
+        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} {attention} {unanswered} pending={pendingNav} workspaceItems={railItems} counts={appCounts} status={appStatus} switcher={switcherList} mod={modKey} collapsed={rail} tintStyle={appTintStyle} onexpand={toggleRail} onopenswitcher={() => void navSignals.ensureApps(api, workspaceId)} onpickapp={pickApp} />
       {:else}
         <nav aria-label={t('shell:nav.sections')}>
           <ul>
@@ -487,7 +510,7 @@
     onclick={() => closeDrawer()}
   ></button>
 
-  <div class="column" inert={drawerOpen}>
+  <div class="column" inert={drawerOpen} data-app-tint-glow={appTintStyle ? '' : undefined} style={appTintStyle || undefined}>
     {#if demo}
       <p class="demo-bar no-print" role="note" data-testid="demo-banner">{t(DEMO_BANNER_KEY)}</p>
     {/if}
@@ -581,6 +604,9 @@
             <div class="menu-section">
               <p class="eyebrow">{t('common:theme.label')}</p>
               <ThemeToggle block />
+            </div>
+            <div class="menu-section">
+              <TintToggle />
             </div>
             <div class="menu-section">
               <LanguageSelect layout="stacked" block account />

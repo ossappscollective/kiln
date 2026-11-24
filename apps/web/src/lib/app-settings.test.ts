@@ -131,6 +131,7 @@ test('the rail lists only the sections that exist, in groups with no empty group
     'Expo and RevenueCat',
     'Release defaults',
     'Notifications',
+    'Appearance',
   ]);
   assert.deepEqual(labels({ android: true, ai: true, canDelete: true }), [
     'Stores',
@@ -143,6 +144,7 @@ test('the rail lists only the sections that exist, in groups with no empty group
     'Notifications',
     'AI assistant',
     'Privacy and AI',
+    'Appearance',
     'Danger zone',
   ]);
   const ids = appSettingsSections({ android: true, ai: true, canDelete: true }).map((s) => s.id);
@@ -168,7 +170,7 @@ test('the address opens a section: ?section=, an old part id, else the first; a 
   assert.equal(resolveAppSettingsSection('#/apps/a/settings?section=app-settings-repository', ids), 'repository');
   assert.equal(resolveAppSettingsSection('#/apps/a/settings?view=app-settings-defaults', ids), 'defaults');
   assert.equal(resolveAppSettingsSection('#/apps/a/settings?section=play-bucket', ids), 'stores');
-  assert.deepEqual(appSettingsGroups({ android: false, ai: false, canDelete: false }).map((g) => g.id), ['connections', 'releases', 'data']);
+  assert.deepEqual(appSettingsGroups({ android: false, ai: false, canDelete: false }).map((g) => g.id), ['connections', 'releases', 'data', 'display']);
 });
 
 test('effective values say where the vendor number and the Play bucket come from', () => {

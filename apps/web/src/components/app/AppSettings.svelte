@@ -26,6 +26,7 @@
   import AdsSettingsSection from '../ads/AdsSettingsSection.svelte';
   import ExpoProjectSection from '../eas/ExpoProjectSection.svelte';
   import RevenueCatSection from '../revenuecat/RevenueCatSection.svelte';
+  import AppearanceSection from './settings/AppearanceSection.svelte';
   import ListingSettingsSection from './settings/ListingSettingsSection.svelte';
   import NotificationsSection from './settings/NotificationsSection.svelte';
   import ReleaseSettingsSection from './settings/ReleaseSettingsSection.svelte';
@@ -88,6 +89,8 @@
       <StoresSection {api} {workspaceId} {role} {members} {all} {now} />
     {:else if current === ids.repository}
       <RepositorySection {api} {workspaceId} {role} {members} />
+    {:else if current === ids.appearance}
+      <AppearanceSection {api} {workspaceId} {role} {members} />
     {:else if current === ids.listing}
       <ListingSettingsSection {api} {workspaceId} {role} {members} />
     {:else if current === ids.integrations}

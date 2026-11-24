@@ -134,6 +134,8 @@
   "theme.dark": "Oscuro",
   "theme.label": "Tema",
   "theme.light": "Claro",
+  "tint.hint": "En las páginas de una app, los acentos siguen los colores de su icono. El contraste y los colores de estado nunca cambian.",
+  "tint.label": "Teñir la interfaz con los colores de la app",
   "toast.dismiss": "Descartar notificación",
   "toast.region": "Notificaciones",
   "validation.emailInvalid": "Introduce un correo electrónico como nombre@ejemplo.com.",

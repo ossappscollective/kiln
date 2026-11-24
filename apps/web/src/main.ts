@@ -1,6 +1,7 @@
 import { mount } from 'svelte';
 import './app.css';
 import './styles/accents.css';
+import './styles/tint.css';
 import App from './App.svelte';
 import { initI18n } from './lib/i18n/i18n.svelte.ts';
 
