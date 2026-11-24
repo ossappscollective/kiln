@@ -39,7 +39,7 @@ outputs:
 runs:
   using: composite
   steps:
-    - uses: docker/setup-qemu-action@v3 # major tag; Dependabot proposes updates
+    - uses: docker/setup-qemu-action@v3 # major tag
       with:
         platforms: arm64
     - uses: docker/setup-buildx-action@v3

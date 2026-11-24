@@ -150,7 +150,6 @@ volumes: { mrm-data: {}, pg-data: {} }
       start private, so `docker pull` fails for everyone else until you do.
 - [ ] Publish the draft release.
 - [ ] Later: enable GitHub Pages for the website.
-- [ ] Dependabot (`.github/dependabot.yml`) opens weekly PRs for actions, Docker, npm and Cargo.
 
 ## Not verified
 

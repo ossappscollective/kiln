@@ -6,7 +6,7 @@
 #   Run workflow (manual)        build-only by default: builds everything and uploads Actions
 #                                artifacts (7 days). No GitHub Release, no Docker push, no tags.
 #
-# Actions are pinned to major version tags (not commit SHAs); Dependabot keeps them current.
+# Actions are pinned to major version tags (not commit SHAs); bump them by hand when needed.
 name: Release
 
 run-name: Release ${{ github.ref_name }} (${{ inputs.mode || 'release' }})
