@@ -94,6 +94,8 @@ dbTest(
       'last_success_at',
       'project_id',
       'submissions_truncated',
+      'updates_error',
+      'updates_read_at',
       'workspace_id',
     ]);
     for (const [table, index] of [
@@ -124,6 +126,20 @@ dbTest(
       ['a1'],
     );
     assert.equal(Number(sync?.consecutive_failures), 0);
+
+    // Migration 64 (EAS Update state): the table and the two columns of the sync row; one row per app, channel and update.
+    assert.ok((await tableColumns(db, 'eas_status_sync')).some((c) => c.name === 'updates_read_at'));
+    assert.ok((await tableColumns(db, 'eas_status_sync')).some((c) => c.name === 'updates_error'));
+    const update = (appId: string, channel: string, updateId: string) =>
+      db.execute(
+        `INSERT INTO eas_updates (app_id, update_id, workspace_id, platform, channel, group_id, fetched_at) VALUES (?, ?, 'w1', 'ios', ?, 'g', 5)`,
+        [appId, updateId, channel],
+      );
+    await update('a1', 'production', 'u1');
+    await update('a1', 'staging', 'u1');
+    await assert.rejects(() => update('a1', 'production', 'u1'), 'app, channel and update are the primary key');
+    const [u] = await db.query('SELECT is_current FROM eas_updates WHERE channel = ?', ['staging']);
+    assert.equal(Number(u?.is_current), 0);
 
     // Running again changes nothing.
     assert.deepEqual(await migrate(db), []);

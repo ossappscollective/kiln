@@ -2513,6 +2513,44 @@ export const easSubmissions = pgTable(
   ],
 );
 
+/**
+ * The stored EAS Updates (OTA) of an app record (migration 64, docs/adr/0060-eas-update-state.md): the current update of each channel and
+ * the updates that are mid-rollout, read by the status sync.
+ */
+export const easUpdates = pgTable(
+  'eas_updates',
+  {
+    appId: text('app_id').notNull(),
+    updateId: text('update_id').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** Expo's platform: ios or android. */
+    platform: text('platform').notNull(),
+    channel: text('channel').notNull(),
+    branch: text('branch'),
+    /** The update group id: updates published together share it. */
+    groupId: text('group_id').notNull(),
+    runtimeVersion: text('runtime_version'),
+    /** The publisher's text, cut at 200 characters: shown to people, never in an alert or an event. */
+    message: text('message'),
+    createdAt: epochMs('created_at'),
+    /** Expo's per-update rollout, 1 to 99; null when not mid-rollout. */
+    rolloutPercentage: integer('rollout_percentage'),
+    /** When this server first read this percentage (the clock of the stuck-rollout alert). */
+    rolloutSince: epochMs('rollout_since'),
+    /** When the stuck-rollout event was raised for this update (once). */
+    stuckEventAt: epochMs('stuck_event_at'),
+    isCurrent: integer('is_current').notNull().default(0),
+    fetchedAt: epochMs('fetched_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.channel, t.updateId] }),
+    index('eas_updates_app_idx').on(t.appId, t.channel),
+    index('eas_updates_workspace_idx').on(t.workspaceId),
+  ],
+);
+
 /** The state of the status sync of one app record (migration 47): attempts, the failure streak and the backoff. */
 export const easStatusSync = pgTable(
   'eas_status_sync',
@@ -2532,6 +2570,9 @@ export const easStatusSync = pgTable(
     backoffUntil: epochMs('backoff_until'),
     buildsTruncated: integer('builds_truncated').notNull().default(0),
     submissionsTruncated: integer('submissions_truncated').notNull().default(0),
+    /** Last successful read of the updates (migration 64) and its last failure as a short code. */
+    updatesReadAt: epochMs('updates_read_at'),
+    updatesError: text('updates_error'),
   },
   (t) => [index('eas_status_sync_workspace_idx').on(t.workspaceId)],
 );

@@ -531,7 +531,7 @@ export async function deleteApp(
       input.workspaceId,
     ]);
     // The cached EAS builds and submissions of the app (modules/eas/status.ts).
-    for (const table of ['eas_builds', 'eas_submissions', 'eas_status_sync']) {
+    for (const table of ['eas_builds', 'eas_submissions', 'eas_updates', 'eas_status_sync']) {
       await tx.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [
         input.id,
         input.workspaceId,

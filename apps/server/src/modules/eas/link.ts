@@ -102,7 +102,7 @@ export async function getExpoLink(
  * names another project, so the snapshot no longer belongs to it.
  */
 export async function clearEasStatus(sql: Sql, workspaceId: string, appId: string): Promise<void> {
-  for (const table of ['eas_builds', 'eas_submissions', 'eas_status_sync']) {
+  for (const table of ['eas_builds', 'eas_submissions', 'eas_updates', 'eas_status_sync']) {
     await sql.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [
       appId,
       workspaceId,

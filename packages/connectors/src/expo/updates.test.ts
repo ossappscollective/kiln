@@ -10,7 +10,7 @@ import {
   expoUpdateGroupInsights,
 } from './queries.ts';
 import type { ExpoStoreBuild, ExpoUpdateChannel } from './types.ts';
-import { checkRuntimeVersions, describeCondition, parseBranchMapping } from './updates.ts';
+import { checkRuntimeVersions, describeCondition, parseBranchMapping, storedUpdatesOf } from './updates.ts';
 import {
   BRANCH_MAIN,
   BRANCH_NEXT,
@@ -483,4 +483,40 @@ test('store builds of another platform than asked are dropped even when Expo ign
     builds.map((b) => b.id),
     ['dd000000-0000-4000-8000-000000000005'],
   );
+});
+
+test('storedUpdatesOf keeps the current update of each channel and the mid-rollout ones, for one platform', async () => {
+  const groups = (id: string, platforms: string[], overrides: Record<string, unknown>) =>
+    group(id, platforms, { message: 'Line one\nline two', ...overrides });
+  const f = fake(
+    channelsBody([
+      channel({
+        // The mapping names main only: next is not served, so its newer update is not "current", but its rollout is kept.
+        updateBranches: [
+          { id: BRANCH_MAIN, name: 'main', updateGroups: [groups(GROUP_A, ['ios', 'android'], { createdAt: '2026-11-18T10:00:00.000Z' })] },
+          { id: BRANCH_NEXT, name: 'next', updateGroups: [groups(GROUP_B, ['ios'], { createdAt: '2026-11-20T10:00:00.000Z', rolloutPercentage: 100 })] },
+        ],
+      }),
+      channel({
+        id: 'cc000000-0000-4000-8000-000000000002',
+        name: 'staging',
+        branchMapping: rolloutMapping(),
+        updateBranches: [
+          { id: BRANCH_NEXT, name: 'next', updateGroups: [groups(GROUP_B, ['ios', 'android'], { createdAt: '2026-11-20T10:00:00.000Z', rolloutPercentage: 25 })] },
+          { id: BRANCH_MAIN, name: 'main', updateGroups: [groups(GROUP_A, ['ios', 'android'], { createdAt: '2026-11-18T10:00:00.000Z' })] },
+        ],
+      }),
+    ]),
+  );
+  const read = await expoUpdateChannels(f.client, PROJECT_ID);
+  const rows = storedUpdatesOf(read.channels, 'ios');
+  const view = rows.map((r) => [r.channel, r.group, r.isCurrent, r.rolloutPercentage]);
+  assert.deepEqual(view, [
+    ['production', GROUP_A, true, null],
+    ['staging', GROUP_B, true, 25],
+  ]);
+  assert.equal(rows[0]?.message, 'Line one', 'the first line of the message only');
+  assert.ok(rows.every((r) => r.platform === 'ios'));
+  assert.deepEqual(storedUpdatesOf(read.channels, 'android').map((r) => r.channel), ['production', 'staging']);
+  assert.deepEqual(storedUpdatesOf([], 'ios'), []);
 });

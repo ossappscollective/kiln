@@ -221,3 +221,75 @@ export function checkRuntimeVersions(input: {
     };
   });
 }
+
+// ---------------------------------------------------------------------------------------------
+// What the status sync stores (docs/adr/0060-eas-update-state.md)
+
+export type StoredUpdate = {
+  channel: string;
+  branch: string;
+  group: string;
+  updateId: string;
+  platform: string;
+  runtimeVersion: string | null;
+  /** The publisher's text, first line, 200 characters. Shown to people; never put in an alert or an event. */
+  message: string | null;
+  createdAt: number | null;
+  /** Per-update rollout, 1 to 99; null when the update is not mid-rollout (Expo sends null, or 100 once it ended). */
+  rolloutPercentage: number | null;
+  /** The newest update of the branches the channel serves. */
+  isCurrent: boolean;
+};
+
+/** A rollout that is still going: 1 to 99. 0 and 100 are never "mid-rollout" (see the ADR: what Expo sends at 100 is unverified). */
+export const isMidRollout = (percentage: number | null): percentage is number =>
+  percentage !== null && Number.isInteger(percentage) && percentage >= 1 && percentage <= 99;
+
+const MAX_MESSAGE = 200;
+const firstLine = (value: string | null): string | null => {
+  if (value === null) return null;
+  const line = (value.split('\n')[0] ?? '').trim();
+  return line === '' ? null : line.slice(0, MAX_MESSAGE);
+};
+
+/**
+ * The updates worth keeping for one platform: for each channel its CURRENT update (the newest update of the branches the channel serves,
+ * by its branch mapping; every branch when the mapping lists none of them or could not be read) and any update that is mid-rollout, wherever
+ * it is. Each update once per channel. Pure; `channels` come from `expoUpdateChannels`.
+ */
+export function storedUpdatesOf(
+  channels: readonly ExpoUpdateChannel[],
+  platform: string,
+): StoredUpdate[] {
+  const out = new Map<string, StoredUpdate>();
+  for (const channel of channels) {
+    const served = new Set(channel.mapping.entries.map((e) => e.branchId));
+    const useServed = channel.branches.some((b) => served.has(b.id));
+    let current: StoredUpdate | null = null;
+    for (const branch of channel.branches) {
+      for (const g of branch.groups) {
+        for (const u of g.updates) {
+          if (u.platform !== platform) continue;
+          const row: StoredUpdate = {
+            channel: channel.name,
+            branch: branch.name,
+            group: u.group,
+            updateId: u.id,
+            platform,
+            runtimeVersion: u.runtimeVersion,
+            message: firstLine(u.message),
+            createdAt: u.createdAt,
+            rolloutPercentage: isMidRollout(u.rolloutPercentage) ? u.rolloutPercentage : null,
+            isCurrent: false,
+          };
+          if (row.rolloutPercentage !== null) out.set(`${channel.name}\u0000${u.id}`, row);
+          if ((!useServed || served.has(branch.id)) && (current === null || (row.createdAt ?? 0) > (current.createdAt ?? 0))) {
+            current = row;
+          }
+        }
+      }
+    }
+    if (current !== null) out.set(`${channel.name}\u0000${current.updateId}`, { ...current, isCurrent: true });
+  }
+  return [...out.values()];
+}

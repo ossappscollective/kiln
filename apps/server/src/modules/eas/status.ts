@@ -14,6 +14,7 @@ import { type Failure, failure, type Outcome } from '../../services/repositories
 import { expoClientFor, expoFailure } from './client.ts';
 import type { EasDeps } from './index.ts';
 import { getExpoLink, type ExpoLinkView } from './link.ts';
+import { type EasUpdatesView, getEasUpdates, NO_UPDATES, readUpdatesFromExpo, storeUpdates } from './status-updates.ts';
 
 import { coded } from '../../i18n/problem.ts';
 /**
@@ -158,6 +159,8 @@ export type EasStatusView = {
   /** Something is still going: a build or a submission has not ended. */
   active: boolean;
   sync: EasStatusSync;
+  /** The current OTA update of each channel and the updates mid-rollout, as the last read stored them (ADR 0060). */
+  updates: EasUpdatesView;
 };
 
 const encode = encodeURIComponent;
@@ -275,6 +278,7 @@ export async function getEasStatus(
       submissions: [],
       active: false,
       sync: { ...NO_SYNC },
+      updates: { ...NO_UPDATES },
     };
   }
   const buildRows = await sql.query(
@@ -313,6 +317,7 @@ export async function getEasStatus(
           submissionsTruncated: Number(state.submissions_truncated) === 1,
         }
       : { ...NO_SYNC },
+    updates: await getEasUpdates(sql, workspaceId, app.id, link),
   };
 }
 
@@ -551,6 +556,8 @@ export async function refreshEasStatus(
     await recordFailure(ctx, input.workspaceId, app.id, failed.body.error).catch(() => undefined);
     return failed;
   }
+  // The OTA state: one more request. A failure of it is a short code of its own and never fails the builds read.
+  const updates = await readUpdatesFromExpo(opened.client, link.projectId, platform, (e) => expoFailure(e).body.error);
   const at = ctx.now();
   // What was already stored as failed, and whether this is the first read of this project: the failure alerts are for NEWS, once per id.
   const [synced] = await ctx.db.query(
@@ -587,15 +594,17 @@ export async function refreshEasStatus(
     if (!baseline) {
       await raiseFailures(tx, input.workspaceId, app.id, builds.items, submissions.items, knownFailed, at);
     }
+    if (updates.ok) await storeUpdates(tx, input.workspaceId, app.id, updates.rows, at);
     await tx.execute(
       `INSERT INTO eas_status_sync
          (app_id, workspace_id, project_id, credential_id, last_attempt_at, last_success_at, last_error, consecutive_failures,
-          backoff_until, builds_truncated, submissions_truncated)
-       VALUES (?, ?, ?, ?, ?, ?, NULL, 0, NULL, ?, ?)
+          backoff_until, builds_truncated, submissions_truncated, updates_read_at, updates_error)
+       VALUES (?, ?, ?, ?, ?, ?, NULL, 0, NULL, ?, ?, ?, ?)
        ON CONFLICT (app_id) DO UPDATE SET project_id = excluded.project_id, credential_id = excluded.credential_id,
          last_attempt_at = excluded.last_attempt_at, last_success_at = excluded.last_success_at, last_error = NULL,
          consecutive_failures = 0, backoff_until = NULL, builds_truncated = excluded.builds_truncated,
-         submissions_truncated = excluded.submissions_truncated`,
+         submissions_truncated = excluded.submissions_truncated,
+         updates_read_at = COALESCE(excluded.updates_read_at, eas_status_sync.updates_read_at), updates_error = excluded.updates_error`,
       [
         app.id,
         input.workspaceId,
@@ -605,6 +614,8 @@ export async function refreshEasStatus(
         at,
         builds.full ? 1 : 0,
         submissions.full ? 1 : 0,
+        updates.ok ? at : null,
+        updates.ok ? null : updates.error,
       ],
     );
     if (options.trigger === 'manual') {
