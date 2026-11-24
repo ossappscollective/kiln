@@ -35,7 +35,6 @@ export function slugify(text) {
 export function safeUrl(url) {
   const trimmed = String(url).trim();
   // Browsers ignore tabs, newlines and control characters inside a scheme: strip them before looking.
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: that is the point
   const probe = trimmed.replace(/[\u0000- \u007f-\u009f]/g, '');
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(probe);
   if (scheme && !['http', 'https', 'mailto'].includes(scheme[1].toLowerCase())) return '#';

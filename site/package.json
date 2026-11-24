@@ -1,0 +1,6 @@
+{
+  "name": "kiln-site",
+  "private": true,
+  "type": "module",
+  "description": "Source of the Kiln project website (not a pnpm workspace package: it has no dependencies). See docs/website.md."
+}
