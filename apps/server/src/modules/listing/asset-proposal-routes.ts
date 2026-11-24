@@ -10,6 +10,7 @@ import {
   setProposalState,
   stageProposal,
 } from './asset-proposal.ts';
+import { getProposalSummary } from './asset-proposal-summary.ts';
 
 /**
  * The routes of the release asset proposal (docs/api/release-asset-proposal.md). Mounted by `assetSyncRoutes`, which owns the contexts and the
@@ -62,6 +63,13 @@ export function mountAssetProposalRoutes(routes: Hono<AppEnv>, deps: ProposalRou
     const done = await getAssetProposal(ctx, { workspaceId: ws(c), appId: appId(c), query: queryOf(parsed.data), actor: actor(c), gate: gate(c) });
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ proposal: done.view }) : respond(c, done);
+  });
+
+  // The count only (the Releases list): cached, one computation at a time, a time limit; no item and no text leaves the server.
+  routes.get(`${base}/summary`, needs('listing.read'), async (c) => {
+    const done = await getProposalSummary(ctx, { workspaceId: ws(c), appId: appId(c), actor: actor(c), gate: gate(c) });
+    c.header('Cache-Control', 'no-store');
+    return done.ok ? c.json({ summary: done.summary }) : respond(c, done);
   });
 
   routes.post(`${base}/stage`, needs('changesets.write'), async (c) => {

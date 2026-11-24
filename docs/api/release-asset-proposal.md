@@ -7,6 +7,7 @@ All routes are under `/api/workspaces/{workspaceId}/apps/{id}/release/asset-prop
 | Route | Right | Does |
 | --- | --- | --- |
 | `GET .../asset-proposal?version=&track=&build=` | `listing.read` | Reads the repository at two commits and the stored store state. Changes nothing. |
+| `GET .../asset-proposal/summary` | `listing.read` | The count only, cached: for the Releases list. See [Summary](#get-summary-the-count-only). |
 | `POST .../asset-proposal/stage` `{ version?, track?, build?, itemIds[], acceptIssues? }` | `changesets.write` | Computes the proposal again and stages the named items. |
 | `POST .../asset-proposal/dismiss` `{ version?, track?, mode: skip \| later \| reopen }` | `changesets.write` | Saves the decision for this release (audit `release.asset_proposal_decided`). |
 
@@ -22,6 +23,17 @@ Another workspace's app, or a non-member, answers `404`; a viewer can read and n
 - `locked`: `{ locked, reason, liveVersion }`, the Apple metadata lock; changes are listed and cannot be staged until a new version exists. Google Play never locks.
 - `state`: `{ state: open | skipped | later, at }`, what was decided for this release. `storeUnread`: the store's graphics could not be read.
 - `summary`: `{ texts, locales, graphics, errors, warnings, tips }`. `skipped`: `{ unchangedSinceRelease, sameAsStore, notStageable }`. `notes`: `truncated` (at most 400 items), `base_unreadable`, `base_media_unreadable`, `graphics_unreadable`.
+
+## `GET .../summary`: the count only
+
+`{ summary: { available, reason, version, track, state, count, texts, graphics, locked, cached, computedAt } }` ([ADR 0064](../adr/0064-pending-count-and-asset-hint.md)).
+No change, text or path is in it. It is for the line "3 store asset changes proposed" on the Releases list.
+
+- The release is the app's **editable** release (App Store: its version; Google Play: its track), else none (the default branch against the previous release). `version` / `track` say which.
+- `count = texts + graphics` of the full proposal's `summary`; changes already in the cart are not counted. `state: skipped` counts `0` (and `available: true`).
+- `available: false` counts nothing and says why in `reason`: `no_repository` (read nothing), `no_repo_metadata`, `target_unreadable`, `unreadable` (a failed read, not remembered), `busy` (two summaries are being computed already), `computing` (it took longer than 8 seconds; it finishes in the background and the next read is cached).
+- **Cost.** An app without a repository, or with the proposal skipped, reads nothing. Otherwise the answer is cached in memory for 10 minutes under a key made from what Kiln stores about the inputs (the repository as last read, the store as last read, the staged changes, the saved decision, the releases): when none of it changed, `cached: true` and nothing is read. A miss computes the full proposal once at a time per app and at most twice at once overall. The cache is per server process.
+- It lags a push to the repository that Kiln has not read yet by up to the cache time; `GET .../asset-proposal` always computes fresh.
 
 ## `POST .../stage`
 

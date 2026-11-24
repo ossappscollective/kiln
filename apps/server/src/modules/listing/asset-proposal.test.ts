@@ -7,6 +7,7 @@ import { iosListing, playListing } from './test-helpers.ts';
 import { bootStaged, IPHONE_65, png, type StagedBoot } from '../publish/test-helpers.ts';
 import { clearStoreImageCaches } from './store-images.ts';
 import { isCommitSha } from './asset-repo.ts';
+import { resetProposalSummaryCache } from './asset-proposal-summary.ts';
 
 /**
  * The release asset proposal (docs/api/release-asset-proposal.md, docs/adr/0063-release-asset-proposal.md): what changed in the repository since
@@ -355,4 +356,64 @@ dbTest('the store graphics that match the repository are not proposed', async (d
   const p = (await b.get()).body.proposal;
   assert.equal(p.changes.some((c: { kind: string }) => c.kind === 'graphics'), false, 'identical by size: not proposed');
   assert.equal(p.skipped.sameAsStore, 1, 'the one set of screenshots');
+});
+
+// ---- The count-only summary for the Releases list ----
+
+dbTest('summary: the count of changed texts and graphics, cached (the repository is not read again), refreshed when the cart changes', async (db) => {
+  resetProposalSummaryCache();
+  const b = await boot(db, { trees: CHANGED, store: { description: 'New description', release_notes: 'Old notes' } });
+  const sum = () => b.t.call(b.t.owner, 'GET', `${b.url}/summary`);
+  const first = await sum();
+  assert.equal(first.status, 200, first.text);
+  assert.deepEqual(
+    [first.body.summary.available, first.body.summary.count, first.body.summary.texts, first.body.summary.graphics, first.body.summary.version, first.body.summary.cached],
+    [true, 3, 2, 1, '1.1', false],
+  );
+  assert.equal(JSON.stringify(first.body).includes('Fresh and new'), false, 'no text leaves in a count');
+  const reads = b.t.repo.listCalls;
+  const again = await sum();
+  assert.equal(again.body.summary.cached, true);
+  assert.equal(again.body.summary.count, 3);
+  assert.equal(b.t.repo.listCalls, reads, 'a cached answer reads nothing');
+  // Staging one item changes the cart: the answer is computed again and the staged item is no longer proposed.
+  assert.equal((await b.stage({ itemIds: ['text:en-US:promotional_text'] })).status, 200);
+  const after = await sum();
+  assert.equal(after.body.summary.cached, false);
+  assert.equal(after.body.summary.count, 2);
+  assert.equal((await b.t.rows(b.app)).length, 1, 'the summary itself stages nothing');
+});
+
+dbTest('summary: a skipped proposal counts nothing and reads nothing; remind later still counts; reopen brings it back', async (db) => {
+  resetProposalSummaryCache();
+  const b = await boot(db, { trees: CHANGED });
+  const sum = () => b.t.call(b.t.owner, 'GET', `${b.url}/summary`);
+  assert.equal((await sum()).body.summary.count, 4);
+  await b.dismiss('skip');
+  const reads = b.t.repo.listCalls;
+  const skipped = await sum();
+  assert.deepEqual([skipped.body.summary.state, skipped.body.summary.count], ['skipped', 0]);
+  assert.equal(b.t.repo.listCalls, reads);
+  await b.dismiss('later');
+  assert.deepEqual([(await sum()).body.summary.state, (await sum()).body.summary.count], ['later', 4]);
+  await b.dismiss('reopen');
+  assert.equal((await sum()).body.summary.count, 4);
+});
+
+dbTest('summary: an app without a repository is unavailable and nothing is read; another workspace is 404; a viewer may read', async (db) => {
+  resetProposalSummaryCache();
+  const t = await bootStaged(db);
+  const res = await t.call(t.owner, 'POST', '/apps', { platform: 'ios', identifier: 'com.acme.other', credentialId: t.iosCredential, name: 'No repo' });
+  const app = res.body.app.id as string;
+  const before = t.repo.listCalls;
+  const none = await t.call(t.owner, 'GET', `/apps/${app}/release/asset-proposal/summary`);
+  assert.equal(none.status, 200, none.text);
+  assert.deepEqual([none.body.summary.available, none.body.summary.reason, none.body.summary.count], [false, 'no_repository', 0]);
+  assert.equal(t.repo.listCalls, before);
+  assert.equal((await t.call(t.owner, 'GET', '/apps/nope/release/asset-proposal/summary')).status, 404);
+  await db.execute("INSERT INTO workspaces (id, name, created_at) VALUES ('other', 'Other', 0)");
+  const outsider = await t.addMember('owner', 'other');
+  assert.equal((await t.call(outsider, 'GET', `/apps/${app}/release/asset-proposal/summary`)).status, 404);
+  const viewer = await t.addMember('viewer');
+  assert.equal((await t.call(viewer, 'GET', `/apps/${app}/release/asset-proposal/summary`)).status, 200);
 });

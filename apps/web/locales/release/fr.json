@@ -1,4 +1,9 @@
 {
+  "assetHint.count_many": "{{count}} de modifications des éléments de la fiche proposées",
+  "assetHint.count_one": "{{count}} modification des éléments de la fiche proposée",
+  "assetHint.count_other": "{{count}} modifications des éléments de la fiche proposées",
+  "assetHint.review": "Vérifier",
+  "assetHint.reviewLabel": "Vérifier les modifications proposées des éléments de la fiche",
   "badge.phasedPlanned": "Déploiement progressif planifié",
   "badge.planComplete": "Plan de déploiement terminé",
   "badge.progress": "Déploiement : {{done}} sur {{total}} terminées",

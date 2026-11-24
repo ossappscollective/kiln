@@ -20,6 +20,18 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   "Workspace". Counts say what needs you: Releases (left unfinished), Store listing (changes waiting to publish), Reviews (unanswered),
   All apps (apps that need attention), Inbox (unanswered, workspace). The current page has a bar, a tint and a heavier label. Text is 15px.
   The header of an app page is the page name (24px) over the app name and bundle id.
+- **Pending across the workspace (2026-11-24, [ADR 0064](adr/0064-pending-count-and-asset-hint.md))**: the Workspace group of the left panel has a **Pending** entry (after
+  All apps and Inbox; needs `listing.read`) with the count of every app's pending cart as a `nav-count` badge (accent, `99+` above 99; a small badge on the
+  collapsed rail; none while unknown or zero). Its accessible name says "12 pending changes across 4 apps" (items of the carts across products). The page
+  (`#/pending`, `WorkspacePending`) lists one row per app with its count and kinds and an "Open cart" button that goes to the app and opens that app's cart
+  drawer; there is no publish or discard here and nothing across apps. The count (`GET /pending/cart-summary`) is read on first paint, on window focus
+  (at most every 30 s) and once after `kiln:staged-changed` (debounced; publish, discard, stage, reply drafts): no polling.
+- **Asset proposal on the Releases list (2026-11-24)**: under the Prepare release card, a quiet line "3 store asset changes proposed" with "Review" (opens
+  the Assets step, where the card lives), per record with a repository, only when something is proposed and it was not skipped for the release. A cached
+  count (`GET .../release/asset-proposal/summary`), asked after the page drew; nothing is drawn while unknown, unavailable or failed.
+- **The header follows the focused app**: Sync, its menu, the Status popover and "Updated X ago" belong to the app in the address. On an app change the run
+  state, the readings, the open menu and the cart drawer of the previous app are dropped and a late answer of the old app is ignored
+  (`lib/sync-scope.ts`); a run left over from the previous app never keeps the new app's Sync busy.
 - **Collapsible left panel (2026-11-23)**: on wide screens (900px and up) a chevron in the panel head, or Cmd or Ctrl + B, folds the panel to a
   64px rail (`--sidebar-rail-width`): logo mark, workspace initials, the app icon (opens the panel to switch app), one tinted mark per platform,
   and the entries as icons with their count as a small badge. Every entry keeps its label for assistive technology (visually hidden) and a `title`

@@ -10,6 +10,7 @@ Not run against a real store: see [not verified](../adr/0015-pending-and-batch-p
 | `GET /pending/summary`            | `listing.read`                      | Which apps have something pending. Stored state only.                   |
 | `GET /store-publish/config`       | `apps.read`                         | The switch, the action, the phrase and each step's switch.              |
 | `GET /apps/{id}/pending/cart`, `POST …/pending/publish`, `POST …/pending/discard` | see [the pending cart](#the-pending-cart) | The cart: unsent items, publish and discard a subset. |
+| `GET /pending/cart-summary`       | `listing.read`                      | How many items every app's cart holds (the nav badge). Counts only. See [below](#get-pendingcart-summary). |
 | `POST /apps/{id}/publish/preview` | `store.publish`                     | The plan. Reads the stores through the steps' previews. Writes nothing. |
 | `POST /apps/{id}/publish`         | `store.publish` + each step's right | Runs the plan's steps in order.                                         |
 
@@ -116,6 +117,34 @@ the push of staged changes and the reply send, and each keeps its switch, right,
 
 An item without the caller's right is listed (`publishable: false`, `reason.code: no_right`) and skipped by publish. A token also needs
 the action in its list (explicit-only actions stay explicit). A non-member gets 404.
+
+### `GET /pending/cart-summary`
+
+The count behind the "Pending" entry of the left navigation ([ADR 0064](../adr/0064-pending-count-and-asset-hint.md)). Stored state only, `Cache-Control: no-store`.
+
+```json
+{
+  "apps": [
+    {
+      "appId": "…",
+      "id": "…",
+      "app": { "id": "…", "name": "Weather", "platform": "ios", "store": "appstoreconnect" },
+      "count": 4,
+      "kinds": { "listing": 2, "graphics": 1, "review_reply": 1 }
+    }
+  ],
+  "totals": { "apps": 1, "count": 4 },
+  "generatedAt": 1700000000000
+}
+```
+
+- An app's `count` is the length of its own cart (`GET /apps/{id}/pending/cart`: same function, so staged listing texts, graphics sets, release
+  fields, prices and reply drafts in a listed state). Only apps with something are listed, most items first, then by name. `kinds` counts per cart kind.
+  There is no item, title or text in it. An item the caller may not publish still counts (the cart lists it with a reason).
+- Needs `listing.read`; a token limited to some apps sees only those apps (the apps outside are not read); a non-member, or another
+  workspace, gets `404` / an empty answer for its own workspace only. At most 200 apps are read per request; apps without a staged change, staged
+  price or reply draft cost no cart at all.
+- The web app reads it on first paint, on window focus (at most every 30 seconds) and once, debounced, after `kiln:staged-changed`; it does not poll.
 
 ### `GET /apps/{id}/pending/cart`
 

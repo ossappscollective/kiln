@@ -1,4 +1,8 @@
 {
+  "assetHint.count_one": "{{count}} store asset change proposed",
+  "assetHint.count_other": "{{count}} store asset changes proposed",
+  "assetHint.review": "Review",
+  "assetHint.reviewLabel": "Review the proposed store asset changes",
   "badge.phasedPlanned": "Phased release planned",
   "badge.planComplete": "Rollout plan complete",
   "badge.progress": "Rollout {{done}} of {{total}} done",

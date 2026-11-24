@@ -1,4 +1,8 @@
 {
+  "assetHint.count_one": "{{count}} Änderung an Store-Inhalten vorgeschlagen",
+  "assetHint.count_other": "{{count}} Änderungen an Store-Inhalten vorgeschlagen",
+  "assetHint.review": "Prüfen",
+  "assetHint.reviewLabel": "Die vorgeschlagenen Änderungen an Store-Inhalten prüfen",
   "badge.phasedPlanned": "Gestaffelte Einführung geplant",
   "badge.planComplete": "Einführungsplan abgeschlossen",
   "badge.progress": "Einführung: {{done}} von {{total}} erledigt",

@@ -1,4 +1,9 @@
 {
+  "assetHint.count_many": "{{count}} de cambios en los elementos de la ficha propuestos",
+  "assetHint.count_one": "{{count}} cambio en los elementos de la ficha propuesto",
+  "assetHint.count_other": "{{count}} cambios en los elementos de la ficha propuestos",
+  "assetHint.review": "Revisar",
+  "assetHint.reviewLabel": "Revisar los cambios propuestos en los elementos de la ficha",
   "badge.phasedPlanned": "Despliegue gradual planificado",
   "badge.planComplete": "Plan de despliegue completado",
   "badge.progress": "Despliegue: {{done}} de {{total}} hechos",

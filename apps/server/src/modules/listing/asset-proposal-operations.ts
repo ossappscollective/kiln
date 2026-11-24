@@ -84,6 +84,38 @@ export const assetProposalOperations: Draft[] = [
     responses: { '200': { description: 'The proposal.', schema: z.object({ proposal: proposalSchema }) } },
   },
   {
+    id: 'getReleaseAssetProposalSummary',
+    method: 'get',
+    path: `${W}/apps/{id}/release/asset-proposal/summary`,
+    tags: ['releases'],
+    summary: 'How many store asset changes the repository proposes for the release being prepared (count only, cached)',
+    description:
+      'Needs `listing.read`. The cheap form of `getReleaseAssetProposal` for the Releases list: counts only, for the app\u2019s editable release (App Store: its version; Google Play: its track; none: the default branch against the previous release). Nothing is read when the app has no repository or the proposal was skipped for this release. Otherwise the answer is cached (10 minutes) under what Kiln stores about its inputs (the repository as last read, the store as last read, the cart, the decision, the releases), computed once at a time per app and at most twice at once overall (`busy`), and cut off after 8 seconds (`computing`: it finishes in the background and the next read is cached). `available: false` says why in `reason` and counts nothing.',
+    risk: 'read',
+    access: { action: 'listing.read' },
+    appScope: { kind: 'param', name: 'id' },
+    responses: {
+      '200': {
+        description: 'The count.',
+        schema: z.object({
+          summary: z.object({
+            available: z.boolean(),
+            reason: z.enum(['no_repository', 'no_repo_metadata', 'target_unreadable', 'busy', 'computing', 'unreadable']).nullable(),
+            version: z.string().nullable(),
+            track: z.string().nullable(),
+            state: z.enum(['open', 'skipped', 'later']),
+            count: z.number().int().describe('Changed texts plus changed graphics sets, not yet in the cart.'),
+            texts: z.number().int(),
+            graphics: z.number().int(),
+            locked: z.boolean(),
+            cached: z.boolean(),
+            computedAt: z.number().int(),
+          }),
+        }),
+      },
+    },
+  },
+  {
     id: 'stageReleaseAssetProposal',
     method: 'post',
     path: `${W}/apps/{id}/release/asset-proposal/stage`,

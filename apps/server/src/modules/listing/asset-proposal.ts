@@ -152,7 +152,7 @@ export async function setProposalState(
 // ---------------------------------------------------------------------------------------------
 // The two refs
 
-const EDITABLE_STATES = ['draft', 'build_chosen', 'ready', 'rejected'];
+export const EDITABLE_STATES = ['draft', 'build_chosen', 'ready', 'rejected'];
 
 async function buildCommit(sql: Sql, workspaceId: string, app: ManagedApp, build: string | null): Promise<string | null> {
   if (!build) return null;

@@ -209,6 +209,7 @@ import type {
 import type { VersionPreview, VersionResult } from './store-version.ts';
 import { announceCartAdded, type CartResponse, type CartResultResponse } from './pending-cart.ts';
 import { announceStagedChanged, type StagedChangeReason } from './staged-sync.ts';
+import type { ProposalSummary } from './asset-proposal-hint.ts';
 import type { CartSummary } from './cart-summary.ts';
 import {
   type CodeSent,
@@ -1602,6 +1603,12 @@ export function createApi(options: ApiOptions = {}) {
       request<{ proposal: AssetProposalView }>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/asset-proposal${releaseAssetQuery(release)}`,
+      ),
+    /** The count only, cached on the server (the Releases list): "3 store asset changes proposed". Never the proposal itself. */
+    releaseAssetProposalSummary: (workspaceId: string, appId: string) =>
+      request<{ summary: ProposalSummary }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/asset-proposal/summary`,
       ),
     stageReleaseAssetProposal: (
       workspaceId: string,

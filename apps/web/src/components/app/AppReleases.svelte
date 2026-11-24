@@ -36,6 +36,7 @@
   import type { AppBuild, AppSummary, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
   import { PLANS_ENABLED } from '../../lib/features.ts';
   import ReleaseTable from '../release/ReleaseTable.svelte';
+  import AssetProposalHint from '../release/AssetProposalHint.svelte';
   import NextStep from './NextStep.svelte';
   import ReleaseStepper from '../release/stepper/ReleaseStepper.svelte';
   import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
@@ -154,6 +155,8 @@
   // "Promote to production" opens the first step with the track, the codes and the target in the address.
   const promote = $derived(canPrepare && step !== null ? promoteFromHash(address.hash) : null);
   const openStepper = () => replaceHash(withStep(withoutPromote(location.hash), 'build'));
+  /** The line "N store asset changes proposed" goes to the Assets step, where the proposal card is. */
+  const openAssets = () => replaceHash(withStep(withoutPromote(location.hash), 'assets'));
   const closeStepper = () => replaceHash(withStep(withoutPromote(location.hash), null));
   const moveStep = (next: StepId) => replaceHash(withStep(location.hash, next));
 
@@ -170,6 +173,13 @@
 <div class="stack loose">
   {#if step === null}
     <NextStep {api} {workspaceId} {role} {members} {all} {scope} {releases} refreshKey={syncRuns} onprepare={canPrepare ? openStepper : undefined} showRunning />
+    {#if canPrepare}
+      {#each members as app (app.id)}
+        {#if app.repositoryId !== null}
+          <AssetProposalHint {api} {workspaceId} {app} showPlatform={members.length > 1} refreshKey={syncRuns} onreview={openAssets} />
+        {/if}
+      {/each}
+    {/if}
   {/if}
 
   {#if step !== null}

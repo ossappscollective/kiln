@@ -23,7 +23,7 @@ A person who prepares a release often changed the store texts or screenshots in 
 - "Which commit changed it" per item is not shown: the connector has no history call, so the card names the two commits it compared. A cheap per-file history would need a new connector method.
 - The previous release's source depends on `build_links` (CI runs linked to builds). Where no link exists the fallback is the repository read nearest to the previous release's last update; where that is missing too the card says "no previous release found".
 - Google Play: the build is not chosen from the step (version codes), so the target is the default branch tip unless a stored release of the version has a linked build.
-- The proposal is not on the Releases list or the Timeline (no badge): it would need the proposal for every row, i.e. repository reads per row. Not built.
+- The proposal is not on the Timeline. The Releases list shows a count only, from a cached summary endpoint ([ADR 0064](0064-pending-count-and-asset-hint.md)); the full proposal is still computed only in the Assets step.
 
 ## Not verified (UNVERIFIED)
 
