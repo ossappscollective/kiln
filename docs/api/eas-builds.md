@@ -22,7 +22,7 @@ some apps may use both for those apps only.
   `finished`, `errored`, `canceled` or `unknown`, with Expo's own word in `rawStatus`), `active` (not ended), `buildProfile`, `channel`,
   `appVersion`, `buildNumber` with `buildNumberLabel` ("Build" or "Version code"), `sdkVersion`, `runtimeVersion`, `distribution` (`store`,
   `internal`, `simulator`) and `internal`, `simulator`, `appIdentifier`, `gitCommitHash`, `gitCommitMessage` (first line, 200 characters),
-  `error` (`{ code, message }`, 500 characters of Expo's text, when it failed), `hasArtifact`, `artifactExpiresAt`, `createdAt`, `updatedAt`,
+  `error` (`{ code, message }`, 500 characters of Expo's text, when it failed), `hasArtifact`, `artifactUrl`, `artifactExpiresAt`, `createdAt`, `updatedAt`,
   `completedAt`, `expoUrl`.
 - `submissions[]`, newest first: `id`, `platform`, `status` (`awaiting_build`, `in_queue`, `in_progress`, `finished`, `errored`, `canceled`,
   `unknown`), `buildId` and `build` (its version, when that build is in the snapshot), `store` (`appstoreconnect` or `googleplay`, derived from
@@ -39,9 +39,16 @@ some apps may use both for those apps only.
   that are mid-rollout). Database only, like the rest of `GET /status`.
 
 An app record shows the builds and submissions of **its own platform**: an iOS and an Android record linked to one project each read their
-side. **The address of a build file is never stored or returned.** `hasArtifact` says that Expo holds one; `expoUrl` is the page of the build
-at expo.dev (logs and, where the build has one, the install link), so the switch `KILN_BUILDS_DOWNLOAD_ENABLED` stays the only way a build
-file leaves through this server. Times are epoch milliseconds.
+side. `hasArtifact` says that Expo holds a build file; `expoUrl` is the page of the build at expo.dev (logs and the install link).
+**`artifactUrl`** is Expo's address of the file (`artifacts.buildUrl`, else `applicationArchiveUrl`; https only; stored in
+`eas_builds.artifact_url`, [ADR 0061](../adr/0061-eas-install-dialog.md)). It is `null` unless `KILN_BUILDS_DOWNLOAD_ENABLED` is on **and** the caller
+has `builds.download`, and while Expo gave none. It is a direct link to Expo: the file never passes through this server, and the address is never
+logged or audited. Times are epoch milliseconds.
+
+Field names: `artifacts { buildUrl applicationArchiveUrl }`, `expirationDate` and `isForIosSimulator` are those of eas-cli's build query (confirmed
+from its sources, ADR 0036). **Assumed, not confirmed** against a live account: which of the two artifact fields holds the app file per platform,
+and that `expoUrl` is what Expo's own install QR code encodes. Expo's documentation (internal distribution, Orbit) says only that an internal build
+has a shareable URL identified by its build id and that anyone with it can open it unless "Unauthenticated access to internal builds" is off.
 
 ## Refreshing
 
@@ -93,3 +100,11 @@ version, a channel with no stored update or an update of another runtime version
 "Builds to test" lists EAS builds next to CI artifacts and store builds (source filter "EAS builds"), with profile, channel, runtime,
 distribution and commit; a failed build shows Expo's reason. A section "EAS submissions" lists submissions with their store, state and
 reason. While something runs the page reloads the stored status every minute. "Read again" also asks Expo.
+
+**Install dialog.** Install on an EAS row opens a dialog (QR code of `expoUrl`, the address with Copy, Open on Expo, Android or iOS help, the
+expiry date). It is offered for a finished, unexpired build with internal or simulator distribution; otherwise the button is disabled with the
+reason (running, failed, expired, store build, no address). With `artifactUrl` it also shows **Download build** (new tab, `.apk`, `.ipa`,
+`.aab`, `.tar.gz` named from the address, no size: Expo gives none) and, on desktop only, **Open with Orbit**: for an internal Android build that
+is not an AAB, an iOS Simulator build, or an internal iOS device build (Expo's Orbit page lists simulators, devices, `.apk`, simulator `.app`
+and ad hoc signed apps). Orbit link: `expo-orbit://download?url=<encoded address>` is **assumed**: Expo does not document Orbit's scheme
+([ADR 0061](../adr/0061-eas-install-dialog.md)). Logic: `apps/web/src/lib/eas/eas-install.ts`.

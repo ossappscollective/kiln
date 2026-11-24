@@ -31,6 +31,13 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   app **Builds** page uses it (`lib/builds-sections.ts`): Builds, Test builds | EAS submissions (count), EAS configuration, EAS updates (only for an app
   linked to Expo / with a repository) | Workflows. `?view=builds|tests|workflows` open the same sections. EAS submissions is its own section
   (`EasSubmissionsPanel`), no longer under Test builds.
+- **Test builds install dialog (2026-11-24)**: Install on an EAS row opens a modal (`EasInstallDialog`, shared `Modal`: focus trap, Escape, focus returns to the
+  button) like Expo's own: a lead sentence per platform, a locally drawn QR code of the build page (`QrCode`, always black on white, aria-label "QR code for the install
+  link"; the address field is its text alternative), the address read-only with Copy ("Copied" is announced), Open on Expo, collapsible platform help (Android unknown
+  sources by Android version; iOS registered device and trust, link to Expo's internal distribution docs), the expiry date, and, when the server hands out the file
+  address (download switch on and `builds.download`), Download build and, on desktop only, Open with Orbit (tooltip "Needs Expo Orbit installed"; after a click a
+  hint with the Orbit download link). A build that cannot be installed (running, failed, expired, store, no address) shows Install disabled with the reason beside it.
+  CI and store rows keep the inline install steps. [ADR 0061](adr/0061-eas-install-dialog.md), [api/eas-builds](api/eas-builds.md).
 - **Insights overview, one hierarchy (2026-11-23)**: no separate figures band above the rail (it read as two pages stacked). From the top: header (app,
   scope, Sync) > the tabs (Overview, Highlights, ...) > the range bar (range and table switch) > [sticky **section rail** (`?section=`) | content]. The rail is
   drawn only with two or more sections; Acquisition, Quality and Revenue exist only when something is stored. The **Overview** section starts with the

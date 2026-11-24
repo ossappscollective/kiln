@@ -26,7 +26,7 @@ visible only at expo.dev.
    (title `1.4.0 (57)`, state, profile/channel/runtime/distribution/commit, Expo's reason when it failed), with its filter option. Submissions
    are a section below the list. The store a submission goes to and the name of the build number ("Build" or "Version code") come from the core
    platform table; the only place that names Expo's `IOS` / `ANDROID` is a mapping table keyed by `Platform`.
-5. **No build file address is stored or returned.** `hasArtifact` and the page of the build at expo.dev (`expoUrl`) are. A stored link would be a
+5. **No build file address is stored or returned.** (Amended by [ADR 0061](0061-eas-install-dialog.md): it is stored and returned only where the download switch is on and the role may download.) `hasArtifact` and the page of the build at expo.dev (`expoUrl`) are. A stored link would be a
    way around the switch of the builds download (`KILN_BUILDS_DOWNLOAD_ENABLED`, `builds.download`); Expo applies its own access rules to its page.
    The "Install" help of an EAS row says so and points at Expo.
 6. **Expo's text** (an error, a commit message) is cut (500 and 200 characters), shown as plain text and never logged or put in an audit row.
