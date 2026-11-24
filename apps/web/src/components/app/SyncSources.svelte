@@ -13,6 +13,7 @@
   import { k, t } from '../../lib/i18n/t.ts';
   import { loadReadings } from '../../lib/sync-readings.ts';
   import { syncRun } from '../../lib/sync-run.svelte.ts';
+  import { createReadingsScope, runsOfApps, scopeKey } from '../../lib/sync-scope.ts';
   import { SYNC_KINDS, type SourceInput, buildSourceRows } from '../../lib/sync-sources.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import type { AppSummary } from '../../lib/types.ts';
@@ -22,21 +23,22 @@
   let { api, workspaceId, role, members, now, refreshKey = 0 }: { api: Api; workspaceId: string; role: Role; members: AppSummary[]; now: number; refreshKey?: number | undefined } = $props();
 
   let inputs = $state<SourceInput[] | null>(null);
-  let generation = 0;
+  const scope = createReadingsScope();
+  const ids = $derived(members.map((m) => m.id));
   $effect(() => {
     void refreshKey;
     void syncRun.active;
-    const ids = members.map((m) => m.id).join(',');
-    void ids;
+    const key = scopeKey(workspaceId, ids);
     untrack(() => {
-      const mine = ++generation;
+      const { token, changed } = scope.begin(key);
+      if (changed) inputs = null;
       void loadReadings(api, workspaceId, role, members, SYNC_KINDS).then((read) => {
-        if (mine === generation) inputs = read;
+        if (scope.accepts(token)) inputs = read;
       });
     });
   });
 
-  const rows = $derived(buildSourceRows(inputs ?? [], syncRun.runs));
+  const rows = $derived(buildSourceRows(inputs ?? [], runsOfApps(syncRun.runs, ids)));
   const several = $derived(members.length > 1);
   const stateKey = { ok: k('app:sync.state.ok'), failed: k('app:sync.state.failed'), never: k('app:sync.state.never'), running: k('app:sync.state.running') } as const;
   const tone = { ok: 'ok', failed: 'bad', never: 'warn', running: 'info' } as const;

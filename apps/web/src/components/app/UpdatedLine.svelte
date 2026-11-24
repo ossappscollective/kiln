@@ -14,7 +14,8 @@
   import { t } from '../../lib/i18n/t.ts';
   import { loadReadings } from '../../lib/sync-readings.ts';
   import { syncRun } from '../../lib/sync-run.svelte.ts';
-  import { type SourceInput, type SyncKind, buildSourceRows, kindLabel, pageStatus } from '../../lib/sync-sources.ts';
+  import { createReadingsScope, runsOfApps, scopeKey } from '../../lib/sync-scope.ts';
+  import { type SourceInput, type SyncKind, buildSourceRows, kindLabel, pageStatus, runActive } from '../../lib/sync-sources.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
@@ -34,27 +35,30 @@
   const clock = $derived(now ?? readAt);
 
   let inputs = $state<SourceInput[] | null>(null);
-  let generation = 0;
+  const scope = createReadingsScope();
+  const ids = $derived(apps.map((a) => a.id));
+  const runs = $derived(runsOfApps(syncRun.runs, ids));
   $effect(() => {
     void refreshKey;
     void syncRun.active;
-    void apps.map((a) => a.id).join(',');
+    const key = `${scopeKey(workspaceId, ids)}|${kinds.join(',')}`;
     untrack(() => {
-      const mine = ++generation;
+      const { token, changed } = scope.begin(key);
+      if (changed) inputs = null;
       void loadReadings(api, workspaceId, role, apps, kinds).then((read) => {
-        if (mine !== generation) return;
+        if (!scope.accepts(token)) return;
         inputs = read;
         readAt = Date.now();
       });
     });
   });
 
-  const status = $derived(pageStatus(buildSourceRows(inputs ?? [], syncRun.runs), kinds));
+  const status = $derived(pageStatus(buildSourceRows(inputs ?? [], runs), kinds));
 </script>
 
 {#if inputs !== null}
   <p class="updated text-sm" data-testid="updated-line" class:bad={status.failed.length > 0}>
-    {#if syncRun.active}
+    {#if runActive(runs)}
       {t('app:sync.running')}
     {:else if status.failed.length > 0}
       <Icon name="alert-triangle" size={14} />

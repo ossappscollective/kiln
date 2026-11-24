@@ -18,6 +18,7 @@
   import { type SyncTarget, failedCount, kindAllowed, mainLabelKey, planPage, PAGE_KINDS, runProgress, syncPageFor } from '../../lib/sync-plan.ts';
   import { loadReadings } from '../../lib/sync-readings.ts';
   import { syncRun } from '../../lib/sync-run.svelte.ts';
+  import { createReadingsScope, runsOfApps, scopeKey } from '../../lib/sync-scope.ts';
   import { SYNC_KINDS, type SourceInput, kindLabel } from '../../lib/sync-sources.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
@@ -55,17 +56,26 @@
   /** The other kinds are read only once the menu was opened: most pages never need them. */
   let wide = $state(false);
   let open = $state(false);
-  let generation = 0;
+  const scope = createReadingsScope();
+  const ids = $derived(members.map((m) => m.id));
+  const mine = $derived(runsOfApps(syncRun.runs, ids));
 
+  // Everything here belongs to the focused app: another app (or workspace) drops the readings and the opened menu at once, and the answer of the
+  // app left behind is ignored.
   $effect(() => {
     void refreshKey;
     void syncRun.active;
-    void members.map((m) => m.id).join(',');
+    const key = scopeKey(workspaceId, ids);
     const kinds = wide ? SYNC_KINDS : PAGE_KINDS[page];
     untrack(() => {
-      const mine = ++generation;
+      const { token, changed } = scope.begin(key);
+      if (changed) {
+        inputs = [];
+        wide = false;
+        open = false;
+      }
       void loadReadings(api, workspaceId, role, members, kinds).then((read) => {
-        if (mine !== generation) return;
+        if (!scope.accepts(token)) return;
         inputs = read;
         readAt = Date.now();
       });
@@ -81,7 +91,7 @@
     const l = mainLabelKey(plan);
     return l.failed === null ? t(l.key) : t(l.key, { failed: l.failed });
   });
-  const progress = $derived(runProgress(syncRun.runs));
+  const progress = $derived(runProgress(mine));
   const busyText = $derived(progress.total > 0 ? t('app:syncButton.progress', progress) : t('app:statusPopover.syncing'));
   const title = $derived(plan.main === null ? t('app:syncButton.noPage') : plan.main.mode === 'fresh' ? t('app:syncButton.upToDate') : undefined);
 

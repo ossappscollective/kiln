@@ -43,6 +43,8 @@
   import { syncRest } from '../../lib/sync-all.ts';
   import type { SyncTarget } from '../../lib/sync-plan.ts';
   import { syncRun } from '../../lib/sync-run.svelte.ts';
+  import { runsOfApps } from '../../lib/sync-scope.ts';
+  import { runActive } from '../../lib/sync-sources.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
@@ -95,7 +97,7 @@
   const appleInScope = $derived(scoped.some((m) => supports(m.platform, 'testflightFeedbackApi')));
   const views = $derived(viewsFor(section, allowed, { androidInScope, appleInScope }));
   const view = $derived(resolveView(section, hash, allowed, { androidInScope, appleInScope }));
-  const anySyncing = $derived(scoped.some((m) => syncing[m.id] === true) || syncRun.active);
+  const anySyncing = $derived(scoped.some((m) => syncing[m.id] === true) || runActive(runsOfApps(syncRun.runs, members.map((m) => m.id))));
   /** What is pending for the app, from the workspace summary (all its records, not only those in scope); null draws no chip. */
   const lineOf = (list: readonly AppSummary[]) => lineFor(pendingStore.summary(workspaceId), list.map((m) => m.id), pendingStore.viewsOf(list.map((m) => m.id)));
   /** What is pending on the records of the page (the platform in scope). */
@@ -179,6 +181,8 @@
       records = {};
       releases = {};
       syncing = {};
+      // The run of the app left behind is not this app's: no busy Sync, no progress, no failed source carried over.
+      syncRun.clear();
       appContext.name = '';
       void load();
     });
@@ -235,6 +239,7 @@
       if (!everything && !kindsOf(app).some((x) => x.kind === 'app')) continue;
       syncRun.set(app.id, 'app', 'running');
       await sync(app);
+      if (mine !== generation) return;
       syncRun.set(app.id, 'app', records[app.id]?.lastSyncError ? 'failed' : 'done');
     }
     let problem: string | null = null;
@@ -243,7 +248,8 @@
       const mineTargets = kindsOf(app).filter((x) => x.kind !== 'app');
       if (!everything && mineTargets.length === 0) continue;
       const sources = mineTargets.find((x) => x.kind === 'analytics')?.sources;
-      const rest = await syncRest(api, workspaceId, app, role, (kind, state) => syncRun.set(app.id, kind, state), everything ? undefined : { kinds: mineTargets.map((x) => x.kind), sources });
+      const rest = await syncRest(api, workspaceId, app, role, (kind, state) => (mine === generation ? syncRun.set(app.id, kind, state) : undefined), everything ? undefined : { kinds: mineTargets.map((x) => x.kind), sources });
+      if (mine !== generation) return;
       syncRun.plan(app.id, rest.plan, rest.extra);
       queued = queued || rest.plan.some((p) => p.state === 'queued');
       problem = problem ?? rest.problem;
