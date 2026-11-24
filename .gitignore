@@ -17,3 +17,8 @@ stabilise-report.md
 
 # email preview output (scripts/email-preview.mjs)
 .email-preview/
+
+# local backups and legacy data folders
+.env.bak-*
+apps/server/.mrm-data/
+apps/server/.mrm-demo/

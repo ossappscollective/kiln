@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest an improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like Kiln to do?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Releases and submissions, Store listing and graphics, ASO, Reviews and AI, Analytics, Expo (EAS), Automation and API, Security, Desktop app, Documentation, Other]
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
