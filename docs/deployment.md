@@ -499,7 +499,7 @@ the provider as well as the workspace's daily character limit (`translation.dail
 
 - Network: outbound https to `translation.googleapis.com`, `api.deepl.com` and `api-free.deepl.com`,
   `api.cognitive.microsofttranslator.com`, or the LibreTranslate address, depending on the provider.
-- Keys are vault credentials, never settings; see [credentials](credentials.md#review-translation-provider-keys).
+- Keys are vault credentials, never settings; see [credentials](credentials.md).
 - The LibreTranslate address is a user-entered URL, so the server treats it like a webhook address:
   `https` only, no credentials in the URL, the name is resolved and checked at **every** call and the
   connection is pinned to the checked address, redirects are not followed, the answer is limited to
