@@ -733,6 +733,7 @@
               {#each rows as row (row.locale)}
                 <tr class:current={drawerOpen && drawerLocale === row.locale}>
                   <th scope="row" class="loc">
+                    <div class="loc-cell">
                     <button type="button" class="bare locale-btn" onclick={() => openLocale(row.locale)} aria-label={row.name === row.locale ? t('listing:matrixView.openLocale', { locale: row.locale }) : t('listing:matrixView.openLocaleNamed', { locale: row.locale, name: row.name })}>
                       <span class="code">{row.locale}</span>
                       {#if row.name !== row.locale}<span class="name muted">{row.name}</span>{/if}
@@ -741,10 +742,11 @@
                       {@const n = stagedInLocale(row.locale)}
                       <button type="button" class="bare staged-chip" aria-label={t('listing:matrixView.localeStagedAria', { count: n, locale: row.locale })} onclick={() => announceCartOpen(row.locale)}>{t('listing:matrixView.localeStaged', { count: n })}</button>
                     {/if}
+                    </div>
                   </th>
                   {#if both}
                     <td class="stores">
-                      {#each row.platforms as platform (platform)}<PlatformBadge {platform} showLabel={false} tinted />{/each}
+                      <div class="store-badges">{#each row.platforms as platform (platform)}<PlatformBadge {platform} showLabel={false} tinted />{/each}</div>
                     </td>
                   {/if}
                   {#each matrix.columns as column (column.key)}
@@ -1047,17 +1049,48 @@
   .loc {
     position: sticky;
     left: 0;
-    min-width: 9rem;
+    min-width: 11rem;
     text-align: left;
     background: var(--surface);
   }
 
+  /*
+    The LOCALE cell: the locale button and, when the locale has staged changes, its "4 staged" chip, in ONE wrapping flex row in the
+    normal flow (never absolutely positioned, no negative margin): the chip sits beside the locale name when it fits and drops under
+    it when not, and the cell grows with it, so it can never cover the STORES column. The button gives way (min-width 0), the chip
+    never shrinks or breaks (flex none, nowrap). Guarded by lib/listing-matrix-layout.test.ts.
+  */
+  .loc-cell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+    align-items: center;
+    min-width: 0;
+  }
+
+  .loc-cell .locale-btn {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* The STORES column keeps the room of its badges (one row, never shrunk or wrapped), whatever the locale cell holds. */
   .stores {
+    width: 1%;
+    min-width: 6rem;
     white-space: nowrap;
   }
 
-  .stores :global(.platform) {
-    margin-right: var(--space-1);
+  .store-badges :global(.platform) {
+    flex: none;
+  }
+
+  .store-badges {
+    display: flex;
+    flex: none;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+    gap: var(--space-1);
+    align-items: center;
   }
 
   tr.current .loc,
@@ -1136,8 +1169,9 @@
 
   /* "2 staged": opens the cart drawer on those items. Written as button.bare.staged-chip so the global button rules cannot repaint it. */
   button.bare.staged-chip {
-    margin-top: var(--space-1);
+    flex: none;
     padding: 0 var(--space-2);
+    white-space: nowrap;
     font-size: var(--text-xs);
     font-weight: var(--weight-medium);
     color: var(--chip-ink);
