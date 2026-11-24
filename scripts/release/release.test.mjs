@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { collect } from './collect.mjs';
 import { notes } from './notes.mjs';
 import { plan } from './plan.mjs';
+import { summary } from './summary.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const temps = [];
@@ -213,5 +214,38 @@ describe('shell scripts', () => {
   });
   test('docker-smoke.sh parses', () => {
     assert.equal(spawnSync('bash', ['-n', join(here, 'docker-smoke.sh')]).status, 0);
+  });
+});
+
+describe('summary', () => {
+  test('lists installers with signing state and says nothing was published in build-only', () => {
+    const dir = tmp();
+    mkdirSync(join(dir, 'desktop-macos-arm64'));
+    mkdirSync(join(dir, 'meta-macos-arm64'));
+    writeFileSync(join(dir, 'desktop-macos-arm64', 'kiln_1.0.0_macos_arm64.dmg'), 'x');
+    writeFileSync(join(dir, 'meta-macos-arm64', 'macos-arm64.json'), '{"signing":"unsigned"}');
+    const text = summary({
+      ARTIFACTS_DIR: dir,
+      MODE: 'build-only',
+      VERSION: '1.0.0',
+      RESULTS: JSON.stringify({ desktop: 'success', 'docker-oci': 'success' }),
+    });
+    assert.match(text, /Nothing was published/);
+    assert.match(text, /kiln_1\.0\.0_macos_arm64\.dmg` \| 0\.0 MB \| unsigned/);
+    assert.match(text, /\*\*unsigned\*\*/);
+    assert.match(text, /docker-oci. artifact/);
+  });
+  test('release mode names the pushed digest', () => {
+    const text = summary({
+      ARTIFACTS_DIR: join(tmp(), 'none'),
+      MODE: 'release',
+      VERSION: '1.0.0',
+      RESULTS: '{}',
+      IMAGE: 'ghcr.io/o/k',
+      DOCKER_DIGEST: 'sha256:abc',
+    });
+    assert.match(text, /draft/i);
+    assert.match(text, /Pushed `ghcr\.io\/o\/k`.*sha256:abc/);
+    assert.match(text, /No installers were produced/);
   });
 });
