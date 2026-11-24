@@ -188,3 +188,12 @@ test('one chip per build, and the details open only for a real problem', () => {
   assert.equal(buildHasProblem(row('c', false, 'bad')), true);
   assert.equal(buildHasProblem(undefined), false);
 });
+
+// The notes step's "Stage the notes" row once floated (sticky) over the language cards and the step footer. It is an in-flow block.
+test('the step action row is in flow: not sticky, fixed or pulled up by a negative margin', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../app.css', import.meta.url), 'utf8');
+  const rule = /\.step-actions\s*\{([^{}]*)\}/.exec(css);
+  assert.ok(rule, 'the .step-actions rule exists');
+  assert.doesNotMatch(rule[1] as string, /position:\s*(sticky|fixed|absolute)|margin[a-z-]*:\s*-/);
+});

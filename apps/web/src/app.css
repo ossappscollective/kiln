@@ -1263,13 +1263,15 @@ td.actions > * + * {
   }
 }
 
-/* The button row of a step in a scrolling panel: it stays at the bottom of the visible part. */
+/*
+  The button row of a step (stage the notes, stage the build): an ordinary block at the end of the step's content, in flow. It
+  used to be `position: sticky; bottom: 0` inside the scrolling panel: when the content was longer than the panel it floated over
+  the fields it follows (a textarea of a language card) and fought the step footer for the same strip. The footer (Back, Step N
+  of M, Next) is the one thing that stays in view.
+*/
 .step-actions {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
-  padding-block: var(--space-2);
-  background: var(--surface);
+  padding-top: var(--space-3);
+  margin-top: var(--space-2);
   border-top: 1px solid var(--line);
 }
 
