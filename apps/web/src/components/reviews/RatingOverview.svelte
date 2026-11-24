@@ -187,7 +187,7 @@
   .bar-fill {
     display: block;
     height: 100%;
-    background: var(--accent);
+    background: var(--viz-1, var(--accent));
     border-radius: var(--radius-full);
   }
 
@@ -209,7 +209,7 @@
   }
 
   .trend-line {
-    stroke: var(--accent);
+    stroke: var(--viz-1, var(--accent));
     stroke-width: 1.5;
     vector-effect: non-scaling-stroke;
   }

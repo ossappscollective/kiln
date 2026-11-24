@@ -38,6 +38,6 @@
   }
 
   circle {
-    fill: var(--accent);
+    fill: var(--viz-1, var(--accent));
   }
 </style>

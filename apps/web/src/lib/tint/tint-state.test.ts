@@ -27,6 +27,9 @@ const broken = {
   },
 };
 
+/** The tint without its chart tokens (chart-palette.test.ts covers those). */
+const plain = (t: ReturnType<typeof resolveTint>) => (t ? { light: t.light, dark: t.dark } : t);
+
 test('the palette cache round-trips per app and survives broken storage and bad entries', () => {
   const s = memory();
   assert.equal(readEntry('a1', s), null);
@@ -68,10 +71,10 @@ test('resolveTint: the person, then the app, then the icon; never an invented co
   assert.equal(resolveTint({ enabled: true, palette: null }), null, 'no palette: no tint (no colour from an id hash)');
   assert.equal(resolveTint({ enabled: true }), null);
   assert.equal(resolveTint({ enabled: true, palette: NEUTRAL_PALETTE }), null, 'monochrome icon');
-  assert.deepEqual(resolveTint({ enabled: true, appearance: { tint: 'custom', color: '#e8590c' }, palette: blue }), deriveTint('#e8590c'), 'custom beats the icon');
+  assert.deepEqual(plain(resolveTint({ enabled: true, appearance: { tint: 'custom', color: '#e8590c' }, palette: blue })), deriveTint('#e8590c'), 'custom beats the icon');
   assert.equal(resolveTint({ enabled: true, appearance: { tint: 'custom', color: 'nope' } }), null);
   assert.equal(resolveTint({ enabled: true, appearance: { tint: 'custom', color: '#808080' } }), null, 'a grey pick has no hue to keep');
-  assert.deepEqual(resolveTint({ enabled: true, appearance: { tint: 'auto' }, palette: blue }), deriveTint('#3b82f6'));
+  assert.deepEqual(plain(resolveTint({ enabled: true, appearance: { tint: 'auto' }, palette: blue })), deriveTint('#3b82f6'));
 });
 
 test('both themes derive for a spread of ordinary icon colours', () => {

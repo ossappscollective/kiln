@@ -41,7 +41,11 @@ export type SchemeTokens = {
   glow: string;
 };
 
-export type AppTint = { light: SchemeTokens; dark: SchemeTokens };
+/** The chart series of a theme (lib/tint/chart-palette.ts): MAX_SERIES colours and the middle of the single-series gradient. */
+export type ChartTokens = { series: string[]; mid: string };
+
+/** `chart` is added by withChart (chart-palette.ts); absent, charts keep the default palette. */
+export type AppTint = { light: SchemeTokens; dark: SchemeTokens; chart?: Record<Scheme, ChartTokens> };
 
 /** Below this chroma a colour is grey: no hue to keep, no tint. */
 export const MIN_TINT_CHROMA = 0.04;
@@ -218,5 +222,10 @@ export function tintStyle(tint: AppTint | null): string {
   const parts: string[] = [];
   for (const [prefix, set] of [['l', tint.light], ['d', tint.dark]] as const)
     for (const key of Object.keys(KEYS) as (keyof SchemeTokens)[]) parts.push(`--tint-${prefix}-${KEYS[key]}:${set[key]}`);
+  if (tint.chart)
+    for (const [prefix, scheme] of [['l', 'light'], ['d', 'dark']] as const) {
+      tint.chart[scheme].series.forEach((hex, i) => parts.push(`--tint-${prefix}-viz-${i + 1}:${hex}`));
+      parts.push(`--tint-${prefix}-viz-mid:${tint.chart[scheme].mid}`);
+    }
   return `${parts.join(';')};`;
 }

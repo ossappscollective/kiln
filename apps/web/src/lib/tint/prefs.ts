@@ -3,6 +3,7 @@
  * the theme) and the per-app override stored in the workspace (`auto`, `off`, `custom`), and what they make of a palette.
  */
 import type { Palette } from './palette.ts';
+import { withChart } from './chart-palette.ts';
 import { type AppTint, deriveTint } from './tokens.ts';
 
 export const TINT_PREF_KEY = 'kiln.tint';
@@ -60,12 +61,16 @@ export function resolveTint(input: {
   if (!input.enabled) return null;
   const a = input.appearance ?? AUTO_APPEARANCE;
   if (a.tint === 'off') return null;
-  if (a.tint === 'custom') return a.color && isColor(a.color) ? deriveTint(a.color) : null;
+  if (a.tint === 'custom') {
+    const custom = a.color && isColor(a.color) ? deriveTint(a.color) : null;
+    return custom ? withChart(custom) : null;
+  }
   const p = input.palette;
   if (!p || p.neutral) return null;
   for (const color of p.colors.slice(0, 2)) {
     const tint = deriveTint(color);
-    if (tint) return tint;
+    // The other icon colour (when it is not the one the tint came from) is the second chart series.
+    if (tint) return withChart(tint, p.colors.find((c) => c !== color));
   }
   return null;
 }
