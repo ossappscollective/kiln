@@ -16,7 +16,7 @@
     "tauri": "pnpm --filter @kiln/desktop tauri",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "test:scripts": "node --test scripts/*.test.mjs",
+    "test:scripts": "node --test \"scripts/**/*.test.mjs\"",
     "lint": "biome check .",
     "format": "biome format --write .",
     "i18n:check": "node scripts/i18n.mjs check",
