@@ -448,12 +448,13 @@ export async function seedDemo(input: {
       value: 'Capture ideas in a second, find them on every device. Now with shared folders.',
     }),
   );
-  const weatherIos = apps['weather:ios'] as string;
+  // Weather iOS 2.9.0 is waiting in review, so its listing is locked (ADR 0060); Google Play never locks.
+  const weatherAndroid = apps['weather:android'] as string;
   await soft(
-    'stage weather promo',
-    call('PUT', `/apps/${weatherIos}/staged/text`, {
+    'stage weather short description',
+    call('PUT', `/apps/${weatherAndroid}/staged/text`, {
       locale: 'en-US',
-      field: 'promotional_text',
+      field: 'short_description',
       from: 'local',
       value: 'Rain alerts now arrive up to 20 minutes earlier.',
     }),
