@@ -54,3 +54,7 @@ A page can be marked `optional: true`: it is skipped when the file does not exis
 ## What is not verified
 
 The site was built and tested without network access and without a browser. Not checked: how it renders in real browsers, a Lighthouse run, the Pages deployment itself, and the live GitHub releases lookup (its fallback is static links to the releases page).
+
+## Screenshots section
+
+The home page shows a Screenshots gallery only when `docs/assets/screenshots/manifest.json` exists at build time. The manifest and the PNGs come from `pnpm screenshots` (see `scripts/screenshots/README.md`). The build copies the PNGs it names into `dist/assets/screens/`, writes a `<picture>` per shot (dark and light, lazy loaded, with the sizes from the manifest) and enlarges a picture in a native `<dialog>` (`site/static/js/gallery.js`). An entry whose PNG is missing or whose file name is not a plain `.png` name is skipped with a warning; a manifest that is not valid JSON fails the build. Without a manifest the section, its script work and its links are absent. `site/lib/screenshots.mjs` holds the code and `site/test/screenshots.test.mjs` tests both cases.

@@ -18,6 +18,7 @@ import {
   softwareJsonLd,
 } from './lib/render.mjs';
 import { buildSearchIndex } from './lib/search-index.mjs';
+import { copyScreenshots, loadScreenshots, screenshotsSection } from './lib/screenshots.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..');
@@ -118,7 +119,7 @@ export function loadDocs({ repo = repoRoot, groups = docsGroups } = {}) {
   return { pages, groups: outGroups };
 }
 
-export function build({ outDir = path.join(here, 'dist'), repo = repoRoot } = {}) {
+export function build({ outDir = path.join(here, 'dist'), repo = repoRoot, screenshotsDir = path.join(repo, 'docs', 'assets', 'screenshots') } = {}) {
   try {
     rmSync(outDir, { recursive: true, force: true });
   } catch {
@@ -133,6 +134,10 @@ export function build({ outDir = path.join(here, 'dist'), repo = repoRoot } = {}
   const releasesUrl = `${site.repoUrl}/releases/latest`;
   const flat = pages;
 
+  // screenshots: the section exists only when the manifest does
+  const screenshots = loadScreenshots(screenshotsDir);
+  if (screenshots) copyScreenshots(screenshots.shots, screenshotsDir, outDir);
+
   // home
   const compose = readFileSync(path.join(repo, 'docker-compose.yml'), 'utf8');
   const homeBody = fill(readFileSync(path.join(here, 'pages', 'home.html'), 'utf8'), {
@@ -141,6 +146,7 @@ export function build({ outDir = path.join(here, 'dist'), repo = repoRoot } = {}
     image: site.image,
     releasesUrl,
     githubApi: 'https://api.github.com/repos/ossappscollective/kiln/releases/latest',
+    screenshots: screenshotsSection(screenshots, './'),
     runSnippet: esc(RUN_SNIPPET),
     composeSnippet: esc(composeSnippet(compose)),
     releasingNote: hasReleasing

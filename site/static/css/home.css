@@ -33,3 +33,17 @@
 .mock-chart svg { display: block; width: 100%; height: auto; }
 .mock-chart .legend { display: flex; justify-content: space-between; margin: var(--space-2) 0 0; font-size: var(--text-xs); color: var(--faint); }
 .mock-caption { margin-top: var(--space-3); font-size: var(--text-sm); color: var(--faint); text-align: center; }
+
+/* Screenshots section (only built when docs/assets/screenshots/manifest.json exists). */
+.shot-grid { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-6); grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); }
+.shot-card { margin: 0; }
+.shot-link { display: block; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-card); background: var(--surface); cursor: zoom-in; }
+.shot-link:hover { border-color: var(--accent); }
+.shot-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.shot-link picture, .shot-link img { display: block; width: 100%; height: auto; }
+.shot-card figcaption { margin-top: var(--space-2); font-size: var(--text-sm); color: var(--muted); text-align: center; }
+.shot-dialog { width: min(96vw, 90rem); max-height: 94vh; padding: var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--surface); color: var(--ink); }
+.shot-dialog::backdrop { background: var(--scrim); }
+.shot-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin: 0 0 var(--space-3); }
+.shot-big { overflow: auto; max-height: calc(94vh - 5rem); }
+.shot-big picture, .shot-big img { display: block; width: 100%; height: auto; }
