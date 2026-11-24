@@ -115,6 +115,7 @@ const guides: Record<string, (d: AlertData) => GuideSpec> = {
   'testflight.crash': (d) => ({ primary: openTestflight(d) }),
   'eas.build_failed': (d) => ({ primary: openApp(d, 'builds', 'seeBuilds') }),
   'eas.submission_failed': (d) => ({ primary: openApp(d, 'builds', 'seeBuilds') }),
+  'eas.update_rollout_stuck': (d) => ({ primary: openApp(d, 'builds', 'seeBuilds') }),
   'review.unanswered': (d) => ({
     hint: 'unanswered',
     primary: openApp(d, 'reviews', 'answerReviews'),

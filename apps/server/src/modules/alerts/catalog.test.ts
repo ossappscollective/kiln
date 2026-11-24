@@ -157,6 +157,20 @@ test('events become alerts by the rules of the catalog', () => {
   assert.equal(keyOf('eas.build_failed', 'buildId', 'b1', 1), keyOf('eas.build_failed', 'buildId', 'b1', 99999));
   assert.notEqual(keyOf('eas.build_failed', 'buildId', 'b1', 1), keyOf('eas.build_failed', 'buildId', 'b2', 1));
   assert.equal(keyOf('eas.submission_failed', 'submissionId', 's1', 1), 'eas.submission_failed:s1');
+  const stuck = (group: string, createdAt: number) => ({
+    type: 'eas.update_rollout_stuck',
+    workspaceId: 'w',
+    subject: { appId: 'a1' },
+    payload: { appId: 'a1', updateId: 'u1', group, platform: 'ios', channel: 'production', percentage: 25, hours: 49, message: 'SECRET-UPDATE-MESSAGE' },
+    createdAt,
+  });
+  const stuckAlert = alertsFromEvent(stuck('g1', 1))[0];
+  assert.deepEqual(ids(stuck('g1', 1)), ['eas.update_rollout_stuck']);
+  // Once per update group (90 days); ids, platform, channel and percentage only: never the update message.
+  assert.equal(stuckAlert?.def.dedupeKey(stuckAlert.data), 'eas.update_rollout_stuck:a1:g1');
+  assert.equal(stuckAlert?.def.dedupeWindowMs, 90 * 24 * 3_600_000);
+  assert.ok(!JSON.stringify(stuckAlert?.data).includes('SECRET-UPDATE-MESSAGE'));
+  assert.equal(stuckAlert?.def.params.hours?.default, 48);
   const rank = (change: string, delta?: number) => ({
     type: 'aso.rank_changed',
     workspaceId: 'w',

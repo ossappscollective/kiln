@@ -574,6 +574,7 @@
   "webhook.event.credentialTestFailed": "Falló la prueba de una credencial",
   "webhook.event.easBuildFailed": "Se guardó un build de EAS como fallido (solo identificadores, plataforma, versión y un código corto; nunca el mensaje de Expo)",
   "webhook.event.easSubmissionFailed": "Se guardó un envío de EAS a la tienda como fallido (solo identificadores, plataforma, versión y un código corto; nunca el mensaje de Expo)",
+  "webhook.event.easUpdateRolloutStuck": "Un despliegue de EAS Update se quedó en el mismo porcentaje, por debajo del 100 %, más tiempo que el límite (solo ids, plataforma, canal y porcentaje; nunca el mensaje de la actualización)",
   "webhook.event.healthCrashRegression": "Una versión falla claramente más que la anterior (solo identificadores, nombres de versión y dos tasas)",
   "webhook.event.listingDraftPushed": "Los cambios pendientes de la ficha se escribieron en la tienda como borrador (solo ID y cantidades; nunca se envían)",
   "webhook.event.listingSubmitted": "Una versión de la ficha se envió a revisión en la tienda (solo ID; nunca se lanza)",

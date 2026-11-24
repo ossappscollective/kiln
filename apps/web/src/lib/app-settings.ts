@@ -153,6 +153,7 @@ export const appEventTypes: readonly string[] = [
   'testflight.crash',
   'eas.build_failed',
   'eas.submission_failed',
+  'eas.update_rollout_stuck',
   'release.rollout_changed',
   'listing.draft_pushed',
   'listing.submitted',

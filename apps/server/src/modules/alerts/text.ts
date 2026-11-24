@@ -141,6 +141,17 @@ function easSpec(f: Fmt, kind: 'build_failed' | 'submission_failed'): Spec {
   };
 }
 
+function easRolloutSpec(f: Fmt): Spec {
+  const percentage = number(f.d.percentage);
+  const channel = text(f.d.channel);
+  const hours = number(f.d.hours);
+  if (percentage === undefined || channel === undefined) return { title: ['eas.updateRolloutStuck.title', { app: f.app }], body: ['eas.updateRolloutStuck.body.short', { app: f.app }] };
+  return {
+    title: ['eas.updateRolloutStuck.title', { app: f.app }],
+    body: ['eas.updateRolloutStuck.body', { app: f.app, channel, percentage, hours: hours ?? 0 }],
+  };
+}
+
 function testflightSpec(f: Fmt, kind: 'feedback' | 'crash'): Spec {
   const base = `testflight.${kind}`;
   const count = number(f.d.count);
@@ -253,6 +264,7 @@ const specs: Record<string, (f: Fmt) => Spec> = {
   'testflight.crash': (f) => testflightSpec(f, 'crash'),
   'eas.build_failed': (f) => easSpec(f, 'build_failed'),
   'eas.submission_failed': (f) => easSpec(f, 'submission_failed'),
+  'eas.update_rollout_stuck': (f) => easRolloutSpec(f),
   'review.new': (f) => {
     const s = store(f.d);
     if (f.d.grouped === true) {
