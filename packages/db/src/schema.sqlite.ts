@@ -1216,6 +1216,16 @@ export const asoCompetitors = sqliteTable(
     reviewsCheckedAt: integer('reviews_checked_at'),
     /** JSON: the last compared state of the listing (migration 60, docs/adr/0056-competitor-listing-watch.md). */
     listingState: text('listing_state'),
+    /** The competitor's own schedule for reading its reviews (migration 68): off, daily, weekly; null follows the app. */
+    reviewSchedule: text('review_schedule'),
+    reviewWeekday: integer('review_weekday'),
+    /** The store id of the newest review seen by the last read, how many reads' reviews were new, failures in a row, backoff, coded error, last scheduled attempt. */
+    reviewsLastSeenId: text('reviews_last_seen_id'),
+    reviewsNewCount: integer('reviews_new_count').notNull().default(0),
+    reviewsFailures: integer('reviews_failures').notNull().default(0),
+    reviewsBackoffUntil: integer('reviews_backoff_until'),
+    reviewsLastError: text('reviews_last_error'),
+    reviewsAttemptAt: integer('reviews_attempt_at'),
   },
   (t) => [
     uniqueIndex('aso_competitors_unique_idx').on(t.appId, t.store, t.externalId, t.country),
@@ -1904,6 +1914,45 @@ export const playInternalShareClaims = sqliteTable('play_internal_share_claims',
 });
 
 /** What a person told the assistant about an app (migration 40, docs/adr/0024-ai-features.md). Sent with every AI task of the app. */
+export const aiAppReviewPolicy = sqliteTable(
+  'ai_app_review_policy',
+  {
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** on, off or null (follow the workspace). Migration 67. */
+    ownReviews: text('own_reviews'),
+    competitorReviews: text('competitor_reviews'),
+    /** full, text or ratings. */
+    detail: text('detail').notNull().default('text'),
+    redact: integer('redact').notNull().default(1),
+    updatedBy: text('updated_by').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [index('ai_app_review_policy_workspace_idx').on(t.workspaceId)],
+);
+
+export const competitorReviewSchedules = sqliteTable(
+  'competitor_review_schedules',
+  {
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** off, daily or weekly. Migration 68. */
+    mode: text('mode').notNull().default('off'),
+    weekday: integer('weekday'),
+    timezone: text('timezone'),
+    paused: integer('paused').notNull().default(0),
+    maxCompetitors: integer('max_competitors').notNull().default(5),
+    maxReviews: integer('max_reviews').notNull().default(20),
+    updatedBy: text('updated_by').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [index('competitor_review_schedules_workspace_idx').on(t.workspaceId)],
+);
+
 export const aiAppContext = sqliteTable(
   'ai_app_context',
   {

@@ -9,6 +9,7 @@ import { keywordSignalsMigrations } from './migrations-keyword-signals.ts';
 import { appleAdsMigrations } from './migrations-apple-ads.ts';
 import { easArtifactMigrations } from './migrations-eas-artifact.ts';
 import { priceWriteMigrations } from './migrations-price-writes.ts';
+import { reviewControlMigrations } from './migrations-review-controls.ts';
 import { easUpdatesMigrations } from './migrations-eas-updates.ts';
 import { competitorReviewsMigrations } from './migrations-competitor-reviews.ts';
 import { chatMigrations } from './migrations-chat.ts';
@@ -1862,4 +1863,5 @@ export const migrations: Migration[] = [
   ...easUpdatesMigrations,
   ...easArtifactMigrations,
   ...priceWriteMigrations,
+  ...reviewControlMigrations,
 ];
