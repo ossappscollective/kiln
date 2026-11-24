@@ -157,23 +157,20 @@ flowchart LR
 
 ## Screenshots
 
-<!-- TODO(maintainer): no screenshots exist yet. Capture them from demo mode and replace this table. -->
-
-> **Placeholder.** Run `pnpm demo`, open <http://localhost:8788/demo/login>, and save PNGs to [`docs/assets/screenshots/`](docs/assets/screenshots/) with these names, then replace this table with `<img>` tags.
-
-| File | Shot to capture |
+| | |
 | --- | --- |
-| `portfolio.png` | Portfolio: all apps with status chips |
-| `release-prepare.png` | Prepare release stepper |
-| `listing-editor.png` | Store listing editor with staged changes |
-| `pending-cart.png` | Pending cart with an expanded diff |
-| `graphics-diff.png` | Graphics before and after comparison |
-| `aso-keywords.png` | ASO keyword ranks and competitors |
-| `reviews-inbox.png` | Reviews inbox with summary |
-| `insights.png` | Insights and analytics |
-| `eas.png` | Expo EAS builds and updates |
-| `settings-security.png` | Settings, Security (roles, step-up) |
-| `dark-mode.png` | Any page in dark mode |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/02-app-overview-dark.png"><img alt="App overview with the app tint, next step and navigation" src="docs/assets/screenshots/02-app-overview-light.png" width="420"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/04-store-listing-dark.png"><img alt="Store listing text tab with the locales table" src="docs/assets/screenshots/04-store-listing-light.png" width="420"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/06-pending-changes-dark.png"><img alt="Pending changes with one row expanded to a diff" src="docs/assets/screenshots/06-pending-changes-light.png" width="420"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/08-reviews-inbox-dark.png"><img alt="Reviews inbox filtered to one app" src="docs/assets/screenshots/08-reviews-inbox-light.png" width="420"></picture> |
+
+They are generated from the demo, so they are reproducible. The full set (13 shots, dark and light) goes to [`docs/assets/screenshots/`](docs/assets/screenshots/) with a `manifest.json` that the website reads:
+
+```sh
+pnpm demo:reset                                                          # terminal 1: seeded demo on http://localhost:8788
+cd scripts/screenshots && npm install && npx playwright install chromium # once
+pnpm screenshots                                                         # from the repo root, terminal 2
+```
+
+Options (`--only 02,06`, `--themes dark`, `--scale 2`, `--reset`) are in [`scripts/screenshots/README.md`](scripts/screenshots/README.md). The images are committed after a run; until then the pictures above are empty.
 
 ## Quick start
 

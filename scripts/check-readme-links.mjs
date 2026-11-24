@@ -11,6 +11,10 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // Paths produced elsewhere (release and website work) or by the maintainer later.
 const allow = new Set(['docs/releasing.md', 'docs/website.md', 'docs/assets/screenshots/', 'docs/assets/screenshots']);
+// The images of the README Screenshots section come from `pnpm screenshots` (scripts/screenshots), so they do not exist until the maintainer runs it.
+// Listed one by one: a typo in any other file name still fails the check.
+const generated = ['02-app-overview', '04-store-listing', '06-pending-changes', '08-reviews-inbox'].flatMap((n) => [`docs/assets/screenshots/${n}-dark.png`, `docs/assets/screenshots/${n}-light.png`]);
+for (const g of generated) allow.add(g);
 const files = ['README.md', 'CODE_OF_CONDUCT.md', '.github/PULL_REQUEST_TEMPLATE.md'];
 const errors = [];
 
