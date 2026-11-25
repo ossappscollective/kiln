@@ -40,6 +40,55 @@ const publishingSchema = z
     'A batch publish of this app that is running now, else null. A claim nobody touched for 15 minutes (a process that died) is not reported. Ids, step names and times only.',
   );
 
+const storeFactsSchema = z
+  .object({
+    kind: z.string().describe('The connector\u2019s kind of error (`unexpected`, `forbidden`, ...).'),
+    httpStatus: z.number().int().optional(),
+    details: z
+      .array(z.object({ code: z.string().optional(), title: z.string().optional(), detail: z.string().optional() }))
+      .optional()
+      .describe('The store\u2019s own words (its reason code, status word and sentence), sanitised: no credential or token.'),
+  })
+  .describe('What the store answered. Sanitised.');
+
+const runStepSchema = z.object({
+  type: publishStepEnum,
+  status: z.enum(['applied', 'skipped', 'failed']),
+  startedAt: timestamp,
+  finishedAt: timestamp,
+  error: z.string().optional().describe('Failed: the error code (`store_rejected`, `state_changed`, ...).'),
+  httpStatus: z.number().int().optional(),
+  outcome: z.enum(['refused', 'not_applied', 'unknown', 'partial']).optional(),
+  reason: z.string().optional().describe('Skipped: why.'),
+  message: z.string().optional().describe('The server\u2019s sentence, sanitised and cut to 500 characters.'),
+  code: z.string().optional().describe('The catalogue code of that sentence or of the store\u2019s cause (`store.google.draftApp`).'),
+  params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
+  store: storeFactsSchema.optional(),
+});
+
+const lastPublishSchema = z
+  .object({
+    id: z.string(),
+    platform: platform,
+    startedAt: timestamp,
+    finishedAt: timestamp,
+    outcome: z.enum(['completed', 'partial', 'failed']),
+    completed: z.boolean(),
+    steps: z.array(publishStepEnum),
+    results: z.array(runStepSchema),
+    by: z.object({ id: z.string(), name: z.string().nullable() }).nullable(),
+    dismissed: z.boolean().describe('A person hid this failure; a newer run is not hidden by it.'),
+  })
+  .describe(
+    'A batch publish of an app that was kept (the newest five per app). Ids, step names, codes, HTTP statuses, times and sanitised words of the store; never a credential, a request or an upload.',
+  );
+
+const lastFailedPublishSchema = lastPublishSchema
+  .nullable()
+  .describe(
+    'The latest batch publish of this app when it did not complete (a failed or partial run); null when the latest run went through or there was none.',
+  );
+
 const pendingItemSchema = z.object({
   kind: z.enum([
     'listing_text',
@@ -205,6 +254,7 @@ const pendingViewSchema = z.object({
   }),
   lastSyncedAt: timestamp.nullable(),
   publishing: publishingSchema,
+  lastPublish: lastFailedPublishSchema,
   generatedAt: timestamp,
 });
 
@@ -221,6 +271,7 @@ const pendingSummarySchema = z.object({
         kinds: z.array(z.string()),
         nextSteps: z.array(publishStepEnum),
         publishing: publishingSchema,
+        lastPublish: lastFailedPublishSchema,
       }),
     )
     .describe(
@@ -391,6 +442,9 @@ const publishResultSchema = z.object({
   steps: z.array(publishStepResultSchema),
   pending: pendingTotalsSchema.describe('The stored pending state after the batch.'),
   publishedAt: timestamp,
+  lastPublish: lastPublishSchema
+    .nullable()
+    .describe('This run as the server keeps it, with the reason each failed step gave; null when it could not be kept.'),
 });
 
 export const pendingOperations: Draft[] = [
@@ -638,9 +692,45 @@ export const pendingOperations: Draft[] = [
         description: 'One entry per app with a publish running (empty when none is).',
         schema: z.object({
           apps: z.array(z.object({ appId: z.string(), publishing: publishingSchema.unwrap() })),
+          lastPublish: z
+            .array(z.object({ appId: z.string(), lastPublish: lastPublishSchema }))
+            .describe('Apps whose latest publish did not complete and was not dismissed, with the reason.'),
           generatedAt: timestamp,
         }),
       },
+    },
+  },
+  {
+    id: 'listStorePublishRuns',
+    method: 'get',
+    path: `${W}/apps/{id}/publish/runs`,
+    tags: ['pending'],
+    summary: 'The latest batch publishes of an app (newest first, at most five), with why a step failed',
+    description:
+      'What `publishStoreBatch` did, kept on the server so a failure survives a reload and shows in another browser: per step the error code, the HTTP status, the outcome, the server\u2019s sentence and what the store said (its reason code and sentence), sanitised and cut. The newest five runs of an app are kept; they are deleted with the app.',
+    risk: 'read',
+    access: { action: 'listing.read' },
+    appScope: { kind: 'param', name: 'id' },
+    responses: {
+      '200': {
+        description: 'The runs, newest first.',
+        schema: z.object({ runs: z.array(lastPublishSchema) }),
+      },
+    },
+  },
+  {
+    id: 'dismissStorePublishRun',
+    method: 'post',
+    path: `${W}/apps/{id}/publish/runs/{runId}/dismiss`,
+    tags: ['pending'],
+    summary: 'Hide the failure of one publish run until a newer run',
+    description:
+      'Marks the run as dismissed (`lastPublish.dismissed`). Needs `store.publish`. A later run is not hidden by it, and a later run that completes clears the failure by itself. `404 not_found` for a run that is not this app\u2019s.',
+    risk: 'write',
+    access: { action: 'store.publish' },
+    appScope: { kind: 'param', name: 'id' },
+    responses: {
+      '200': { description: 'Dismissed.', schema: z.object({ dismissed: z.boolean() }) },
     },
   },
   {

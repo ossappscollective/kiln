@@ -461,3 +461,39 @@ Audit `pending.published` and the event `pending.published` carry ids, the plan 
 
 `400 invalid_request` (shape), `403 forbidden`, `404 not_found`, `409 publish_batch_disabled`, `409 step_disabled`,
 `409 publish_in_progress` (also from the writes listed under [Publishing now](#publishing-now)), `409 plan_blocked`, `409 plan_changed`, `422 confirmation_mismatch`, `422 invalid_steps`.
+
+## Why a publish failed
+
+The answer of `POST /apps/{id}/publish` used to live only in the browser that sent it. Migration 72 adds `store_publish_runs`: one row per
+finished run, the newest five per app (deleted with the app), with when it started and finished, who ran it, the steps, and one result
+per step. The result carries what a person needs to act: the error code (`store_rejected`, `state_changed`, `step_timeout`, ...), the HTTP
+status of this API, the outcome (`refused`, `not_applied`, `unknown`, `partial`), this server's sentence, the catalogue `code` and `params`
+of that sentence or of the store's cause (`store.google.draftApp`), and `store`: the connector's kind of error, the HTTP status the
+store answered and up to three entries of its own error body (`code`, `title`, `detail`: Google's `reason`, `status` and `message`).
+
+All of it is sanitised before it is kept, logged or sent: the credential of the app, token-shaped strings (`ya29.`, `eyJ...`, `Bearer ...`,
+private keys, any 40 character opaque string) are replaced by `[redacted]`, control characters and runs of white space collapse, the
+server's sentence is cut to 500 characters and the store's to 600. A request body, a header or an upload is never kept.
+
+- `lastPublish` in the answer of `POST .../publish`, in `GET /apps/{id}/pending`, in each line of `GET /pending/summary`, and
+  `GET /pending/publishing` (`lastPublish: [{ appId, lastPublish }]`) is the LATEST run of an app **when it did not complete** (`outcome`
+  `failed` or `partial`); null when the latest run went through, so a later successful publish clears the failure. `dismissed` is true once
+  a person hid it (the polling read leaves dismissed runs out).
+- `GET /apps/{id}/publish/runs`: the newest five runs, newest first (`listing.read`).
+- `POST /apps/{id}/publish/runs/{runId}/dismiss`: hides the failure of that run until a newer run (`store.publish`; `404 not_found` for a run
+  that is not the app's). A newer run is never hidden by an older dismissal.
+- The server log line of a failed step reads `publish: step 1/2 push_draft failed (store_rejected, refused, http 422, badRequest): Only
+  releases with status draft ...` (code, outcome, HTTP status, Google's reason, the store's sentence cut to 200 characters). The audit
+  entry `pending.published` carries, per failed step, `code`, `outcome`, `httpStatus` and `cause` (the catalogue code), never a text.
+
+### Causes Kiln names for Google Play
+
+The Google connectors (draft, submit, release, rollout) read the error body (`error.message`, `error.errors[].reason`, `error.status`) and,
+when it matches, name the cause with a catalogue code and an actionable sentence (`apps/web/locales/errors`, `store.google.*`), keeping
+Google's own words beside it: `draftApp` (only a draft release can be created on an app that was never published), `versionCodeUsed`,
+`versionCodeLow`, `notesTooLong` (more than 500 characters per language), `listingIncomplete` (graphics, descriptions, content rating,
+data safety), `editConflict`, `releasePermission` (the service account lacks the permission to release to production),
+`sendForReview` ("Cannot send for review because ..."). Changes already in review (`CHANGES_ALREADY_IN_REVIEW`) and the commit
+refused without `changesNotSentForReview` keep their own codes (`changes_in_review`, `draft_not_allowed`). **UNVERIFIED**: Google
+documents reasons, not sentences, so the patterns are loose, tested on invented bodies, and an unknown body keeps Google's sentence with
+the HTTP status and reason; extend `packages/connectors/src/google/play-causes.ts` when a real body is seen.

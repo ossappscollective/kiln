@@ -19,6 +19,7 @@ import { keywordSignalsMigrations } from './migrations-keyword-signals.ts';
 import { monetizationMigrations } from './migrations-monetization.ts';
 import { priceWriteMigrations } from './migrations-price-writes.ts';
 import { publishProgressMigrations } from './migrations-publish-progress.ts';
+import { publishRunsMigrations } from './migrations-publish-runs.ts';
 import { ratingsMigrations } from './migrations-ratings.ts';
 import { revenueCatMigrations } from './migrations-revenuecat.ts';
 import { revenueCatMetricsMigrations } from './migrations-revenuecat-metrics.ts';
@@ -1868,4 +1869,5 @@ export const migrations: Migration[] = [
   ...reviewControlMigrations,
   ...ciArtifactMetaMigrations,
   ...publishProgressMigrations,
+  ...publishRunsMigrations,
 ];

@@ -40,6 +40,7 @@ import { useCredentialSecret } from '../../services/credentials.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { storeFor } from '../reviews/sync.ts';
+import { storeBody } from './store-failure.ts';
 
 /**
  * Changing a LIVE ROLLOUT in a store: a STORE WRITE (what users receive). The design copies the one
@@ -298,6 +299,7 @@ function mapStoreError(error: unknown, secret: string): Mapped {
       ...failure(status, code, clean(message, secret), {
         ...extra,
         ...messageCoding(error, message),
+        ...storeBody(error, secret),
       }),
       ...(headers ? { headers } : {}),
     },

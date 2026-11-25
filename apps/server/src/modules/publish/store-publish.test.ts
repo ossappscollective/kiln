@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { StoreError } from '@kiln/connectors';
 import { dbTest } from '@kiln/db/testing';
 import { PASSWORD } from '../../testkit.ts';
+import { listRuns, MAX_RUNS_PER_APP, recordRun } from './publish-runs.ts';
 import { FakeRolloutStore } from './rollout-test-helpers.ts';
 import { textEntry } from './store-draft-record.ts';
+import { failureLogText, runStepOf } from './store-publish.ts';
 import type { RolloutConnectorFactory } from './store-rollout.ts';
 import { bootStaged, type StagedBoot } from './test-helpers.ts';
 
@@ -1650,3 +1652,214 @@ dbTest(
     assert.notEqual(after.body.error, 'publish_in_progress', 'free again once it finished');
   },
 );
+
+// ----- why a publish failed, kept on the server (publish-runs.ts, migration 72) --------------------------------
+
+const GOOGLE_SAID = 'Only releases with status draft may be created on draft app.';
+const TOKEN = 'ya29.a0AfH6SMBx1234567890abcdefghijklmnop';
+
+/** A Google Play refusal as the connector now builds it: the cause code and Google's own words in the details. */
+const draftAppError = (said = GOOGLE_SAID) =>
+  new StoreError(
+    'googleplay',
+    'unexpected',
+    'Google Play treats this app as a draft app (it has never been published).',
+    400,
+    [{ code: 'badRequest', title: 'INVALID_ARGUMENT', detail: said }],
+    { code: 'store.google.draftApp' },
+  );
+
+/** An Android app with release fields staged, so the push step has something to write. */
+const stageAndroid = async (t: StagedBoot, name = 'Scanner') => {
+  const app = await t.addApp('android', name);
+  for (const body of [
+    { field: 'track', value: 'production' },
+    { field: 'version_codes', value: '241' },
+    { field: 'release_notes', locale: 'en-US', value: 'Bug fixes' },
+  ])
+    assert.equal((await t.stageField(app, body)).status, 200);
+  return app;
+};
+
+dbTest(
+  'a failed step keeps its reason: the code, the HTTP status and the words of the store, sanitised, in the answer, the log, the audit row and every listing',
+  async (db) => {
+    const lines: string[] = [];
+    const t = await boot(db, { log: (line) => lines.push(line) });
+    const app = await stageAndroid(t);
+    t.stores.android.behavior = {
+      kind: 'refuse',
+      error: draftAppError(`${GOOGLE_SAID} Bearer ${TOKEN}`),
+    };
+    const { publish } = await t.planAndPublish(app, [{ type: 'push_draft' }]);
+    assert.equal(publish.status, 200, publish.text.slice(0, 400));
+    const r = publish.body.result;
+    assert.equal(r.completed, false);
+    const step = r.steps[0];
+    assert.deepEqual([step.status, step.error, step.httpStatus], ['failed', 'store_rejected', 422]);
+    assert.equal(step.detail.code, 'store.google.draftApp');
+    assert.equal(step.detail.store.kind, 'unexpected');
+    assert.equal(step.detail.store.httpStatus, 400);
+    assert.match(step.detail.store.details[0].detail, /Only releases with status draft may be created on draft app/);
+    assert.doesNotMatch(publish.text, /ya29/, 'a token never reaches the answer');
+
+    // The same facts are kept as the last publish of the app.
+    const last = r.lastPublish;
+    assert.equal(last.outcome, 'failed');
+    assert.equal(last.dismissed, false);
+    assert.deepEqual(last.steps, ['push_draft']);
+    const kept = last.results[0];
+    assert.deepEqual(
+      [kept.status, kept.error, kept.httpStatus, kept.outcome, kept.code],
+      ['failed', 'store_rejected', 422, 'refused', 'store.google.draftApp'],
+    );
+    assert.equal(kept.store.httpStatus, 400);
+    assert.ok(kept.finishedAt >= kept.startedAt);
+    assert.doesNotMatch(JSON.stringify(last), /ya29/);
+
+    // After a reload, from another browser: the pending view, the summary line and the small poll all carry it.
+    const view = (await t.call(t.owner, 'GET', `/apps/${app}/pending`)).body.pending;
+    assert.equal(view.lastPublish.id, last.id);
+    assert.equal(view.lastPublish.results[0].code, 'store.google.draftApp');
+    const summary = (await t.call(t.owner, 'GET', '/pending/summary')).body.apps.find((a: any) => a.appId === app);
+    assert.equal(summary.lastPublish.id, last.id);
+    const poll = (await t.call(t.owner, 'GET', '/pending/publishing')).body;
+    assert.deepEqual(
+      poll.lastPublish.map((x: any) => [x.appId, x.lastPublish.id]),
+      [[app, last.id]],
+    );
+    const runs = (await t.call(t.owner, 'GET', `/apps/${app}/publish/runs`)).body.runs;
+    assert.deepEqual(runs.map((x: any) => x.id), [last.id]);
+
+    // The log says which step failed with which code and what the store said, never a token.
+    const log = lines.join('\n');
+    assert.match(log, /step 1\/1 push_draft failed \(store_rejected, refused, http 422, badRequest\): Only releases with status draft/);
+    assert.doesNotMatch(log, /ya29/);
+    // The audit row carries the code, the HTTP status and the cause code, and still no text.
+    const audit = (await t.audit('pending.published'))[0];
+    assert.deepEqual((audit?.detail.steps as unknown[])[0], {
+      type: 'push_draft',
+      status: 'failed',
+      code: 'store_rejected',
+      outcome: 'refused',
+      httpStatus: 422,
+      cause: 'store.google.draftApp',
+    });
+    assert.doesNotMatch(JSON.stringify(audit?.detail), /draft app/);
+  },
+);
+
+dbTest(
+  'dismissing a failure hides it until a newer run; a later publish that goes through clears it; five runs are kept; the app takes them away',
+  async (db) => {
+    const t = await boot(db);
+    const app = await stageAndroid(t);
+    t.stores.android.behavior = { kind: 'refuse', error: draftAppError() };
+    const first = (await t.planAndPublish(app, [{ type: 'push_draft' }])).publish.body.result.lastPublish;
+    const view = async () =>
+      (await t.call(t.owner, 'GET', `/apps/${app}/pending`)).body.pending.lastPublish;
+    assert.equal((await view()).dismissed, false);
+
+    const gone = await t.call(t.owner, 'POST', `/apps/${app}/publish/runs/nope/dismiss`, {});
+    assert.equal(gone.status, 404);
+    const done = await t.call(t.owner, 'POST', `/apps/${app}/publish/runs/${first.id}/dismiss`, {});
+    assert.deepEqual([done.status, done.body], [200, { dismissed: true }]);
+    assert.equal((await view()).dismissed, true, 'still returned, marked: the screens hide it');
+    assert.deepEqual((await t.call(t.owner, 'GET', '/pending/publishing')).body.lastPublish, []);
+
+    // A newer failed run is shown again: the dismissal belongs to the run it hid.
+    const second = (await t.planAndPublish(app, [{ type: 'push_draft' }])).publish.body.result.lastPublish;
+    assert.notEqual(second.id, first.id);
+    assert.equal((await view()).id, second.id);
+    assert.equal((await view()).dismissed, false);
+
+    // A publish that goes through clears the failure.
+    t.stores.android.behavior = { kind: 'ok' };
+    const ok = (await t.planAndPublish(app, [{ type: 'push_draft' }])).publish;
+    assert.equal(ok.body.result.completed, true, ok.text.slice(0, 300));
+    assert.equal(ok.body.result.lastPublish.outcome, 'completed');
+    assert.equal(await view(), null);
+    assert.deepEqual((await t.call(t.owner, 'GET', '/pending/publishing')).body.lastPublish, []);
+    assert.equal((await t.call(t.owner, 'GET', `/apps/${app}/publish/runs`)).body.runs.length, 3);
+
+    // Only the newest five runs of an app are kept.
+    for (let i = 0; i < 6; i++)
+      await recordRun(db, {
+        workspaceId: t.workspaceId,
+        appId: app,
+        platform: 'android',
+        startedAt: 1000 + i,
+        finishedAt: 2000 + i,
+        outcome: 'failed',
+        steps: ['push_draft'],
+        results: [],
+        byUser: null,
+      });
+    const kept = await listRuns(db, { workspaceId: t.workspaceId, appId: app });
+    assert.equal(kept.length, MAX_RUNS_PER_APP);
+    assert.deepEqual(
+      kept.slice(-2).map((r) => r.finishedAt),
+      [2005, 2004],
+      'the three real runs are newer; of the six added, the two newest stay',
+    );
+
+    assert.ok(((await db.query('SELECT id FROM store_publish_runs WHERE app_id = ?', [app])).length) > 0);
+    const res = await t.call(t.owner, 'DELETE', `/apps/${app}`);
+    assert.ok(res.status === 200 || res.status === 204, res.text);
+    assert.deepEqual(await db.query('SELECT id FROM store_publish_runs WHERE app_id = ?', [app]), []);
+  },
+);
+
+dbTest(
+  'a run is kept per app only, and a failure with no store words still says its code (a step that stopped, a step skipped)',
+  async (db) => {
+    const t = await boot(db);
+    const app = await stageIos(t, 'Weather');
+    t.submitStores.ios.behavior = {
+      kind: 'refuse',
+      error: new StoreError('appstoreconnect', 'forbidden', 'Apple refused the submission (403).', 403),
+    };
+    const { publish } = await t.planAndPublish(app, [{ type: 'push_draft' }, { type: 'submit' }]);
+    const last = publish.body.result.lastPublish;
+    assert.equal(last.outcome, 'partial', 'the push applied, the submit did not');
+    assert.deepEqual(
+      last.results.map((x: any) => [x.type, x.status, x.error ?? null]),
+      [
+        ['push_draft', 'applied', null],
+        ['submit', 'failed', 'store_forbidden'],
+      ],
+    );
+    assert.equal(last.results[1].store.httpStatus, 403);
+    const other = await t.addApp('ios', 'Other');
+    assert.equal((await t.call(t.owner, 'GET', `/apps/${other}/pending`)).body.pending.lastPublish, null);
+  },
+);
+
+dbTest('runStepOf and failureLogText keep codes and cut and clean the words', async () => {
+  const failed = {
+    type: 'push_draft',
+    status: 'failed',
+    error: 'store_rejected',
+    httpStatus: 422,
+    outcome: 'refused',
+    message: `Nope.\n\n  ${'x'.repeat(900)}`,
+    detail: {
+      preview: { huge: true },
+      code: 'store.google.versionCodeUsed',
+      params: { versionCode: '92', token: 'dropped' },
+      store: { kind: 'unexpected', httpStatus: 403, details: [{ code: 'apkUpgradeVersionConflict', detail: 'Version code 92 has already been used.' }] },
+    },
+  } as const;
+  const step = runStepOf(failed as never, 5, 9);
+  assert.equal(step.code, 'store.google.versionCodeUsed');
+  assert.deepEqual(step.params, { versionCode: '92' }, 'secret-looking params are dropped');
+  assert.ok((step.message ?? '').length <= 500);
+  assert.doesNotMatch(step.message ?? '', /\n/);
+  assert.equal(JSON.stringify(step).includes('huge'), false, 'the preview is not a reason');
+  assert.equal(
+    failureLogText(failed as never),
+    '(store_rejected, refused, http 422, apkUpgradeVersionConflict): Version code 92 has already been used.',
+  );
+  const skipped = runStepOf({ type: 'submit', status: 'skipped', reason: 'previous_step_not_applied', message: 'Not run.' }, 1, 1);
+  assert.deepEqual([skipped.status, skipped.reason, skipped.message], ['skipped', 'previous_step_not_applied', 'Not run.']);
+});

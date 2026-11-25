@@ -36,6 +36,7 @@ import { deleteAsoData } from '../modules/aso/data.ts';
 import { deleteProposalStates } from '../modules/listing/asset-proposal.ts';
 import { deleteListingData, syncListing } from '../modules/listing/live.ts';
 import { recordAppliedChangeSets } from '../modules/listing/repo.ts';
+import { deleteAppRuns } from '../modules/publish/publish-runs.ts';
 import { deleteReviewData } from '../modules/reviews/service.ts';
 import { deleteAppAppearance } from './app-appearance.ts';
 import { deleteAppIcon } from './app-icon-store.ts';
@@ -512,6 +513,7 @@ export async function deleteApp(
       input.id,
       input.workspaceId,
     ]);
+    await deleteAppRuns(tx, input.workspaceId, input.id);
     await deleteAppReleaseSettings(tx, input.workspaceId, input.id);
     await deleteAppListingSettings(tx, input.workspaceId, input.id);
     await deleteAppAppearance(tx, input.workspaceId, input.id);

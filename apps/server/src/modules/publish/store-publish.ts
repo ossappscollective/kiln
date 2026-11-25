@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { type Platform, supports, versionCodesOf } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
-import { coded } from '../../i18n/problem.ts';
+import { cleanParams, coded, codingOf } from '../../i18n/problem.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { emitEvent } from '../../services/events.ts';
@@ -23,6 +23,7 @@ import {
   recordStep,
   recordSteps,
 } from './publishing.ts';
+import { type LastPublish, type RunOutcome, type RunStep, recordRun } from './publish-runs.ts';
 import {
   applyDraftPush,
   DRAFT_ENV,
@@ -31,6 +32,7 @@ import {
   previewDraftPush,
 } from './store-draft.ts';
 import { loadPush } from './store-draft-record.ts';
+import { MESSAGE_MAX, type StoreFacts, sanitiseStoreText } from './store-failure.ts';
 import {
   applyRelease,
   confirmationPhraseOf,
@@ -135,7 +137,8 @@ export type PublishContext = {
   stepTimeoutMs?: number;
   /**
    * One line to the server log per boundary of a batch (started, each step started and ended with how long it took, finished). Ids,
-   * step names, statuses and error codes only: never a text, a credential or a store answer. Default: silent.
+   * step names, statuses and error codes; a failed step adds its HTTP status and the store's own sentence, SANITISED and cut to 200
+   * characters (`store-failure.ts`: no credential, no token-shaped string). Never a request or an upload. Default: silent.
    */
   log?: (line: string) => void;
 };
@@ -1094,6 +1097,11 @@ export type PublishResult = {
   /** The stored pending state after the batch (no store is read): where things stand now. */
   pending: { items: number; actionable: number; blocking: number };
   publishedAt: number;
+  /**
+   * What this run is as the server keeps it (`publish-runs.ts`): per step the code, the HTTP status and the sanitised words of the store.
+   * Null when it could not be kept (the answer above is complete without it).
+   */
+  lastPublish: LastPublish | null;
 };
 
 const outcomeOf = (f: Failure): 'refused' | 'not_applied' | 'unknown' | 'partial' => {
@@ -1115,6 +1123,51 @@ const failedStep = (type: PublishStep, f: Failure): StepResult => {
     ...(Object.keys(rest).length > 0 ? { detail: rest } : {}),
   };
 };
+
+const isStoreFacts = (value: unknown): value is StoreFacts =>
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as { kind?: unknown }).kind === 'string';
+
+/**
+ * One step result as a run keeps it (`publish-runs.ts`): the status, the error code, the HTTP status, the outcome, the sentence of this
+ * server and what the store said, all sanitised. Nothing of `detail` is kept beyond the catalogue code of the sentence and the store's
+ * facts (a `preview` after `state_changed` is large and is not a reason).
+ */
+export function runStepOf(result: StepResult, startedAt: number, finishedAt: number): RunStep {
+  const base = { type: result.type, status: result.status, startedAt, finishedAt } as const;
+  if (result.status === 'applied') return base;
+  if (result.status === 'skipped') {
+    return {
+      ...base,
+      reason: result.reason,
+      message: sanitiseStoreText(result.message, '', MESSAGE_MAX),
+      ...(result.code !== undefined ? { code: sanitiseStoreText(result.code, '', 80) } : {}),
+    };
+  }
+  const detail = result.detail ?? {};
+  const own = codingOf(detail);
+  const cause = codingOf((detail.storeCause ?? {}) as { code?: unknown; params?: unknown });
+  const coding = 'code' in own ? own : cause;
+  const params = 'params' in coding ? cleanParams(coding.params) : undefined;
+  return {
+    ...base,
+    error: result.error,
+    httpStatus: result.httpStatus,
+    outcome: result.outcome,
+    message: sanitiseStoreText(result.message, '', MESSAGE_MAX),
+    ...('code' in coding ? { code: coding.code } : {}),
+    ...(params ? { params } : {}),
+    ...(isStoreFacts(detail.store) ? { store: detail.store } : {}),
+  };
+}
+
+/** The line a failed step adds to the server log: its code, outcome and HTTP status, and the words of the store (sanitised, 200 characters). */
+export function failureLogText(result: StepResult & { status: 'failed' }): string {
+  const store = isStoreFacts(result.detail?.store) ? result.detail.store : null;
+  const said = store?.details?.find((d) => d.detail !== undefined)?.detail ?? result.message;
+  return `(${result.error}, ${result.outcome}, http ${result.httpStatus}${store?.details?.[0]?.code ? `, ${store.details[0].code}` : ''}): ${sanitiseStoreText(said, '', 200)}`;
+}
 
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -1429,6 +1482,8 @@ export async function applyPublish(
       `app ${app.id} (${app.platform}) plan ${plan.planHash.slice(0, 8)} steps ${included.map((s) => s.type).join(',')} started`,
     );
     const results: StepResult[] = [];
+    /** When each step started and ended, in step order (a step that did not run has the moment it was skipped). */
+    const times: { startedAt: number; finishedAt: number }[] = [];
     let stopped: PublishStep | null = null;
     let position = 0;
     for (const step of included) {
@@ -1441,6 +1496,7 @@ export async function applyPublish(
           reason: 'previous_step_not_applied',
           message: `Not run: ${stopped} was not applied.`,
         });
+        times.push({ startedAt: ctx.now(), finishedAt: ctx.now() });
         continue;
       }
       const stepStarted = ctx.now();
@@ -1471,9 +1527,10 @@ export async function applyPublish(
         };
       }
       results.push(result);
+      times.push({ startedAt: stepStarted, finishedAt: ctx.now() });
       await note(() => recordStep(db, claim, null, ctx.now()));
       log(
-        `step ${position}/${included.length} ${step.type} ${result.status}${result.status === 'failed' ? ` (${result.error}, ${result.outcome})` : result.status === 'skipped' ? ` (${result.reason})` : ''} after ${ctx.now() - stepStarted}ms`,
+        `step ${position}/${included.length} ${step.type} ${result.status}${result.status === 'failed' ? ` ${failureLogText(result)}` : result.status === 'skipped' ? ` (${result.reason})` : ''} after ${ctx.now() - stepStarted}ms`,
       );
       if (result.status !== 'applied') stopped = step.type;
     }
@@ -1487,10 +1544,20 @@ export async function applyPublish(
     const completed = applied === results.length;
     const store = storeFor(app.platform);
     // Ids, counts, hashes and per-step outcomes: never a text, a credential or a store answer.
-    const stepsOut = results.map((r) => ({
+    const kept = results.map((r, i) =>
+      runStepOf(r, times[i]?.startedAt ?? batchStarted, times[i]?.finishedAt ?? at),
+    );
+    const stepsOut = results.map((r, i) => ({
       type: r.type,
       status: r.status,
-      ...(r.status === 'failed' ? { code: r.error, outcome: r.outcome } : {}),
+      ...(r.status === 'failed'
+        ? {
+            code: r.error,
+            outcome: r.outcome,
+            httpStatus: r.httpStatus,
+            ...(kept[i]?.code !== undefined ? { cause: kept[i]?.code } : {}),
+          }
+        : {}),
       ...(r.status === 'skipped' ? { reason: r.reason, ...(r.code ? { code: r.code } : {}) } : {}),
       ...(r.status === 'applied' ? { confirmedByReread: r.confirmedByReread } : {}),
     }));
@@ -1535,6 +1602,24 @@ export async function applyPublish(
         }
       });
     }
+    const outcome: RunOutcome = completed ? 'completed' : applied > 0 ? 'partial' : 'failed';
+    // The run is kept for the screens that come later (a reload, another browser). A failure to keep it never changes the answer.
+    let lastPublish: LastPublish | null = null;
+    try {
+      lastPublish = await recordRun(db, {
+        workspaceId: input.workspaceId,
+        appId: app.id,
+        platform: app.platform,
+        startedAt: batchStarted,
+        finishedAt: at,
+        outcome,
+        steps: included.map((s) => s.type),
+        results: kept,
+        byUser: input.actor.type === 'user' ? input.actor.id : null,
+      });
+    } catch (error) {
+      log(`run not kept (${error instanceof Error ? error.name : typeof error})`);
+    }
     const items: PendingItem[] = await pendingItemsOf(db, {
       workspaceId: input.workspaceId,
       app,
@@ -1554,6 +1639,7 @@ export async function applyPublish(
         steps: results,
         pending: { items: totals.items, actionable: totals.actionable, blocking: totals.blocking },
         publishedAt: at,
+        lastPublish,
       },
     };
   } finally {

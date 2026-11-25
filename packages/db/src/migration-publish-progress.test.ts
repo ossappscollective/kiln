@@ -34,7 +34,7 @@ dbTest(
        VALUES ('a1', 'android', 'w1', 'publish', 'writing', 'u1', 30)`,
     );
     assert.deepEqual(
-      (await migrate(db)).filter((id) => id >= ID),
+      (await migrate(db)).filter((id) => id === ID),
       [71],
     );
     const cols = (await tableColumns(db, 'store_publish_claims')).map((c) => c.name);

@@ -7,6 +7,8 @@ import { googleFacts, playCauseOf } from './play-causes.ts';
 /** A fake Google error body: `{ error: { code, message, errors: [{ reason }], status } }`. */
 const body = (status: number, message: string, reason = '', googleStatus = '') => ({
   status,
+  headers: new Headers(),
+  malformed: false,
   json: {
     error: {
       code: status,

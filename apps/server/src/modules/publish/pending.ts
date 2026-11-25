@@ -3,6 +3,7 @@ import { type Database, nullableNumber, oneOf, type Sql } from '@kiln/db';
 import { getApp, listApps, type ManagedApp } from '../../services/apps.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { storeFor } from '../reviews/sync.ts';
+import { type LastPublish, readLastPublish } from './publish-runs.ts';
 import { type Publishing, publishingOf, readPublishing } from './publishing.ts';
 import { buildStagedView } from './staged-changes.ts';
 import { loadPush, type PushRecord } from './store-draft-record.ts';
@@ -91,6 +92,12 @@ export type PendingView = {
    * so the screens show them as "being published" and offer no new publish or release.
    */
   publishing: Publishing | null;
+  /**
+   * The latest batch publish of this app when it did not complete (`publish-runs.ts`): per step the error code, the HTTP status and the
+   * store's own words, sanitised. Null when the latest run went through, or there was none. Survives a reload and shows in any browser;
+   * `dismissed` says a person hid it.
+   */
+  lastPublish: LastPublish | null;
   generatedAt: number;
 };
 
@@ -572,6 +579,10 @@ export async function getPending(
     now: input.now,
     ttlMs: input.claimTtlMs,
   });
+  const lastPublish =
+    (await readLastPublish(db, { workspaceId: input.workspaceId, appIds: [app.id] })).get(
+      app.id,
+    ) ?? null;
   const items = await pendingItemsOf(db, { workspaceId: input.workspaceId, app, now: input.now });
   const totals = totalsOf(items);
   return {
@@ -586,6 +597,7 @@ export async function getPending(
       },
       lastSyncedAt: app.lastSyncedAt,
       publishing,
+      lastPublish,
       generatedAt: input.now,
     },
   };
@@ -606,6 +618,8 @@ export type PendingSummaryApp = {
   nextSteps: PublishStep[];
   /** A batch publish of this app is running now (see `PendingView.publishing`); null when none is. */
   publishing: Publishing | null;
+  /** The latest publish of this app that did not complete (see `PendingView.lastPublish`); null when none. */
+  lastPublish: LastPublish | null;
 };
 
 export type PendingSummary = {
@@ -631,6 +645,10 @@ export async function pendingSummary(
     now: input.now,
     ttlMs: input.claimTtlMs,
   });
+  const failed = await readLastPublish(db, {
+    workspaceId: input.workspaceId,
+    appIds: input.appIds,
+  });
   const wanted = input.appIds === undefined ? undefined : new Set(input.appIds);
   const apps = (await listApps(db, input.workspaceId)).filter(
     (a) => wanted === undefined || wanted.has(a.id),
@@ -643,7 +661,9 @@ export async function pendingSummary(
       facts,
       await stagedViewFor(db, input.workspaceId, app, facts, input.now),
     );
-    if (items.length === 0 && !running.has(app.id)) continue;
+    const lastPublish = failed.get(app.id) ?? null;
+    const hasFailure = lastPublish !== null && !lastPublish.dismissed;
+    if (items.length === 0 && !running.has(app.id) && !hasFailure) continue;
     const totals = totalsOf(items);
     const actionable = items.filter((i) => i.nextStep !== null);
     lines.push({
@@ -656,6 +676,7 @@ export async function pendingSummary(
       kinds: PENDING_KINDS.filter((k) => actionable.some((i) => i.kind === k)),
       nextSteps: nextStepsOf(items),
       publishing: running.get(app.id) ?? null,
+      lastPublish,
     });
   }
   lines.sort(

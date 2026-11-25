@@ -49,7 +49,7 @@ import {
   versionCodesOf,
 } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
-import { coded, messageCoding } from '../../i18n/problem.ts';
+import { coded, codingOf, messageCoding } from '../../i18n/problem.ts';
 import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
@@ -70,6 +70,7 @@ import {
 } from './staged-changes.ts';
 import { type ReleaseCheck, releaseFieldChecks } from './staged-release.ts';
 import { fileEntry, type PushedManifest, recordPush, textEntry } from './store-draft-record.ts';
+import { storeBody } from './store-failure.ts';
 
 /**
  * Writing staged listing text and graphics into a store as a DRAFT: a STORE WRITE. The design copies
@@ -207,6 +208,7 @@ export function mapStoreError(error: unknown, secret: string): Mapped {
       ...failure(status, code, clean(message, secret), {
         ...extra,
         ...messageCoding(error, message),
+        ...storeBody(error, secret),
       }),
       ...(headers ? { headers } : {}),
     },
@@ -1561,6 +1563,8 @@ export async function applyDraftPush(
           completed: error.completed,
           failed: error.failed,
           storeError: { code: mapped.code },
+          ...(mapped.failure.body.store !== undefined ? { store: mapped.failure.body.store } : {}),
+          storeCause: codingOf(mapped.failure.body as { code?: unknown; params?: unknown }),
         },
       );
     }

@@ -1507,6 +1507,34 @@ export const storePublishClaims = sqliteTable(
 );
 
 /**
+ * The last batch publishes of an app, newest five kept (migration 72): when, who, the steps it ran and one result per step (status, error
+ * code, HTTP status, outcome, a sanitised store message). `dismissedAt` hides a failure until a newer run. Never a token or an upload.
+ */
+export const storePublishRuns = sqliteTable(
+  'store_publish_runs',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    platform: text('platform').notNull(),
+    startedAt: integer('started_at').notNull(),
+    finishedAt: integer('finished_at').notNull(),
+    outcome: text('outcome').notNull(),
+    steps: text('steps').notNull(),
+    results: text('results').notNull(),
+    byUser: text('by_user'),
+    dismissedAt: integer('dismissed_at'),
+    dismissedBy: text('dismissed_by'),
+  },
+  (t) => [
+    index('store_publish_runs_app_idx').on(t.appId, t.finishedAt),
+    index('store_publish_runs_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/**
  * One row per AI run (migration 30, docs/adr/0016-ai-foundation.md): the tokens reserved before the provider is called and
  * the tokens it reported. No text of any kind. The monthly budget is the sum of these rows since the start of the UTC month.
  */

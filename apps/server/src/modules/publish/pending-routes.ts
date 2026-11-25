@@ -16,6 +16,7 @@ import {
   pendingItemDetail,
   pendingSummary,
 } from './pending.ts';
+import { dismissRun, listRuns, readLastPublish } from './publish-runs.ts';
 import { readPublishing } from './publishing.ts';
 import {
   type DraftConnectorFactory,
@@ -291,12 +292,45 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
       now: ctx.now(),
       ttlMs: ctx.publish?.claimTtlMs,
     });
+    // What the last publish of an app left when it did not complete (a failure, with its reason), so a screen shows it after a reload and
+    // in another browser without a second read. Dismissed ones are left out here: they are for the person who hid them.
+    const failed = await readLastPublish(db, {
+      workspaceId: ws(c),
+      ...(tokenApps ? { appIds: tokenApps as string[] } : {}),
+    });
     c.header('Cache-Control', 'no-store');
     return c.json({
       apps: [...running].map(([appId, publishing]) => ({ appId, publishing })),
+      lastPublish: [...failed]
+        .filter(([, run]) => !run.dismissed)
+        .map(([appId, lastPublish]) => ({ appId, lastPublish })),
       generatedAt: ctx.now(),
     });
   });
+
+  // The latest runs of an app (newest first, at most five), with the reason each failed step gave.
+  routes.get('/:workspaceId/apps/:id/publish/runs', needs('listing.read'), async (c) => {
+    const runs = await listRuns(db, { workspaceId: ws(c), appId: param(c, 'id') });
+    c.header('Cache-Control', 'no-store');
+    return c.json({ runs });
+  });
+
+  // Hides the failure of one run (it stays hidden until a newer run). Needs the right to publish: it changes what everybody sees.
+  routes.post(
+    '/:workspaceId/apps/:id/publish/runs/:runId/dismiss',
+    needs('store.publish'),
+    async (c) => {
+      const done = await dismissRun(db, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        runId: param(c, 'runId'),
+        by: actor(c).type === 'user' ? actor(c).id : null,
+        now: ctx.now(),
+      });
+      c.header('Cache-Control', 'no-store');
+      return done ? c.json({ dismissed: true }) : c.json({ error: 'not_found' }, 404);
+    },
+  );
 
   routes.post('/:workspaceId/apps/:id/publish/preview', needs('store.publish'), async (c) => {
     const body = await parseBody(c, publishPreviewBody);
