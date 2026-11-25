@@ -123,6 +123,8 @@
   const hasStaged = $derived(rows.some((r) => r.bundle !== null));
   const sums = $derived(report ? tally(report.outcomes) : { ok: 0, failed: 0, skipped: 0 });
   const listed = $derived(report ? outcomeRows(report.rows, report.outcomes) : []);
+  /** Why a whole request failed (the server's code and message), once, not on every row. */
+  const details = $derived(report ? [...new Set(Object.values(report.outcomes).flatMap((o) => (o.detail ? [o.detail] : [])))] : []);
   const phrases = $derived(pricePhrases(rows, selection));
   const phraseOk = $derived(phrases.every((p) => samePhrase(typed[p.appId] ?? '', p.phrase)));
   const platformName = (appId: string) => {
@@ -190,9 +192,9 @@
   function go() {
     const kind = confirming;
     confirming = null;
+    // The selection stays while the run is in flight (the button says how many are being sent); what was sent leaves the list, and the effect above drops it.
     if (kind === 'publish') onpublish(selection, phrases.length > 0 ? typed : {});
     else if (kind === 'discard') ondiscard(selection);
-    selection = noSelection;
     typed = {};
   }
 
@@ -229,6 +231,7 @@
               <strong>{t('app:cart.report.summary', { ok: sums.ok, failed: sums.failed, skipped: sums.skipped })}</strong>
               <Button size="sm" variant="ghost" onclick={ondismiss}>{t('app:cart.report.dismiss')}</Button>
             </div>
+            {#each details as detail (detail)}<p class="muted small" data-testid="cart-report-detail">{detail}</p>{/each}
             <ul>
               {#each listed as { row, outcome } (row.key)}
                 <li>

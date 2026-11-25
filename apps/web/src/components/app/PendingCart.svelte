@@ -175,6 +175,7 @@
   });
 
   const codeOf = (e: unknown) => (e instanceof ApiError ? (e.code || 'other') : 'network');
+  const detailOf = (e: unknown) => (e instanceof ApiError ? `${e.code || e.status}: ${e.message}` : e instanceof Error ? e.message : '');
 
   /** The dry run of the selected price items: reads the live prices of each (the store's own check where there is one) and sends nothing. */
   async function dryRunPrices(selection: Selection) {
@@ -215,7 +216,7 @@
         const done = await confirmed((grant) => api.publishPendingCart(workspaceId, appId, items, grant, confirmations[appId]));
         outcomes = mergeResults(outcomes, appId, done.result.results);
       } catch (e) {
-        outcomes = failAll(outcomes, appId, items.map((i) => i.id), codeOf(e));
+        outcomes = failAll(outcomes, appId, items.map((i) => i.id), codeOf(e), detailOf(e));
       }
     }
     report = { rows: snapshot, outcomes, kind: 'publish' };
@@ -235,7 +236,7 @@
         const done = await api.discardPendingCart(workspaceId, appId, list);
         outcomes = mergeResults(outcomes, appId, done.result.results);
       } catch (e) {
-        outcomes = failAll(outcomes, appId, list, codeOf(e));
+        outcomes = failAll(outcomes, appId, list, codeOf(e), detailOf(e));
       }
     }
     report = { rows: snapshot, outcomes, kind: 'discard' };

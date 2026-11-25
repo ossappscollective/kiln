@@ -106,6 +106,8 @@ export type CartOutcome = {
   status: 'ok' | 'failed' | 'skipped';
   reason: string | null /** A price item: what the store showed after the write. */;
   price?: PriceResultDetail;
+  /** A whole request that failed: the server's code and message, for the one line under the summary. */
+  detail?: string;
 };
 export type CartResultResponse = {
   result: {
@@ -298,9 +300,11 @@ export function failAll(
   appId: string,
   ids: readonly string[],
   reason: string,
+  detail?: string,
 ): Outcomes {
   const next: Record<string, CartOutcome> = { ...previous };
-  for (const id of ids) next[rowKey(appId, id)] = { status: 'failed', reason };
+  for (const id of ids)
+    next[rowKey(appId, id)] = { status: 'failed', reason, ...(detail ? { detail } : {}) };
   return next;
 }
 

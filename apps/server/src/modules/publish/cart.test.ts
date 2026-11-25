@@ -4,6 +4,7 @@ import { StoreError } from '@kiln/connectors';
 import type { Database } from '@kiln/db';
 import { dbTest } from '@kiln/db/testing';
 import { FakeReplyStore, storeReview } from '../reviews/test-helpers.ts';
+import { setPolicy, type StepUpAction } from '../../services/step-up.ts';
 import { bootStaged } from './test-helpers.ts';
 
 const TEXT = 'A freshly written description that nobody else would ever write';
@@ -567,5 +568,40 @@ dbTest(
     const d = await detail(t, app, reply.id);
     assert.equal(d.detail?.reply?.review.body.length, 8000);
     assert.equal((d.detail?.reply?.review as { truncated?: boolean }).truncated, true);
+  },
+);
+
+dbTest(
+  'the pending cart asks for the step-up of "Publish to the stores" when "Write a store draft" is not covered',
+  async (db) => {
+    const t = await boot(db);
+    const { app } = await filled(t);
+    const items = await read(t, app);
+    const staged = all({ ...items, items: items.items.filter((i) => i.kind !== 'review_reply') });
+    const reply = all({ ...items, items: items.items.filter((i) => i.kind === 'review_reply') });
+    const cover = (actions: StepUpAction[]) =>
+      setPolicy(
+        db,
+        {
+          workspaceId: t.workspaceId,
+          policy: { mode: 'hard_actions', actions, unattended: [] },
+          userId: 'u',
+        },
+        Date.now(),
+      );
+    // Only "Publish to the stores": a staged change and a reply both ask (the button says Publish).
+    await cover(['store.publish']);
+    const a = await publish(t, app, staged);
+    assert.equal(a.status, 403);
+    assert.match(String(a.body.error), /^step_up/);
+    const b = await publish(t, app, reply);
+    assert.equal(b.status, 403);
+    assert.match(String(b.body.error), /^step_up/);
+    // Only "Write a store draft": a staged change asks, a public reply does not (it is not a draft write).
+    await cover(['store.push_draft']);
+    const c = await publish(t, app, staged);
+    assert.equal(c.status, 403);
+    const d = await publish(t, app, reply);
+    assert.notEqual(d.status, 403);
   },
 );

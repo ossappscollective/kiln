@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { type AppEnv, parseBody } from '../../http.ts';
 import { memberRole } from '../../services/accounts.ts';
 import type { Failure } from '../../services/repositories.ts';
-import { requireStepUp } from '../../services/step-up.ts';
+import { getPolicy, requireStepUp, type StepUpAction } from '../../services/step-up.ts';
 import type { AssetsContext } from '../listing/asset-repo.ts';
 import { PRICE_STEP_UP, type PriceContext } from '../monetization/price-shared.ts';
 import {
@@ -80,6 +80,7 @@ export const cartPublishBody = z
 export const cartDiscardBody = z.object({ ids: z.array(itemId).min(1).max(200) }).strict();
 
 const STAGED_PREFIXES = ['listing:', 'graphics:', 'release:'];
+const REPLY_PREFIXES = ['review_reply:'];
 const PRICE_PREFIX = 'price:';
 
 export function cartRoutes(ctx: CartRoutesContext) {
@@ -184,12 +185,29 @@ export function cartRoutes(ctx: CartRoutesContext) {
   routes.post('/:workspaceId/apps/:id/pending/publish', needs('listing.read'), async (c) => {
     const body = await parseBody(c, cartPublishBody);
     if (!body.ok) return body.response;
-    // Writing a store draft is a step-up action: ask before anything is read, only when the request names a staged change.
-    if (body.data.items.some((i) => STAGED_PREFIXES.some((p) => i.id.startsWith(p)))) {
-      const refusal = await requireStepUp({ db, now: ctx.now }, c, 'store.push_draft', {
-        id: param(c, 'id'),
-      });
-      if (refusal) return refusal;
+    // Writing a store draft, or sending a public reply, is a step-up action: ask before anything is read, only when the request names a
+    // staged change or a reply. The button says "Publish", so a workspace that asks before "Publish to the stores" but not before "Write
+    // a store draft" is asked here too. One action per request: two would need two confirmations.
+    const names = (prefixes: readonly string[]) =>
+      body.data.items.some((i) => prefixes.some((p) => i.id.startsWith(p)));
+    const staged = names(STAGED_PREFIXES);
+    const reply = names(REPLY_PREFIXES);
+    if (staged || reply) {
+      const policy = await getPolicy(db, ws(c));
+      const asks = (a: StepUpAction) =>
+        policy.mode === 'hard_actions' && policy.actions.includes(a);
+      const action: StepUpAction | null =
+        asks('store.publish') && (reply || !asks('store.push_draft'))
+          ? 'store.publish'
+          : staged
+            ? 'store.push_draft'
+            : null;
+      if (action) {
+        const refusal = await requireStepUp({ db, now: ctx.now }, c, action, {
+          id: param(c, 'id'),
+        });
+        if (refusal) return refusal;
+      }
     }
     // Sending a price is the strictest step-up action: asked before anything is read, only when the request names a price.
     if (body.data.items.some((i) => i.id.startsWith(PRICE_PREFIX))) {
