@@ -74,6 +74,7 @@ import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/rep
 import { enableStepUpAutoApprove } from './services/step-up.ts';
 import type { TranslationContext } from './services/translation.ts';
 import { createLaunchGate, hostGuard } from './single-user.ts';
+import { webRoot } from './web-root.ts';
 
 /** Largest request body of any API route. Listings are text; the biggest legitimate one is far below. */
 export const BODY_LIMIT = 1024 * 1024;
@@ -592,10 +593,7 @@ export function createApp(deps: AppDeps) {
   app.all('/api/*', (c) => c.json({ error: 'not_found' }, 404));
 
   if (deps.webDist) {
-    const root =
-      deps.webDist.startsWith('.') || deps.webDist.startsWith('/')
-        ? deps.webDist
-        : `./${deps.webDist}`;
+    const root = webRoot(deps.webDist);
     app.use('/*', serveStatic({ root }));
     // Single-page app: unknown paths load the shell and the client router takes over.
     app.get('*', serveStatic({ path: `${root}/index.html` }));
