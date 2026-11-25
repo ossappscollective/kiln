@@ -173,9 +173,10 @@ export type DraftApplyResult = {
   /**
    * Google Play: the commit that held the changes back from review (`not_sent_for_review`), or `draft_release`: Google refused
    * the hold-back and the edit held only the draft release of a track, so it was committed without it. App Store: always `none`
-   * (there is no commit; every request changes the draft at once).
+   * (there is no commit; every request changes the draft at once). `sent_for_review`: only `pushAndSubmit` answers it, a commit
+   * without the hold-back, which Google sends for review as part of the commit.
    */
-  commit: 'not_sent_for_review' | 'draft_release' | 'none';
+  commit: 'not_sent_for_review' | 'draft_release' | 'sent_for_review' | 'none';
 };
 
 /** The store's draft is not what the person confirmed: nothing was written. */
@@ -235,6 +236,12 @@ export interface StoreDraftConnector {
   /** The draft as the store holds it now. Changes nothing. */
   readDraft(request: DraftReadRequest): Promise<DraftState>;
   applyDraft(input: DraftApplyInput): Promise<DraftApplyResult>;
+  /**
+   * Google Play only: the same write as `applyDraft`, committed so that Google sends the changes for review as part of the commit
+   * (for an app whose changes Google will not keep as a draft). Absent on a store that has no such commit. Only the server's combined
+   * step calls it, after the person ticked it with the confirmation a submit asks for.
+   */
+  pushAndSubmit?(input: DraftApplyInput): Promise<DraftApplyResult>;
 }
 
 /** Stable form of a state for the confirmation hash: only what the confirmation depends on, in a fixed order. */

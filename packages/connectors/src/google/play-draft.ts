@@ -57,6 +57,7 @@ import {
   redactedError,
   serializedPlayEdits,
 } from './googleplay.ts';
+import { googleFacts } from './play-causes.ts';
 
 /**
  * Google Play: write listing text and images into an EDIT and commit it WITHOUT sending it for
@@ -261,6 +262,22 @@ export class PlayDraftConnector
   }
 
   async applyDraft(input: DraftApplyInput): Promise<DraftApplyResult> {
+    return this.#apply(input, false);
+  }
+
+  /**
+   * The same edit as `applyDraft` (same reads, same guard, same writes, same checks of the uploaded images), committed WITHOUT
+   * `changesNotSentForReview`: Google sends the changes for review as part of the commit. For an app whose changes Google will not hold
+   * back (`draft_not_allowed` on the draft push). It is a different method on purpose: nothing sends a draft for review by passing a
+   * flag, and the server calls it only for a step the person ticked with the confirmation that a submit asks for. A commit that
+   * Google refuses applies nothing; `changesInReviewBehavior=ERROR_IF_IN_REVIEW` still keeps a review in progress from being cancelled.
+   * Answers `commit: 'sent_for_review'`, or `'none'` (and commits nothing) when the edit differs from the store in nothing.
+   */
+  async pushAndSubmit(input: DraftApplyInput): Promise<DraftApplyResult> {
+    return this.#apply(input, true);
+  }
+
+  async #apply(input: DraftApplyInput, review: boolean): Promise<DraftApplyResult> {
     const request: DraftReadRequest = {
       text: input.text.map((t) => ({ locale: t.locale, field: t.field })),
       assets: input.assets.map((a) => ({
@@ -377,11 +394,13 @@ export class PlayDraftConnector
         // From here on the request may be applied even if the answer is lost.
         settled = true;
         // Only a draft release of a track (fields) may be committed without the hold-back when Google refuses it: a texts or
-        // images change is never committed that way (it could go to review).
-        const releaseOnly = steps.every((s) => s.type === 'field' || s.outcome !== 'applied');
-        let commit: 'not_sent_for_review' | 'draft_release' = 'not_sent_for_review';
+        // images change is never committed that way (it could go to review). The combined operation sends for review by design.
+        const releaseOnly =
+          !review && steps.every((s) => s.type === 'field' || s.outcome !== 'applied');
+        let commit: 'not_sent_for_review' | 'draft_release' | 'sent_for_review' =
+          'not_sent_for_review';
         try {
-          commit = await this.#commit(editId, releaseOnly);
+          commit = review ? await this.#commitForReview(editId) : await this.#commit(editId, releaseOnly);
         } catch (error) {
           // A refused commit (4xx) applied nothing: the edit is deleted below. An unknown one is left alone.
           if (!(error instanceof DraftOutcomeUnknownError)) settled = false;
@@ -904,8 +923,21 @@ export class PlayDraftConnector
     return 'draft_release';
   }
 
-  async #commitOnce(editId: string, holdBack: boolean): Promise<void> {
-    const what = 'committing the draft';
+  /**
+   * The commit of the combined operation: no `changesNotSentForReview`, so Google sends the changes for review; never cancelling a
+   * review in progress (`ERROR_IF_IN_REVIEW`). Never retried. A lost answer or a 5xx is `DraftOutcomeUnknownError`: Google Play shows no
+   * review state, so nothing here can tell whether the changes were sent.
+   */
+  async #commitForReview(editId: string): Promise<'sent_for_review'> {
+    await this.#commitOnce(editId, false, 'pushing the changes and sending them for review');
+    return 'sent_for_review';
+  }
+
+  async #commitOnce(
+    editId: string,
+    holdBack: boolean,
+    what = 'committing the draft',
+  ): Promise<void> {
     const url = `${this.#url(`/${enc(editId)}`)}:commit?${holdBack ? 'changesNotSentForReview=true&' : ''}changesInReviewBehavior=ERROR_IF_IN_REVIEW`;
     for (let attempt = 0; ; attempt++) {
       const token = await this.#tokens.token();
@@ -954,12 +986,18 @@ export class PlayDraftConnector
       );
     }
     if (reply.status === 400 && /changesNotSentForReview/i.test(raw)) {
-      return new StoreError(
+      // Google's own sentence ("Changes are sent for review automatically. The query parameter changesNotSentForReview must not be
+      // set.") is kept, so the report shows what Google said. The kind is what the server keys on (the plan offers the combined step).
+      const said = googleFacts(reply).message;
+      const refused = new StoreError(
         'googleplay',
         'draft_not_allowed',
-        'Google Play would not keep these changes apart from review for this app, so nothing was committed (a commit without that setting might send them for review, and this server never does that). Make the change in Play Console instead.',
+        'Google Play sends the changes of this app for review automatically, so it cannot keep them as a draft, and nothing was committed. This server never sends changes for review from a draft step. Push and submit for review in one step instead, or make the change in Play Console.',
         400,
+        said === '' ? undefined : [{ detail: said }],
+        { code: 'store.google.draftNotAllowed' },
       );
+      return redactedError(refused, (x) => this.#http.redact(x));
     }
     const error = googleError(reply, what, {
       packageName: this.packageName,

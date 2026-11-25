@@ -1237,7 +1237,8 @@ export class FakePlayDraftApi {
             },
           });
         case 'not_sent_refused':
-          // Google refuses only the hold-back; the same commit without it is accepted.
+          // Google refuses only the hold-back (an app whose changes it sends for review by itself); the same commit without it is
+          // accepted, and that commit sends the changes for review.
           if (!/changesNotSentForReview=true/.test(s.query)) {
             this.#apply();
             return json(200, fx.googleEdit);
@@ -1246,7 +1247,7 @@ export class FakePlayDraftApi {
             error: {
               code: 400,
               message:
-                'Changes cannot be sent for review automatically. Please set the query parameter changesNotSentForReview to true.',
+                'Changes are sent for review automatically. The query parameter changesNotSentForReview must not be set.',
             },
           });
         case 'server_error':

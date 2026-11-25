@@ -284,6 +284,133 @@ test('when Google will not hold changes back, the answer is draft_not_allowed an
   assert.equal(api.listings.get('en-US')?.title, 'Old title');
 });
 
+test('draft_not_allowed keeps Google\'s own sentence, a catalogue code and no secret', async () => {
+  const { connector } = setup((a) => {
+    a.commitAnswer = 'not_sent_refused';
+  });
+  await assert.rejects(
+    connector.applyDraft(input({ text: [{ locale: 'en-US', field: 'title', value: 'New' }] })),
+    (e: unknown) => {
+      assert.ok(e instanceof StoreError);
+      assert.equal(e.kind, 'draft_not_allowed');
+      assert.equal(e.status, 400);
+      assert.equal(e.code, 'store.google.draftNotAllowed');
+      assert.match(e.details?.[0]?.detail ?? '', /Changes are sent for review automatically/);
+      assert.ok(!/Make the change in Play Console instead/.test(e.message));
+      assertNoSecrets(e);
+      return true;
+    },
+  );
+});
+
+test('pushAndSubmit: the same edit, committed WITHOUT the hold-back, so Google sends it for review', async () => {
+  const { api, connector } = setup((a) => {
+    a.commitAnswer = 'not_sent_refused';
+  });
+  const a = file('a.png', 1);
+  const result = await connector.pushAndSubmit(
+    input({
+      text: [{ locale: 'en-US', field: 'title', value: 'New title' }],
+      assets: [{ ...PHONE, files: [a] }],
+    }),
+  );
+  assert.equal(result.commit, 'sent_for_review');
+  assert.equal(api.commits.length, 1, 'one commit, never a second try');
+  const q = new URLSearchParams(api.commits[0]?.query ?? '');
+  assert.equal(q.has('changesNotSentForReview'), false);
+  assert.equal(q.get('changesInReviewBehavior'), 'ERROR_IF_IN_REVIEW');
+  assert.equal(api.listings.get('en-US')?.title, 'New title');
+  assert.deepEqual(
+    api.images.get('en-US/phoneScreenshots')?.map((i) => i.sha256),
+    [a.sha256],
+  );
+  const base = `/edits/${EDIT}/listings/en-US/phoneScreenshots`;
+  assert.deepEqual(api.writes(), [
+    'POST /edits',
+    `PUT /edits/${EDIT}/listings/en-US`,
+    `DELETE ${base}`,
+    `POST upload${base}?uploadType=media`,
+    `POST /edits/${EDIT}:commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW`,
+  ]);
+});
+
+test('pushAndSubmit builds the edit exactly like applyDraft (same writes before the commit)', async () => {
+  const draft = setup();
+  const combined = setup();
+  const write = () =>
+    input({
+      text: [{ locale: 'en-US', field: 'title', value: 'Same' }],
+      assets: [{ ...PHONE, files: [file('a.png', 3), file('b.png', 9, 20)] }],
+    });
+  await draft.connector.applyDraft(write());
+  await combined.connector.pushAndSubmit(write());
+  const beforeCommit = (api: FakePlayDraftApi) =>
+    api.writes().filter((w) => !w.includes(':commit'));
+  assert.deepEqual(beforeCommit(combined.api), beforeCommit(draft.api));
+});
+
+test('pushAndSubmit: changes already in review is refused, nothing is applied, no retry', async () => {
+  const { api, connector } = setup((a) => {
+    a.commitAnswer = 'in_review';
+  });
+  await assert.rejects(
+    connector.pushAndSubmit(input({ text: [{ locale: 'en-US', field: 'title', value: 'New' }] })),
+    (e: unknown) => e instanceof StoreError && e.kind === 'changes_in_review',
+  );
+  assert.equal(api.commits.length, 1);
+  assert.equal(api.listings.get('en-US')?.title, 'Old title');
+});
+
+test('pushAndSubmit: the guard refuses a changed store before anything is written or committed', async () => {
+  const { api, connector } = setup();
+  await assert.rejects(
+    connector.pushAndSubmit(
+      input({ text: [{ locale: 'en-US', field: 'title', value: 'New' }], guard: () => false }),
+    ),
+    (e: unknown) => e instanceof DraftDriftError,
+  );
+  assert.equal(api.commits.length, 0);
+  assert.deepEqual(
+    api.writes().filter((w) => !w.startsWith('DELETE /edits/')),
+    ['POST /edits'],
+  );
+});
+
+test('pushAndSubmit: nothing that differs is not committed, so nothing is sent', async () => {
+  const { api, connector } = setup();
+  const result = await connector.pushAndSubmit(
+    input({ text: [{ locale: 'en-US', field: 'title', value: 'Old title' }] }),
+  );
+  assert.equal(result.commit, 'none');
+  assert.equal(api.commits.length, 0);
+});
+
+test('pushAndSubmit: a 5xx or a cut connection is an unknown outcome and the commit is not repeated', async () => {
+  for (const mode of ['server_error', 'cut'] as const) {
+    const { api, connector } = setup((a) => {
+      a.commitAnswer = mode;
+    });
+    await assert.rejects(
+      connector.pushAndSubmit(input({ text: [{ locale: 'en-US', field: 'title', value: 'New' }] })),
+      (e: unknown) => e instanceof DraftOutcomeUnknownError && /sending them for review/.test(e.message),
+      mode,
+    );
+    assert.equal(api.commits.length, 1, mode);
+  }
+});
+
+test('applyDraft never uses the combined commit: a draft step is not sent for review even when only a draft release changes, unless Google refuses the hold-back for it', async () => {
+  const { api, connector } = setup((a) => {
+    a.commitAnswer = 'not_sent_refused';
+  });
+  await assert.rejects(
+    connector.applyDraft(input({ assets: [{ ...PHONE, files: [file('a.png', 1)] }] })),
+    (e: unknown) => e instanceof StoreError && e.kind === 'draft_not_allowed',
+  );
+  assert.equal(api.commits.length, 1);
+  assert.match(api.commits[0]?.query ?? '', /changesNotSentForReview=true/);
+});
+
 test('a 5xx or a cut connection on the commit is an unknown outcome, never retried, and the edit is left alone', async () => {
   for (const mode of ['server_error', 'cut'] as const) {
     const { api, connector } = setup((a) => {
