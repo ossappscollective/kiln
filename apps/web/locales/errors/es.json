@@ -393,6 +393,7 @@
   "publish.inProgress.publish": "Hay una publicación de esta app en curso. Espera a que termine.",
   "publish.inProgress.release": "Hay un lanzamiento de esta app en curso. Espera a que termine.",
   "publish.inProgress.rollout": "Hay un cambio de despliegue de esta app en curso. Espera a que termine.",
+  "publish.inProgress.since": "Hay una publicación de esta app en curso desde el {{since}}. Espera a que termine.",
   "publish.inProgress.submit": "Hay un envío a revisión de esta app en curso. Espera a que termine.",
   "publish.inProgress.version": "Se está escribiendo un envío de borrador o una versión de esta app. Espera a que termine.",
   "publish.noDraftPush": "No hay registrado ningún envío de borrador de esta app, así que no hay nada que enviar a revisión. Envía primero los cambios preparados como borrador (cambios preparados) y luego envía a revisión.",

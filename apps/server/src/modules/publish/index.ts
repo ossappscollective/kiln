@@ -57,9 +57,16 @@ export const publishModule: ServerModule<PublishDeps> = {
   mount(app, services, deps, shared) {
     const { db, masterKey, now } = services;
     const { rollout, draft, submit, release, version, publish, reply, price } = deps ?? {};
+    const publishClaimTtlMs = publish?.claimTtlMs;
     app.route(
       '/api/workspaces',
-      rolloutRoutes({ db, masterKey, now, ...(rollout ? { rollout } : {}) }),
+      rolloutRoutes({
+        db,
+        masterKey,
+        now,
+        ...(publishClaimTtlMs !== undefined ? { publishClaimTtlMs } : {}),
+        ...(rollout ? { rollout } : {}),
+      }),
     );
     // Staging touches the database only (files are read through the asset index, with the budget of the Assets tab).
     app.route(
@@ -68,6 +75,7 @@ export const publishModule: ServerModule<PublishDeps> = {
         db,
         masterKey,
         now,
+        ...(publishClaimTtlMs !== undefined ? { publishClaimTtlMs } : {}),
         repo: shared.repo,
         limiter: shared.assetsLimiter,
         ...(draft ? { draft } : {}),
@@ -75,7 +83,13 @@ export const publishModule: ServerModule<PublishDeps> = {
     );
     app.route(
       '/api/workspaces',
-      storeSubmitRoutes({ db, masterKey, now, ...(submit ? { submit } : {}) }),
+      storeSubmitRoutes({
+        db,
+        masterKey,
+        now,
+        ...(publishClaimTtlMs !== undefined ? { publishClaimTtlMs } : {}),
+        ...(submit ? { submit } : {}),
+      }),
     );
     app.route(
       '/api/workspaces',
@@ -83,6 +97,7 @@ export const publishModule: ServerModule<PublishDeps> = {
         db,
         masterKey,
         now,
+        ...(publishClaimTtlMs !== undefined ? { publishClaimTtlMs } : {}),
         version: {
           ...(draft?.enabled !== undefined ? { enabled: draft.enabled } : {}),
           ...(draft?.timeoutMs !== undefined ? { timeoutMs: draft.timeoutMs } : {}),
@@ -97,6 +112,7 @@ export const publishModule: ServerModule<PublishDeps> = {
         db,
         masterKey,
         now,
+        ...(publishClaimTtlMs !== undefined ? { publishClaimTtlMs } : {}),
         ...(draft
           ? {
               draft: {
@@ -128,6 +144,7 @@ export const publishModule: ServerModule<PublishDeps> = {
         db,
         masterKey,
         now,
+        ...(publishClaimTtlMs !== undefined ? { publishClaimTtlMs } : {}),
         repo: shared.repo,
         ...(draft ? { draft } : {}),
         ...(reply ? { reply } : {}),

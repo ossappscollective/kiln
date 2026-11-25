@@ -77,6 +77,7 @@ there is no ETag (no summary in this API has one).
   moment. The web app shows the banner and the chips from the newer of the two reads and reads the view again when the summary is
   newer and says something else.
 - What is said about versions is as of the last store sync (`lastSyncedAt`). Never a staged text, a build or a credential.
+- `publishing` (additive): `null`, or `{ startedAt, steps, currentStep, stepStartedAt, by }` while a batch publish of this app runs: see [Publishing now](#publishing-now). The same field is on each line of `GET /pending/summary` and in `cart` of `GET /apps/{id}/pending/cart`.
 - `404 not_found` for an app that does not exist or is not visible (a token limited to other apps).
 
 ### `GET /pending/summary`
@@ -102,7 +103,7 @@ there is no ETag (no summary in this API has one).
 
 Only apps with something pending or in review are listed (an app that is not listed has nothing); sorted with blocking first, then
 by count and name. `count` is the items that wait for a step, `waiting` the informational ones. A token limited to some apps sees
-only those apps.
+only those apps. An app with a publish running is listed even when it has nothing left pending (`count` 0), and its line carries `publishing`.
 
 ## The pending cart
 
@@ -149,7 +150,7 @@ The count behind the "Pending" entry of the left navigation ([ADR 0064](../adr/0
 
 ### `GET /apps/{id}/pending/cart`
 
-`{ cart: { items, can, generatedAt } }`. `can` is `{ push, reply, discardStaged, discardReply }` for the caller. An item:
+`{ cart: { items, can, publishing, generatedAt } }`. `can` is `{ push, reply, discardStaged, discardReply }` for the caller. An item:
 `id` (`<kind>:<id>`), `kind` (`listing`, `graphics`, `release`, `review_reply`), `title`, `summary` (short excerpt of the new text; null
 for graphics), `before`, `platform`, `store`, `locale`, `createdAt`, `author { id, name }`, `risk` (`store_draft`: written as a draft,
 nothing is submitted; `public_reply`: public at once), `needsApproval` (the step-up policy covers `store.push_draft`), `publishable`,
@@ -227,6 +228,46 @@ at their listed `version`, or all are skipped. Replies are sent one by one throu
 
 Body `{ "ids": ["listing:…", "review_reply:…"] }`. Same result shape (`remaining` counts what is still in the cart). Discarding removes the
 staged change or the reply draft; a reply in flight or with an unknown outcome is kept. Audit `pending.cart_discarded`.
+
+## Publishing now
+
+While `POST /apps/{id}/publish` runs (it can take minutes: a draft push alone may take four, each step has an 8 minute backstop) the
+claim the batch took in `store_publish_claims` says what it is doing. Migration 71 added the steps it runs, the step that runs now and
+a heartbeat to that row, so every server instance sees the same.
+
+### `GET /pending/publishing`
+
+```json
+{
+  "apps": [
+    {
+      "appId": "…",
+      "publishing": {
+        "startedAt": 1700000000000,
+        "steps": ["push_draft", "submit"],
+        "currentStep": "push_draft",
+        "stepStartedAt": 1700000000000,
+        "by": { "id": "…", "name": "Alex" }
+      }
+    }
+  ],
+  "generatedAt": 1700000004000
+}
+```
+
+One small read of the claims (no pending state is built), meant to be polled every few seconds while something publishes; `listing.read`,
+`Cache-Control: no-store`, a token limited to some apps sees only those. Apps that are not listed are not publishing.
+`currentStep` is null before the first step starts and between steps; `steps` is empty for a claim older than migration 71. Ids, step
+names and times only: never a text.
+
+**Expiry.** Every step start and end renews the claim (`step_at`). A claim nobody touched for 15 minutes (more than a step's backstop) is a
+process that died: it is not reported, it does not block a new publish (which takes it over), and the guards below ignore it.
+
+**Refusals.** While an app is publishing, a second `POST /apps/{id}/publish`, `POST .../store-release`, `.../store-submit`,
+`.../rollout/apply`, `.../store-version`, `.../staged/push`, `DELETE .../staged` and `.../staged/items`, `POST .../pending/publish` and
+`.../pending/discard` answer `409 publish_in_progress` with `startedAt`, code `publish.inProgress.since` and a message that says since
+when (UTC). Previews and reads are not refused. The batch itself calls the services, not these routes, so it is never held up by its own
+claim. The web app shows the items as "being published" and disables the buttons that would send these requests.
 
 ## Publishing
 
@@ -419,4 +460,4 @@ Audit `pending.published` and the event `pending.published` carry ids, the plan 
 ### Errors
 
 `400 invalid_request` (shape), `403 forbidden`, `404 not_found`, `409 publish_batch_disabled`, `409 step_disabled`,
-`409 publish_in_progress`, `409 plan_blocked`, `409 plan_changed`, `422 confirmation_mismatch`, `422 invalid_steps`.
+`409 publish_in_progress` (also from the writes listed under [Publishing now](#publishing-now)), `409 plan_blocked`, `409 plan_changed`, `422 confirmation_mismatch`, `422 invalid_steps`.

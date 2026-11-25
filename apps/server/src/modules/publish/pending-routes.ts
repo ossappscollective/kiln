@@ -16,6 +16,7 @@ import {
   pendingItemDetail,
   pendingSummary,
 } from './pending.ts';
+import { readPublishing } from './publishing.ts';
 import {
   type DraftConnectorFactory,
   type DraftContext,
@@ -229,6 +230,7 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
       workspaceId: ws(c),
       appId: param(c, 'id'),
       now: ctx.now(),
+      claimTtlMs: ctx.publish?.claimTtlMs,
     });
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ pending: done.pending }) : respond(c, done);
@@ -273,9 +275,27 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
       workspaceId: ws(c),
       ...(tokenApps ? { appIds: tokenApps as string[] } : {}),
       now: ctx.now(),
+      claimTtlMs: ctx.publish?.claimTtlMs,
     });
     c.header('Cache-Control', 'no-store');
     return c.json(summary);
+  });
+
+  // Which apps of the workspace have a batch publish running, and where it is: ONE small read of the claims, cheap enough to poll
+  // every few seconds while one runs. Stored state only; a claim nobody has touched for the time to live (a dead process) is left out.
+  routes.get('/:workspaceId/pending/publishing', needs('listing.read'), async (c) => {
+    const tokenApps = c.get('token')?.appIds ?? undefined;
+    const running = await readPublishing(db, {
+      workspaceId: ws(c),
+      ...(tokenApps ? { appIds: tokenApps as string[] } : {}),
+      now: ctx.now(),
+      ttlMs: ctx.publish?.claimTtlMs,
+    });
+    c.header('Cache-Control', 'no-store');
+    return c.json({
+      apps: [...running].map(([appId, publishing]) => ({ appId, publishing })),
+      generatedAt: ctx.now(),
+    });
   });
 
   routes.post('/:workspaceId/apps/:id/publish/preview', needs('store.publish'), async (c) => {

@@ -1471,3 +1471,182 @@ dbTest(
     assert.ok(lines.every((l) => l.startsWith('publish: ')));
   },
 );
+
+// ----- what a running publish looks like from outside (publishing.ts, migration 71) ---------------------------
+
+const gate = () => {
+  let open!: () => void;
+  const promise = new Promise<void>((resolve) => (open = resolve));
+  return { promise, open };
+};
+const publishingOf = async (t: Boot, app: string) =>
+  (await t.call(t.owner, 'GET', `/apps/${app}/pending`)).body.pending.publishing;
+
+dbTest(
+  'publishing: the claim shows in every listing while a step blocks on the store, step by step, and is gone after success',
+  async (db) => {
+    const t = await boot(db);
+    const app = await stageIos(t, 'Weather');
+    const other = await t.addApp('ios', 'Other');
+    const first = gate();
+    const second = gate();
+    t.stores.ios.gate = first.promise;
+    t.submitStores.ios.gate = second.promise;
+    assert.equal(await publishingOf(t, app), null, 'nothing runs before the publish');
+    const p = (await t.plan(app)).body.plan;
+    assert.equal(p.confirmable, true, JSON.stringify(p.steps).slice(0, 400));
+    const before = Date.now();
+    const running = t.publish(app, {
+      planHash: p.planHash,
+      phrase: p.confirmation.phrase,
+      steps: p.publishSteps,
+    });
+    await until(() => t.stores.ios.applyCalls === 1);
+    const view = (await t.call(t.owner, 'GET', `/apps/${app}/pending`)).body.pending;
+    assert.deepEqual(view.publishing.steps, ['push_draft', 'submit']);
+    assert.equal(view.publishing.currentStep, 'push_draft');
+    assert.ok(view.publishing.startedAt >= before && view.publishing.stepStartedAt >= before);
+    assert.equal(typeof view.publishing.by.id, 'string');
+    assert.equal(typeof view.publishing.by.name, 'string', 'the person who started it, by name');
+    // The cart, the summary and the small poll read of the workspace say the same.
+    const cart = (await t.call(t.owner, 'GET', `/apps/${app}/pending/cart`)).body.cart;
+    assert.equal(cart.publishing.currentStep, 'push_draft');
+    assert.ok(cart.items.length > 0, 'the items are still listed (they are being published)');
+    const summary = (await t.call(t.owner, 'GET', '/pending/summary')).body;
+    const line = summary.apps.find((a: any) => a.appId === app);
+    assert.equal(line.publishing.currentStep, 'push_draft');
+    const poll = await t.call(t.owner, 'GET', '/pending/publishing');
+    assert.equal(poll.status, 200, poll.text);
+    assert.deepEqual(
+      poll.body.apps.map((a: any) => [a.appId, a.publishing.currentStep]),
+      [[app, 'push_draft']],
+      'only the app that publishes, and no staged text anywhere',
+    );
+    assert.doesNotMatch(poll.text, new RegExp(TEXT));
+    assert.equal(await publishingOf(t, other), null, 'another app is not publishing');
+    first.open();
+    await until(() => t.submitStores.ios.submitCalls === 1);
+    assert.equal((await publishingOf(t, app)).currentStep, 'submit', 'the next step is named');
+    second.open();
+    const done = await running;
+    assert.equal(done.status, 200, done.text.slice(0, 400));
+    assert.equal(done.body.result.completed, true);
+    assert.equal(await publishingOf(t, app), null, 'cleared after success');
+    assert.equal(await t.publishClaim(app), undefined);
+    assert.deepEqual((await t.call(t.owner, 'GET', '/pending/publishing')).body.apps, []);
+    const left = (await t.call(t.owner, 'GET', `/apps/${app}/pending/cart`)).body.cart;
+    assert.deepEqual(left.items, [], 'what was published has left the cart by itself');
+    assert.equal(left.publishing, null);
+  },
+);
+
+dbTest(
+  'publishing: cleared after a failed step too (and the step that failed was shown)',
+  async (db) => {
+    const t = await boot(db);
+    const app = await stageIos(t, 'Weather');
+    const hold = gate();
+    t.stores.ios.gate = hold.promise;
+    t.submitStores.ios.behavior = { kind: 'unknown', applied: true };
+    t.submitStores.ios.readFailsAfterWrite = true;
+    const p = (await t.plan(app)).body.plan;
+    const running = t.publish(app, {
+      planHash: p.planHash,
+      phrase: p.confirmation.phrase,
+      steps: p.publishSteps,
+    });
+    await until(() => t.stores.ios.applyCalls === 1);
+    assert.equal((await publishingOf(t, app)).currentStep, 'push_draft');
+    hold.open();
+    const done = await running;
+    assert.equal(done.status, 200, done.text.slice(0, 400));
+    assert.equal(done.body.result.completed, false);
+    assert.equal(done.body.result.stoppedAt, 'submit');
+    assert.equal(await publishingOf(t, app), null, 'cleared after a failure');
+    assert.equal(await t.publishClaim(app), undefined);
+    // The push applied and the submit did not: what was pushed left the cart, and the draft waits for its submit.
+    const view = (await t.call(t.owner, 'GET', `/apps/${app}/pending`)).body.pending;
+    assert.ok(
+      view.platforms[0].items.some((i: any) => i.kind === 'pushed_draft'),
+      'the pushed draft still waits for its submit',
+    );
+  },
+);
+
+dbTest(
+  'publishing: a claim nobody has touched for the time to live is a dead process: not reported, not blocking; a heartbeat keeps an old claim alive',
+  async (db) => {
+    const t = await boot(db);
+    const app = await stageIos(t, 'Weather');
+    const insert = (claimAt: number, stepAt: number | null) =>
+      db.execute(
+        `INSERT INTO store_publish_claims (app_id, platform, workspace_id, action, status, claimed_by, claim_at, steps, current_step, step_at)
+         VALUES (?, 'ios', ?, 'publish', 'writing', 'u', ?, '["push_draft","submit"]', 'submit', ?)`,
+        [app, t.workspaceId, claimAt, stepAt],
+      );
+    await insert(1, null);
+    assert.equal(await publishingOf(t, app), null, 'stale: not reported');
+    assert.deepEqual((await t.call(t.owner, 'GET', '/pending/publishing')).body.apps, []);
+    assert.equal(
+      (await t.call(t.owner, 'GET', `/apps/${app}/pending/cart`)).body.cart.publishing,
+      null,
+    );
+    // A write is not refused for a dead process.
+    const guarded = await t.call(t.owner, 'POST', `/apps/${app}/store-submit`, {});
+    assert.notEqual(guarded.body.error, 'publish_in_progress');
+    // Started long ago but a step began a moment ago: alive.
+    await db.execute('DELETE FROM store_publish_claims WHERE app_id = ?', [app]);
+    await insert(1, Date.now());
+    const alive = await publishingOf(t, app);
+    assert.equal(alive.startedAt, 1);
+    assert.equal(alive.currentStep, 'submit');
+    assert.deepEqual(alive.steps, ['push_draft', 'submit']);
+    assert.equal(alive.by.id, 'u');
+    assert.equal(alive.by.name, null, 'a person who is gone has no name');
+    const blocked = await t.publish(app, { planHash: HASH, steps: [{ type: 'push_draft' }] });
+    assert.equal(blocked.body.error, 'publish_in_progress', 'a live claim is not taken over');
+  },
+);
+
+dbTest(
+  'publishing: a second publish, and every write that would release or change the same app, is refused with publish_in_progress naming when it started',
+  async (db) => {
+    const t = await boot(db);
+    const app = await stageIos(t, 'Weather');
+    const other = await t.addApp('ios', 'Other');
+    const hold = gate();
+    t.stores.ios.gate = hold.promise;
+    const p = (await t.plan(app)).body.plan;
+    const body = { planHash: p.planHash, phrase: p.confirmation.phrase, steps: p.publishSteps };
+    const running = t.publish(app, body);
+    await until(() => t.stores.ios.applyCalls === 1);
+    const started = (await publishingOf(t, app)).startedAt as number;
+    const since = `${new Date(started).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+    const refused: [string, string, unknown][] = [
+      ['POST', `/apps/${app}/publish`, body],
+      ['POST', `/apps/${app}/store-release`, {}],
+      ['POST', `/apps/${app}/store-submit`, {}],
+      ['POST', `/apps/${app}/rollout/apply`, {}],
+      ['POST', `/apps/${app}/store-version`, {}],
+      ['POST', `/apps/${app}/staged/push`, {}],
+      ['DELETE', `/apps/${app}/staged`, undefined],
+      ['POST', `/apps/${app}/pending/publish`, { items: [{ id: 'listing:x', version: 'v' }] }],
+      ['POST', `/apps/${app}/pending/discard`, { ids: ['listing:x'] }],
+    ];
+    for (const [method, path, payload] of refused) {
+      const res = await t.call(t.owner, method, path, payload);
+      assert.equal(res.status, 409, `${method} ${path}: ${res.text.slice(0, 200)}`);
+      assert.equal(res.body.error, 'publish_in_progress', `${method} ${path}`);
+      assert.equal(res.body.code, 'publish.inProgress.since');
+      assert.equal(res.body.startedAt, started);
+      assert.ok(String(res.body.message).includes(since), res.body.message);
+    }
+    assert.equal(t.stores.ios.applyCalls, 1, 'nothing else reached the store');
+    const free = await t.call(t.owner, 'POST', `/apps/${other}/store-release`, {});
+    assert.notEqual(free.body.error, 'publish_in_progress', 'another app is not held up');
+    hold.open();
+    assert.equal((await running).status, 200);
+    const after = await t.call(t.owner, 'POST', `/apps/${app}/store-release`, {});
+    assert.notEqual(after.body.error, 'publish_in_progress', 'free again once it finished');
+  },
+);

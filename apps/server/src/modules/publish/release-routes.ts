@@ -16,6 +16,7 @@ import { MAX_NOTES_HISTORY_LIMIT, notesHistory } from '../../services/notes-hist
 import { checkPlayReleaseOf } from '../../services/play-release-check.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { requireStepUp, stepUpCovers } from '../../services/step-up.ts';
+import { notWhilePublishing } from './publishing.ts';
 import {
   type DraftConnectorFactory,
   defaultDraftConnectorFactory,
@@ -48,6 +49,8 @@ export type ReleaseRoutesContext = {
   db: Database;
   masterKey: Buffer;
   now: () => number;
+  /** The time to live of a batch publish claim (tests): while one runs for the app, the writes that guard themselves refuse. */
+  publishClaimTtlMs?: number | undefined;
   /** Reads of the store (the connector the draft push uses; fakes in tests). */
   draft?: { connectorFactory?: DraftConnectorFactory; timeoutMs?: number };
   release?: {
@@ -122,6 +125,8 @@ const applyBody = z
 export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
   const { db } = ctx;
   const routes = new Hono<AppEnv>();
+  /** Refused with `409 publish_in_progress` while a batch publish of the app runs (publishing.ts). */
+  const notPublishing = notWhilePublishing({ db, now: ctx.now, claimTtlMs: ctx.publishClaimTtlMs });
   const release: ReleaseContext = {
     db,
     masterKey: ctx.masterKey,
@@ -350,24 +355,29 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
   });
 
   // The only route that releases anything. One app per request: no bulk release.
-  routes.post('/:workspaceId/apps/:id/store-release', needs('store.release'), async (c) => {
-    if (!release.releaseEnabled) return respond(c, releaseDisabledFailure());
-    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.release', {
-      id: param(c, 'id'),
-      hashField: 'confirmHash',
-    });
-    if (stepUpRefusal) return stepUpRefusal;
-    const body = await parseBody(c, applyBody);
-    if (!body.ok) return body.response;
-    const done = await applyRelease(release, {
-      workspaceId: ws(c),
-      appId: param(c, 'id'),
-      ...body.data,
-      actor: actor(c),
-      stepUpCovers: await stepUpCovers({ db, now: ctx.now }, c, 'store.release'),
-    });
-    return done.ok ? c.json({ result: done.result }) : respond(c, done);
-  });
+  routes.post(
+    '/:workspaceId/apps/:id/store-release',
+    needs('store.release'),
+    notPublishing,
+    async (c) => {
+      if (!release.releaseEnabled) return respond(c, releaseDisabledFailure());
+      const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.release', {
+        id: param(c, 'id'),
+        hashField: 'confirmHash',
+      });
+      if (stepUpRefusal) return stepUpRefusal;
+      const body = await parseBody(c, applyBody);
+      if (!body.ok) return body.response;
+      const done = await applyRelease(release, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        ...body.data,
+        actor: actor(c),
+        stepUpCovers: await stepUpCovers({ db, now: ctx.now }, c, 'store.release'),
+      });
+      return done.ok ? c.json({ result: done.result }) : respond(c, done);
+    },
+  );
 
   return routes;
 }

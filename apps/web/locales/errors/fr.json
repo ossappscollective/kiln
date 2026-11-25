@@ -393,6 +393,7 @@
   "publish.inProgress.publish": "Une publication de cette application est en cours. Attendez la fin de l’opération.",
   "publish.inProgress.release": "Une publication de cette application est en cours. Attendez la fin de l’opération.",
   "publish.inProgress.rollout": "Une modification du déploiement de cette application est en cours. Attendez la fin de l’opération.",
+  "publish.inProgress.since": "Une publication de cette application est en cours depuis le {{since}}. Attendez la fin de l’opération.",
   "publish.inProgress.submit": "Une soumission de cette application est en cours. Attendez la fin de l’opération.",
   "publish.inProgress.version": "Un envoi de brouillon ou une version de cette application est en cours d’écriture. Attendez la fin de l’opération.",
   "publish.noDraftPush": "Aucun envoi de brouillon de cette application n’est enregistré, il n’y a donc rien à soumettre. Envoyez d’abord les modifications en attente comme brouillon (modifications en attente), puis soumettez.",

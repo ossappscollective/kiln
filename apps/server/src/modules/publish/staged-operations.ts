@@ -786,6 +786,8 @@ export const stagedChangesOperations: Draft[] = [
     path: `${W}/apps/{id}/staged/items`,
     tags: ['staged-changes'],
     summary: 'Remove one staged text (its id) or one staged set (`locale/slotKey`)',
+    description:
+      'Refused with `409 publish_in_progress` while a batch publish of the app runs (`getPendingPublishing`): its items are being written, and the message names when that publish started.',
     risk: 'destructive',
     access: { action: 'changesets.write' },
     appScope: { kind: 'param', name: 'id' },
@@ -809,6 +811,8 @@ export const stagedChangesOperations: Draft[] = [
     path: `${W}/apps/{id}/staged`,
     tags: ['staged-changes'],
     summary: 'Remove every staged item of an app',
+    description:
+      'Refused with `409 publish_in_progress` while a batch publish of the app runs (`getPendingPublishing`): its items are being written, and the message names when that publish started.',
     risk: 'destructive',
     access: { action: 'changesets.write' },
     appScope: { kind: 'param', name: 'id' },
@@ -845,7 +849,7 @@ export const stagedChangesOperations: Draft[] = [
     summary:
       'Write the staged changes to the store as a DRAFT (never submits, sends for review or publishes)',
     description:
-      'A STORE WRITE. Needs `store.push_draft` (owner and admin; a token only when its actions name it) and `KILN_STORE_DRAFT_WRITE_ENABLED=true`. `confirmHash` must come from a preview of the same staged items. The store’s draft is READ AGAIN right before the first write: if it is not the one previewed, or the staged items changed, nothing is written (`409 state_changed`, with a new `preview`). One write per app at a time (`409 write_in_progress`). App Store: the editable version’s localizations and screenshots change one request at a time (a refusal part way is `502 draft_partial`, with `completed` and `failed`). Google Play: one edit, committed with `changesNotSentForReview=true` (`409 draft_not_allowed` when Google refuses that, `409 changes_in_review` when changes are in review: nothing is committed). Never retried: after a timeout or a 5xx the draft is read back and the answer is `200` with `confirmedByReread: true`, `502 write_failed` (`outcome: not_applied`), `409 draft_partial`, or `409 outcome_unknown` (then preview again). Audited as `listing.draft_pushed` / `listing.draft_push_failed` (ids, counts and hashes, never a text or a credential) and emitted as the event `listing.draft_pushed`.',
+      'A STORE WRITE. Needs `store.push_draft` (owner and admin; a token only when its actions name it) and `KILN_STORE_DRAFT_WRITE_ENABLED=true`. `confirmHash` must come from a preview of the same staged items. The store’s draft is READ AGAIN right before the first write: if it is not the one previewed, or the staged items changed, nothing is written (`409 state_changed`, with a new `preview`). One write per app at a time (`409 write_in_progress`). App Store: the editable version’s localizations and screenshots change one request at a time (a refusal part way is `502 draft_partial`, with `completed` and `failed`). Google Play: one edit, committed with `changesNotSentForReview=true` (`409 draft_not_allowed` when Google refuses that, `409 changes_in_review` when changes are in review: nothing is committed). Never retried: after a timeout or a 5xx the draft is read back and the answer is `200` with `confirmedByReread: true`, `502 write_failed` (`outcome: not_applied`), `409 draft_partial`, or `409 outcome_unknown` (then preview again). Audited as `listing.draft_pushed` / `listing.draft_push_failed` (ids, counts and hashes, never a text or a credential) and emitted as the event `listing.draft_pushed`. While a batch publish of the app runs (`getPendingPublishing`) this is refused with `409 publish_in_progress`, and the message names when that publish started.',
     risk: 'destructive',
     access: { action: 'store.push_draft' },
     appScope: { kind: 'param', name: 'id' },

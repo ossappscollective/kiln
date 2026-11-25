@@ -7,6 +7,7 @@ import { type AppEnv, parseBody } from '../../http.ts';
 import { memberRole } from '../../services/accounts.ts';
 import type { Failure } from '../../services/repositories.ts';
 import { requireStepUp } from '../../services/step-up.ts';
+import { notWhilePublishing } from './publishing.ts';
 import {
   applyRollout,
   defaultRolloutConnectorFactory,
@@ -26,6 +27,8 @@ export type RolloutRoutesContext = {
   db: Database;
   masterKey: Buffer;
   now: () => number;
+  /** The time to live of a batch publish claim (tests): while one runs for the app, the writes that guard themselves refuse. */
+  publishClaimTtlMs?: number | undefined;
   rollout?: {
     /** KILN_STORE_ROLLOUT_ENABLED (default false). */
     enabled?: boolean;
@@ -74,6 +77,8 @@ const list = (c: Context<AppEnv>, name: string): string[] =>
 export function rolloutRoutes(ctx: RolloutRoutesContext) {
   const { db } = ctx;
   const routes = new Hono<AppEnv>();
+  /** Refused with `409 publish_in_progress` while a batch publish of the app runs (publishing.ts). */
+  const notPublishing = notWhilePublishing({ db, now: ctx.now, claimTtlMs: ctx.publishClaimTtlMs });
   const rolloutCtx: RolloutContext = {
     db,
     masterKey: ctx.masterKey,
@@ -128,25 +133,30 @@ export function rolloutRoutes(ctx: RolloutRoutesContext) {
   });
 
   // The only route that changes a rollout in a store. One app per request: no bulk change.
-  routes.post('/:workspaceId/apps/:id/rollout/apply', needs('releases.rollout'), async (c) => {
-    if (!rolloutCtx.rolloutEnabled) return off(c);
-    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'rollout', {
-      id: param(c, 'id'),
-      hashField: 'confirmHash',
-    });
-    if (stepUpRefusal) return stepUpRefusal;
-    const body = await parseBody(c, applyBody);
-    if (!body.ok) return body.response;
-    const { confirmHash, ...request } = body.data;
-    const done = await applyRollout(rolloutCtx, {
-      workspaceId: ws(c),
-      appId: param(c, 'id'),
-      request,
-      confirmHash,
-      actor: actor(c),
-    });
-    return done.ok ? c.json({ result: done.result }) : respond(c, done);
-  });
+  routes.post(
+    '/:workspaceId/apps/:id/rollout/apply',
+    needs('releases.rollout'),
+    notPublishing,
+    async (c) => {
+      if (!rolloutCtx.rolloutEnabled) return off(c);
+      const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'rollout', {
+        id: param(c, 'id'),
+        hashField: 'confirmHash',
+      });
+      if (stepUpRefusal) return stepUpRefusal;
+      const body = await parseBody(c, applyBody);
+      if (!body.ok) return body.response;
+      const { confirmHash, ...request } = body.data;
+      const done = await applyRollout(rolloutCtx, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        request,
+        confirmHash,
+        actor: actor(c),
+      });
+      return done.ok ? c.json({ result: done.result }) : respond(c, done);
+    },
+  );
 
   return routes;
 }

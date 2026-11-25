@@ -53,7 +53,18 @@ dbTest(
 
     assert.deepEqual(
       (await tableColumns(db, 'store_publish_claims')).map((c) => c.name),
-      ['action', 'app_id', 'claim_at', 'claimed_by', 'platform', 'status', 'workspace_id'],
+      [
+        'action',
+        'app_id',
+        'claim_at',
+        'claimed_by',
+        'current_step',
+        'platform',
+        'status',
+        'step_at',
+        'steps',
+        'workspace_id',
+      ], // current_step, step_at and steps came with migration 71
     );
     assert.ok(
       (await tableIndexes(db, 'store_publish_claims')).includes(

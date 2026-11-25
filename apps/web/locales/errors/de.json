@@ -386,6 +386,7 @@
   "publish.inProgress.publish": "Eine Veröffentlichung dieser App läuft gerade. Warten Sie, bis sie abgeschlossen ist.",
   "publish.inProgress.release": "Ein Release dieser App läuft gerade. Warten Sie, bis es abgeschlossen ist.",
   "publish.inProgress.rollout": "Eine Einführungsänderung für diese App läuft gerade. Warten Sie, bis sie abgeschlossen ist.",
+  "publish.inProgress.since": "Eine Veröffentlichung dieser App läuft seit {{since}}. Warten Sie, bis sie abgeschlossen ist.",
   "publish.inProgress.submit": "Eine Einreichung dieser App läuft gerade. Warten Sie, bis sie abgeschlossen ist.",
   "publish.inProgress.version": "Ein Entwurfs-Push oder eine Version dieser App wird gerade geschrieben. Warten Sie, bis der Vorgang abgeschlossen ist.",
   "publish.noDraftPush": "Für diese App ist kein Entwurfs-Push erfasst, daher gibt es nichts einzureichen. Pushen Sie zuerst die vorgemerkten Änderungen als Entwurf (vorgemerkte Änderungen) und reichen Sie dann ein.",

@@ -3,6 +3,7 @@ import { type Database, nullableNumber, oneOf, type Sql } from '@kiln/db';
 import { getApp, listApps, type ManagedApp } from '../../services/apps.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { storeFor } from '../reviews/sync.ts';
+import { type Publishing, publishingOf, readPublishing } from './publishing.ts';
 import { buildStagedView } from './staged-changes.ts';
 import { loadPush, type PushRecord } from './store-draft-record.ts';
 
@@ -84,6 +85,12 @@ export type PendingView = {
   totals: PendingTotals & { platforms: Platform[]; nextSteps: PublishStep[] };
   /** The last store sync: what is said about versions is as of then. */
   lastSyncedAt: number | null;
+  /**
+   * A batch publish of this app is running now (`publishing.ts`): which steps, which one runs, since when. Null when none runs (a claim
+   * nobody has touched for the time to live is a dead process and is not reported). While it runs the items above are being written,
+   * so the screens show them as "being published" and offer no new publish or release.
+   */
+  publishing: Publishing | null;
   generatedAt: number;
 };
 
@@ -555,10 +562,16 @@ export async function pendingItemDetail(
 /** `GET /apps/{id}/pending`: the stored state only, no store is contacted. */
 export async function getPending(
   db: Database,
-  input: { workspaceId: string; appId: string; now: number },
+  input: { workspaceId: string; appId: string; now: number; claimTtlMs?: number | undefined },
 ): Promise<{ ok: true; pending: PendingView } | Failure> {
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
+  const publishing = await publishingOf(db, {
+    workspaceId: input.workspaceId,
+    appId: app.id,
+    now: input.now,
+    ttlMs: input.claimTtlMs,
+  });
   const items = await pendingItemsOf(db, { workspaceId: input.workspaceId, app, now: input.now });
   const totals = totalsOf(items);
   return {
@@ -572,6 +585,7 @@ export async function getPending(
         nextSteps: nextStepsOf(items),
       },
       lastSyncedAt: app.lastSyncedAt,
+      publishing,
       generatedAt: input.now,
     },
   };
@@ -590,6 +604,8 @@ export type PendingSummaryApp = {
   waiting: number;
   kinds: PendingKind[];
   nextSteps: PublishStep[];
+  /** A batch publish of this app is running now (see `PendingView.publishing`); null when none is. */
+  publishing: Publishing | null;
 };
 
 export type PendingSummary = {
@@ -602,8 +618,19 @@ export type PendingSummary = {
 /** `GET /pending/summary`: one line per app that has something, from stored state, a fixed number of queries plus one staged view per app with unpushed items. */
 export async function pendingSummary(
   db: Database,
-  input: { workspaceId: string; appIds?: readonly string[] | undefined; now: number },
+  input: {
+    workspaceId: string;
+    appIds?: readonly string[] | undefined;
+    now: number;
+    claimTtlMs?: number | undefined;
+  },
 ): Promise<PendingSummary> {
+  const running = await readPublishing(db, {
+    workspaceId: input.workspaceId,
+    appIds: input.appIds,
+    now: input.now,
+    ttlMs: input.claimTtlMs,
+  });
   const wanted = input.appIds === undefined ? undefined : new Set(input.appIds);
   const apps = (await listApps(db, input.workspaceId)).filter(
     (a) => wanted === undefined || wanted.has(a.id),
@@ -616,7 +643,7 @@ export async function pendingSummary(
       facts,
       await stagedViewFor(db, input.workspaceId, app, facts, input.now),
     );
-    if (items.length === 0) continue;
+    if (items.length === 0 && !running.has(app.id)) continue;
     const totals = totalsOf(items);
     const actionable = items.filter((i) => i.nextStep !== null);
     lines.push({
@@ -628,6 +655,7 @@ export async function pendingSummary(
       waiting: totals.items - totals.actionable,
       kinds: PENDING_KINDS.filter((k) => actionable.some((i) => i.kind === k)),
       nextSteps: nextStepsOf(items),
+      publishing: running.get(app.id) ?? null,
     });
   }
   lines.sort(

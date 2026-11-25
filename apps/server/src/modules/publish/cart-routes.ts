@@ -23,6 +23,7 @@ import {
   getCart,
   publishCart,
 } from './cart.ts';
+import { notWhilePublishing } from './publishing.ts';
 import {
   type DraftConnectorFactory,
   type DraftContext,
@@ -38,6 +39,8 @@ export type CartRoutesContext = {
   db: Database;
   masterKey: Buffer;
   now: () => number;
+  /** The time to live of a batch publish claim (tests): while one runs for the app, the writes that guard themselves refuse. */
+  publishClaimTtlMs?: number | undefined;
   repo: AssetsContext['repo'];
   /** The same seams as the push of staged changes. */
   draft?: {
@@ -86,6 +89,8 @@ const PRICE_PREFIX = 'price:';
 export function cartRoutes(ctx: CartRoutesContext) {
   const { db } = ctx;
   const routes = new Hono<AppEnv>();
+  /** Refused with `409 publish_in_progress` while a batch publish of the app runs (publishing.ts). */
+  const notPublishing = notWhilePublishing({ db, now: ctx.now, claimTtlMs: ctx.publishClaimTtlMs });
   const draft: DraftContext = {
     db,
     masterKey: ctx.masterKey,
@@ -153,10 +158,22 @@ export function cartRoutes(ctx: CartRoutesContext) {
 
   routes.get('/:workspaceId/apps/:id/pending/cart', needs('listing.read'), async (c) => {
     const rights = rightsOf(c);
-    const done = await getCart(cart, { workspaceId: ws(c), appId: param(c, 'id'), rights });
+    const done = await getCart(cart, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      rights,
+      claimTtlMs: ctx.publishClaimTtlMs,
+    });
     c.header('Cache-Control', 'no-store');
     return done.ok
-      ? c.json({ cart: { items: done.items, can: rights, generatedAt: done.generatedAt } })
+      ? c.json({
+          cart: {
+            items: done.items,
+            can: rights,
+            publishing: done.publishing,
+            generatedAt: done.generatedAt,
+          },
+        })
       : respond(c, done);
   });
 
@@ -182,69 +199,79 @@ export function cartRoutes(ctx: CartRoutesContext) {
     return done.ok ? c.json({ detail: done.detail }) : respond(c, done);
   });
 
-  routes.post('/:workspaceId/apps/:id/pending/publish', needs('listing.read'), async (c) => {
-    const body = await parseBody(c, cartPublishBody);
-    if (!body.ok) return body.response;
-    // Writing a store draft, or sending a public reply, is a step-up action: ask before anything is read, only when the request names a
-    // staged change or a reply. The button says "Publish", so a workspace that asks before "Publish to the stores" but not before "Write
-    // a store draft" is asked here too. One action per request: two would need two confirmations.
-    const names = (prefixes: readonly string[]) =>
-      body.data.items.some((i) => prefixes.some((p) => i.id.startsWith(p)));
-    const staged = names(STAGED_PREFIXES);
-    const reply = names(REPLY_PREFIXES);
-    if (staged || reply) {
-      const policy = await getPolicy(db, ws(c));
-      const asks = (a: StepUpAction) =>
-        policy.mode === 'hard_actions' && policy.actions.includes(a);
-      const action: StepUpAction | null =
-        asks('store.publish') && (reply || !asks('store.push_draft'))
-          ? 'store.publish'
-          : staged
-            ? 'store.push_draft'
-            : null;
-      if (action) {
-        const refusal = await requireStepUp({ db, now: ctx.now }, c, action, {
+  routes.post(
+    '/:workspaceId/apps/:id/pending/publish',
+    needs('listing.read'),
+    notPublishing,
+    async (c) => {
+      const body = await parseBody(c, cartPublishBody);
+      if (!body.ok) return body.response;
+      // Writing a store draft, or sending a public reply, is a step-up action: ask before anything is read, only when the request names a
+      // staged change or a reply. The button says "Publish", so a workspace that asks before "Publish to the stores" but not before "Write
+      // a store draft" is asked here too. One action per request: two would need two confirmations.
+      const names = (prefixes: readonly string[]) =>
+        body.data.items.some((i) => prefixes.some((p) => i.id.startsWith(p)));
+      const staged = names(STAGED_PREFIXES);
+      const reply = names(REPLY_PREFIXES);
+      if (staged || reply) {
+        const policy = await getPolicy(db, ws(c));
+        const asks = (a: StepUpAction) =>
+          policy.mode === 'hard_actions' && policy.actions.includes(a);
+        const action: StepUpAction | null =
+          asks('store.publish') && (reply || !asks('store.push_draft'))
+            ? 'store.publish'
+            : staged
+              ? 'store.push_draft'
+              : null;
+        if (action) {
+          const refusal = await requireStepUp({ db, now: ctx.now }, c, action, {
+            id: param(c, 'id'),
+          });
+          if (refusal) return refusal;
+        }
+      }
+      // Sending a price is the strictest step-up action: asked before anything is read, only when the request names a price.
+      if (body.data.items.some((i) => i.id.startsWith(PRICE_PREFIX))) {
+        const refusal = await requireStepUp({ db, now: ctx.now }, c, PRICE_STEP_UP, {
           id: param(c, 'id'),
         });
         if (refusal) return refusal;
       }
-    }
-    // Sending a price is the strictest step-up action: asked before anything is read, only when the request names a price.
-    if (body.data.items.some((i) => i.id.startsWith(PRICE_PREFIX))) {
-      const refusal = await requireStepUp({ db, now: ctx.now }, c, PRICE_STEP_UP, {
-        id: param(c, 'id'),
+      const done = await publishCart(cart, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        items: body.data.items,
+        rights: rightsOf(c),
+        actor: actor(c),
+        confirmation: body.data.confirmation,
       });
-      if (refusal) return refusal;
-    }
-    const done = await publishCart(cart, {
-      workspaceId: ws(c),
-      appId: param(c, 'id'),
-      items: body.data.items,
-      rights: rightsOf(c),
-      actor: actor(c),
-      confirmation: body.data.confirmation,
-    });
-    c.header('Cache-Control', 'no-store');
-    return done.ok
-      ? c.json({ result: { results: done.results, remaining: done.remaining } })
-      : respond(c, done);
-  });
+      c.header('Cache-Control', 'no-store');
+      return done.ok
+        ? c.json({ result: { results: done.results, remaining: done.remaining } })
+        : respond(c, done);
+    },
+  );
 
-  routes.post('/:workspaceId/apps/:id/pending/discard', needs('listing.read'), async (c) => {
-    const body = await parseBody(c, cartDiscardBody);
-    if (!body.ok) return body.response;
-    const done = await discardCart(cart, {
-      workspaceId: ws(c),
-      appId: param(c, 'id'),
-      ids: body.data.ids,
-      rights: rightsOf(c),
-      actor: actor(c),
-    });
-    c.header('Cache-Control', 'no-store');
-    return done.ok
-      ? c.json({ result: { results: done.results, remaining: done.remaining } })
-      : respond(c, done);
-  });
+  routes.post(
+    '/:workspaceId/apps/:id/pending/discard',
+    needs('listing.read'),
+    notPublishing,
+    async (c) => {
+      const body = await parseBody(c, cartDiscardBody);
+      if (!body.ok) return body.response;
+      const done = await discardCart(cart, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        ids: body.data.ids,
+        rights: rightsOf(c),
+        actor: actor(c),
+      });
+      c.header('Cache-Control', 'no-store');
+      return done.ok
+        ? c.json({ result: { results: done.results, remaining: done.remaining } })
+        : respond(c, done);
+    },
+  );
 
   return routes;
 }

@@ -16,6 +16,14 @@ import {
   totalsOf,
 } from './pending.ts';
 import {
+  type ClaimKey,
+  DEFAULT_PUBLISH_CLAIM_TTL_MS,
+  isLiveClaim,
+  publishInProgress,
+  recordStep,
+  recordSteps,
+} from './publishing.ts';
+import {
   applyDraftPush,
   DRAFT_ENV,
   type DraftContext,
@@ -78,8 +86,8 @@ type Actor = { type: 'user' | 'token' | 'system'; id: string };
 
 export const PUBLISH_ENV = 'KILN_STORE_PUBLISH_BATCH_ENABLED';
 export const PUBLISH_ACTION = 'store.publish';
-/** A batch of up to four steps, each with its own timeout (a draft push alone may take four minutes). */
-export const DEFAULT_PUBLISH_CLAIM_TTL_MS = 900_000;
+/** A claim nobody has touched for this long is a dead process (`publishing.ts`): a batch renews it at every step boundary. */
+export { DEFAULT_PUBLISH_CLAIM_TTL_MS };
 /**
  * The longest one step of a batch may run before the batch gives up waiting for it and answers (a backstop over the step's own
  * timeouts: a push is bounded by four minutes and the check after it, a submit by two and the check after it). The answer is an
@@ -987,43 +995,55 @@ export async function previewPublish(
 // ---------------------------------------------------------------------------------------------
 // The claim: one batch in flight per app and platform
 
-type Claim = { appId: string; platform: Platform; at: number };
+type Claim = ClaimKey;
 
 async function takeClaim(
   ctx: PublishContext,
-  input: { workspaceId: string; app: ManagedApp; actor: Actor },
+  input: { workspaceId: string; app: ManagedApp; actor: Actor; steps: readonly PublishStep[] },
 ): Promise<{ ok: true; claim: Claim } | Failure> {
   const { db } = ctx;
   const ttl = ctx.claimTtlMs ?? DEFAULT_PUBLISH_CLAIM_TTL_MS;
   const claim: Claim = { appId: input.app.id, platform: input.app.platform, at: ctx.now() };
-  const busy = () =>
-    failure(
-      409,
-      'publish_in_progress',
-      'A publish of this app is in progress. Wait for it to finish.',
-      coded('publish.inProgress.publish'),
-    );
+  const stepsJson = JSON.stringify(input.steps);
   const insert = () =>
     db.execute(
-      `INSERT INTO store_publish_claims (app_id, platform, workspace_id, action, status, claimed_by, claim_at)
-       VALUES (?, ?, ?, 'publish', 'writing', ?, ?) ON CONFLICT (app_id, platform) DO NOTHING`,
-      [claim.appId, claim.platform, input.workspaceId, input.actor.id, claim.at],
+      `INSERT INTO store_publish_claims (app_id, platform, workspace_id, action, status, claimed_by, claim_at, steps, current_step, step_at)
+       VALUES (?, ?, ?, 'publish', 'writing', ?, ?, ?, NULL, ?) ON CONFLICT (app_id, platform) DO NOTHING`,
+      [
+        claim.appId,
+        claim.platform,
+        input.workspaceId,
+        input.actor.id,
+        claim.at,
+        stepsJson,
+        claim.at,
+      ],
     );
   if ((await insert()) === 1) return { ok: true, claim };
   const [existing] = await db.query(
-    'SELECT claim_at FROM store_publish_claims WHERE app_id = ? AND platform = ?',
+    'SELECT claim_at, step_at FROM store_publish_claims WHERE app_id = ? AND platform = ?',
     [claim.appId, claim.platform],
   );
-  if (!existing) return (await insert()) === 1 ? { ok: true, claim } : busy();
+  if (!existing) return (await insert()) === 1 ? { ok: true, claim } : publishInProgress(null);
   const startedAt = Number(existing.claim_at);
-  if (claim.at - startedAt < ttl) return busy();
-  // A batch that started long ago and never finished (a process died). The claims of its steps and their re-reads decide what is safe.
+  // Alive: a step started or ended within the time to live (the heartbeat), so a long batch is never taken over while it works.
+  if (isLiveClaim(existing, claim.at, ttl)) return publishInProgress(startedAt);
+  // A batch that was last heard from long ago (a process died). The claims of its steps and their re-reads decide what is safe.
   const taken = await db.execute(
-    `UPDATE store_publish_claims SET claim_at = ?, claimed_by = ?, workspace_id = ?
+    `UPDATE store_publish_claims SET claim_at = ?, claimed_by = ?, workspace_id = ?, steps = ?, current_step = NULL, step_at = ?
       WHERE app_id = ? AND platform = ? AND status = 'writing' AND claim_at = ?`,
-    [claim.at, input.actor.id, input.workspaceId, claim.appId, claim.platform, startedAt],
+    [
+      claim.at,
+      input.actor.id,
+      input.workspaceId,
+      stepsJson,
+      claim.at,
+      claim.appId,
+      claim.platform,
+      startedAt,
+    ],
   );
-  return taken === 1 ? { ok: true, claim } : busy();
+  return taken === 1 ? { ok: true, claim } : publishInProgress(startedAt);
 }
 
 const releaseClaim = (sql: Sql, claim: Claim) =>
@@ -1339,7 +1359,12 @@ export async function applyPublish(
     );
   }
 
-  const taken = await takeClaim(ctx, { workspaceId: input.workspaceId, app, actor: input.actor });
+  const taken = await takeClaim(ctx, {
+    workspaceId: input.workspaceId,
+    app,
+    actor: input.actor,
+    steps: types,
+  });
   if (!taken.ok) {
     ctx.log?.(`publish: app ${app.id} refused: another batch is in flight (${taken.status})`);
     return taken;
@@ -1383,6 +1408,22 @@ export async function applyPublish(
     };
     const stepTimeoutMs = ctx.stepTimeoutMs ?? DEFAULT_PUBLISH_STEP_TIMEOUT_MS;
     const included = plan.steps.filter((s) => s.included);
+    // Where the batch is, for the screens that ask (`publishing.ts`): which steps run, and later which one runs now. Never a reason to stop.
+    const note = async (job: () => Promise<unknown>) => {
+      try {
+        await job();
+      } catch (error) {
+        log(`progress not recorded (${error instanceof Error ? error.name : typeof error})`);
+      }
+    };
+    await note(() =>
+      recordSteps(
+        db,
+        claim,
+        included.map((s) => s.type),
+        ctx.now(),
+      ),
+    );
     const batchStarted = ctx.now();
     log(
       `app ${app.id} (${app.platform}) plan ${plan.planHash.slice(0, 8)} steps ${included.map((s) => s.type).join(',')} started`,
@@ -1404,6 +1445,7 @@ export async function applyPublish(
       }
       const stepStarted = ctx.now();
       log(`step ${position}/${included.length} ${step.type} started`);
+      await note(() => recordStep(db, claim, step.type, stepStarted));
       let result: StepResult;
       try {
         result = await withStepDeadline(
@@ -1429,6 +1471,7 @@ export async function applyPublish(
         };
       }
       results.push(result);
+      await note(() => recordStep(db, claim, null, ctx.now()));
       log(
         `step ${position}/${included.length} ${step.type} ${result.status}${result.status === 'failed' ? ` (${result.error}, ${result.outcome})` : result.status === 'skipped' ? ` (${result.reason})` : ''} after ${ctx.now() - stepStarted}ms`,
       );

@@ -10,6 +10,7 @@ import type { TestLimiter } from '../../services/credential-tests.ts';
 import { type Failure, failure, type RepoContext } from '../../services/repositories.ts';
 import { requireStepUp } from '../../services/step-up.ts';
 import { getListingFixes, stageListingFix } from './listing-fixes.ts';
+import { notWhilePublishing } from './publishing.ts';
 import {
   clearStaged,
   getStagedChanges,
@@ -38,6 +39,8 @@ export type StagedRoutesContext = {
   db: Database;
   masterKey: Buffer;
   now: () => number;
+  /** The time to live of a batch publish claim (tests): while one runs for the app, the writes that guard themselves refuse. */
+  publishClaimTtlMs?: number | undefined;
   /** Reads the media files of the app's repository (the same reads as the Assets tab). */
   repo: RepoContext;
   /** Index reads that miss the cache, per workspace per minute (the one of the Assets tab). */
@@ -117,6 +120,8 @@ const pushBody = z
 export function stagedRoutes(ctx: StagedRoutesContext) {
   const { db } = ctx;
   const routes = new Hono<AppEnv>();
+  /** Refused with `409 publish_in_progress` while a batch publish of the app runs (publishing.ts). */
+  const notPublishing = notWhilePublishing({ db, now: ctx.now, claimTtlMs: ctx.publishClaimTtlMs });
   const staged: StagedContext = { db, now: ctx.now, assets: { repo: ctx.repo } };
   const draft: DraftContext = {
     db,
@@ -230,33 +235,45 @@ export function stagedRoutes(ctx: StagedRoutesContext) {
   });
 
   // One text (its id) or one whole set (`locale/slotKey`), by query so a slash needs no escaping.
-  routes.delete('/:workspaceId/apps/:id/staged/items', needs('changesets.write'), async (c) => {
-    const id = c.req.query('id') ?? '';
-    if (id.length === 0 || id.length > 200)
-      return c.json(
-        {
-          error: 'invalid_request',
-          issues: [{ path: 'id', message: 'The id of a staged text, or locale/slotKey of a set.' }],
-        },
-        400,
-      );
-    const done = await unstage(staged, {
-      workspaceId: ws(c),
-      appId: param(c, 'id'),
-      id,
-      actor: actor(c),
-    });
-    return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
-  });
+  routes.delete(
+    '/:workspaceId/apps/:id/staged/items',
+    needs('changesets.write'),
+    notPublishing,
+    async (c) => {
+      const id = c.req.query('id') ?? '';
+      if (id.length === 0 || id.length > 200)
+        return c.json(
+          {
+            error: 'invalid_request',
+            issues: [
+              { path: 'id', message: 'The id of a staged text, or locale/slotKey of a set.' },
+            ],
+          },
+          400,
+        );
+      const done = await unstage(staged, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        id,
+        actor: actor(c),
+      });
+      return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
+    },
+  );
 
-  routes.delete('/:workspaceId/apps/:id/staged', needs('changesets.write'), async (c) => {
-    const done = await clearStaged(staged, {
-      workspaceId: ws(c),
-      appId: param(c, 'id'),
-      actor: actor(c),
-    });
-    return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
-  });
+  routes.delete(
+    '/:workspaceId/apps/:id/staged',
+    needs('changesets.write'),
+    notPublishing,
+    async (c) => {
+      const done = await clearStaged(staged, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        actor: actor(c),
+      });
+      return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
+    },
+  );
 
   routes.post(
     '/:workspaceId/apps/:id/staged/push/preview',
@@ -275,23 +292,28 @@ export function stagedRoutes(ctx: StagedRoutesContext) {
   );
 
   // The only route that writes to a store. One app per request: no bulk push. It never submits.
-  routes.post('/:workspaceId/apps/:id/staged/push', needs('store.push_draft'), async (c) => {
-    if (!draft.draftEnabled) return off(c);
-    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.push_draft', {
-      id: param(c, 'id'),
-      hashField: 'confirmHash',
-    });
-    if (stepUpRefusal) return stepUpRefusal;
-    const body = await parseBody(c, pushBody);
-    if (!body.ok) return body.response;
-    const done = await applyDraftPush(draft, {
-      workspaceId: ws(c),
-      appId: param(c, 'id'),
-      confirmHash: body.data.confirmHash,
-      actor: actor(c),
-    });
-    return done.ok ? c.json({ result: done.result }) : respond(c, done);
-  });
+  routes.post(
+    '/:workspaceId/apps/:id/staged/push',
+    needs('store.push_draft'),
+    notPublishing,
+    async (c) => {
+      if (!draft.draftEnabled) return off(c);
+      const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.push_draft', {
+        id: param(c, 'id'),
+        hashField: 'confirmHash',
+      });
+      if (stepUpRefusal) return stepUpRefusal;
+      const body = await parseBody(c, pushBody);
+      if (!body.ok) return body.response;
+      const done = await applyDraftPush(draft, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        confirmHash: body.data.confirmHash,
+        actor: actor(c),
+      });
+      return done.ok ? c.json({ result: done.result }) : respond(c, done);
+    },
+  );
 
   return routes;
 }

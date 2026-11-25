@@ -30,7 +30,7 @@ dbTest(
     await upTo69(db);
     await db.execute("INSERT INTO workspaces (id, name, created_at) VALUES ('w1', 'W', 1)");
     assert.deepEqual(
-      (await migrate(db)).filter((id) => id >= ID),
+      (await migrate(db)).filter((id) => id === ID),
       [70],
     );
     const cols = (await tableColumns(db, 'ci_artifact_meta')).map((c) => c.name);

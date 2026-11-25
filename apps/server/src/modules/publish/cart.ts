@@ -33,6 +33,7 @@ import {
 import { storeFor } from '../reviews/sync.ts';
 import { metadataLock } from './metadata-lock.ts';
 import { loadPendingFacts } from './pending.ts';
+import { type Publishing, publishingOf } from './publishing.ts';
 import { buildStagedView, type StagedContext, unstage } from './staged-changes.ts';
 import { applyDraftPush, DRAFT_ENV, type DraftContext, previewDraftPush } from './store-draft.ts';
 
@@ -456,8 +457,15 @@ export async function loadCart(
 
 export async function getCart(
   ctx: Pick<CartContext, 'db' | 'now' | 'draft' | 'reply' | 'price'>,
-  input: { workspaceId: string; appId: string; rights: CartRights },
-): Promise<{ ok: true; items: CartItem[]; generatedAt: number } | Failure> {
+  input: {
+    workspaceId: string;
+    appId: string;
+    rights: CartRights;
+    claimTtlMs?: number | undefined;
+  },
+): Promise<
+  { ok: true; items: CartItem[]; publishing: Publishing | null; generatedAt: number } | Failure
+> {
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
   const { items } = await loadCart(ctx, {
@@ -465,7 +473,14 @@ export async function getCart(
     app,
     rights: input.rights,
   });
-  return { ok: true, items, generatedAt: ctx.now() };
+  // A batch publish of this app that runs now (see `publishing.ts`): its items are being written, so the screens show them as such.
+  const publishing = await publishingOf(ctx.db, {
+    workspaceId: input.workspaceId,
+    appId: app.id,
+    now: ctx.now(),
+    ttlMs: input.claimTtlMs,
+  });
+  return { ok: true, items, publishing, generatedAt: ctx.now() };
 }
 
 // ---------------------------------------------------------------------------------------------

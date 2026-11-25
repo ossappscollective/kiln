@@ -386,6 +386,7 @@
   "publish.inProgress.publish": "A publish of this app is in progress. Wait for it to finish.",
   "publish.inProgress.release": "A release of this app is in progress. Wait for it to finish.",
   "publish.inProgress.rollout": "A rollout change for this app is in progress. Wait for it to finish.",
+  "publish.inProgress.since": "A publish of this app has been running since {{since}}. Wait for it to finish.",
   "publish.inProgress.submit": "A submit for this app is in progress. Wait for it to finish.",
   "publish.inProgress.version": "A draft push or a version for this app is being written. Wait for it to finish.",
   "publish.noDraftPush": "No draft push of this app is recorded, so there is nothing to submit. Push the staged changes as a draft first (staged changes), then submit.",

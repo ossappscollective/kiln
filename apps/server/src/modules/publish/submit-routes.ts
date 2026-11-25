@@ -7,6 +7,7 @@ import { type AppEnv, parseBody } from '../../http.ts';
 import { memberRole } from '../../services/accounts.ts';
 import type { Failure } from '../../services/repositories.ts';
 import { requireStepUp, stepUpCovers } from '../../services/step-up.ts';
+import { notWhilePublishing } from './publishing.ts';
 import {
   applySubmit,
   defaultSubmitConnectorFactory,
@@ -27,6 +28,8 @@ export type SubmitRoutesContext = {
   db: Database;
   masterKey: Buffer;
   now: () => number;
+  /** The time to live of a batch publish claim (tests): while one runs for the app, the writes that guard themselves refuse. */
+  publishClaimTtlMs?: number | undefined;
   submit?: {
     /** KILN_STORE_SUBMIT_ENABLED (default false). */
     enabled?: boolean;
@@ -61,6 +64,8 @@ const applyBody = z
 export function storeSubmitRoutes(ctx: SubmitRoutesContext) {
   const { db } = ctx;
   const routes = new Hono<AppEnv>();
+  /** Refused with `409 publish_in_progress` while a batch publish of the app runs (publishing.ts). */
+  const notPublishing = notWhilePublishing({ db, now: ctx.now, claimTtlMs: ctx.publishClaimTtlMs });
   const submit: SubmitContext = {
     db,
     masterKey: ctx.masterKey,
@@ -105,25 +110,30 @@ export function storeSubmitRoutes(ctx: SubmitRoutesContext) {
   });
 
   // The only route that hands anything to a store's review. One app per request: no bulk submit.
-  routes.post('/:workspaceId/apps/:id/store-submit', needs('store.submit'), async (c) => {
-    if (!submit.submitEnabled) return respond(c, submitDisabledFailure());
-    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.submit', {
-      id: param(c, 'id'),
-      hashField: 'confirmHash',
-    });
-    if (stepUpRefusal) return stepUpRefusal;
-    const body = await parseBody(c, applyBody);
-    if (!body.ok) return body.response;
-    const done = await applySubmit(submit, {
-      workspaceId: ws(c),
-      appId: param(c, 'id'),
-      confirmHash: body.data.confirmHash,
-      confirmation: body.data.confirmation,
-      actor: actor(c),
-      stepUpCovers: await stepUpCovers({ db, now: ctx.now }, c, 'store.submit'),
-    });
-    return done.ok ? c.json({ result: done.result }) : respond(c, done);
-  });
+  routes.post(
+    '/:workspaceId/apps/:id/store-submit',
+    needs('store.submit'),
+    notPublishing,
+    async (c) => {
+      if (!submit.submitEnabled) return respond(c, submitDisabledFailure());
+      const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.submit', {
+        id: param(c, 'id'),
+        hashField: 'confirmHash',
+      });
+      if (stepUpRefusal) return stepUpRefusal;
+      const body = await parseBody(c, applyBody);
+      if (!body.ok) return body.response;
+      const done = await applySubmit(submit, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        confirmHash: body.data.confirmHash,
+        confirmation: body.data.confirmation,
+        actor: actor(c),
+        stepUpCovers: await stepUpCovers({ db, now: ctx.now }, c, 'store.submit'),
+      });
+      return done.ok ? c.json({ result: done.result }) : respond(c, done);
+    },
+  );
 
   return routes;
 }

@@ -20,6 +20,26 @@ const pendingProblemSchema = z.object({
   item: z.string().optional(),
 });
 
+const publishingSchema = z
+  .object({
+    startedAt: timestamp.describe('When the batch took its claim.'),
+    steps: z
+      .array(publishStepEnum)
+      .describe('The steps it runs, in order. Empty for a claim older than migration 71.'),
+    currentStep: publishStepEnum
+      .nullable()
+      .describe('The step that runs now; null before the first starts and between steps.'),
+    stepStartedAt: timestamp.nullable().describe('When the current step started.'),
+    by: z
+      .object({ id: z.string(), name: z.string().nullable() })
+      .nullable()
+      .describe('Who started it (`name` is null when the person is gone).'),
+  })
+  .nullable()
+  .describe(
+    'A batch publish of this app that is running now, else null. A claim nobody touched for 15 minutes (a process that died) is not reported. Ids, step names and times only.',
+  );
+
 const pendingItemSchema = z.object({
   kind: z.enum([
     'listing_text',
@@ -184,6 +204,7 @@ const pendingViewSchema = z.object({
     nextSteps: z.array(publishStepEnum),
   }),
   lastSyncedAt: timestamp.nullable(),
+  publishing: publishingSchema,
   generatedAt: timestamp,
 });
 
@@ -199,9 +220,12 @@ const pendingSummarySchema = z.object({
         waiting: z.number().int().describe('Informational items (in review).'),
         kinds: z.array(z.string()),
         nextSteps: z.array(publishStepEnum),
+        publishing: publishingSchema,
       }),
     )
-    .describe('Only apps with something pending or in review.'),
+    .describe(
+      'Only apps with something pending or in review, or with a publish running (`count` can be 0 then).',
+    ),
   totals: z.object({ apps: z.number().int(), count: z.number().int(), blocking: z.number().int() }),
   generatedAt: timestamp,
 });
@@ -412,6 +436,7 @@ export const pendingOperations: Draft[] = [
               discardReply: z.boolean(),
               price: z.boolean(),
             }),
+            publishing: publishingSchema,
             generatedAt: timestamp,
           }),
         }),
@@ -556,7 +581,7 @@ export const pendingOperations: Draft[] = [
     summary:
       'PUBLISH the chosen items of the pending cart (staged changes as a store draft, replies publicly)',
     description:
-      'A STORE WRITE. Takes an explicit list of `{ id, version }` from `getAppPendingCart` and sends only those. PRICE items (`price:\u2026`, risk `financial`) are the strictest: a request that names one needs `KILN_PRICE_WRITES_ENABLED` and the workspace setting `prices.writeEnabled` (else the item is skipped with reason `switch_off` / `workspace_off`), the right `monetization.price`, step-up (`store.price`, `403 step_up_required` before anything is read) and `confirmation`, the typed phrase `CHANGE <n> PRICES MAX <p>%` naming the number of price items sent and the largest change (`422 confirmation_mismatch` sends NOTHING, not even a reply). Each product is independent (any subset may be named; its territories go together); the live prices are re-read and every rule re-run right before the write (`stale_price`, `currency_mismatch`, `price_point_invalid`, `acknowledgement_required` leave the item staged), and after the write the store is read back: `price.verification` says `confirmed` or `store_shows`. Existing subscribers are untouched unless the staged choice says otherwise. Delegates to the push of the staged changes (`KILN_STORE_DRAFT_WRITE_ENABLED`, `store.push_draft`, step-up; a store DRAFT, nothing is submitted) and to the reply send (`KILN_REVIEW_REPLY_ENABLED`, `reviews.reply`; public at once), with their own gates, claims, re-reads and audit. Staged changes are written by one push, so they form a bundle: a request that names only part of it is skipped (`bundle_incomplete`). An item that changed since it was listed is skipped (`changed_since_review`); one that is gone is skipped (`not_pending`), so repeating a request is safe. One failure never stops the others: the answer is `200` with a result per item (`ok`, `failed`, `skipped` and a reason code). Audited as `pending.cart_published` (ids and outcome codes, never a text).',
+      'A STORE WRITE. Takes an explicit list of `{ id, version }` from `getAppPendingCart` and sends only those. PRICE items (`price:\u2026`, risk `financial`) are the strictest: a request that names one needs `KILN_PRICE_WRITES_ENABLED` and the workspace setting `prices.writeEnabled` (else the item is skipped with reason `switch_off` / `workspace_off`), the right `monetization.price`, step-up (`store.price`, `403 step_up_required` before anything is read) and `confirmation`, the typed phrase `CHANGE <n> PRICES MAX <p>%` naming the number of price items sent and the largest change (`422 confirmation_mismatch` sends NOTHING, not even a reply). Each product is independent (any subset may be named; its territories go together); the live prices are re-read and every rule re-run right before the write (`stale_price`, `currency_mismatch`, `price_point_invalid`, `acknowledgement_required` leave the item staged), and after the write the store is read back: `price.verification` says `confirmed` or `store_shows`. Existing subscribers are untouched unless the staged choice says otherwise. Delegates to the push of the staged changes (`KILN_STORE_DRAFT_WRITE_ENABLED`, `store.push_draft`, step-up; a store DRAFT, nothing is submitted) and to the reply send (`KILN_REVIEW_REPLY_ENABLED`, `reviews.reply`; public at once), with their own gates, claims, re-reads and audit. Staged changes are written by one push, so they form a bundle: a request that names only part of it is skipped (`bundle_incomplete`). An item that changed since it was listed is skipped (`changed_since_review`); one that is gone is skipped (`not_pending`), so repeating a request is safe. One failure never stops the others: the answer is `200` with a result per item (`ok`, `failed`, `skipped` and a reason code). Audited as `pending.cart_published` (ids and outcome codes, never a text). While a batch publish of the app runs (`getPendingPublishing`) this is refused with `409 publish_in_progress`, and the message names when that publish started.',
     risk: 'destructive',
     access: { action: 'listing.read' },
     appScope: { kind: 'param', name: 'id' },
@@ -573,7 +598,7 @@ export const pendingOperations: Draft[] = [
     summary:
       'Discard the chosen items of the pending cart (Kiln’s draft only; the store is not touched)',
     description:
-      'Removes the staged change or the reply draft here and nothing else: no store is contacted. Needs `changesets.write` for staged changes and `reviews.triage` for reply drafts (an item without the right is skipped as `no_right`). A reply draft in flight or with an unknown outcome is kept. Audited as `pending.cart_discarded`.',
+      'Removes the staged change or the reply draft here and nothing else: no store is contacted. Needs `changesets.write` for staged changes and `reviews.triage` for reply drafts (an item without the right is skipped as `no_right`). A reply draft in flight or with an unknown outcome is kept. Audited as `pending.cart_discarded`. While a batch publish of the app runs (`getPendingPublishing`) this is refused with `409 publish_in_progress`, and the message names when that publish started.',
     risk: 'write',
     access: { action: 'listing.read' },
     appScope: { kind: 'param', name: 'id' },
@@ -595,6 +620,27 @@ export const pendingOperations: Draft[] = [
     appScope: { kind: 'list' },
     responses: {
       '200': { description: 'One line per app and the totals.', schema: pendingSummarySchema },
+    },
+  },
+  {
+    id: 'getPendingPublishing',
+    method: 'get',
+    path: `${W}/pending/publishing`,
+    tags: ['pending'],
+    summary: 'Which apps have a batch publish running now, and where it is (cheap to poll)',
+    description:
+      'One read of the publish claims, no pending state is built: the apps of the workspace for which `publishStoreBatch` is running, with the steps it runs, the step that runs now and when it started. Apps that are not listed are not publishing. A claim nobody has touched for 15 minutes (the step start and end renew it) is a process that died and is left out. While an app is listed, `409 publish_in_progress` refuses a second publish, a release, a submit, a rollout change, a push of the staged changes, a version, and a cart publish or discard for it. Stored state only; a token limited to some apps sees only those apps. Ids, step names and times only.',
+    risk: 'read',
+    access: { action: 'listing.read' },
+    appScope: { kind: 'list' },
+    responses: {
+      '200': {
+        description: 'One entry per app with a publish running (empty when none is).',
+        schema: z.object({
+          apps: z.array(z.object({ appId: z.string(), publishing: publishingSchema.unwrap() })),
+          generatedAt: timestamp,
+        }),
+      },
     },
   },
   {

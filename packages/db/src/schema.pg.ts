@@ -1507,6 +1507,10 @@ export const storePublishClaims = pgTable(
     status: text('status').notNull().default('writing'),
     claimedBy: text('claimed_by').notNull(),
     claimAt: epochMs('claim_at').notNull(),
+    /** Migration 71: the step types the batch runs (a JSON array of words), the step running now and the heartbeat. */
+    steps: text('steps'),
+    currentStep: text('current_step'),
+    stepAt: epochMs('step_at'),
   },
   (t) => [
     primaryKey({ columns: [t.appId, t.platform] }),
