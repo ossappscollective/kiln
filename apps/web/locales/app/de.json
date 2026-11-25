@@ -336,6 +336,7 @@
   "cart.result.stateChanged": "Der Store hat sich seit der Prüfung geändert. Bitte erneut prüfen.",
   "cart.result.stepUpRequired": "Die Bestätigung wurde nicht abgeschlossen.",
   "cart.review": "Prüfen",
+  "cart.reviewAndPublish": "Prüfen und veröffentlichen",
   "cart.reviewLine": "Bewertung, {{stars}}: {{excerpt}}",
   "cart.risk.financial": "Ändert, was Kunden zahlen",
   "cart.risk.publicReply": "Öffentliche Antwort",

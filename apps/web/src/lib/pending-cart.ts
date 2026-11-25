@@ -472,3 +472,18 @@ export const STATUS_KEYS: Record<CartOutcome['status'] | 'running', string> = {
   skipped: k('app:cart.status.skipped'),
   running: k('app:cart.status.running'),
 };
+
+let queuedPublish = 0;
+const QUEUED_PUBLISH_MS = 15_000;
+
+/** The pending page opens the review and publish plan as soon as it can: the cart drawer's "Review and publish" links there (the page does not exist yet to hear an event). */
+export function queuePublishOpen(now: number = Date.now()): void {
+  queuedPublish = now;
+}
+
+/** True once after a link queued it, and only for a few seconds: a later visit to the page does not open the plan by itself. */
+export function takeQueuedPublishOpen(now: number = Date.now()): boolean {
+  const fresh = queuedPublish !== 0 && now - queuedPublish < QUEUED_PUBLISH_MS;
+  queuedPublish = 0;
+  return fresh;
+}

@@ -362,6 +362,7 @@
   "cart.result.stateChanged": "Le store a changé depuis la vérification. Relisez.",
   "cart.result.stepUpRequired": "La confirmation n’a pas été terminée.",
   "cart.review": "Relire",
+  "cart.reviewAndPublish": "Vérifier et publier",
   "cart.reviewLine": "Avis, {{stars}} : {{excerpt}}",
   "cart.risk.financial": "Modifie ce que paient les clients",
   "cart.risk.publicReply": "Réponse publique",

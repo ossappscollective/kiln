@@ -19,6 +19,7 @@ import {
   pricePhrases,
   prune,
   publishRequests,
+  queuePublishOpen,
   reasonKey,
   reasonText,
   resultKey,
@@ -26,6 +27,7 @@ import {
   rowKey,
   rowsForLocale,
   selectAll,
+  takeQueuedPublishOpen,
   tally,
   toggle,
   toRows,
@@ -320,4 +322,19 @@ test('a price result keeps what the store showed after the write', () => {
   const detail = { productId: 'p', lines: [], verification: 'confirmed' as const, mismatches: [] };
   const out = mergeResults({}, 'a', [{ id: 'price:1', status: 'ok', reason: null, price: detail }]);
   assert.equal(out[rowKey('a', 'price:1')]?.price?.verification, 'confirmed');
+});
+
+test('a queued "review and publish" opens the plan once, and only within a few seconds', () => {
+  assert.equal(takeQueuedPublishOpen(1_000), false);
+  queuePublishOpen(1_000);
+  assert.equal(takeQueuedPublishOpen(2_000), true);
+  assert.equal(takeQueuedPublishOpen(2_100), false);
+  queuePublishOpen(1_000);
+  assert.equal(takeQueuedPublishOpen(1_000 + 60_000), false);
+});
+
+test('a failed whole request keeps its detail on every row', () => {
+  const out = failAll({}, 'a1', ['x', 'y'], 'other', 'store_error: boom');
+  assert.equal(out['a1|x']?.detail, 'store_error: boom');
+  assert.equal(failAll({}, 'a1', ['x'], 'network')['a1|x']?.detail, undefined);
 });

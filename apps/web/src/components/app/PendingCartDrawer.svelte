@@ -35,6 +35,7 @@
     placeOf,
     pricePhrases,
     prune,
+    queuePublishOpen,
     rowsForLocale,
     reasonText,
     resultText,
@@ -432,6 +433,9 @@
             <div class="row actions">
               <Button variant="primary" loading={busy} disabled={busy || counts.selected === 0} onclick={() => ask('publish')}>
                 {t('app:cart.publish', { count: counts.selected })}
+              </Button>
+              <Button href={appAddress(groupId, 'pending', platform)} onclick={() => { queuePublishOpen(); open = false; }}>
+                {t('app:cart.reviewAndPublish')}
               </Button>
               {#if counts.prices > 0}
                 <Button loading={dryBusy} disabled={busy || dryBusy} onclick={() => ondryrun(selection)}>{t('app:cart.dryRun.button')}</Button>

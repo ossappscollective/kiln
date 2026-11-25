@@ -362,6 +362,7 @@
   "cart.result.stateChanged": "La tienda cambió desde la comprobación. Revisa de nuevo.",
   "cart.result.stepUpRequired": "La confirmación no se completó.",
   "cart.review": "Revisar",
+  "cart.reviewAndPublish": "Revisar y publicar",
   "cart.reviewLine": "Reseña, {{stars}}: {{excerpt}}",
   "cart.risk.financial": "Cambia lo que pagan los clientes",
   "cart.risk.publicReply": "Respuesta pública",

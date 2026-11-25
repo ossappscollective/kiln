@@ -336,6 +336,7 @@
   "cart.result.stateChanged": "The store changed since it was checked. Review again.",
   "cart.result.stepUpRequired": "The confirmation was not completed.",
   "cart.review": "Review",
+  "cart.reviewAndPublish": "Review and publish",
   "cart.reviewLine": "Review, {{stars}}: {{excerpt}}",
   "cart.risk.financial": "Changes what customers pay",
   "cart.risk.publicReply": "Public reply",
