@@ -5,7 +5,7 @@
 # APPLE_* variable can still make the Tauri bundler try to sign, so this unsets every variable
 # that is not part of a complete set. It never prints a value, only which stage was reached.
 #
-# Sets KILN_SIGNING_STATE to: unsigned | signed | notarized (macOS), signed | unsigned (Windows,
+# Sets KILN_SIGNING_STATE to: unsigned (macOS: signed ad hoc with identity "-") | signed | notarized (macOS), signed | unsigned (Windows,
 # from KILN_WINDOWS_THUMBPRINT, which an earlier step sets after importing the certificate),
 # unsigned (Linux: packages are not signed).
 
@@ -24,6 +24,11 @@ case "${RUNNER_OS:-}" in
     else
       # shellcheck disable=SC2086
       unset $kiln_apple_vars
+      # No certificate: sign ad hoc ("-"). Apple Silicon refuses code with no signature at all
+      # ("Kiln is damaged and can't be opened", even after right-click Open); an ad-hoc signature
+      # makes the app launchable once Gatekeeper is told to allow it (see the release notes).
+      # The state stays "unsigned": nothing identifies a developer.
+      export APPLE_SIGNING_IDENTITY=-
     fi
     ;;
   Windows)

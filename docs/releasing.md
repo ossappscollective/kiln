@@ -73,7 +73,7 @@ build attestation.
 
 ## Secrets (all optional)
 
-Without them everything still builds, unsigned. The job summary and the release notes say which
+Without them everything still builds, unsigned (the macOS app is signed ad hoc, because Apple Silicon refuses code with no signature at all; Gatekeeper still blocks the first launch until the user allows it). The job summary and the release notes say which
 installers are unsigned and tell users how to open them. Add them under Settings, Secrets and
 variables, Actions. Values are never printed, and are present only in the build step.
 

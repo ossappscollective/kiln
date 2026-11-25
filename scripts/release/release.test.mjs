@@ -295,6 +295,21 @@ describe('shell scripts', () => {
       'unsigned|unset|unset',
     );
   });
+  test('signing-env: macOS without a certificate signs ad hoc, others set no identity', () => {
+    const identity = (env) =>
+      spawnSync(
+        'bash',
+        [
+          '-c',
+          `. "${join(here, 'signing-env.sh')}" >/dev/null; echo "\${APPLE_SIGNING_IDENTITY-unset}"`,
+        ],
+        { encoding: 'utf8', env: { PATH: process.env.PATH, ...env } },
+      ).stdout.trim();
+    assert.equal(identity({ RUNNER_OS: 'macOS', APPLE_SIGNING_IDENTITY: '' }), '-');
+    assert.equal(identity({ RUNNER_OS: 'macOS', APPLE_CERTIFICATE: 'c' }), '-');
+    assert.equal(identity({ RUNNER_OS: 'Linux' }), 'unset');
+    assert.equal(identity({ RUNNER_OS: 'Windows' }), 'unset');
+  });
   test('signing-env: certificate only means signed, notary variables dropped', () => {
     const env = {
       RUNNER_OS: 'macOS',
