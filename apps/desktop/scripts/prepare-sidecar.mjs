@@ -427,9 +427,16 @@ async function smoke(nodeBinary, serverDir, hasWeb) {
     output += chunk;
   });
   const exited = new Promise((done) => child.once('exit', (code) => done({ code })));
-  const finish = (ok, reason, steps = []) => {
+  const finish = async (ok, reason, steps = []) => {
     if (child.exitCode === null) child.kill('SIGKILL');
-    rmSync(dataDir, { recursive: true, force: true });
+    // Windows keeps the directory locked until the process is really gone, so wait for it and
+    // retry; a leftover temp folder must never fail the smoke test.
+    await Promise.race([exited, new Promise((wait) => setTimeout(wait, 5000))]);
+    try {
+      rmSync(dataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    } catch (error) {
+      console.warn(`could not remove ${dataDir}: ${error.code ?? error}`);
+    }
     return { ok, steps, reason: ok ? '' : `${reason}\n--- server output ---\n${output.trim()}` };
   };
 
