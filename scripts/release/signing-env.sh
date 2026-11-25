@@ -5,21 +5,33 @@
 # APPLE_* variable can still make the Tauri bundler try to sign, so this unsets every variable
 # that is not part of a complete set. It never prints a value, only which stage was reached.
 #
-# Sets KILN_SIGNING_STATE to: unsigned (macOS: signed ad hoc with identity "-") | signed | notarized (macOS), signed | unsigned (Windows,
-# from KILN_WINDOWS_THUMBPRINT, which an earlier step sets after importing the certificate),
-# unsigned (Linux: packages are not signed).
+# Notarization takes either the Apple ID set (APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID) or an App
+# Store Connect API key (APPLE_API_KEY = key id, APPLE_API_ISSUER, APPLE_API_KEY_CONTENT = the .p8
+# text). The API key wins when both are complete; its text is written to a 0600 file in the runner
+# temp folder and handed to Tauri as APPLE_API_KEY_PATH.
+#
+# Sets KILN_SIGNING_STATE to: unsigned (macOS: signed ad hoc with identity "-") | signed |
+# notarized (macOS), signed | unsigned (Windows, from KILN_WINDOWS_THUMBPRINT, which an earlier
+# step sets after importing the certificate), unsigned (Linux: packages are not signed).
 
-kiln_apple_vars="APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID"
+kiln_apple_vars="APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_CONTENT"
 KILN_SIGNING_STATE=unsigned
 
 case "${RUNNER_OS:-}" in
   macOS)
     if [ -n "${APPLE_CERTIFICATE:-}" ] && [ -n "${APPLE_CERTIFICATE_PASSWORD:-}" ] && [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
-      if [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
+      if [ -n "${APPLE_API_KEY:-}" ] && [ -n "${APPLE_API_ISSUER:-}" ] && [ -n "${APPLE_API_KEY_CONTENT:-}" ]; then
+        kiln_key_file="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/AuthKey_${APPLE_API_KEY}.p8"
+        (umask 077 && printf '%s\n' "$APPLE_API_KEY_CONTENT" > "$kiln_key_file")
+        export APPLE_API_KEY_PATH="$kiln_key_file"
+        unset kiln_key_file APPLE_API_KEY_CONTENT APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+        KILN_SIGNING_STATE=notarized
+      elif [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
+        unset APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_CONTENT
         KILN_SIGNING_STATE=notarized
       else
         KILN_SIGNING_STATE=signed
-        unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+        unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_CONTENT
       fi
     else
       # shellcheck disable=SC2086

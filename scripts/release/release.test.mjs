@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -344,6 +344,48 @@ describe('shell scripts', () => {
     assert.equal(
       sourceSigning({ RUNNER_OS: 'Windows', KILN_WINDOWS_THUMBPRINT: 'abc' }),
       'signed|unset|unset',
+    );
+  });
+  test('signing-env: an App Store Connect API key notarizes and is written to a private file', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kiln-key-'));
+    const out = spawnSync(
+      'bash',
+      [
+        '-c',
+        `. "${join(here, 'signing-env.sh')}" >/dev/null; echo "$KILN_SIGNING_STATE|\${APPLE_ID-unset}|\${APPLE_API_KEY_CONTENT-unset}"; cat "$APPLE_API_KEY_PATH"; stat -c %a "$APPLE_API_KEY_PATH" 2>/dev/null || stat -f %Lp "$APPLE_API_KEY_PATH"`,
+      ],
+      {
+        encoding: 'utf8',
+        env: {
+          PATH: process.env.PATH,
+          RUNNER_OS: 'macOS',
+          RUNNER_TEMP: dir,
+          APPLE_CERTIFICATE: 'c',
+          APPLE_CERTIFICATE_PASSWORD: 'p',
+          APPLE_SIGNING_IDENTITY: 'i',
+          APPLE_ID: 'a',
+          APPLE_PASSWORD: 'w',
+          APPLE_TEAM_ID: 't',
+          APPLE_API_KEY: 'KEY123',
+          APPLE_API_ISSUER: 'issuer',
+          APPLE_API_KEY_CONTENT: 'PRIVATE-KEY-TEXT',
+        },
+      },
+    ).stdout.trim().split('\n');
+    assert.equal(out[0], 'notarized|unset|unset');
+    assert.equal(out[1], 'PRIVATE-KEY-TEXT');
+    assert.equal(out[2], '600');
+    assert.equal(readFileSync(join(dir, 'AuthKey_KEY123.p8'), 'utf8'), 'PRIVATE-KEY-TEXT\n');
+    // an incomplete key falls back to the Apple ID set, and is dropped
+    assert.equal(
+      sourceSigning({
+        RUNNER_OS: 'macOS',
+        APPLE_CERTIFICATE: 'c',
+        APPLE_CERTIFICATE_PASSWORD: 'p',
+        APPLE_SIGNING_IDENTITY: 'i',
+        APPLE_API_KEY: 'KEY123',
+      }),
+      'signed|unset|c',
     );
   });
   test('signing-env never prints a secret value', () => {

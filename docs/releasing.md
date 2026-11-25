@@ -86,8 +86,16 @@ variables, Actions. Values are never printed, and are present only in the build 
 | `APPLE_ID`                     | Apple ID e-mail                                                                                        | Notarization (needs the next two as well)  |
 | `APPLE_PASSWORD`               | An app-specific password from appleid.apple.com, not the account password                              | Notarization                               |
 | `APPLE_TEAM_ID`                | The 10-character team ID                                                                               | Notarization                               |
+| `APPLE_API_KEY`                | App Store Connect API key id (alternative to the Apple ID set, preferred when all three are set)       | Notarization                               |
+| `APPLE_API_ISSUER`             | The issuer id shown on the App Store Connect Keys page                                                 | Notarization (API key)                     |
+| `APPLE_API_KEY_CONTENT`        | The text of the downloaded `AuthKey_<id>.p8` file                                                      | Notarization (API key)                     |
 | `WINDOWS_CERTIFICATE`          | Base64 of a code-signing certificate as `.pfx`                                                         | Windows signing (needs the next one)       |
 | `WINDOWS_CERTIFICATE_PASSWORD` | The `.pfx` password                                                                                    | Windows signing                            |
+
+`APPLE_IDENTITY_ID` is accepted as another name for `APPLE_SIGNING_IDENTITY`, so organization-level
+secrets can be shared with sibling apps that use that name. To share one set across all apps, create
+the secrets at the organization level (Organization settings, Secrets and variables, Actions) with
+access to the repositories that release.
 
 A partial set is ignored (the build is unsigned, or signed but not notarized). Both need paid
 accounts: Apple Developer Program for the first six, a certificate authority for the Windows pair.
