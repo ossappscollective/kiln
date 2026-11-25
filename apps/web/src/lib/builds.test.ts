@@ -3,9 +3,14 @@ import { test } from 'node:test';
 import {
   type ArtifactItem,
   applyFilters,
+  artifactBuildLabel,
   artifactRow,
   type BuildsList,
+  buildHint,
+  buildNote,
   buildNumberOfTitle,
+  buildTitle,
+  canInspect,
   canOfferShare,
   defaultFilters,
   downloadBlocker,
@@ -15,9 +20,11 @@ import {
   expiryText,
   hiddenBy,
   humanSize,
+  INSPECTIONS_PER_VIEW,
   installGuide,
   linkKeptText,
   linkSensitiveText,
+  nextInspections,
   noRightText,
   phoneCannotReach,
   phoneUrl,
@@ -43,6 +50,7 @@ import {
   testflightView,
   uploadFileText,
   versionCodeText,
+  withInspected,
 } from './builds.ts';
 
 const DAY = 24 * 60 * 60_000;
@@ -567,4 +575,127 @@ test('sharedNote: only an artifact of a shared run with an unknown owner gets th
     sharedNote(artifact({ sharedWith: ['Demo Notes', 'Demo Weather'] })),
     'From a run shared by Demo Notes and Demo Weather',
   );
+});
+
+// ----- the build number read from inside a CI artifact ---------------------------------------------
+
+const read = (over: Partial<NonNullable<ArtifactItem['build']>> = {}): ArtifactItem['build'] => ({
+  number: '167',
+  version: '1.26.2',
+  packageId: 'com.acme.app',
+  format: 'apk',
+  ...over,
+});
+
+test('a CI row shows the number read from the file like a store row does; the name stays the title', () => {
+  const plain = artifactRow(artifact({ name: 'com.acme.app.android.2.00.1' }));
+  assert.equal(plain.title, 'com.acme.app.android.2.00.1');
+  assert.equal(plain.buildNumber, null);
+  assert.equal(plain.buildLabel, null);
+  const withNumber = artifactRow(
+    artifact({ name: 'com.acme.app.android.2.00.1', build: read(), buildRead: 'read' }),
+  );
+  assert.equal(withNumber.title, 'com.acme.app.android.2.00.1', 'the title keeps its meaning');
+  assert.equal(withNumber.buildNumber, '167');
+  assert.equal(withNumber.buildLabel, '1.26.2 (167)');
+  assert.equal(storeRow(store({ version: '1.26.2', buildNumber: '165' })).title, '1.26.2 (165)');
+  assert.equal(storeRow(store({ buildNumber: '165' })).buildNumber, '165');
+  assert.equal(storeRow(store()).buildLabel, null, 'a store row carries its number in the title');
+});
+
+test('the chip: version and number like a store title; only the number when the file has no version', () => {
+  assert.equal(buildTitle('2.4.0', '240'), '2.4.0 (240)');
+  assert.equal(buildTitle(null, '240'), '(240)');
+  assert.equal(artifactBuildLabel(read({ version: null })), 'Build 167');
+  assert.equal(artifactBuildLabel(null), null);
+  assert.equal(artifactBuildLabel(undefined), null);
+  assert.equal(
+    buildHint(read() as NonNullable<ArtifactItem['build']>),
+    'Build number 167, read from inside the file',
+  );
+});
+
+test('which artifacts the page asks about: not read yet, downloadable, switch on, right to download, a kind that can hold a build', () => {
+  const ok = list();
+  assert.equal(canInspect(artifact(), ok), true);
+  for (const kind of ['apk', 'aab', 'ipa', 'zip'] as const)
+    assert.equal(canInspect(artifact({ kind }), ok), true, kind);
+  for (const kind of ['app', 'dmg', 'pkg', 'other'] as const)
+    assert.equal(canInspect(artifact({ kind }), ok), false, kind);
+  assert.equal(canInspect(artifact({ platform: 'macos' }), ok), false);
+  assert.equal(canInspect(artifact({ expired: true, downloadable: false }), ok), false);
+  assert.equal(canInspect(artifact({ tooLarge: true, downloadable: false }), ok), false);
+  const looked = artifact({ buildRead: 'unreadable' });
+  assert.equal(canInspect(looked, ok), false, 'looked at once, kept');
+  assert.equal(canInspect(artifact({ build: read(), buildRead: 'read' }), ok), false);
+  assert.equal(canInspect(artifact(), list({ downloadEnabled: false })), false);
+  assert.equal(canInspect(artifact(), list({ canDownload: false })), false);
+});
+
+test('the page reads the shown rows in order, skips what it tried, and stops after eight per view', () => {
+  const artifacts = Array.from({ length: 12 }, (_, i) =>
+    artifact({ id: String(100 + i), createdAt: NOW - i * 1000 }),
+  );
+  const data = list({ artifacts });
+  const rows = rowsOf(data);
+  const tried = new Set<string>();
+  const first = nextInspections(rows, data, tried);
+  assert.equal(first.length, INSPECTIONS_PER_VIEW);
+  assert.deepEqual(
+    first.map((a) => a.id),
+    ['100', '101', '102', '103', '104', '105', '106', '107'],
+    'newest first, as shown',
+  );
+  tried.add('100');
+  tried.add('101');
+  assert.deepEqual(
+    nextInspections(rows, data, tried).map((a) => a.id),
+    ['102', '103', '104', '105', '106', '107'],
+    'the budget counts what was tried',
+  );
+  for (const id of ['102', '103', '104', '105', '106', '107']) tried.add(id);
+  assert.deepEqual(nextInspections(rows, data, tried), [], 'eight asked: no more in this view');
+  // Only the rows that are shown: a filter that hides expired rows keeps them out.
+  const shown = applyFilters(
+    rowsOf(
+      list({
+        artifacts: [
+          artifact({ id: '1', expired: true, downloadable: false }),
+          artifact({ id: '2' }),
+          artifact({ id: '3', kind: 'other' }),
+        ],
+      }),
+    ),
+    defaultFilters,
+  );
+  assert.deepEqual(
+    nextInspections(shown, list(), new Set()).map((a) => a.id),
+    ['2'],
+  );
+  assert.deepEqual(nextInspections(rows, data, new Set(), 2).length, 2, 'a smaller budget');
+});
+
+test('the answer replaces one artifact in the list and leaves the others', () => {
+  const data = list({ artifacts: [artifact({ id: '1' }), artifact({ id: '2' })] });
+  const next = withInspected(data, artifact({ id: '2', build: read(), buildRead: 'read' }));
+  assert.equal(next.artifacts[1]?.build?.number, '167');
+  assert.equal(next.artifacts[0]?.build ?? null, null);
+  assert.equal(data.artifacts[1]?.build ?? null, null, 'the old list is untouched');
+  assert.equal(next.app, data.app);
+});
+
+test('the quiet line: reading, not found in the file, or nothing to say', () => {
+  const row = (over: Partial<ArtifactItem> = {}) => artifactRow(artifact(over));
+  assert.equal(buildNote(row(), false), null, 'nothing yet, nothing said');
+  assert.deepEqual(buildNote(row(), true), {
+    kind: 'reading',
+    text: 'Reading the build number…',
+  });
+  assert.deepEqual(buildNote(row({ buildRead: 'unreadable' }), false), {
+    kind: 'unreadable',
+    text: 'Build number not found in this file',
+  });
+  const numbered = row({ build: read(), buildRead: 'read' });
+  assert.equal(buildNote(numbered, true), null, 'a number is shown instead');
+  assert.equal(buildNote(storeRow(store()), true), null, 'store rows have no file to read');
 });

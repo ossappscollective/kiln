@@ -98,6 +98,7 @@ import type {
   UploadQuery,
 } from './assets/sync.ts';
 import type {
+  ArtifactItem,
   BuildsList,
   DownloadLink,
   InternalSharingConfig,
@@ -1322,6 +1323,12 @@ export function createApi(options: ApiOptions = {}) {
       request<BuildsList>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/artifacts`,
+      ),
+    /** The real build number of a CI artifact, read from inside the file; kept by the server (docs/api/builds.md). Needs `builds.download` and the server switch. */
+    inspectBuildArtifact: (workspaceId: string, appId: string, artifactId: string) =>
+      request<{ artifact: ArtifactItem }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/artifacts/${encodeURIComponent(artifactId)}/inspect`,
       ),
     /** A link a phone can open without signing in: ten minutes, once. Needs `builds.download` and the server switch. */
     createBuildLink: (workspaceId: string, appId: string, artifactId: string) =>

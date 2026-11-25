@@ -17,6 +17,14 @@ import { k, t } from './i18n/t.ts';
 
 export type ArtifactKind = 'ipa' | 'apk' | 'aab' | 'app' | 'dmg' | 'pkg' | 'zip' | 'other';
 
+/** The real build number read from inside a CI artifact (the Android versionCode, the iOS CFBundleVersion). */
+export type ArtifactBuild = {
+  number: string;
+  version: string | null;
+  packageId: string | null;
+  format: 'apk' | 'aab' | 'ipa';
+};
+
 export type ArtifactItem = {
   id: string;
   name: string;
@@ -29,6 +37,10 @@ export type ArtifactItem = {
   expiresAt: number | null;
   downloadable: boolean;
   tooLarge: boolean;
+  /** Read from inside the file by `POST .../inspect`; null until then and when the file held none. */
+  build?: ArtifactBuild | null;
+  /** `read`, `unreadable` (looked at, nothing found) or null (not looked at yet). */
+  buildRead?: 'read' | 'unreadable' | null;
   /** Apps of a multi-app run whose artifact owner the name does not tell: shown under each of them. */
   sharedWith?: string[] | null;
   run: {
@@ -116,6 +128,10 @@ export type BuildRow = {
   kind: RowKind;
   /** The build or version number, or the artifact's name. */
   title: string;
+  /** The build number: the store's, or the one read from inside a CI artifact; null when it is not known. */
+  buildNumber: string | null;
+  /** CI rows: the build number as a chip next to the name, `1.26.2 (167)` like a store row's title; null when not read. */
+  buildLabel: string | null;
   /** Run, branch and commit; or the version and tracks. */
   detail: string;
   /** Link to the CI run, when there is one. */
@@ -181,6 +197,18 @@ export const sharedNote = (a: Pick<ArtifactItem, 'sharedWith'>): string =>
     ? t('builds:row.sharedRun', { apps: formatList(a.sharedWith) })
     : '';
 
+/** `1.26.2 (165)`, or `(165)` without a version: how a store row names its build. */
+export const buildTitle = (version: string | null, buildNumber: string): string =>
+  `${version ? `${version} ` : ''}(${buildNumber})`.trim();
+
+/** The chip of a CI build whose number was read: like a store row's title with a version, `Build 167` without. */
+export const artifactBuildLabel = (build: ArtifactBuild | null | undefined): string | null =>
+  build
+    ? build.version
+      ? buildTitle(build.version, build.number)
+      : t('builds:row.buildNumber', { number: build.number })
+    : null;
+
 export function artifactRow(a: ArtifactItem): BuildRow {
   return {
     key: `ci:${a.id}`,
@@ -188,6 +216,8 @@ export function artifactRow(a: ArtifactItem): BuildRow {
     platform: a.platform,
     kind: a.kind,
     title: a.name,
+    buildNumber: a.build?.number ?? null,
+    buildLabel: artifactBuildLabel(a.build),
     detail: runLabel(a),
     runUrl: a.run.url,
     sizeBytes: a.sizeBytes,
@@ -212,7 +242,9 @@ export function storeRow(b: StoreBuildItem): BuildRow {
     source: 'store',
     platform: b.platform,
     kind: b.channel,
-    title: `${b.version ? `${b.version} ` : ''}(${b.buildNumber})`.trim(),
+    title: buildTitle(b.version, b.buildNumber),
+    buildNumber: b.buildNumber,
+    buildLabel: null,
     detail: where,
     runUrl: null,
     sizeBytes: null,
@@ -235,6 +267,8 @@ export function easRow(b: EasBuildView, now: number = Date.now()): BuildRow {
     platform: b.platform,
     kind: 'eas',
     title: easBuildTitle(b),
+    buildNumber: null,
+    buildLabel: null,
     detail: easBuildDetail(b),
     runUrl: b.expoUrl,
     sizeBytes: null,
@@ -261,6 +295,79 @@ export function rowsOf(
   ];
   return rows.sort((a, b) => (b.at ?? 0) - (a.at ?? 0) || a.key.localeCompare(b.key));
 }
+
+// ---------------------------------------------------------------------------------------------
+// Reading the build number of CI artifacts
+
+/** How many artifacts one page view asks the server to open (each is a download of the zip through the server). */
+export const INSPECTIONS_PER_VIEW = 8;
+
+/** Kinds that can hold an APK, an AAB or an IPA: a Mac app, a disk image and a report cannot be read for a build number. */
+const READABLE_KINDS: readonly string[] = ['apk', 'aab', 'ipa', 'zip'];
+
+/** May the page ask the server to read this artifact: not yet looked at, downloadable now, downloads on, and the role may download. */
+export function canInspect(
+  a: ArtifactItem,
+  list: Pick<BuildsList, 'downloadEnabled' | 'canDownload'>,
+): boolean {
+  return (
+    list.downloadEnabled &&
+    list.canDownload &&
+    a.downloadable &&
+    !a.expired &&
+    !a.tooLarge &&
+    (a.buildRead ?? null) === null &&
+    a.build == null &&
+    READABLE_KINDS.includes(a.kind) &&
+    a.platform !== 'macos'
+  );
+}
+
+/**
+ * The artifacts to ask about next, from the rows that are shown (in the order shown), skipping those already tried in this page view,
+ * at most `budget` of them in all. The page asks one at a time.
+ */
+export function nextInspections(
+  rows: readonly BuildRow[],
+  list: Pick<BuildsList, 'downloadEnabled' | 'canDownload'>,
+  tried: ReadonlySet<string>,
+  budget: number = INSPECTIONS_PER_VIEW,
+): ArtifactItem[] {
+  const left = budget - tried.size;
+  if (left <= 0) return [];
+  const out: ArtifactItem[] = [];
+  for (const r of rows) {
+    const a = r.artifact;
+    if (a && !tried.has(a.id) && canInspect(a, list)) out.push(a);
+    if (out.length >= left) break;
+  }
+  return out;
+}
+
+/** The list with one artifact replaced by its answer (a new list; the others are as they were). */
+export function withInspected<T extends Pick<BuildsList, 'artifacts'>>(
+  list: T,
+  item: ArtifactItem,
+): T {
+  return { ...list, artifacts: list.artifacts.map((a) => (a.id === item.id ? item : a)) };
+}
+
+/** The quiet line under a CI row about its build number: being read, or not found in the file. Null when there is nothing to say. */
+export function buildNote(
+  row: Pick<BuildRow, 'artifact'>,
+  reading: boolean,
+): { kind: 'reading' | 'unreadable'; text: string } | null {
+  const a = row.artifact;
+  if (!a || a.build) return null;
+  if (a.buildRead === 'unreadable')
+    return { kind: 'unreadable', text: t('builds:row.buildUnreadable') };
+  if (reading) return { kind: 'reading', text: t('builds:row.buildReading') };
+  return null;
+}
+
+/** The words behind the chip (its tooltip and screen reader text). */
+export const buildHint = (build: ArtifactBuild): string =>
+  t('builds:row.buildNumberHint', { number: build.number });
 
 // ---------------------------------------------------------------------------------------------
 // Filters

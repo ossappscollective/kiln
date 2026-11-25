@@ -345,6 +345,8 @@ export const SHOTS = [
     ready: 'h1.page-title',
     before: async (page) => {
       await soft(page, '[data-testid="build-row"], main table', 8_000);
+      // The build numbers of the CI rows are read from the files one after another: wait for the first.
+      await soft(page, '[data-testid="build-number"]', 8_000);
       // Best effort: open an install dialog when the first build offers one.
       const install = page.getByRole('button', { name: /^install/i }).first();
       if (await install.isVisible().catch(() => false)) {

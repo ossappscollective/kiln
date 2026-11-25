@@ -3,6 +3,8 @@
   IPA, APK, AAB, Mac builds) and the builds the last store sync saw (TestFlight, Google Play tracks), newest first, with the
   source, size, age and expiry, and what to do to install each one. Downloads go through this server and are off until an
   administrator switches them on; while off, no download button is drawn and the page says why. Nothing here changes GitHub or a store.
+  A CI row shows the real build number (`1.26.2 (167)`, like a store row) once the server has read it from inside the file: the page asks
+  for the rows that are shown, one after another (a few per page view), and says quietly when it is reading or found none.
   Props: api, workspaceId, role, app, refreshKey (changes when a sync finished, so this reloads).
   The address may carry `?build=<number>` (from the release stepper): that build is highlighted and the filters show it.
 -->
@@ -19,6 +21,8 @@
     type BuildsList,
     type InternalSharingConfig,
     applyFilters,
+    buildHint,
+    buildNote,
     canOfferShare,
     defaultFilters,
     downloadBlocker,
@@ -27,11 +31,13 @@
     humanSize,
     installGuide,
     kindLabel,
+    nextInspections,
     rowsOf,
     sharedNote,
     statusLine,
     testflightNote,
     testflightView,
+    withInspected,
   } from '../../lib/builds.ts';
   import { type InstallBlock, installPlan } from '../../lib/eas/eas-install.ts';
   import { type EasStatusView } from '../../lib/eas/eas-status.ts';
@@ -90,6 +96,49 @@
 
   const focus = $derived(parseViewPath(address.hash).query.get('build'));
   let generation = 0;
+
+  // Reading the build number of the CI rows that are shown, one at a time. `tried` holds the artifacts asked about in this page view of
+  // this app (a reload of the list does not reset it); the server keeps every answer, so a later visit asks for fewer.
+  let inspecting = $state<string | null>(null);
+  let tried = new Set<string>();
+  let triedFor = '';
+  let looping = false;
+  let alive = true;
+
+  $effect(() => {
+    alive = true;
+    return () => {
+      alive = false;
+    };
+  });
+
+  async function inspectShown() {
+    if (looping) return;
+    looping = true;
+    try {
+      while (alive && data) {
+        if (triedFor !== data.app.id) {
+          triedFor = data.app.id;
+          tried = new Set();
+        }
+        const [next] = nextInspections(shown, data, tried);
+        if (!next) break;
+        const owner = data.app.id;
+        tried.add(next.id);
+        inspecting = next.id;
+        try {
+          const done = await api.inspectBuildArtifact(workspaceId, owner, next.id);
+          if (data?.app.id === owner) data = withInspected(data, done.artifact);
+        } catch (e) {
+          // A switch that is off, a missing right or the download limit end the reading for now; any other failure skips that file.
+          if (e instanceof ApiError && [403, 409, 429].includes(e.status)) break;
+        }
+      }
+    } finally {
+      inspecting = null;
+      looping = false;
+    }
+  }
   let easGeneration = 0;
 
   async function loadEas() {
@@ -164,6 +213,11 @@
     applyFilters(rows, focus ? { ...filters, hideExpired: false, hideOther: false, platform: 'all', source: 'all' } : filters),
   );
   const hidden = $derived(hiddenBy(rows, filters));
+  // When the list or what is shown changes, read the next numbers (the loop runs on its own and ends when nothing is left to ask).
+  $effect(() => {
+    void shown;
+    if (data) untrack(() => void inspectShown());
+  });
   const status = $derived(data ? statusLine(data) : null);
   const flightNote = $derived(data ? testflightNote(data) : null);
   let statusOpen = $state(false);
@@ -269,6 +323,9 @@
                   <span class="line">
                     {#if row.platform}<PlatformBadge platform={row.platform} />{/if}
                     <strong class="title">{row.title}</strong>
+                    {#if row.buildLabel && row.artifact?.build}
+                      <span class="build-number" data-testid="build-number" title={buildHint(row.artifact.build)}>{row.buildLabel}</span>
+                    {/if}
                     <Badge tone="neutral">{kindLabel(row.kind)}</Badge>
                   </span>
                   <Badge tone={row.state.tone === 'neutral' ? 'neutral' : row.state.tone} dot>{row.state.label}</Badge>
@@ -285,6 +342,10 @@
                   {#if row.at !== null}<time datetime={new Date(row.at).toISOString()} title={fullTime(row.at)}>{timeAgo(row.at, now)}</time>{:else}<span>{t('builds:tests.ageUnknown')}</span>{/if}
                   {#if expiryText(row, now) !== ''}<span>{expiryText(row, now)}</span>{/if}
                   {#if row.artifact?.guessed && row.kind !== 'other'}<span>{t('builds:tests.typeGuessed')}</span>{/if}
+                  {#if row.artifact}
+                    {@const note = buildNote(row, inspecting === row.artifact.id)}
+                    {#if note}<span class="build-note" data-testid="build-note" role="status">{note.text}</span>{/if}
+                  {/if}
                   {#if row.artifact && sharedNote(row.artifact) !== ''}<span class="shared" data-testid="build-shared">{sharedNote(row.artifact)}</span>{/if}
                 </div>
                 {#if row.eas}<EasBuildExtras build={row.eas} />{/if}
@@ -501,6 +562,21 @@
     display: inline-flex;
     gap: var(--space-1);
     align-items: center;
+  }
+
+  /* The build number read from inside the file, like the `(165)` of a store row: a quiet chip next to the name. */
+  .build-number {
+    padding: 0 var(--space-2);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--chip-ink);
+    background: var(--chip-bg);
+    border-radius: var(--radius-md);
+  }
+
+  .build-note {
+    font-style: italic;
   }
 
   .shared {
