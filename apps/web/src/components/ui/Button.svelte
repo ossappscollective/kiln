@@ -4,7 +4,8 @@
   size = 'md' | 'sm' | 'lg', icon? (leading icon name), iconOnly (square button; give `label`),
   label? (accessible name for icon-only buttons), loading (shows a spinner, blocks clicks),
   block (full width), href? (renders a link styled as a button), plus any button attribute
-  (type defaults to 'button', onclick, disabled, ...). Children are the visible text.
+  (type defaults to 'button', onclick, disabled, ...). Children are the visible text. A link keeps its `onclick` too (a link with an
+  onclick is how a button that also navigates closes a dialog or queues what the next screen opens).
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
@@ -39,6 +40,7 @@
     class: extra = '',
     type = 'button',
     disabled = false,
+    onclick,
     children,
     ...rest
   }: Props = $props();
@@ -66,6 +68,7 @@
     class="btn {classes}"
     aria-label={label}
     aria-disabled={disabled || loading ? 'true' : undefined}
+    onclick={onclick as ((event: MouseEvent) => void) | undefined}
   >
     {#if icon && !loading}<Icon name={icon} size={iconSize} />{/if}
     {@render children?.()}
@@ -74,6 +77,7 @@
   <button
     {...rest}
     {type}
+    {onclick}
     class={classes}
     aria-label={label}
     aria-busy={loading ? 'true' : undefined}

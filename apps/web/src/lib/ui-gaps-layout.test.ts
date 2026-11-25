@@ -56,3 +56,9 @@ test('Builds > Test builds: the Expo callout and the cards are one stack with a 
     /<div class="stack">\s*<ConnectCallout [^>]*kind="expo" \/>\s*<TestBuilds /,
   );
 });
+
+test('a Button with an href keeps its onclick (the link of a button that also closes a dialog or queues the next screen)', () => {
+  const button = read('../components/ui/Button.svelte');
+  const anchor = button.slice(button.indexOf('<a'), button.indexOf('</a>'));
+  assert.match(anchor, /onclick=\{onclick/);
+});
