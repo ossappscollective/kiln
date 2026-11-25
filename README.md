@@ -246,20 +246,20 @@ pnpm install                   # or: pnpm install --frozen-lockfile
 cp .env.example .env           # then set KILN_MASTER_KEY=$(openssl rand -base64 32)
 ```
 
-| Task                     | Command                                                                                                                                                                                         |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Run in development       | `pnpm dev` (API on :8787, web UI on :5173 with an `/api` proxy; open <http://localhost:5173>)                                                                                                   |
-| Build the web UI         | `pnpm build` (output in `apps/web/dist`)                                                                                                                                                        |
-| Run the production build | from the repository root: `node --disable-warning=ExperimentalWarning --env-file-if-exists=.env apps/server/src/index.ts` (the server serves `apps/web/dist`; this is what the Dockerfile runs) |
-| Build the Docker image   | `docker build -t kiln .`                                                                                                                                                                        |
-| Build the desktop app    | `pnpm build`, then `pnpm --filter @kiln/desktop build` (stages the Node sidecar and the esbuild-bundled server, then `tauri build`); details in [apps/desktop/README.md](apps/desktop/README.md)                               |
-| Desktop in development   | `pnpm dev` in one terminal, `pnpm --filter @kiln/desktop dev` in another                                                                                                                        |
-| Tests (all packages)     | `pnpm test`                                                                                                                                                                                     |
-| One package              | `pnpm --filter @kiln/core test` (also `@kiln/server`, `@kiln/web`, `@kiln/db`, `@kiln/vault`, `@kiln/connectors`)                                                                               |
-| Typecheck                | `pnpm typecheck`                                                                                                                                                                                |
-| Lint and format (Biome)  | `pnpm lint` / `pnpm format`                                                                                                                                                                     |
-| Translations             | `node scripts/i18n.mjs check --strict` (also `pnpm i18n:check`, `pnpm i18n:fix`, `pnpm i18n:scan`)                                                                                              |
-| Demo                     | `pnpm demo`, `pnpm demo:reset`                                                                                                                                                                  |
+| Task                     | Command                                                                                                                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Run in development       | `pnpm dev` (API on :8787, web UI on :5173 with an `/api` proxy; open <http://localhost:5173>)                                                                                                    |
+| Build the web UI         | `pnpm build` (output in `apps/web/dist`)                                                                                                                                                         |
+| Run the production build | from the repository root: `node --disable-warning=ExperimentalWarning --env-file-if-exists=.env apps/server/src/index.ts` (the server serves `apps/web/dist`; this is what the Dockerfile runs)  |
+| Build the Docker image   | `docker build -t kiln .`                                                                                                                                                                         |
+| Build the desktop app    | `pnpm build`, then `pnpm --filter @kiln/desktop build` (stages the Node sidecar and the esbuild-bundled server, then `tauri build`); details in [apps/desktop/README.md](apps/desktop/README.md) |
+| Desktop in development   | `pnpm dev` in one terminal, `pnpm --filter @kiln/desktop dev` in another                                                                                                                         |
+| Tests (all packages)     | `pnpm test`                                                                                                                                                                                      |
+| One package              | `pnpm --filter @kiln/core test` (also `@kiln/server`, `@kiln/web`, `@kiln/db`, `@kiln/vault`, `@kiln/connectors`)                                                                                |
+| Typecheck                | `pnpm typecheck`                                                                                                                                                                                 |
+| Lint and format (Biome)  | `pnpm lint` / `pnpm format`                                                                                                                                                                      |
+| Translations             | `node scripts/i18n.mjs check --strict` (also `pnpm i18n:check`, `pnpm i18n:fix`, `pnpm i18n:scan`)                                                                                               |
+| Demo                     | `pnpm demo`, `pnpm demo:reset`                                                                                                                                                                   |
 
 **Postgres tests.** The Postgres cases are skipped unless `KILN_TEST_POSTGRES_URL` is set:
 

@@ -3,10 +3,10 @@ import { test } from 'node:test';
 import { addDays } from './analytics.ts';
 import { figureFor } from './report-figures.ts';
 import {
-  type TimelineEvent,
   dailyValue,
   liveDayOf,
   mergeEvents,
+  type TimelineEvent,
   timelineMetricsFrom,
 } from './timeline-events.ts';
 import {

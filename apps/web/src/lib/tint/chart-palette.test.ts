@@ -1,19 +1,19 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { ratio } from './contrast.ts';
+import { palette } from '../tokens.ts';
 import {
-  MAX_SERIES,
-  MIN_DISTANCE,
   chartPalette,
   chartTokens,
   distance,
+  MAX_SERIES,
+  MIN_DISTANCE,
   withChart,
 } from './chart-palette.ts';
-import { oklchToHex, parseHex, maxChroma } from './oklch.ts';
-import { palette } from '../tokens.ts';
-import { deriveScheme, deriveTint, themeSurfaces, tintStyle, type Scheme } from './tokens.ts';
+import { ratio } from './contrast.ts';
+import { maxChroma, oklchToHex, parseHex } from './oklch.ts';
 import { resolveTint } from './prefs.ts';
+import { deriveScheme, deriveTint, type Scheme, themeSurfaces, tintStyle } from './tokens.ts';
 
 const schemes: Scheme[] = ['light', 'dark'];
 const hues = Array.from({ length: 24 }, (_, i) => i * 15);

@@ -1,6 +1,7 @@
 import { getRevenueCatApp, readRevenueCatConfiguration } from '@kiln/connectors';
 import { type ActorType, supports } from '@kiln/core';
 import type { Database } from '@kiln/db';
+import { coded } from '../../i18n/problem.ts';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure, type Outcome } from '../../services/repositories.ts';
@@ -15,7 +16,6 @@ import { getRevenueCatLink, notSupportedFailure } from './link.ts';
 import { type RevenueCatMetricsStep, syncRevenueCatMetrics } from './metrics.ts';
 import { recordRevenueCatFailure, replaceRevenueCatSnapshot } from './snapshot.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * Reading the RevenueCat configuration of a linked app and keeping a copy (docs/adr/0039-revenuecat.md). READ ONLY: a sync asks
  * RevenueCat for lists and changes nothing there. It is the second step of "Sync products" (modules/monetization), after the store, and

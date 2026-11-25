@@ -11,19 +11,20 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { type AppEnv, parseBody, queryInt } from '../../http.ts';
+import { coded } from '../../i18n/problem.ts';
 import { memberRole } from '../../services/accounts.ts';
 import { getApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { getAppContext, setAppContext } from './ai-app-context.ts';
+import { type AiFailure, updateAiConfig } from './ai-config.ts';
+import { listAiModels } from './ai-models.ts';
+import { getReviewTags } from './ai-review-classes.ts';
 import {
   deleteAppSummaries,
   getAppReviewPolicy,
   previewReviewPayload,
   setAppReviewPolicy,
 } from './ai-review-policy.ts';
-import { type AiFailure, updateAiConfig } from './ai-config.ts';
-import { listAiModels } from './ai-models.ts';
-import { getReviewTags } from './ai-review-classes.ts';
 import {
   type AiServices,
   acceptSuggestion,
@@ -36,8 +37,6 @@ import {
   runAiTask,
   testAiConnection,
 } from './service.ts';
-
-import { coded } from '../../i18n/problem.ts';
 /**
  * AI assistance (docs/api/ai.md, docs/adr/0016-ai-foundation.md). Mounted under /api/workspaces.
  *

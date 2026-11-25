@@ -1,9 +1,9 @@
 import type { ServerModule } from '../module.ts';
+import { buildPriceContext, type PriceDeps } from '../monetization/price-shared.ts';
 import { type CartRoutesContext, cartRoutes } from './cart-routes.ts';
 import { type PendingRoutesContext, pendingRoutes } from './pending-routes.ts';
 import { type ReleaseRoutesContext, storeReleaseRoutes } from './release-routes.ts';
 import { type RolloutRoutesContext, rolloutRoutes } from './rollout-routes.ts';
-import { buildPriceContext, type PriceDeps } from '../monetization/price-shared.ts';
 import { type StagedRoutesContext, stagedRoutes } from './staged-routes.ts';
 import { type SubmitRoutesContext, storeSubmitRoutes } from './submit-routes.ts';
 import { storeVersionRoutes, type VersionRoutesContext } from './version-routes.ts';

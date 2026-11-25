@@ -2,7 +2,7 @@
  * The languages of the app and the rules for choosing one. Pure: the browser's language list is passed in.
  * To add a language: add it here, add its files under `apps/web/locales/<namespace>/<code>.json` (docs/translating.md).
  */
-import { PSEUDO_LOCALE, SOURCE_LOCALE, intlLocaleOf } from './core.ts';
+import { intlLocaleOf, PSEUDO_LOCALE, SOURCE_LOCALE } from './core.ts';
 
 export type LocaleInfo = {
   /** The file name and the value stored in localStorage: a language code such as `fr`. */

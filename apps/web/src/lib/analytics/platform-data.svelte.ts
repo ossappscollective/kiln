@@ -1,6 +1,6 @@
 import type { Platform } from '@kiln/core';
 import type { Api } from '../api.ts';
-import { type AnalyticsStatus, type ResolvedRange, analyticsErrorText } from './analytics.ts';
+import { type AnalyticsStatus, analyticsErrorText, type ResolvedRange } from './analytics.ts';
 import { type Extras, loadExtras } from './extras.ts';
 import { type Loaded, loadOverviews } from './load.ts';
 import { hasStoredData } from './view.ts';

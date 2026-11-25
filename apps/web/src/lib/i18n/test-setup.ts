@@ -3,9 +3,9 @@
  * `apps/web/locales` so lib modules that call `t()` return real text in tests. Other languages on request: `useLocale('fr')`.
  * Run a single file the same way: `node --import ./src/lib/i18n/test-setup.ts --test src/lib/foo.test.ts`.
  */
-import { readFileSync, readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { SOURCE_LOCALE, type Catalog } from './core.ts';
+import { type Catalog, SOURCE_LOCALE } from './core.ts';
 import { registerCatalog, setLocaleSource } from './t.ts';
 
 const LOCALES = fileURLToPath(new URL('../../../locales/', import.meta.url));

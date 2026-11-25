@@ -7,9 +7,9 @@ import {
   parseDecimalMinor,
   percentLabel,
   priceConfirmationPhrase,
+  type Role,
   requiredAcknowledgements,
   SUBSCRIBER_RULES_BY_KIND,
-  type Role,
 } from '@kiln/core';
 import { ApiError } from './api.ts';
 import { formatMinorUnits } from './i18n/format.ts';
@@ -259,7 +259,7 @@ const ISSUE_KEYS = {
 
 /** One issue as a sentence, with the territory in front; an unknown code reads as the generic sentence. */
 export function issueText(issue: PriceIssueView, currency?: string): string {
-  const key = Object.prototype.hasOwnProperty.call(ISSUE_KEYS, issue.code)
+  const key = Object.hasOwn(ISSUE_KEYS, issue.code)
     ? ISSUE_KEYS[issue.code as keyof typeof ISSUE_KEYS]
     : k('products:price.issue.other');
   const base = t(key);

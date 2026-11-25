@@ -7,8 +7,8 @@ import {
   type StallStep,
 } from '@kiln/core';
 import type { AttentionItem } from './app-attention.ts';
-import { k, t } from './i18n/t.ts';
 import type { PlatformScope } from './app-scope.ts';
+import { k, t } from './i18n/t.ts';
 import { releaseStepHref, type StepId } from './release-stepper.ts';
 
 /**

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readExpoProjectFromAppJson } from './app-json.ts';
 import {
   createExpoClient,
   EXPO_API_ORIGIN,
@@ -14,8 +15,8 @@ import {
   noViewer,
   PROJECT_ID,
   project,
-  projectById as projectByIdBody,
   projectByFullName as projectByFullNameBody,
+  projectById as projectByIdBody,
   robotViewer,
   TOKEN,
   userViewer,
@@ -27,7 +28,6 @@ import {
   isExpoProjectId,
   normalizeExpoFullName,
 } from './queries.ts';
-import { readExpoProjectFromAppJson } from './app-json.ts';
 import { verifyExpoCredential } from './verify-expo.ts';
 
 type Call = {

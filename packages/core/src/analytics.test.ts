@@ -24,8 +24,8 @@ import {
   productDimValue,
   productSalesLimits,
   safeRatio,
-  splitProductDimValue,
   sourcesForPlatform,
+  splitProductDimValue,
   toMicro,
 } from './analytics.ts';
 

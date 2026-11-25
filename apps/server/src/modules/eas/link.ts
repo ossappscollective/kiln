@@ -9,6 +9,7 @@ import {
 } from '@kiln/connectors';
 import type { ActorType } from '@kiln/core';
 import { type Database, nullableString, type Sql } from '@kiln/db';
+import { coded } from '../../i18n/problem.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { isCloneBacked } from '../../services/clone-reads.ts';
@@ -26,7 +27,6 @@ import {
 import { expoClientFor, expoFailure } from './client.ts';
 import type { EasDeps } from './index.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * The link between an app record and its EAS project (docs/adr/0033-eas-integration.md, docs/api/eas.md): which Expo credential to use
  * and which project. Saving it asks Expo, with that credential, whether the project exists and is visible, and stores what Expo

@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import {
-  carryOver,
-  changeKinds,
   COMPETITOR_CHANGE_RETENTION_DAYS,
   COMPETITOR_CHANGES_MAX_PER_COMPETITOR,
+  carryOver,
+  changeKinds,
   diffListing,
   isListingChange,
   type ListingChange,

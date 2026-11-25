@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import { SERVER_LOCALES } from '../i18n/runtime.ts';
 import { translator } from '../i18n/catalogs.ts';
+import { SERVER_LOCALES } from '../i18n/runtime.ts';
 import { alertCatalog } from '../modules/alerts/catalog.ts';
 import { renderAlertEmail, renderDigestEmail } from '../modules/alerts/email.ts';
 import { testMessageHtml } from '../routes/mail.ts';
-import { codeMessage } from '../services/two-factor.ts';
 import { setMailLinkOrigin } from '../services/mail-template.ts';
+import { codeMessage } from '../services/two-factor.ts';
 import {
   emailButton,
   emailChip,

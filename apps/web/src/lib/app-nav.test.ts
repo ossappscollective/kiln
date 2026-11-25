@@ -19,8 +19,8 @@ import {
   withView,
   workspaceRail,
 } from './app-nav.ts';
-import { t } from './i18n/t.ts';
 import { appSectionDefs, parseAppAddress } from './app-scope.ts';
+import { t } from './i18n/t.ts';
 
 const all = () => true;
 

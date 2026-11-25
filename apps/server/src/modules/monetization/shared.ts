@@ -5,23 +5,22 @@ import {
   PlayProductsConnector,
   PlayProductWriteConnector,
   redactSecrets,
-  secretStrings,
   type StoreConnectorInput,
   StoreError,
-  StoreRateLimitError,
   type StoreProductsConnector,
   type StoreProductWriteConnector,
+  StoreRateLimitError,
+  secretStrings,
 } from '@kiln/connectors';
 import { type ActorType, needsStoreAppId } from '@kiln/core';
 import type { Database } from '@kiln/db';
+import { coded, messageCoding } from '../../i18n/problem.ts';
 import { credentialKindFor, type ManagedApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import type { RevenueCatStep } from '../revenuecat/index.ts';
 import type { PriceContext } from './price-shared.ts';
-
-import { coded, messageCoding } from '../../i18n/problem.ts';
 /**
  * What the sync, the reads and the localization write of in-app products share: the context, the connectors that are built from a
  * credential, the credential itself, the timeout, and the way a store refusal becomes an answer (docs/adr/0034-in-app-products.md).

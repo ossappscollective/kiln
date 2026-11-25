@@ -1,12 +1,21 @@
 import assert from 'node:assert/strict';
 import { createPublicKey, generateKeyPairSync, verify } from 'node:crypto';
 import { test } from 'node:test';
-import { createAppleAdsClient } from './ads-client.ts';
+import {
+  ADS_ACCOUNT,
+  ADS_ACLS,
+  ADS_CAMPAIGN_REPORT,
+  ADS_KEYWORD_REPORT,
+  ADS_POPULARITY,
+  ADS_SEARCHTERM_REPORT,
+  ADS_TOKEN,
+} from './ads.fixtures.ts';
 import {
   loadAppleAdsSigningKey,
   parseAppleAdsSecret,
   signAppleAdsClientSecret,
 } from './ads-auth.ts';
+import { createAppleAdsClient } from './ads-client.ts';
 import { AppleAdsError } from './ads-errors.ts';
 import {
   adsRangeDays,
@@ -19,15 +28,6 @@ import {
   readAppleAdsSearchTerms,
 } from './ads-read.ts';
 import { verifyAppleAdsCredential } from './ads-verify.ts';
-import {
-  ADS_ACCOUNT,
-  ADS_ACLS,
-  ADS_CAMPAIGN_REPORT,
-  ADS_KEYWORD_REPORT,
-  ADS_POPULARITY,
-  ADS_SEARCHTERM_REPORT,
-  ADS_TOKEN,
-} from './ads.fixtures.ts';
 
 const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
 const PEM = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();

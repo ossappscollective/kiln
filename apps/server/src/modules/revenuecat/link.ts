@@ -7,6 +7,7 @@ import {
 } from '@kiln/connectors';
 import { type ActorType, revenueCatAppTypes, supports } from '@kiln/core';
 import { type Database, nullableString, type Sql } from '@kiln/db';
+import { coded } from '../../i18n/problem.ts';
 import { getApp, listApps, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure, type Outcome } from '../../services/repositories.ts';
@@ -19,7 +20,6 @@ import {
 import type { RevenueCatDeps } from './index.ts';
 import { clearRevenueCatCache } from './snapshot.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * The link between an app record and a RevenueCat project and app (docs/adr/0039-revenuecat.md, docs/api/revenuecat.md): which RevenueCat
  * credential to use, which project, which RevenueCat app. Saving it asks RevenueCat, with that credential, whether the project and app

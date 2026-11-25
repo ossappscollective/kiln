@@ -3,10 +3,10 @@ import { randomBytes } from 'node:crypto';
 import { StoreError } from '@kiln/connectors';
 import { dbTest } from '@kiln/db/testing';
 import { createTestLimiter } from '../../services/credential-tests.ts';
-import { pruneTestflight, testerKey } from './store.ts';
-import { ASC_SECRET, bootTestflight, crash, CRASH_LOG, item } from './test-helpers.ts';
 import { createTestflightAfterReviews } from './index.ts';
 import { defaultTestflightConnectorFactory } from './shared.ts';
+import { pruneTestflight, testerKey } from './store.ts';
+import { ASC_SECRET, bootTestflight, CRASH_LOG, crash, item } from './test-helpers.ts';
 
 /** The line of the private key, as a store error could echo it. */
 const KEY_LINE = (JSON.parse(ASC_SECRET) as { privateKey: string }).privateKey.split('\n')[1] ?? '';

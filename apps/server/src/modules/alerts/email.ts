@@ -1,5 +1,7 @@
-import { escapeHtml, mailLink, setMailLinkOrigin } from '../../services/mail-template.ts';
+import { translator } from '../../i18n/catalogs.ts';
+import { isServerLocale, SOURCE_LOCALE } from '../../i18n/runtime.ts';
 import {
+  type EmailTone,
   emailButton,
   emailCalloutHtml,
   emailChip,
@@ -12,10 +14,8 @@ import {
   emailRow,
   emailShell,
   emailSpacer,
-  type EmailTone,
 } from '../../mail/layout.ts';
-import { translator } from '../../i18n/catalogs.ts';
-import { isServerLocale, SOURCE_LOCALE } from '../../i18n/runtime.ts';
+import { escapeHtml, mailLink, setMailLinkOrigin } from '../../services/mail-template.ts';
 import type { AlertData, AlertDef, AlertSeverity } from './catalog-core.ts';
 import { alertText } from './text.ts';
 

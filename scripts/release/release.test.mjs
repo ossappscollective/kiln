@@ -371,7 +371,9 @@ describe('shell scripts', () => {
           APPLE_API_KEY_CONTENT: 'PRIVATE-KEY-TEXT',
         },
       },
-    ).stdout.trim().split('\n');
+    )
+      .stdout.trim()
+      .split('\n');
     assert.equal(out[0], 'notarized|unset|unset');
     assert.equal(out[1], 'PRIVATE-KEY-TEXT');
     assert.equal(out[2], '600');

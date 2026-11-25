@@ -5,9 +5,9 @@
  * screens from offering what it will refuse, and puts the server's answers into words.
  */
 import { can, type Role } from '@kiln/core';
+import type { ConflictReason, FileState, Resolution } from './change-set-refresh.ts';
 import { formatList } from './i18n/format.ts';
 import { t } from './i18n/t.ts';
-import type { ConflictReason, FileState, Resolution } from './change-set-refresh.ts';
 import type { ChangeSetView } from './types.ts';
 
 // ---------------------------------------------------------------------------------------------

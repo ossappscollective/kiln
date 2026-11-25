@@ -1,3 +1,5 @@
+import { formatList } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 import type {
   InboxFilters,
   ReviewFilters,
@@ -5,8 +7,6 @@ import type {
   StoredSummary,
   WeekBucket,
 } from './reviews.ts';
-import { formatList } from '../i18n/format.ts';
-import { k, t } from '../i18n/t.ts';
 import { averageText, statusLabels, statusOrder } from './reviews.ts';
 
 /**

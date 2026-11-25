@@ -47,7 +47,7 @@ test('bullet, numbered, nested and loose lists', () => {
   assert.equal(md('3. x\n4. y'), '<ol start="3"><li>x</li><li>y</li></ol>');
   assert.equal(md('- a\n  - b\n- c'), '<ul><li>a\n<ul><li>b</li></ul></li><li>c</li></ul>');
   assert.equal(md('- a\n\n- b'), '<ul><li><p>a</p></li><li><p>b</p></li></ul>');
-  assert.match(md('1. step\n   ```sh\n   run\n   ```\n2. next'), /<li>step\n<div class="code-block"[^]*<\/li><li>next<\/li>/);
+  assert.match(md('1. step\n   ```sh\n   run\n   ```\n2. next'), /<li>step\n<div class="code-block"[\s\S]*<\/li><li>next<\/li>/);
 });
 
 test('code fences keep content verbatim and escaped, with the language', () => {

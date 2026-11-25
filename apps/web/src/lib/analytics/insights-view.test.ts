@@ -5,8 +5,8 @@ import {
   buildOverview,
   chartColumns,
   emptyReason,
-  platformShape,
   type PlatformView,
+  platformShape,
 } from './insights-view.ts';
 import { insightsGroups } from './sections.ts';
 import type { StatChipModel } from './view.ts';

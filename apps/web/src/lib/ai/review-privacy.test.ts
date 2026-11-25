@@ -8,9 +8,9 @@ import {
   privacyChanges,
   privacySettingHref,
   privacyToForm,
+  type ReviewPayloadPreview,
   reviewAiGate,
   workspaceAiSettingHref,
-  type ReviewPayloadPreview,
 } from './review-privacy.ts';
 
 const stored = (over: Partial<ReviewAiPolicyStored> = {}): ReviewAiPolicyStored => ({

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { SERVER_LOCALES } from '../../i18n/runtime.ts';
-import { alertCatalog, type AlertData } from './catalog.ts';
+import { type AlertData, alertCatalog } from './catalog.ts';
 import { alertText, camelKey, hasAlertText } from './text.ts';
 
 const catalog = (ns: string, lang: string) =>

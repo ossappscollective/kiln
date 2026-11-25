@@ -6,8 +6,8 @@
  */
 import { type CacheEntry, readEntry, writeEntry } from './cache.ts';
 import { paletteFromUrl } from './extract.ts';
-import { type AppAppearance, readTintPref, resolveTint, saveTintPref } from './prefs.ts';
 import type { Palette } from './palette.ts';
+import { type AppAppearance, readTintPref, resolveTint, saveTintPref } from './prefs.ts';
 import { createLimiter } from './switcher.ts';
 import { type AppTint, tintStyle } from './tokens.ts';
 

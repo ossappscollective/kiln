@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
+import type { StoreImageRecord } from '@kiln/connectors';
 import { dbTest } from '@kiln/db/testing';
 import { weatherApp } from '../../../../../packages/connectors/src/fastlane.fixtures.ts';
-import type { StoreImageRecord } from '@kiln/connectors';
 import type { Exchange } from '../../services/safe-fetch.ts';
-import { iosListing, playListing } from './test-helpers.ts';
 import { bootStaged, IPHONE_65, png, type StagedBoot } from '../publish/test-helpers.ts';
-import { clearStoreImageCaches } from './store-images.ts';
-import { clearAssetIndexes, isCommitSha } from './asset-repo.ts';
 import { resetProposalSummaryCache } from './asset-proposal-summary.ts';
+import { clearAssetIndexes, isCommitSha } from './asset-repo.ts';
+import { clearStoreImageCaches } from './store-images.ts';
+import { iosListing, playListing } from './test-helpers.ts';
 
 /**
  * The release asset proposal (docs/api/release-asset-proposal.md, docs/adr/0063-release-asset-proposal.md): what changed in the repository since

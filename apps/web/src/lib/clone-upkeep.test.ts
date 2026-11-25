@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { useLocale } from './i18n/test-setup.ts';
 import {
   type CloneView,
   cloneSummary,
@@ -8,6 +7,7 @@ import {
   limitsSentence,
   purgeMessage,
 } from './clone-upkeep.ts';
+import { useLocale } from './i18n/test-setup.ts';
 
 test('formatBytes uses binary multiples with one decimal under ten', () => {
   useLocale('en');

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  buildLabel,
   type BuildFacet,
+  buildLabel,
   connectionLabel,
   deviceFacts,
   deviceLine,
@@ -14,11 +14,11 @@ import {
   statusBadge,
   symbolicationNote,
   syncLine,
+  type TestflightListItem,
   testerLabel,
   testerOptions,
   testflightConsoleUrl,
   triageDiff,
-  type TestflightListItem,
 } from './testflight.ts';
 
 const NOW = Date.UTC(2026, 10, 22, 12);

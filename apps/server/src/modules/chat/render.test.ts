@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { setMailLinkOrigin } from '../../services/mail-template.ts';
-import { retryAfterMs, judge } from './delivery.ts';
+import { judge, retryAfterMs } from './delivery.ts';
 import { buildAlertMessage, buildDigest, buildTestMessage } from './message.ts';
 import { accentOf, type ChatMessage, hostAllowed, limits } from './model.ts';
 import { renderDigest, renderMessage } from './render.ts';
+import { ruleMatches } from './routing.ts';
 import { escapeMrkdwn, type SlackPayload } from './slack.ts';
 import { escapeTeams, type TeamsPayload } from './teams.ts';
-import { ruleMatches } from './routing.ts';
 
 const data = {
   appId: 'app1',

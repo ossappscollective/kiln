@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { assetProposalOperations } from './asset-proposal-operations.ts';
 import { changeSetSchema, type Draft, listingQuery, object, W } from '../../operations/shared.ts';
+import { assetProposalOperations } from './asset-proposal-operations.ts';
 
 const pullListingBody = z.object({
   channel: z

@@ -3,6 +3,8 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody, type Services } from '../http.ts';
+import { coded } from '../i18n/problem.ts';
+import { negotiateLocale } from '../i18n/runtime.ts';
 import { memberRole } from '../services/accounts.ts';
 import { recordAudit } from '../services/audit.ts';
 import { MAIL_ERROR_MESSAGES, type Mailer } from '../services/mailer.ts';
@@ -32,9 +34,6 @@ import {
   setLoginMode,
   twoFactorStatus,
 } from '../services/two-factor.ts';
-import { negotiateLocale } from '../i18n/runtime.ts';
-
-import { coded } from '../i18n/problem.ts';
 /**
  * Two-factor routes (docs/api/two-factor.md, docs/adr/0021-two-factor-and-smtp.md). Mounted under /api/workspaces. Every route is a
  * person's: closed to API tokens in the registry. Changing a factor needs a fresh step-up confirmation (class `step_up.manage`) whenever

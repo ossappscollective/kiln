@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildCoach } from './aso/aso-coach.ts';
 import { checkTerm } from './aso/aso.ts';
-import { coreText } from './text.ts';
+import { buildCoach } from './aso/aso-coach.ts';
 import { checkPlayProposal } from './release/play-release-checks.ts';
 import { compareRollout, ROLLOUT_TEMPLATES, validateRolloutSteps } from './release/rollout-plan.ts';
+import { coreText } from './text.ts';
 
 const KEY = /^[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*)*$/;
 

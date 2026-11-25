@@ -12,8 +12,8 @@ import {
   sameText,
   sourceWord,
   stageBlockedReason,
-  whereText,
   stageThenClose,
+  whereText,
 } from './edit.ts';
 
 test('each store lists its main text fields with limits and whether a draft push can write them', () => {

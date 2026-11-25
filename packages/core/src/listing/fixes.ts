@@ -10,7 +10,7 @@
 
 import { APP_STORE_KEYWORD_BYTES, languageOf, matchWords } from '../aso/aso.ts';
 import { type CheckCode, type CheckIssue, checkListing } from '../insights/listing-checks.ts';
-import { isStageableTextField } from './staged-changes.ts';
+import type { Platform } from '../platform.ts';
 import {
   APP_STORE_FIELD_SPECS,
   countBytes,
@@ -18,7 +18,7 @@ import {
   type ListingStore,
   PLAY_FIELD_SPECS,
 } from './listing.ts';
-import { type Platform } from '../platform.ts';
+import { isStageableTextField } from './staged-changes.ts';
 
 export type FixId =
   | 'keywords_tidy'

@@ -1,5 +1,3 @@
-import { formatNumber, formatPercent } from '../i18n/format.ts';
-import { k, t } from '../i18n/t.ts';
 import {
   type AnalyticsSeries,
   type Delta,
@@ -8,6 +6,8 @@ import {
   formatRating,
 } from '../analytics/analytics.ts';
 import type { ChartPanel, StatChipModel } from '../analytics/view.ts';
+import { formatNumber, formatPercent } from '../i18n/format.ts';
+import { k, t } from '../i18n/t.ts';
 
 /**
  * Ratings and app health of Insights (docs/adr/0052-ratings-health.md, docs/api/ratings.md): the API shapes and the pure view model.

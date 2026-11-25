@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { checkListing } from '../insights/listing-checks.ts';
-import { countBytes } from './listing.ts';
 import {
   analyzeFixes,
   fitKeywords,
@@ -11,6 +10,7 @@ import {
   tidyKeywords,
   tidyText,
 } from './fixes.ts';
+import { countBytes } from './listing.ts';
 
 const apple = (fields: Record<string, string>, locale = 'en-US') => ({
   platform: 'ios' as const,

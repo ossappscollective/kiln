@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { analyzeFixes } from '@kiln/core';
 import { dbTest } from '@kiln/db/testing';
-import { iosListing, playListing } from '../listing/test-helpers.ts';
 import { hashListingValue } from '../listing/drift.ts';
+import { iosListing, playListing } from '../listing/test-helpers.ts';
 import { bootStaged } from './test-helpers.ts';
 
 /** One-click fixes of the listing checks: computed and staged by the server (docs/api/listing.md). Fakes only. */

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   bannerKinds,
+  type ConnectRow,
   canLink,
   choiceValue,
   counts,
@@ -10,7 +11,6 @@ import {
   repositoriesToDetect,
   toLink,
   withValue,
-  type ConnectRow,
 } from './connect.ts';
 
 const apps = [

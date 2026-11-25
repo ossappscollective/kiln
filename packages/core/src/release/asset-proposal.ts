@@ -5,8 +5,8 @@
  * The web target is ES2017: no `flatMap` or `fromEntries`.
  */
 
-import type { Platform } from '../platform.ts';
 import type { AssetKind } from '../listing/store-asset-specs.ts';
+import type { Platform } from '../platform.ts';
 
 export type ProposalSeverity = 'error' | 'warning' | 'tip';
 

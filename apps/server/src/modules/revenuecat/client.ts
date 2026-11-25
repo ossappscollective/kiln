@@ -8,11 +8,11 @@ import {
 } from '@kiln/connectors';
 import type { ActorType } from '@kiln/core';
 import type { Database } from '@kiln/db';
+import { coded } from '../../i18n/problem.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import type { RevenueCatDeps } from './index.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * The one way the RevenueCat features get a client (docs/adr/0039-revenuecat.md), the model of `expoClientFor`: it checks that the
  * credential is a RevenueCat credential of this workspace, decrypts the key for this one client (audited as `credential.use` with the

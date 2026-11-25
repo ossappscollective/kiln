@@ -1,4 +1,5 @@
 import type { Database } from '@kiln/db';
+import { graphqlError } from '../../../../../packages/connectors/src/expo/expo.fixtures.ts';
 import {
   BRANCH_MAIN,
   BRANCH_NEXT,
@@ -10,7 +11,6 @@ import {
   insightsBody,
   rolloutMapping,
 } from '../../../../../packages/connectors/src/expo/updates.fixtures.ts';
-import { graphqlError } from '../../../../../packages/connectors/src/expo/expo.fixtures.ts';
 import { bootEas, EXPO_TOKEN, json, PROJECT_ID } from './test-helpers.ts';
 
 /** A fake Expo for EAS Update and a booted server with a linked app. Not a test file. */

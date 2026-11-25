@@ -1,6 +1,7 @@
 import type { JsonSchema } from '@kiln/connectors';
 import { type AiProvider, byFamily, sameLanguage, storeShortName } from '@kiln/core';
 import type { Database } from '@kiln/db';
+import { coded } from '../../i18n/problem.ts';
 import type { ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import {
@@ -19,8 +20,6 @@ import {
 } from './ai-config.ts';
 import { currentAiWarning, runAiDirect } from './ai-direct.ts';
 import type { ConcurrencyGate, UsageWarning } from './ai-usage.ts';
-
-import { coded } from '../../i18n/problem.ts';
 /**
  * Translating the "what is new" text of a release into other languages (docs/api/releases-write.md, docs/adr/0028-release-notes-translation.md).
  *

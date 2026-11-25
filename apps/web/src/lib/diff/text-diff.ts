@@ -66,7 +66,7 @@ function myers(a: readonly string[], b: readonly string[], maxEdits: number): Se
   const max = Math.min(n + m, maxEdits);
   const size = 2 * max + 3;
   const off = max + 1;
-  let v = new Int32Array(size);
+  const v = new Int32Array(size);
   const trace: Int32Array[] = [];
   let found = -1;
   for (let d = 0; d <= max && found < 0; d++) {

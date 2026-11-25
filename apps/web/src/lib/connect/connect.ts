@@ -1,7 +1,7 @@
 import { platformSupports } from '@kiln/core';
+import { type ExpoDetection, projectReferenceProblem } from '../eas/eas.ts';
 import { t } from '../i18n/t.ts';
 import type { AppSummary, CredentialSummary } from '../types.ts';
-import { type ExpoDetection, projectReferenceProblem } from '../eas/eas.ts';
 
 /**
  * Pure logic of "Connect your apps" (components/connect/): which app records still need a RevenueCat or an Expo link, and the rows the

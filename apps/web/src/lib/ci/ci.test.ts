@@ -5,9 +5,9 @@ import type { AppBuild, WorkflowInputSpec, WorkflowRun } from '../types.ts';
 import {
   buildLinkLabel,
   buildName,
-  confidenceBadge,
   canDispatchWorkflow,
   changesHeadline,
+  confidenceBadge,
   dispatchInputs,
   dispatchSummary,
   hasActiveRun,

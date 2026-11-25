@@ -10,12 +10,12 @@ import {
   lockInfo,
   mergeLocales,
   optionText,
+  panelOf,
   pickersFor,
   resolveLocale,
   resolveVersion,
   versionState,
   withHeaderParams,
-  panelOf,
   withPanel,
 } from './app-header.ts';
 import { withScope } from './app-scope.ts';

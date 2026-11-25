@@ -16,6 +16,7 @@ import {
   type StoreFamily,
   storeFamilyOf,
 } from '@kiln/core';
+import { coded } from '../../i18n/problem.ts';
 import { listKeywords } from '../aso/service.ts';
 import { normalizeListingValue } from '../listing/drift.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
@@ -32,7 +33,6 @@ import {
   type ReadyTask,
 } from './ai-task-types.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * `listing_variants` and `listing_translate` (docs/adr/0024-ai-features.md): several alternative texts for a field, and a translation of
  * the listing text into another language. Both end in text a person reads and STAGES (`changesets.write`, source `ai`): the same

@@ -7,9 +7,9 @@ import {
   storeShortName,
   type TermSource,
 } from '@kiln/core';
-import { agoText } from './ago.ts';
 import { formatList } from '../i18n/format.ts';
 import { k, t } from '../i18n/t.ts';
+import { agoText } from './ago.ts';
 import type { AsoKeywordInput } from './aso.ts';
 
 /**

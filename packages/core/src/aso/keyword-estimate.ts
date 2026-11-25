@@ -234,7 +234,7 @@ export function estimateDifficulty(store: EstimateStore, s: KeywordSignals): Est
   const med = median(rated.map((a) => log10((a.ratingCount ?? 0) + 1)));
   reasons.push({
     code: 'results_strength',
-    params: { apps: rated.length, medianRatings: round(Math.pow(10, med) - 1) },
+    params: { apps: rated.length, medianRatings: round(10 ** med - 1) },
     points: round(clamp((med / 6) * 100)),
     weight: WEIGHTS.strength,
   });

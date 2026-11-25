@@ -1,5 +1,6 @@
 import { type AiClient, AiError, type JsonSchema } from '@kiln/connectors';
 import { type AiProvider, estimateTokens } from '@kiln/core';
+import { coded } from '../../i18n/problem.ts';
 import {
   type AiActor,
   type AiConfigValues,
@@ -25,8 +26,6 @@ import {
   type UsageWarning,
   usageWarning,
 } from './ai-usage.ts';
-
-import { coded } from '../../i18n/problem.ts';
 /**
  * ONE answer from the workspace's AI provider, returned to the caller and stored nowhere (docs/adr/0028-release-notes-translation.md).
  *

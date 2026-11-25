@@ -26,22 +26,29 @@ import {
   type ActorType,
   type AnalyticsErrorCode,
   type AnalyticsSource,
-  isAnalyticsSource,
   addDays,
   analyticsErrorMessages,
   analyticsLimits,
   dateToDay,
+  isAnalyticsSource,
   moneyMetrics,
   sourcesForPlatform,
   splitProductDimValue,
 } from '@kiln/core';
 import type { Database } from '@kiln/db';
+import { coded } from '../../i18n/problem.ts';
 import { enqueue, type JobHandler } from '../../jobs.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
+import {
+  credentialLane,
+  mapPool,
+  pipelineSettings,
+  syncActivity,
+} from '../../services/sync-pipeline.ts';
 import { getSettings } from '../../services/workspace-settings.ts';
 import {
   capProductPoints,
@@ -64,13 +71,6 @@ import {
   upsertPoints,
 } from './store.ts';
 
-import { coded } from '../../i18n/problem.ts';
-import {
-  credentialLane,
-  syncActivity,
-  mapPool,
-  pipelineSettings,
-} from '../../services/sync-pipeline.ts';
 /**
  * Reads the analytics of an app from its stores into `analytics_daily` (docs/adr/0017-analytics-foundation.md). Read only toward the
  * stores: the one store write of analytics (creating an Apple report request) is a separate, explicit action (analytics-enable.ts).

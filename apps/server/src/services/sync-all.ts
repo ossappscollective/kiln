@@ -1,11 +1,11 @@
 import {
   type AnalyticsSource,
-  type Role,
   analyticsSources,
   can,
   isAnalyticsSource,
   needsStoreAppId,
   parsePlatform,
+  type Role,
   supports,
 } from '@kiln/core';
 import type { Database } from '@kiln/db';

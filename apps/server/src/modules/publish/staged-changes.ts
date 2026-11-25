@@ -39,10 +39,10 @@ import {
   validateAssets,
 } from '@kiln/core';
 import { type Database, nullableNumber, nullableString, oneOf, type Row, type Sql } from '@kiln/db';
+import { coded } from '../../i18n/problem.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
-import { metadataLockedFailure } from './metadata-lock.ts';
 import { type AssetsContext, isCommitSha, openAssets } from '../listing/asset-repo.ts';
 import {
   ABSENT_HASH,
@@ -55,9 +55,9 @@ import {
 } from '../listing/drift.ts';
 import { getDrift } from '../listing/live.ts';
 import { storeFor } from '../reviews/sync.ts';
+import { metadataLockedFailure } from './metadata-lock.ts';
 import { deleteUnreferencedBlobs } from './staged-asset-blobs.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * Staged changes (docs/api/staged-changes.md, docs/adr/0009-staged-store-drafts.md): the listing
  * texts and graphics a person has collected for ONE app, to be written into the store as a DRAFT

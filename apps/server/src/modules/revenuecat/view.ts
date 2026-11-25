@@ -1,16 +1,16 @@
 import {
-  joinRevenueCat,
   type JoinStoreProduct,
+  joinRevenueCat,
   type MatchedProduct,
   type ProductRevenueCat,
   type RevenueCatWarning,
 } from '@kiln/connectors';
 import type { Sql } from '@kiln/db';
-import { type RevenueCatLinkView, getRevenueCatLink } from './link.ts';
+import { getRevenueCatLink, type RevenueCatLinkView } from './link.ts';
 import {
+  type RevenueCatSyncStatus,
   readRevenueCatCache,
   readRevenueCatSyncStatus,
-  type RevenueCatSyncStatus,
 } from './snapshot.ts';
 
 /**

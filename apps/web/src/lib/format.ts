@@ -1,4 +1,4 @@
-import { formatDate, formatDateTime, formatTime, formatList } from './i18n/format.ts';
+import { formatDate, formatDateTime, formatList, formatTime } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
 import type { AuditEvent } from './types.ts';
 

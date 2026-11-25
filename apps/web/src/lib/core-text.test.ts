@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  buildCoach,
   type CoachInput,
   type CoachKeyword,
   type CoreText,
-  buildCoach,
   checkPlayProposal,
   checkTerm,
   compareRollout,
@@ -18,9 +18,9 @@ import {
   coreMessage,
   knowsCoreText,
   playCheckMessage,
-  rolloutOfferMessage,
   rolloutComparisonMessage,
   rolloutIssueMessage,
+  rolloutOfferMessage,
   templateDescription,
   templateName,
   termReason,

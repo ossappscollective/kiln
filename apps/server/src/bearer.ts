@@ -2,6 +2,7 @@ import { canToken, lowerRole, type Role } from '@kiln/core';
 import type { Context, MiddlewareHandler, Next } from 'hono';
 import { getCookie } from 'hono/cookie';
 import { type AppEnv, clientIp, type Services } from './http.ts';
+import { coded } from './i18n/problem.ts';
 import { createLoginLimiter, type LoginLimiter } from './limiter.ts';
 import { compilePath, tokenAllowedFor } from './operations/openapi.ts';
 import { operations } from './operations/registry.ts';
@@ -9,8 +10,6 @@ import { requireUser, SESSION_COOKIE } from './routes/auth.ts';
 import { runAsToken } from './services/audit.ts';
 import { createTestLimiter, type TestLimiter } from './services/credential-tests.ts';
 import { authenticateToken, type TokenPrincipal, touchToken } from './services/tokens.ts';
-
-import { coded } from './i18n/problem.ts';
 /**
  * Authentication for `/api/workspaces/*` and `/api/openapi.json`: the session cookie, as before, or
  * `Authorization: Bearer kiln_...`.

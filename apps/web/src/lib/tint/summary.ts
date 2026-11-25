@@ -5,7 +5,7 @@
 import { k } from '../i18n/t.ts';
 import { over, parseColor, ratio } from './contrast.ts';
 import type { Rgb } from './oklch.ts';
-import { type AppTint, type SchemeTokens, type Scheme, themeSurfaces } from './tokens.ts';
+import { type AppTint, type Scheme, type SchemeTokens, themeSurfaces } from './tokens.ts';
 
 export type TokenRow = {
   id: 'accent' | 'accentInk' | 'accentSolid' | 'tintSubtle';

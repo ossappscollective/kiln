@@ -5,8 +5,8 @@ import { k } from './i18n/t.ts';
 import {
   type RunState,
   type SourceInput,
-  type SyncKind,
   SYNC_KINDS,
+  type SyncKind,
   sourceState,
 } from './sync-sources.ts';
 

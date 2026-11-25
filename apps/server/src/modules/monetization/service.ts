@@ -1,5 +1,6 @@
 import { StoreRateLimitError } from '@kiln/connectors';
 import { supports } from '@kiln/core';
+import { coded } from '../../i18n/problem.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
@@ -28,8 +29,6 @@ import {
   recordSyncFailure,
   replaceSnapshot,
 } from './snapshot.ts';
-
-import { coded } from '../../i18n/problem.ts';
 /**
  * Reading the in-app purchases and subscriptions of an app from its store, keeping a copy, and showing it (docs/api/products.md,
  * docs/adr/0034-in-app-products.md). READ ONLY: a sync asks the store for lists and details and changes nothing there. A sync is a

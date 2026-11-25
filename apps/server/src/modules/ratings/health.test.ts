@@ -4,10 +4,10 @@ import { dayRange } from './days.ts';
 import {
   compare,
   finding,
-  steady,
-  versionHealth,
   type HealthData,
+  steady,
   type VersionDay,
+  versionHealth,
 } from './health.ts';
 
 const apple = (days: Array<[string, string, number, number | undefined]>): HealthData => {

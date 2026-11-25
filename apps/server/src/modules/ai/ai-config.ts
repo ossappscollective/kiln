@@ -18,6 +18,7 @@ import {
   type Role,
 } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
+import { coded } from '../../i18n/problem.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import {
@@ -31,8 +32,6 @@ import {
   type Resolver,
   resolveAllowed,
 } from '../../services/webhook-transport.ts';
-
-import { coded } from '../../i18n/problem.ts';
 /**
  * The AI configuration of a workspace and the failure vocabulary of the AI routes (docs/api/ai.md,
  * docs/adr/0016-ai-foundation.md).

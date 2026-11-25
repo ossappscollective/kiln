@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { contrast, graphicPairs, palette, textPairs, themeNames } from './tokens.ts';
 
 for (const theme of themeNames) {

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { ActorType } from '@kiln/core';
+import { coded } from '../i18n/problem.ts';
 import { recordAudit } from './audit.ts';
 import {
   type GitProblemCode,
@@ -26,7 +27,6 @@ import {
   type Repository,
 } from './repositories.ts';
 
-import { coded } from '../i18n/problem.ts';
 /**
  * Attaching a folder on this machine to a repository, or connecting it as a repository of its
  * own (docs/adr/0005-local-clone-reads.md). Reading from it is in local-reads.ts. Every function

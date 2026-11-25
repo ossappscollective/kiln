@@ -18,9 +18,9 @@ import {
 } from '@kiln/core';
 import { ApiError } from './api.ts';
 import { rolloutIssueMessage } from './core-text.ts';
-import { compareTracks } from './play-tracks.ts';
 import { formatDate, formatDateTime, formatPercent as formatShare } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
+import { compareTracks } from './play-tracks.ts';
 import { compareVersions, platformLabel } from './portfolio.ts';
 import type { AppSummary, ReleaseSummary, RolloutStep } from './types.ts';
 

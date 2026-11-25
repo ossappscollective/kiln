@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ActorType } from '@kiln/core';
 import type { Database, Row, Sql } from '@kiln/db';
+import { type Coding, coded, type ErrorParams } from '../../i18n/problem.ts';
 import { recordAudit } from '../../services/audit.ts';
 import {
   type AlertChannel,
@@ -17,7 +18,6 @@ import {
 } from './catalog.ts';
 import { type DigestMode, digestModes, isValidTimeZone } from './time.ts';
 
-import { type Coding, type ErrorParams, coded } from '../../i18n/problem.ts';
 /**
  * What people and admins decided about alerts (docs/alerts.md): the workspace rule of each type (admins), a person's own settings,
  * channels per type and app, and mutes (everyone for themselves). Pure reads and writes of choices; nothing here sends anything.

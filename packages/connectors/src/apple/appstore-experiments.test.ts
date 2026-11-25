@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { StoreError } from '../errors.ts';
+import * as fx from '../store.fixtures.ts';
 import * as ex from '../store-experiments.fixtures.ts';
 import {
   appleExperimentState,
   currentCustomPageVersion,
   type StoreCustomPageVersion,
 } from '../store-experiments-types.ts';
-import * as fx from '../store.fixtures.ts';
 import { AppleExperimentsConnector, assetCounts, linkedIds } from './appstore-experiments.ts';
 
 const key = fx.appleKeyPem();

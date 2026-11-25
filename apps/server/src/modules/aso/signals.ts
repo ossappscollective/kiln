@@ -1,8 +1,8 @@
 import { appleStorefrontId } from '@kiln/connectors';
 import {
   type AdsSignal,
-  estimateKeyword,
   type EstimateStore,
+  estimateKeyword,
   type HintsSignal,
   KEYWORD_ESTIMATE_MODEL,
   type KeywordEstimate,

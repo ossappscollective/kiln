@@ -6,8 +6,8 @@ import {
   analyticsSetupCodes,
   coverageNoteCodes,
 } from '@kiln/core';
-import { useLocale } from '../i18n/test-setup.ts';
 import { t } from '../i18n/t.ts';
+import { useLocale } from '../i18n/test-setup.ts';
 import {
   deltaLine,
   formatDay,

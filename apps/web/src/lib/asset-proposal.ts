@@ -4,8 +4,8 @@
  * The server decides what is proposed; nothing here changes it.
  */
 import {
-  type AssetProposalView,
   ASSET_KIND_LABELS,
+  type AssetProposalView,
   type CheckCode,
   defaultSelection,
   orderIssues,

@@ -12,7 +12,7 @@
 import { isBigMove, type RankChange } from '../aso/aso.ts';
 import type { ListingStore } from '../listing/listing.ts';
 import { type CountryCount, languageCoverage } from './language-coverage.ts';
-import { checkListing, type CheckLocaleText } from './listing-checks.ts';
+import { type CheckLocaleText, checkListing } from './listing-checks.ts';
 import { complaintThemes, type ReviewTheme } from './review-themes.ts';
 
 export const INSIGHT_CATEGORIES = [
@@ -254,10 +254,8 @@ function conversion(ctx: Ctx) {
     s.prev.total < 1000 ||
     a.prev.total < 20
   ) {
-    {
-      skip(ctx, 'conversion', 'too_little_data');
-      return;
-    }
+    skip(ctx, 'conversion', 'too_little_data');
+    return;
   }
   const now = a.cur.total / s.cur.total;
   const before = a.prev.total / s.prev.total;
@@ -538,13 +536,11 @@ function keywords(ctx: Ctx) {
         from: top.change?.from ?? 0,
         to: top.change?.to ?? 0,
       },
-      evidence: side
-        .slice(0, 3)
-        .map((k) => ({
-          key: `${k.term} (${k.country.toUpperCase()})`,
-          value: k.rank ?? 0,
-          format: 'rank' as const,
-        })),
+      evidence: side.slice(0, 3).map((k) => ({
+        key: `${k.term} (${k.country.toUpperCase()})`,
+        value: k.rank ?? 0,
+        format: 'rank' as const,
+      })),
       actions: [
         {
           code: 'openRank',

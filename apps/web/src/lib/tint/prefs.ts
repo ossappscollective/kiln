@@ -2,8 +2,9 @@
  * The two choices behind the app tint (docs/adr/0068-app-tint.md): the person's own switch (default on, kept in localStorage like
  * the theme) and the per-app override stored in the workspace (`auto`, `off`, `custom`), and what they make of a palette.
  */
-import type { Palette } from './palette.ts';
+
 import { withChart } from './chart-palette.ts';
+import type { Palette } from './palette.ts';
 import { type AppTint, deriveTint } from './tokens.ts';
 
 export const TINT_PREF_KEY = 'kiln.tint';

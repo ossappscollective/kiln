@@ -1,13 +1,12 @@
 import { checkReplyText, type JsonSchema, normalizeReplyText } from '@kiln/connectors';
 import { type AiFlag, type AiReplyProposal, aiLimits, shapeReviewForAi } from '@kiln/core';
+import { coded } from '../../i18n/problem.ts';
 import { replyLimitFor } from '../reviews/replies.ts';
 import { getReview, type StoreKey } from '../reviews/service.ts';
 import { hasPersonalData, looksLikePromise } from './ai-app-context.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { DEFAULT_SEND_POLICY } from './ai-task-data.ts';
 import { checkScope, cleanGoal, clip, type PreparedRun, type ReadyTask } from './ai-task-types.ts';
-
-import { coded } from '../../i18n/problem.ts';
 /**
  * Task `review_reply_draft` (version 1): a short, polite draft reply to ONE review.
  *

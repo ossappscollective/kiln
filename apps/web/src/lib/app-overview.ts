@@ -1,7 +1,7 @@
 import { type Platform, platformLabel, type ReleaseState } from '@kiln/core';
 import type { AppGroup } from './app-groups.ts';
-import { t } from './i18n/t.ts';
 import { appAddress } from './app-scope.ts';
+import { t } from './i18n/t.ts';
 import { chipFor, lineFor, type PendingLine, type PendingSummary } from './pending.ts';
 import { latestRelease, type ReleaseLoad } from './portfolio.ts';
 import {

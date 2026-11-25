@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { useLocale } from './i18n/test-setup.ts';
-import { durationText, severityLabel, warningsSummary } from './revenuecat/revenuecat.ts';
 import { kindLabel, priceCountText, priceText } from './products.ts';
+import { durationText, severityLabel, warningsSummary } from './revenuecat/revenuecat.ts';
 import type { ProductPrice } from './types.ts';
 
 const price: ProductPrice = {

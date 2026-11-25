@@ -16,6 +16,7 @@ import {
   DEFAULT_TAG_PATTERNS,
   type Platform,
 } from '@kiln/core';
+import { coded } from '../../i18n/problem.ts';
 import { enqueue, type JobHandler } from '../../jobs.ts';
 import { getApp, listAppReleases, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
@@ -82,7 +83,6 @@ import {
   type TagClient,
 } from './scan.ts';
 
-import { coded } from '../../i18n/problem.ts';
 type Actor = { type: ActorType; id: string };
 
 export const CI_POLL_QUEUE = 'ci.poll';

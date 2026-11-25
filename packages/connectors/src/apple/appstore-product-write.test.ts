@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { StoreError } from '../errors.ts';
+import * as fx from '../store.fixtures.ts';
 import * as pf from '../store-products.fixtures.ts';
 import {
   localizationHash,
@@ -10,7 +11,6 @@ import {
   ProductOutcomeUnknownError,
   type StoreProductRef,
 } from '../store-products-types.ts';
-import * as fx from '../store.fixtures.ts';
 import { AppleProductWriteConnector } from './appstore-product-write.ts';
 
 const key = fx.appleKeyPem();

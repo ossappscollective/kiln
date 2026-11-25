@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  SHOTS,
-  THEMES,
   appIdOf,
   appRoute,
   buildManifest,
@@ -11,8 +9,10 @@ import {
   mergeManifest,
   parseArgs,
   pngSize,
+  SHOTS,
   selectShots,
   shotUrl,
+  THEMES,
 } from './capture.mjs';
 
 // A 1x1 PNG, then widened in the IHDR so the reader has something to find.

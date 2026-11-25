@@ -2,9 +2,18 @@ import { type Action, can } from '@kiln/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { type Translate, translator } from '../i18n/catalogs.ts';
-import { negotiateLocale } from '../i18n/runtime.ts';
 import { type AppEnv, parseBody, type Services } from '../http.ts';
+import { type Translate, translator } from '../i18n/catalogs.ts';
+import { coded } from '../i18n/problem.ts';
+import { negotiateLocale } from '../i18n/runtime.ts';
+import {
+  emailButton,
+  emailFooter,
+  emailHeading,
+  emailParagraph,
+  emailRow,
+  emailShell,
+} from '../mail/layout.ts';
 import { memberRole } from '../services/accounts.ts';
 import { recordAudit } from '../services/audit.ts';
 import {
@@ -17,20 +26,10 @@ import {
 } from '../services/mail-config.ts';
 import { plainAddress } from '../services/mail-mime.ts';
 import { escapeHtml, mailLink } from '../services/mail-template.ts';
-import {
-  emailButton,
-  emailFooter,
-  emailHeading,
-  emailParagraph,
-  emailRow,
-  emailShell,
-} from '../mail/layout.ts';
 import { MAIL_ERROR_MESSAGES, type Mailer } from '../services/mailer.ts';
 import { requireManage } from '../services/step-up.ts';
 import { activeEmail } from '../services/two-factor.ts';
 import type { Resolver } from '../services/webhook-transport.ts';
-
-import { coded } from '../i18n/problem.ts';
 /**
  * Mail settings (docs/api/mail.md). Mounted under /api/workspaces. The setting is for the whole server, not for the workspace: the
  * workspace id in the path is only the door (an owner or admin of it may change the server's mail setting). Closed to API tokens.

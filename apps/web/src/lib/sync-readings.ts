@@ -1,8 +1,7 @@
-import { type Platform, type Role, can, listingStoreOf } from '@kiln/core';
-import type { Api } from './api.ts';
-import { lastReadAt } from './analytics/view.ts';
+import { can, listingStoreOf, type Platform, type Role } from '@kiln/core';
 import { stateOf } from './analytics/analytics.ts';
-import { overallState } from './analytics/view.ts';
+import { lastReadAt, overallState } from './analytics/view.ts';
+import type { Api } from './api.ts';
 import type { Reading, SourceInput, SyncKind } from './sync-sources.ts';
 
 /**

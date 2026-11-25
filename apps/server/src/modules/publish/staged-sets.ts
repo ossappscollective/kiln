@@ -19,11 +19,12 @@ import {
   sniffImageFormat,
   validateAssets,
 } from '@kiln/core';
+import { coded } from '../../i18n/problem.ts';
 import type { ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
-import { metadataLockedFailure } from './metadata-lock.ts';
 import { type AssetHandle, isCommitSha, openAssets } from '../listing/asset-repo.ts';
+import { metadataLockedFailure } from './metadata-lock.ts';
 import {
   type BlobMediaType,
   deleteUnreferencedBlobs,
@@ -38,7 +39,6 @@ import {
   type StagedRow,
 } from './staged-changes.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * Staged sets of graphics that are composed here: an image uploaded or fixed in the app is added to a set, replaces a file of
  * it, or a file is taken out (docs/adr/0012-assets-two-way-sync.md, docs/api/staged-changes.md). A staged set is what a push

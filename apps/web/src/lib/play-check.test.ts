@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { StagedChangesView } from '@kiln/core';
+import { t } from './i18n/t.ts';
 import {
   bodyKey,
   canCheck,
@@ -15,7 +16,6 @@ import {
   proposalOf,
   stateLine,
 } from './play-check.ts';
-import { t } from './i18n/t.ts';
 import type { EditableRelease } from './release-candidates.ts';
 
 const editable: EditableRelease = {

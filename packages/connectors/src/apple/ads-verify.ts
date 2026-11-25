@@ -1,7 +1,7 @@
 import { redactSecrets, secretStrings } from '../errors.ts';
 import type { VerifyOptions, VerifyResult } from '../verify.ts';
-import { createAppleAdsClient } from './ads-client.ts';
 import { parseAppleAdsSecret } from './ads-auth.ts';
+import { createAppleAdsClient } from './ads-client.ts';
 import { AppleAdsError } from './ads-errors.ts';
 import { listAppleAdsAccounts } from './ads-read.ts';
 

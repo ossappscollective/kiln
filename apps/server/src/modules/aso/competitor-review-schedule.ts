@@ -1,3 +1,4 @@
+import { AsoError } from '@kiln/connectors';
 import {
   competitorReviewLimits,
   effectiveReviewSchedule,
@@ -9,11 +10,10 @@ import {
   reviewReadBackoffMs,
   reviewReadDue,
 } from '@kiln/core';
-import { AsoError } from '@kiln/connectors';
 import type { Database, Sql } from '@kiln/db';
 import { enqueue, type JobHandler } from '../../jobs.ts';
-import { emitEvent } from '../../services/events.ts';
 import { recordAudit } from '../../services/audit.ts';
+import { emitEvent } from '../../services/events.ts';
 import { refreshCompetitorReviews } from './competitor-reviews.ts';
 import type { AsoSources } from './net.ts';
 import { asoErrorCode } from './service.ts';

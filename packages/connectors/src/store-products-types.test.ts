@@ -10,8 +10,8 @@ import {
   localizationHash,
   moneyToPrice,
   productHash,
-  sameLocale,
   type StoreProduct,
+  sameLocale,
 } from './store-products-types.ts';
 
 const product = (over: Partial<StoreProduct> = {}): StoreProduct => ({

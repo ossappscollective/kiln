@@ -1,5 +1,5 @@
 import type { Platform } from '@kiln/core';
-import { appAddress, type AppSection, type PlatformScope } from './app-scope.ts';
+import { type AppSection, appAddress, type PlatformScope } from './app-scope.ts';
 import { k, t } from './i18n/t.ts';
 import { confirmationPhrase, type PriceResultDetail } from './prices.ts';
 import type { StagedPriceChange } from './types.ts';
@@ -390,7 +390,7 @@ const REASON_KEYS = {
 } as const;
 type ReasonCode = keyof typeof REASON_KEYS;
 const reasonCode = (code: string | null | undefined): ReasonCode =>
-  code !== null && code !== undefined && Object.prototype.hasOwnProperty.call(REASON_KEYS, code)
+  code !== null && code !== undefined && Object.hasOwn(REASON_KEYS, code)
     ? (code as ReasonCode)
     : 'other';
 export const reasonKey = (code: string | null | undefined): string => REASON_KEYS[reasonCode(code)];
@@ -437,7 +437,7 @@ const RESULT_KEYS = {
 } as const;
 type ResultCode = keyof typeof RESULT_KEYS;
 const resultCode = (code: string | null | undefined): ResultCode =>
-  code !== null && code !== undefined && Object.prototype.hasOwnProperty.call(RESULT_KEYS, code)
+  code !== null && code !== undefined && Object.hasOwn(RESULT_KEYS, code)
     ? (code as ResultCode)
     : 'other';
 export const resultKey = (code: string | null | undefined): string => RESULT_KEYS[resultCode(code)];

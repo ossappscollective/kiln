@@ -172,7 +172,7 @@ export function revenueCatErrorKind(status: number, type: string | undefined): R
   return 'unexpected';
 }
 
-const PATH = /^\/[A-Za-z0-9._~\/%-]*$/;
+const PATH = /^\/[A-Za-z0-9._~/%-]*$/;
 
 export function createRevenueCatClient(options: RevenueCatClientOptions): RevenueCatClient {
   const key = options.apiKey.trim();

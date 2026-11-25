@@ -1,6 +1,6 @@
-import { t } from './i18n/t.ts';
 import { canonicalAppHash, canonicalSection, viewOf } from './app-nav.ts';
 import { parseAppAddress, parseViewPath } from './app-scope.ts';
+import { t } from './i18n/t.ts';
 
 /**
  * The open or closed state of the collapsible sections of a page (components/ui/Section.svelte), remembered per workspace, person,

@@ -1,4 +1,5 @@
 import type { ActorType, FileChange } from '@kiln/core';
+import { coded } from '../i18n/problem.ts';
 import { recordAudit } from './audit.ts';
 import {
   APPLY_CLAIM_TTL_MS,
@@ -42,7 +43,6 @@ import {
   withTimeout,
 } from './repositories.ts';
 
-import { coded } from '../i18n/problem.ts';
 /**
  * Applying a change set as a commit on a new branch of the repository's local clone, with an
  * optional push and an optional pull request (docs/adr/0005-local-clone-reads.md, "Writing to a

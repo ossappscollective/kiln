@@ -3,10 +3,10 @@ import { type AssetSlot, assetStoreOf, slotKey } from './staged-changes.ts';
 import {
   APPLE_DISPLAYS,
   type AssetKind,
+  type AssetProblem,
   type AssetStore,
   deviceLabel,
   PLAY_DEVICES,
-  type AssetProblem,
   validateAssets,
 } from './store-asset-specs.ts';
 

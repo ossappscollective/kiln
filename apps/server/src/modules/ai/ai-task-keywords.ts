@@ -12,6 +12,7 @@ import {
   normalizeLocale,
   PLAY_FIELD_SPECS,
 } from '@kiln/core';
+import { coded } from '../../i18n/problem.ts';
 import { listCompetitors, listKeywords } from '../aso/service.ts';
 import { getDrift } from '../listing/live.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
@@ -25,8 +26,6 @@ import {
   type ReadyTask,
   type TaskContext,
 } from './ai-task-types.ts';
-
-import { coded } from '../../i18n/problem.ts';
 /**
  * Task `keyword_ideas` (version 1): candidate search keywords for an app in one language and storefront, each with a
  * reason and the listing field it would help in. The result is a PROPOSAL: accepting it adds the chosen terms to the keywords the

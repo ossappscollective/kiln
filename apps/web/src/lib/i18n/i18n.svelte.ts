@@ -6,12 +6,13 @@
  * bundled; another language is fetched first). If the fetch is slow (over 4 seconds) the app mounts in English and switches when it arrives.
  * Changing the language later loads the new catalogs first and flips in one step; the old language stays until then.
  */
-import { SOURCE_LOCALE } from './core.ts';
+
 import { loadLocale } from './catalogs.ts';
+import { SOURCE_LOCALE } from './core.ts';
 import {
-  type LocaleInfo,
   availableLocales,
   isKnownLocale,
+  type LocaleInfo,
   localeInfo,
   pseudoLocaleInfo,
 } from './locales.ts';

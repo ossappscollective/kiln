@@ -3,8 +3,9 @@
  * uses the active language (with the region of the browser's matching language, see `formatLocaleFor`), so a call inside a template
  * follows a language change. Plain TypeScript, safe in `node --test`. A value that cannot be formatted (NaN, an invalid date) gives ''.
  */
-import { currentLocale } from './t.ts';
+
 import { formatLocaleFor } from './locales.ts';
+import { currentLocale } from './t.ts';
 
 type WithLocale = { locale?: string | undefined };
 

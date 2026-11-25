@@ -3,12 +3,12 @@ import { randomBytes } from 'node:crypto';
 import type { Database } from '@kiln/db';
 import { dbTest } from '@kiln/db/testing';
 import { claimNext, completeJob } from '../../jobs.ts';
-import { seedWorkspace } from '../../testkit.ts';
 import type { SendResult } from '../../services/webhook-transport.ts';
+import { seedWorkspace } from '../../testkit.ts';
 import { bootAlerts } from '../alerts/test-helpers.ts';
 import { createChatDeliveryHandler } from './delivery.ts';
-import { sendDueChatDigests } from './digest.ts';
 import { CHAT_QUEUE } from './destinations.ts';
+import { sendDueChatDigests } from './digest.ts';
 
 const SLACK = 'https://hooks.slack.com/services/T000/B000/SECRETabcd';
 const TEAMS =

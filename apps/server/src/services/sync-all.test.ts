@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { type SyncFacts, parseSyncAllQuery, planKinds } from './sync-all.ts';
+import { parseSyncAllQuery, planKinds, type SyncFacts } from './sync-all.ts';
 
 const facts = (over: Partial<SyncFacts> = {}): SyncFacts => ({
   platform: 'ios',

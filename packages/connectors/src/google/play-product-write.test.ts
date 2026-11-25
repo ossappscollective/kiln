@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { StoreError } from '../errors.ts';
+import * as fx from '../store.fixtures.ts';
 import * as pf from '../store-products.fixtures.ts';
 import {
   ProductLocaleMissingError,
@@ -9,7 +10,6 @@ import {
   ProductOutcomeUnknownError,
   type StoreProductRef,
 } from '../store-products-types.ts';
-import * as fx from '../store.fixtures.ts';
 import { PlayProductWriteConnector } from './play-product-write.ts';
 
 const key = fx.googleKeyPem();

@@ -1,16 +1,16 @@
 import { StoreError } from '../errors.ts';
 import { isRecord, type Json, text } from '../store-http.ts';
 import {
-  type ProductLocalizationResult,
-  type ProductLocalizationUpdate,
   ProductLocaleMissingError,
   ProductLocalizationDriftError,
+  type ProductLocalizationResult,
+  type ProductLocalizationUpdate,
   ProductMissingError,
   ProductOutcomeUnknownError,
-  sameLocale,
   type StoreProductLocalization,
   type StoreProductRef,
   type StoreProductWriteConnector,
+  sameLocale,
 } from '../store-products-types.ts';
 import { parseAppleLocalizations } from './appstore-products.ts';
 import { AppleProductsHttp, type AppleProductsHttpOptions, seg } from './appstore-products-http.ts';

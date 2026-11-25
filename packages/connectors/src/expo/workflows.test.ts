@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createExpoClient } from './client.ts';
 import { ExpoError, type ExpoErrorKind } from './errors.ts';
-import { TOKEN, PROJECT_ID } from './expo.fixtures.ts';
+import { PROJECT_ID, TOKEN } from './expo.fixtures.ts';
 import { dispatchAnswer, RUN_ID, runAnswer, runJob } from './workflows.fixtures.ts';
 import {
   ciStatusOfExpoRun,

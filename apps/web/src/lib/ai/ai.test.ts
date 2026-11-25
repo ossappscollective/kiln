@@ -3,13 +3,13 @@ import { test } from 'node:test';
 import type { AiProposal } from '@kiln/core';
 import { ApiError } from '../api.ts';
 import {
-  addressText,
   type AiConfig,
   acceptableIndexes,
   acceptBody,
   acceptedNote,
   acceptLabel,
   addressAdvice,
+  addressText,
   aiChanges,
   aiErrorMessage,
   aiSaveMessage,

@@ -60,7 +60,7 @@
           </section>
           <section class="mock-card mock-chart">
             <h2>Installs <span class="mock-count">sample data</span></h2>
-            <svg viewBox="0 0 240 110" preserveAspectRatio="none" focusable="false">
+            <svg viewBox="0 0 240 110" preserveAspectRatio="none" focusable="false" role="img" aria-label="Sample installs chart">
               <defs>
                 <linearGradient id="mock-line" x1="0" x2="1" y1="0" y2="0"><stop offset="0" style="stop-color:var(--viz-1)"/><stop offset=".55" style="stop-color:var(--viz-mid)"/><stop offset="1" style="stop-color:var(--viz-end)"/></linearGradient>
                 <linearGradient id="mock-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" style="stop-color:var(--viz-mid);stop-opacity:.45"/><stop offset="1" style="stop-color:var(--viz-mid);stop-opacity:0"/></linearGradient>
@@ -212,11 +212,13 @@
     <div class="two-col">
       <div class="panel">
         <h3>One container, SQLite</h3>
+        <!-- biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable code block must be reachable by keyboard -->
         <div class="code-block" data-lang="sh"><pre tabindex="0"><code>{{runSnippet}}</code></pre></div>
         <p class="note">Then open <code>http://localhost:8787</code>. The first visit creates the owner account, so claim a new instance before you expose it. The server speaks plain HTTP: put a TLS proxy in front before it leaves your machine.</p>
       </div>
       <div class="panel">
         <h3>Docker Compose, Postgres</h3>
+        <!-- biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable code block must be reachable by keyboard -->
         <div class="code-block" data-lang="yaml"><pre tabindex="0"><code>{{composeSnippet}}</code></pre></div>
         <p class="note">This is the repository's <code>docker-compose.yml</code>, with the image in place of the local build. In the repository, <code>cp .env.example .env</code>, set the key, and run <code>docker compose up --build</code>. The ports bind to 127.0.0.1 unless you set <code>KILN_BIND</code>.</p>
       </div>

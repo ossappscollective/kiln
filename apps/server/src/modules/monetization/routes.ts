@@ -2,6 +2,7 @@ import { type Action, can } from '@kiln/core';
 import { type Context, Hono, type Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../../http.ts';
+import { coded } from '../../i18n/problem.ts';
 import { memberRole } from '../../services/accounts.ts';
 import { getApp } from '../../services/apps.ts';
 import type { Failure } from '../../services/repositories.ts';
@@ -13,7 +14,6 @@ import { getProduct, listProducts, syncProducts } from './service.ts';
 import { type MonetizationContext, productWriteDisabledFailure } from './shared.ts';
 import { applyLocalization, previewLocalization } from './write.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * In-app purchases and subscriptions of an app (docs/api/products.md). Reads and the sync are read-only toward the store. The one write,
  * the localization of a product, is OFF unless KILN_STORE_PRODUCT_WRITE_ENABLED=true. Mounted under /api/workspaces.

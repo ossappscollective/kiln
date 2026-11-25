@@ -3,14 +3,13 @@ import type { Database } from '@kiln/db';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import type { AppEnv } from '../../http.ts';
+import { coded } from '../../i18n/problem.ts';
 import { memberRole } from '../../services/accounts.ts';
 import { getApp } from '../../services/apps.ts';
 import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 import type { Failure, RepoContext } from '../../services/repositories.ts';
 import { readAppEasConfig } from './config.ts';
 import type { EasPart } from './parts.ts';
-
-import { coded } from '../../i18n/problem.ts';
 /** Reads of an app's `eas.json` per workspace per minute. Their own budget; most repeats hit the cached snapshot of the commit. */
 export const EAS_CONFIG_READS_PER_MINUTE = 30;
 

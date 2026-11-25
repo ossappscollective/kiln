@@ -11,12 +11,6 @@ import {
 } from './queries.ts';
 import type { ExpoStoreBuild, ExpoUpdateChannel } from './types.ts';
 import {
-  checkRuntimeVersions,
-  describeCondition,
-  parseBranchMapping,
-  storedUpdatesOf,
-} from './updates.ts';
-import {
   BRANCH_MAIN,
   BRANCH_NEXT,
   build,
@@ -33,6 +27,12 @@ import {
   UPDATE_IOS,
   update,
 } from './updates.fixtures.ts';
+import {
+  checkRuntimeVersions,
+  describeCondition,
+  parseBranchMapping,
+  storedUpdatesOf,
+} from './updates.ts';
 
 type Call = { query: string; variables: Record<string, unknown> };
 

@@ -1,8 +1,8 @@
 import { ApiError } from '../api.ts';
 import { MAX_DISPATCH_INPUTS, parseFreeFormInputs } from '../ci/ci.ts';
 import { t } from '../i18n/t.ts';
-import { waitText } from './eas.ts';
 import type { WorkflowRun } from '../types.ts';
+import { waitText } from './eas.ts';
 
 /**
  * Pure helpers of the "Workflows" part of the Expo project card (docs/adr/0035-eas-workflows.md, docs/api/eas-workflows.md): what the

@@ -6,10 +6,10 @@ import {
   changesStatus,
   competitorImageUrl,
   oldestOf,
+  type ScreenshotsChange,
   searchImageUrl,
   shotAlt,
   stripOf,
-  type ScreenshotsChange,
 } from './competitor-changes.ts';
 
 const shot = (id: string, size = '392x696bb.jpg') =>

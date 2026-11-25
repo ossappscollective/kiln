@@ -1,19 +1,18 @@
 import type { ExpoGraphql } from './client.ts';
 import { ExpoError } from './errors.ts';
-import type { ExpoAccountRef, ExpoActorKind, ExpoProject, ExpoViewer } from './types.ts';
 import type {
+  ExpoAccountRef,
+  ExpoActorKind,
   ExpoBuildDistribution,
   ExpoBuildStatus,
   ExpoBuildSummary,
   ExpoErrorDetail,
   ExpoPage,
   ExpoPlatformKey,
+  ExpoProject,
+  ExpoStoreBuild,
   ExpoSubmissionStatus,
   ExpoSubmissionSummary,
-} from './types.ts';
-import { parseBranchMapping } from './updates.ts';
-import type {
-  ExpoStoreBuild,
   ExpoUpdate,
   ExpoUpdateBranch,
   ExpoUpdateChannel,
@@ -21,7 +20,9 @@ import type {
   ExpoUpdateGroup,
   ExpoUpdateInsights,
   ExpoUpdateRolloutResult,
+  ExpoViewer,
 } from './types.ts';
+import { parseBranchMapping } from './updates.ts';
 
 /**
  * The typed queries. Each one is the query text, the variables and a reader that checks what came back (nothing is trusted to have

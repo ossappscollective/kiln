@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { qrMatrix } from '../qr.ts';
 import {
-  ORBIT_SCHEME,
   downloadOf,
   fileKind,
   installPlan,
   isMobileUserAgent,
+  ORBIT_SCHEME,
   orbitLink,
 } from './eas-install.ts';
 import type { EasBuildView } from './eas-status.ts';

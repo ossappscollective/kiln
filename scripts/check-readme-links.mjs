@@ -4,7 +4,7 @@
 //   - every `pnpm <script>` / `pnpm --filter <pkg> <script>` in README.md exists in a package.json,
 //   - code fences are closed and tables have a consistent column count.
 // Usage: node scripts/check-readme-links.mjs
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 

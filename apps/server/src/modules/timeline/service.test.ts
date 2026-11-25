@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { addDays, dateToDay, dayToMs } from '@kiln/core';
 import { dbTest } from '@kiln/db/testing';
-import { bootExperiments } from '../experiments/test-helpers.ts';
 import { upsertPoints } from '../analytics/store.ts';
+import { bootExperiments } from '../experiments/test-helpers.ts';
 
 /** Seeds 60 days of Apple analytics ending 5 days ago: 1,000 impressions and 100 page views a day, the download rate stepping up after `stepDay`. */
 async function seed(

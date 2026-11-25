@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   FRESH_MS,
-  PAGE_KINDS,
   failedCount,
   freshnessOf,
   mainLabelKey,
+  PAGE_KINDS,
   planPage,
   runProgress,
   syncPageFor,

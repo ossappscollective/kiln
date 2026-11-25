@@ -11,6 +11,7 @@ import {
 } from '@kiln/connectors';
 import { supports } from '@kiln/core';
 import type { Sql } from '@kiln/db';
+import { coded } from '../../i18n/problem.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
@@ -29,8 +30,6 @@ import {
   withConnector,
 } from './shared.ts';
 import { readStoredProductRef, storeLocalizationText } from './snapshot.ts';
-
-import { coded } from '../../i18n/problem.ts';
 /**
  * Changing the localized display name and description of ONE in-app purchase or subscription in ONE locale: the only store write of this feature,
  * written down in docs/adr/0034-in-app-products.md and docs/api/products.md. The design copies the store writes before it (ADR 0007, 0008, 0009):

@@ -1,6 +1,6 @@
+import type { Sql } from '@kiln/db';
 import { getApp, listAppReleases, type ManagedApp } from '../../services/apps.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
-import type { Sql } from '@kiln/db';
 import {
   EDITABLE_STATES,
   getAssetProposal,

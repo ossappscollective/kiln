@@ -1,8 +1,7 @@
-import { metadataLockedFailure } from './metadata-lock.ts';
 import {
   analyzeFixes,
-  checkListing,
   type CheckLocaleText,
+  checkListing,
   type Fix,
   type ListingStore,
   listingStoreOf,
@@ -14,6 +13,7 @@ import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { hashListingValue } from '../listing/drift.ts';
 import { getLiveListing } from '../listing/live.ts';
+import { metadataLockedFailure } from './metadata-lock.ts';
 import { type StagedContext, type StageTextInput, stageText } from './staged-changes.ts';
 
 /**

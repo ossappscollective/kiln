@@ -3,6 +3,7 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody, type Services } from '../http.ts';
+import { coded } from '../i18n/problem.ts';
 import { memberRole } from '../services/accounts.ts';
 import {
   type CredentialTesterOptions,
@@ -18,8 +19,6 @@ import {
   recordUnsavedCredentialTest,
 } from '../services/credentials.ts';
 import { type TranslationContext, testLibreTranslateSecret } from '../services/translation.ts';
-
-import { coded } from '../i18n/problem.ts';
 export type CredentialTestDeps = CredentialTesterOptions & {
   /**
    * The LibreTranslate key is tested against the address saved in the workspace settings, through the

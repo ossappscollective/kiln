@@ -5,6 +5,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { type AppEnv, parseBody, queryInt } from '../../http.ts';
+import { coded, codingOf } from '../../i18n/problem.ts';
 import { storedLocale } from '../../i18n/user-locale.ts';
 import { memberRole } from '../../services/accounts.ts';
 import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
@@ -33,8 +34,6 @@ import {
   setRule,
 } from './prefs.ts';
 import { digestModes } from './time.ts';
-
-import { coded, codingOf } from '../../i18n/problem.ts';
 /** Bodies, exported for the operations registry (services/api-operations-alerts.ts). */
 export const markReadBody = z
   .object({

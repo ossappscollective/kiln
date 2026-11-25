@@ -517,15 +517,13 @@ export async function pendingItemDetail(
       texts: r.manifest.text
         .slice(0, PENDING_DETAIL_MAX)
         .map((t) => ({ locale: t.locale, field: t.field })),
-      sets: r.manifest.assets
-        .slice(0, PENDING_DETAIL_MAX)
-        .map((a) => ({
-          locale: a.locale,
-          key: a.key,
-          kind: String(a.kind),
-          device: a.device,
-          files: a.files.length,
-        })),
+      sets: r.manifest.assets.slice(0, PENDING_DETAIL_MAX).map((a) => ({
+        locale: a.locale,
+        key: a.key,
+        kind: String(a.kind),
+        device: a.device,
+        files: a.files.length,
+      })),
       release: r.manifest.release
         ? { track: r.manifest.release.track, codes: [...r.manifest.release.codes] }
         : null,

@@ -137,14 +137,12 @@ test('a list that has more pages than the cap is partial and says so', async () 
 });
 
 test('a version that cannot be read stays null', async () => {
-  const fake = tf
-    .feedbackFake()
-    .on({
-      method: 'GET',
-      match: '/v1/builds/b9/preReleaseVersion?fields[preReleaseVersions]=version,platform',
-      status: 404,
-      json: { errors: [] },
-    });
+  const fake = tf.feedbackFake().on({
+    method: 'GET',
+    match: '/v1/builds/b9/preReleaseVersion?fields[preReleaseVersions]=version,platform',
+    status: 404,
+    json: { errors: [] },
+  });
   fake.clear('GET', tf.FEEDBACK_LIST);
   fake.on({
     method: 'GET',

@@ -3,6 +3,7 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../../http.ts';
+import { coded } from '../../i18n/problem.ts';
 import { memberRole } from '../../services/accounts.ts';
 import { getApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
@@ -13,8 +14,6 @@ import {
   type NotesTranslateContext,
   translateReleaseNotes,
 } from './release-notes-translate.ts';
-
-import { coded } from '../../i18n/problem.ts';
 export type ReleaseNotesTranslateRoutesContext = NotesTranslateContext & {
   /** Requests per workspace per minute (default built in createApp: 10). */
   limiter: TestLimiter;

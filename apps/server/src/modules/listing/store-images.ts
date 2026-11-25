@@ -10,6 +10,7 @@ import {
   type StoreImagesView,
   storeImageKey,
 } from '@kiln/core';
+import { coded } from '../../i18n/problem.ts';
 import type { ManagedApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
@@ -18,14 +19,13 @@ import {
   type Downloaded,
   type DownloadFailure,
   downloadStoreImage,
+  type ImageProbe,
   type ImageSource,
   imageUrlOf,
-  type ImageProbe,
   probeStoreImage,
   type StoreImageNet,
 } from './store-image-net.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * The images a store holds for an app, as this server shows them (docs/adr/0012-assets-two-way-sync.md): read through the
  * connector (never a write), kept for `storeCacheSeconds`, and served as thumbnails by a proxy that only fetches from the

@@ -11,11 +11,11 @@ import {
   type PlayEarningsPort,
   type PlayEarningsResult,
   type PlayReportsPort,
+  type PlayReportsResult,
   type PlaySalesPort,
   type PlaySalesResult,
   type PlaySubscriptionsPort,
   type PlaySubscriptionsResult,
-  type PlayReportsResult,
   type PlayVitalsPort,
   type PlayVitalsResult,
 } from '@kiln/connectors';

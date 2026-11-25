@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import { dbTest } from '@kiln/db/testing';
 import test from 'node:test';
+import { dbTest } from '@kiln/db/testing';
 import type { Exchange } from '../../services/safe-fetch.ts';
 import { bootStaged } from '../publish/test-helpers.ts';
-import { iosListing } from './test-helpers.ts';
-import { withinDeadline } from './compare-deadline.ts';
 import { clearAssetIndexes } from './asset-repo.ts';
+import { withinDeadline } from './compare-deadline.ts';
 import { clearStoreImageCaches } from './store-images.ts';
+import { iosListing } from './test-helpers.ts';
 
 /**
  * The comparison of the Assets step of Prepare release always ends (docs/adr/0066-assets-step-bounded-reads.md): a slow store or a slow

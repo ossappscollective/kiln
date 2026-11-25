@@ -1,6 +1,6 @@
 import { type Platform, parsePlatform } from '@kiln/core';
-import type { IconName } from './icons.ts';
 import { t } from './i18n/t.ts';
+import type { IconName } from './icons.ts';
 
 /**
  * Which store, platform or tool something is, as a name, a label and an icon. Pure: the badge

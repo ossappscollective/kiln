@@ -7,26 +7,28 @@ import {
   easSubmission,
   submissionsBody,
 } from '../../../../../packages/connectors/src/expo/eas-status.fixtures.ts';
-import { graphqlError } from '../../../../../packages/connectors/src/expo/expo.fixtures.ts';
+import {
+  graphqlError,
+  project,
+} from '../../../../../packages/connectors/src/expo/expo.fixtures.ts';
 import { createScheduler } from '../../scheduler.ts';
 import { createTestLimiter } from '../../services/credential-tests.ts';
 import { seedWorkspace } from '../../testkit.ts';
-import {
-  type EasBoot,
-  EXPO_TOKEN,
-  json,
-  OTHER_PROJECT_ID,
-  PROJECT_ID,
-  bootEas,
-} from './test-helpers.ts';
-import { project } from '../../../../../packages/connectors/src/expo/expo.fixtures.ts';
+import { EAS_BACKOFF_MAX_MS, easBackoffMs, getEasStatus } from './status.ts';
 import {
   createEasStatusHandler,
   EAS_STATUS_QUEUE,
   easStatusIntervalMs,
   queueEasStatusSyncs,
 } from './status-sync.ts';
-import { easBackoffMs, EAS_BACKOFF_MAX_MS, getEasStatus } from './status.ts';
+import {
+  bootEas,
+  type EasBoot,
+  EXPO_TOKEN,
+  json,
+  OTHER_PROJECT_ID,
+  PROJECT_ID,
+} from './test-helpers.ts';
 
 const MINUTE = 60_000;
 

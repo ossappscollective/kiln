@@ -4,12 +4,12 @@ import {
   type Platform,
   type ProposalItem,
 } from '@kiln/core';
+import { itemTitle, localeName } from './asset-proposal.ts';
 import { assetFileUrl } from './assets/assets.ts';
 import { storeThumbUrl } from './assets/sync.ts';
-import { itemTitle, localeName } from './asset-proposal.ts';
-import type { DiffItem } from './diff/text-diff.ts';
 import type { ImagePair, ImageSide } from './diff/image-diff.ts';
 import { pairByPosition } from './diff/image-diff.ts';
+import type { DiffItem } from './diff/text-diff.ts';
 import { t } from './i18n/t.ts';
 
 /**

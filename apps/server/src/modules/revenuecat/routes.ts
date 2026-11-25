@@ -2,11 +2,12 @@ import { type Action, can, supports } from '@kiln/core';
 import { type Context, Hono, type Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../../http.ts';
+import { coded } from '../../i18n/problem.ts';
 import { memberRole } from '../../services/accounts.ts';
-import { listExpoLinks } from '../eas/link.ts';
 import { getApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import type { Failure } from '../../services/repositories.ts';
+import { listExpoLinks } from '../eas/link.ts';
 import {
   detectRevenueCat,
   getRevenueCatLink,
@@ -19,8 +20,6 @@ import { getRevenueCatMetrics } from './metrics.ts';
 import { readRevenueCatSyncStatus } from './snapshot.ts';
 import { notLinkedFailure, syncRevenueCat } from './sync.ts';
 import { getRevenueCatProductsView } from './view.ts';
-
-import { coded } from '../../i18n/problem.ts';
 /** The body of `PUT .../apps/{appId}/revenuecat`: the RevenueCat credential, the project and the RevenueCat app. */
 export const setLinkBody = z.strictObject({
   credentialId: z.string().min(1).max(100),

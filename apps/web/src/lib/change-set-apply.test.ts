@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  applyLocalExplanation,
   type ApplyContext,
   applyBlocker,
   applyBody,
   applyDoneMessage,
+  applyLocalExplanation,
   branchNameProblem,
   defaultApplyMode,
   defaultBranchName,

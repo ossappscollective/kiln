@@ -3,14 +3,14 @@ import { test } from 'node:test';
 import { AnalyticsError, StoreError } from '@kiln/connectors';
 import { addDays } from '@kiln/core';
 import { dbTest } from '@kiln/db/testing';
+import { classifyAnalyticsError, pacificDay } from './sync.ts';
 import {
-  ASC_SECRET,
   type AnalyticsBoot,
+  ASC_SECRET,
   BUCKET,
   bootAnalytics,
   STORE_APP_ID,
 } from './test-helpers.ts';
-import { classifyAnalyticsError, pacificDay } from './sync.ts';
 
 // Per-credential vendor number, the Pacific sales day, the finer failure codes and "Test access". Fakes only: every store answer in
 // these tests is hand-written, none is a recording of Apple or Google.

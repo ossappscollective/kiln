@@ -18,10 +18,12 @@ import {
   aiThemeKinds,
   listingStoreOf,
 } from '@kiln/core';
+import { coded } from '../../i18n/problem.ts';
 import { getReview } from '../reviews/service.ts';
 import { looksLikePromise } from './ai-app-context.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { getReviewTags, reviewTextHash, saveReviewTags } from './ai-review-classes.ts';
+import { listSuggestions } from './ai-suggestions.ts';
 import {
   type AiReview,
   checkRefs,
@@ -30,16 +32,14 @@ import {
   loadReviewsForAi,
   periodDays,
   periodRatingStats,
-  refMap,
   type ReviewSendPolicy,
+  refMap,
   round1,
   toAiReview,
 } from './ai-task-data.ts';
 import { bool, int, line, oneOf, paragraphOf, str, strings } from './ai-task-lenient.ts';
-import { listSuggestions } from './ai-suggestions.ts';
 import { checkScope, clip, type PreparedRun, type ReadyTask } from './ai-task-types.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * The review tasks (docs/adr/0024-ai-features.md): `review_summary`, `review_classify` and `fix_next`.
  *

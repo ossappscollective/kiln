@@ -1,18 +1,16 @@
 import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { serve } from '@hono/node-server';
+import { enableSharedGoogleTokens } from '@kiln/connectors';
 import { createDatabase, migrate } from '@kiln/db';
 import { createApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { demoRequested } from './demo/config.ts';
-import { enableSharedGoogleTokens } from '@kiln/connectors';
 import { createWorker } from './jobs.ts';
-import { installSyncPipeline } from './services/sync-pipeline.ts';
+import { ADS_SYNC_QUEUE, createAdsSyncHandler } from './modules/ads/sync.ts';
 import { createAlertDeliveryHandler } from './modules/alerts/delivery.ts';
 import { ALERT_PASS_INTERVAL_MS, createAlertRunner } from './modules/alerts/runner.ts';
 import { ALERT_QUEUE } from './modules/alerts/service.ts';
-import { createChatDeliveryHandler } from './modules/chat/delivery.ts';
-import { CHAT_QUEUE } from './modules/chat/destinations.ts';
 import { analyticsIntervalMs } from './modules/analytics/schedule.ts';
 import {
   ANALYTICS_SYNC_QUEUE,
@@ -31,14 +29,15 @@ import {
   type AsoLimits,
   createAsoRefreshHandler,
 } from './modules/aso/service.ts';
-import { ADS_SYNC_QUEUE, createAdsSyncHandler } from './modules/ads/sync.ts';
+import { createChatDeliveryHandler } from './modules/chat/delivery.ts';
+import { CHAT_QUEUE } from './modules/chat/destinations.ts';
 import { CI_POLL_QUEUE, createCiContext, createCiPollHandler } from './modules/ci/service.ts';
 import {
   createEasStatusHandler,
   EAS_STATUS_QUEUE,
   easStatusIntervalMs,
 } from './modules/eas/status-sync.ts';
-import { EAS_POLL_QUEUE, createEasPollHandler } from './modules/eas/workflows.ts';
+import { createEasPollHandler, EAS_POLL_QUEUE } from './modules/eas/workflows.ts';
 import {
   createListingReadHandler,
   DEFAULT_LISTING_TIMEOUT_MS,
@@ -78,6 +77,7 @@ import { pruneEvents } from './services/events.ts';
 import { gitSupportsSshSigning, sshKeyFingerprint } from './services/local-git.ts';
 import { parseSmtpEnv } from './services/mail-config.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
+import { installSyncPipeline } from './services/sync-pipeline.ts';
 import { createWebhookHandler, pruneDeliveries, WEBHOOK_QUEUE } from './services/webhooks.ts';
 import { VERSION } from './version.ts';
 

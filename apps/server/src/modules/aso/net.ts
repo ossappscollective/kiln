@@ -2,9 +2,9 @@ import {
   APPLE_HINTS_HOST,
   APPLE_SEARCH_MAX_LIMIT,
   type AppleApp,
+  ASO_USER_AGENT,
   AsoError,
   fetchAppleHints,
-  ASO_USER_AGENT,
   lookupApple,
   PLAY_MAX_SEARCH_LIMIT,
   type PlayApp,
@@ -13,10 +13,10 @@ import {
 } from '@kiln/connectors';
 import { type AsoPlatform, byFamily, isDesktop, listingStoreOf } from '@kiln/core';
 import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
-import { parseAppleReviewFeed, type FeedReview } from './competitor-reviews.ts';
 import { type Exchange, safeGet } from '../../services/safe-fetch.ts';
 import { timedCache } from '../../services/timed-cache.ts';
 import type { Resolver } from '../../services/webhook-transport.ts';
+import { type FeedReview, parseAppleReviewFeed } from './competitor-reviews.ts';
 
 /**
  * The outbound side of ASO: the only two hosts the server ever contacts for it, how, and how often.

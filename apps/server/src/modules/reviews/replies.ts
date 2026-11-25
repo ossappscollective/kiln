@@ -24,6 +24,7 @@ import {
   type Row,
   type Sql,
 } from '@kiln/db';
+import { coded, messageCoding } from '../../i18n/problem.ts';
 import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
@@ -32,7 +33,6 @@ import { type Failure, failure } from '../../services/repositories.ts';
 import { getReview, type Review, type StoreKey } from './service.ts';
 import type { ReviewConnectorInput } from './sync.ts';
 
-import { coded, messageCoding } from '../../i18n/problem.ts';
 /**
  * Replying to customer reviews: a STORE WRITE (public text, in the store, in the organisation's
  * name). The whole feature is built around never publishing by accident; see

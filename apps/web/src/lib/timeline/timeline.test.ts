@@ -1,26 +1,26 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TimelineEvent } from '@kiln/core';
+import { loadShowEvents, markersKey, saveShowEvents } from './markers-pref.ts';
 import {
-  MAX_MARKERS,
-  MARKER_LINES,
-  PAGE_SIZE,
-  type TimelineEntry,
   entriesOf,
   eventHref,
   eventText,
   filterEntries,
   groupByDay,
   kindCounts,
+  MARKER_LINES,
+  MAX_MARKERS,
   manualId,
   markersFor,
+  PAGE_SIZE,
   pageOf,
   sortEntries,
+  type TimelineEntry,
   toggleKind,
   windowFor,
   withTimelineSection,
 } from './timeline.ts';
-import { loadShowEvents, markersKey, saveShowEvents } from './markers-pref.ts';
 
 const kiln = (
   id: string,

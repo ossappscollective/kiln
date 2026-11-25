@@ -1,7 +1,7 @@
 import type { Context, Hono, Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../../http.ts';
-import { type Failure } from '../../services/repositories.ts';
+import type { Failure } from '../../services/repositories.ts';
 import {
   getAssetProposal,
   isReleaseLabel,

@@ -1,4 +1,4 @@
-import { type ListingChange, imageKey, wordDiff, type WordSegment } from '@kiln/core';
+import { imageKey, type ListingChange, type WordSegment, wordDiff } from '@kiln/core';
 import { formatList, formatNumber } from '../i18n/format.ts';
 import { t } from '../i18n/t.ts';
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Builds the Kiln website into site/dist: node site/build.mjs [--out <dir>]
 // No dependencies. Reads site/pages, site/static, site/content and the repository's Markdown docs.
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { docsGroups, site } from './lib/config.mjs';
@@ -17,8 +17,8 @@ import {
   sitemapXml,
   softwareJsonLd,
 } from './lib/render.mjs';
-import { buildSearchIndex } from './lib/search-index.mjs';
 import { copyScreenshots, loadScreenshots, screenshotsSection } from './lib/screenshots.mjs';
+import { buildSearchIndex } from './lib/search-index.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..');

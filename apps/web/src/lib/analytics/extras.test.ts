@@ -14,10 +14,10 @@ import {
 } from './extras.ts';
 import { mkSeries, NOW, sourceOf, statusOf } from './fixtures.ts';
 import {
+  cardCurrencies,
   cardDates,
   cardFreshness,
   cardInfo,
-  cardCurrencies,
   panelsForCurrency,
   tableFor,
 } from './view.ts';

@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { checkListingRoot, normalizeRoot } from '@kiln/connectors';
 import type { ActorType } from '@kiln/core';
 import type { Database, Row, Sql } from '@kiln/db';
+import { coded } from '../../i18n/problem.ts';
 import { recordAudit } from '../../services/audit.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * Listing targets: the places a repository's store listing lives, named. A repository with several
  * apps has one per app (the scan finds them, `auto:` targets), and the person can add their own

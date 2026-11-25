@@ -1,11 +1,11 @@
 import {
+  ciProviderMeta,
   DEFAULT_RELEASE_PATTERNS,
   DEFAULT_TAG_PATTERNS,
   MAX_PATTERNS,
   type PatternKind,
   type Platform,
   type PreviewRow,
-  ciProviderMeta,
   patternListProblems,
   platformLabel,
   platformMeta,

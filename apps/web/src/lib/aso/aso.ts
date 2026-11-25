@@ -18,10 +18,10 @@ import {
 } from '@kiln/core';
 import { ApiError } from '../api.ts';
 import { appAddress, type PlatformScope, parseViewPath } from '../app-scope.ts';
+import { termReason } from '../core-text.ts';
 import { formatList, formatNumber } from '../i18n/format.ts';
 import { k, t } from '../i18n/t.ts';
 import type { IconName } from '../icons.ts';
-import { termReason } from '../core-text.ts';
 import { retrySeconds } from '../portfolio.ts';
 
 /**

@@ -9,6 +9,7 @@ import {
 } from '@kiln/connectors';
 import { normalizeReleaseValue, supports, versionCodesOf } from '@kiln/core';
 import type { Database } from '@kiln/db';
+import { type Coding, coded, codingOf } from '../i18n/problem.ts';
 import type {
   ReleaseConnectorFactory,
   ReleaseConnectorInput,
@@ -16,8 +17,6 @@ import type {
 import { credentialKindFor, type ManagedApp } from './apps.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { type Failure, failure } from './repositories.ts';
-
-import { type Coding, coded, codingOf } from '../i18n/problem.ts';
 /**
  * "Check with Google Play" (docs/api/releases-write.md, docs/adr/0025-play-release-checks.md): asks Google Play whether a release as
  * a person proposes it would be refused, WITHOUT saving anything. The connector opens an edit, stages the proposed release in the

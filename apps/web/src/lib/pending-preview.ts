@@ -1,7 +1,7 @@
 import { fullTime } from './format.ts';
 import { t } from './i18n/t.ts';
-import type { CartRow } from './pending-cart.ts';
 import type { PendingItem, PendingKind } from './pending.ts';
+import type { CartRow } from './pending-cart.ts';
 
 /**
  * What a row of the per-app "Pending changes" page expands to (docs/adr/0067-diff-and-preview.md), pure. The page lists items beyond the

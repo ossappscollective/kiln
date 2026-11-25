@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { ASSET_SYNC_LIMITS, type AssetSlot, sniffImageFormat } from '@kiln/core';
+import { coded } from '../../i18n/problem.ts';
 import type { ManagedApp } from '../../services/apps.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { gitBlobOid } from '../publish/staged-asset-blobs.ts';
@@ -10,8 +11,6 @@ import {
   uploadPathOf,
 } from '../publish/staged-sets.ts';
 import { getStoreImages, type StoreImagesContext, storeImageBytes } from './store-images.ts';
-
-import { coded } from '../../i18n/problem.ts';
 /**
  * The start of an edit made from the store's side (docs/api/staged-changes.md): a set that is not staged yet is the images the
  * store holds for it. Each is downloaded once (the same allow listed CDN fetch as a pull, one after the other) and kept as a

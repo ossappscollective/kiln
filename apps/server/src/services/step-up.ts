@@ -3,6 +3,7 @@ import type { Database, Sql } from '@kiln/db';
 import type { Context } from 'hono';
 import { getCookie } from 'hono/cookie';
 import { type AppEnv, SESSION_COOKIE_NAME } from '../http.ts';
+import { coded } from '../i18n/problem.ts';
 import { hashPassword, type ScryptCost, verifyPassword } from '../passwords.ts';
 import { recordAudit } from './audit.ts';
 import { activeEmail, checkMailCode, checkTotpCode, hasActiveTotp } from './two-factor.ts';
@@ -14,8 +15,6 @@ import {
   verifyRegistration,
   WebAuthnError,
 } from './webauthn.ts';
-
-import { coded } from '../i18n/problem.ts';
 /**
  * Step-up confirmation (docs/adr/0019-step-up-confirmation.md): a second, fresh proof before a hard
  * action. A person proves themselves with a passkey (WebAuthn, user verification required) or a

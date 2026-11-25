@@ -50,7 +50,7 @@ export function normalizeWorkflowFileName(value: string): string | undefined {
 /** The path as a person knows it: `.eas/workflows/build.yml`. */
 export const workflowPathOf = (fileName: string): string => `${EXPO_WORKFLOWS_DIR}/${fileName}`;
 
-const GIT_REF = /^[A-Za-z0-9][A-Za-z0-9._\/-]{0,199}$/;
+const GIT_REF = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/;
 
 /** A branch, a tag, a commit SHA or a fully qualified ref (`refs/heads/main`); undefined when it cannot be one. */
 export function normalizeGitRef(value: string): string | undefined {

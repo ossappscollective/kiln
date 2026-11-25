@@ -1,7 +1,7 @@
 import {
   type BetaScreenshotLink,
-  StoreRateLimitError,
   type StoreBetaFeedback,
+  StoreRateLimitError,
 } from '@kiln/connectors';
 import { supports } from '@kiln/core';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
@@ -28,6 +28,7 @@ import {
   type TestflightContext,
 } from './shared.ts';
 import {
+  appleRefOf,
   type BuildFacet,
   type Counts,
   type CrashGroups,
@@ -47,11 +48,10 @@ import {
   recordSyncFailure,
   recordSyncSuccess,
   type SyncStatus,
+  storeCrashLog,
   type TriageInput,
   triage,
-  storeCrashLog,
   upsertSubmissions,
-  appleRefOf,
 } from './store.ts';
 
 /**

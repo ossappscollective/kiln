@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  type CompetitorReviewState,
   competitorStateLines,
   isScheduleDirty,
   readErrorText,
@@ -9,7 +10,6 @@ import {
   scheduleToForm,
   validateSchedule,
   weekdayOrder,
-  type CompetitorReviewState,
 } from './competitor-review-schedule.ts';
 
 const view = {

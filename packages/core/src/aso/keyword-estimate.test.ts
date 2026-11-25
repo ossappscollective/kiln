@@ -5,8 +5,8 @@ import {
   estimateKeyword,
   estimatePopularity,
   KEYWORD_ESTIMATE_MODEL,
-  rankRoom,
   type ResultApp,
+  rankRoom,
   termWords,
 } from './keyword-estimate.ts';
 

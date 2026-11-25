@@ -7,16 +7,17 @@ import {
   type StagedChangesView,
   slotKey,
 } from '@kiln/core';
+import { coded } from '../../i18n/problem.ts';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type ChangeSetView, createFileChangeSet } from '../../services/change-sets.ts';
 import { type FixFailure, fixImage } from '../../services/image-fix.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
-import { metadataLockedFailure } from './metadata-lock.ts';
 import { repoSetsOf } from '../listing/asset-diff.ts';
 import { openAssets } from '../listing/asset-repo.ts';
 import { layoutFor, planSet, type Wanted } from '../listing/asset-repo-plan.ts';
 import { stepsToChanges } from '../listing/asset-repo-write.ts';
+import { metadataLockedFailure } from './metadata-lock.ts';
 import { getBlob } from './staged-asset-blobs.ts';
 import { assetSetsOf, loadStagedRows, type StagedContext } from './staged-changes.ts';
 import {
@@ -30,7 +31,6 @@ import {
   slotOf,
 } from './staged-sets.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * Add, replace, remove and fix a file of a staged set, and put staged sets in the repository
  * (docs/adr/0012-assets-two-way-sync.md). Everything here stages or drafts: the store is written only by a push

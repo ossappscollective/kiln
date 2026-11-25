@@ -1,11 +1,11 @@
 import {
   pickOverviewMetric,
-  readRevenueCatOverview,
   type RevenueCatClient,
   RevenueCatError,
   type RevenueCatOverview,
   type RevenueCatOverviewMetric,
   type RevenueCatStripKey,
+  readRevenueCatOverview,
 } from '@kiln/connectors';
 import type { Sql } from '@kiln/db';
 import { revenueCatFailure } from './client.ts';

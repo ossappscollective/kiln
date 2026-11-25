@@ -2,16 +2,16 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { railEntries, resolveRailSection } from '../section-rail.ts';
 import {
-  INSIGHTS_PARTS,
-  failedSourceCount,
-  latestRead,
-  worstState,
   cardPart,
   cardsOfPart,
+  failedSourceCount,
+  INSIGHTS_PARTS,
   insightsGroups,
+  latestRead,
   platformColumns,
   revenueHost,
   withoutHeadline,
+  worstState,
 } from './sections.ts';
 
 const card = (id: string) => ({ id });

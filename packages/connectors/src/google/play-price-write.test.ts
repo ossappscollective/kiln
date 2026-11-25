@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { PriceChange } from '@kiln/core';
+import * as fx from '../store.fixtures.ts';
 import { PriceDriftError } from '../store-price-types.ts';
 import * as pf from '../store-products.fixtures.ts';
 import type { StoreProductRef } from '../store-products-types.ts';
-import * as fx from '../store.fixtures.ts';
 import { PlayProductPriceConnector } from './play-price-write.ts';
 
 const key = fx.googleKeyPem();

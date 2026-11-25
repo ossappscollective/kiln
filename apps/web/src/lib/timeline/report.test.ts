@@ -3,12 +3,12 @@ import { test } from 'node:test';
 import { compareWith, type ReportFigure } from '@kiln/core';
 import {
   CSV_HEADER,
-  type ReportApi,
   csvCell,
   dataNotes,
   figureRow,
   periodNav,
   periodTitle,
+  type ReportApi,
   reportCsv,
   reportDayOf,
   reportFileName,

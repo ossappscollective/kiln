@@ -12,8 +12,8 @@ import {
   pseudoLocaleInfo,
 } from './locales.ts';
 import {
-  LOCALE_KEY,
   applyDocumentLocale,
+  LOCALE_KEY,
   localeFromSearch,
   readLocalePref,
   resolveInitialLocale,

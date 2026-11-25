@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { checkListing, type CheckLocaleText, scoreOf } from './listing-checks.ts';
+import { type CheckLocaleText, checkListing, scoreOf } from './listing-checks.ts';
 
 const good = (locale: string, over: Record<string, string> = {}): CheckLocaleText => ({
   locale,

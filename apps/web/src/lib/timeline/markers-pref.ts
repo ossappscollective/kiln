@@ -1,4 +1,4 @@
-import { type StorageLike, browserStorage } from '../section-state.ts';
+import { browserStorage, type StorageLike } from '../section-state.ts';
 
 /** "Show events" on the charts, remembered per person in this browser (docs/adr/0053-timeline-and-reports.md). */
 const PREFIX = 'kiln.timeline.markers';

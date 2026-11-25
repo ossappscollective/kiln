@@ -1,7 +1,7 @@
 import type { CoachAction, CoreText } from '@kiln/core';
+import type { Params } from './i18n/core.ts';
 import { formatPercent } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
-import type { Params } from './i18n/core.ts';
 
 /**
  * English text that `@kiln/core` builds (rollout comparison and rules, keyword checks, the ASO coach) comes with a
@@ -124,7 +124,7 @@ export const sharePercent = (percent: number): string =>
 
 /** True when the web has a message for this key. */
 export const knowsCoreText = (text: CoreText | undefined | null): boolean =>
-  text !== undefined && text !== null && Object.prototype.hasOwnProperty.call(KEYS, text.key);
+  text !== undefined && text !== null && Object.hasOwn(KEYS, text.key);
 
 /**
  * The sentence of a `CoreText` in the active language, or `fallback` (the English text) for a key that is not known.

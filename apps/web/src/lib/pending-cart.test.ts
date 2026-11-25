@@ -1,18 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  announceCartOpen,
-  CART_OPEN_EVENT,
-  rowsForLocale,
   allState,
   announceCartAdded,
+  announceCartOpen,
   CART_ADDED_EVENT,
+  CART_OPEN_EVENT,
   type CartItem,
   type CartRow,
   countsOf,
-  pricePhrases,
-  reasonText,
-  resultText,
   discardRequests,
   failAll,
   groupRows,
@@ -20,15 +16,19 @@ import {
   noSelection,
   outcomeRows,
   placeOf,
+  pricePhrases,
   prune,
   publishRequests,
   reasonKey,
+  reasonText,
   resultKey,
+  resultText,
   rowKey,
+  rowsForLocale,
   selectAll,
   tally,
-  toRows,
   toggle,
+  toRows,
 } from './pending-cart.ts';
 
 const item = (id: string, over: Partial<CartItem> = {}): CartItem => ({

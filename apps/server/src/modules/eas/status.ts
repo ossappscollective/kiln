@@ -7,13 +7,14 @@ import {
 } from '@kiln/connectors';
 import { type ActorType, type Platform, platformMeta, type StoreId } from '@kiln/core';
 import { type Database, nullableNumber, nullableString, type Sql } from '@kiln/db';
+import { coded } from '../../i18n/problem.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure, type Outcome } from '../../services/repositories.ts';
 import { expoClientFor, expoFailure } from './client.ts';
 import type { EasDeps } from './index.ts';
-import { getExpoLink, type ExpoLinkView } from './link.ts';
+import { type ExpoLinkView, getExpoLink } from './link.ts';
 import {
   type EasUpdatesView,
   getEasUpdates,
@@ -22,7 +23,6 @@ import {
   storeUpdates,
 } from './status-updates.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * EAS Build and Submit status (docs/adr/0036-eas-build-submit-status.md, docs/api/eas-builds.md): the builds and the submissions of the Expo
  * project an app record is linked to, kept as a snapshot in `eas_builds`, `eas_submissions` and `eas_status_sync`. READ ONLY toward

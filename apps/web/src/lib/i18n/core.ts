@@ -196,7 +196,7 @@ function countText(count: number, locale: string): string {
 export function interpolate(message: string, params: Params | undefined, locale: string): string {
   if (!params || message.indexOf('{{') < 0) return message;
   return message.replace(new RegExp(PLACEHOLDER.source, 'g'), (whole, name: string) => {
-    if (!Object.prototype.hasOwnProperty.call(params, name)) return whole;
+    if (!Object.hasOwn(params, name)) return whole;
     const value = params[name];
     if (value === null || value === undefined) return '';
     if (name === 'count' && typeof value === 'number' && Number.isFinite(value))

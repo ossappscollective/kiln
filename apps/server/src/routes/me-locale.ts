@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { type AppEnv, parseBody, type Services } from '../http.ts';
 import { SERVER_LOCALES } from '../i18n/runtime.ts';
 import { parseUserLocale } from '../i18n/user-locale.ts';
-import { type AppEnv, parseBody, type Services } from '../http.ts';
 
 /**
  * `PATCH /api/me`: the person sets the language they read (ADR 0045, amendment of 2026-11-22). The language is used by emails that

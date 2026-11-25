@@ -17,6 +17,7 @@ import {
   type Role,
 } from '@kiln/core';
 import type { Database } from '@kiln/db';
+import { coded } from '../../i18n/problem.ts';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { emitEvent } from '../../services/events.ts';
@@ -27,7 +28,6 @@ import { normalizeListingValue } from '../listing/drift.ts';
 import { type StagedContext, stageText } from '../publish/staged-changes.ts';
 import { getReviewView, type ReviewReplyContext, saveReplyDraft } from '../reviews/replies.ts';
 import { applyContextRules, getAppContext, withAppContext } from './ai-app-context.ts';
-import { gateReviewTask, getAppReviewPolicy } from './ai-review-policy.ts';
 import {
   type AiActor,
   type AiConfigValues,
@@ -45,6 +45,7 @@ import {
   unavailableFailure,
   withGuardHint,
 } from './ai-config.ts';
+import { gateReviewTask, getAppReviewPolicy } from './ai-review-policy.ts';
 import {
   decideSuggestion,
   getSuggestion,
@@ -69,8 +70,6 @@ import {
   type UsageWarning,
   usageWarning,
 } from './ai-usage.ts';
-
-import { coded } from '../../i18n/problem.ts';
 /**
  * Running AI tasks, and accepting or dismissing what they proposed (docs/adr/0016-ai-foundation.md, docs/api/ai.md).
  *

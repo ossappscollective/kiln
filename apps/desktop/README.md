@@ -17,9 +17,9 @@ see [docs/i18n-desktop.md](../../docs/i18n-desktop.md). Try one with `KILN_LANG=
 (git-ignored) and bundles the server with `scripts/bundle-server.mjs` (esbuild, a devDependency of
 this package). It downloads nothing.
 
-| Output                            | Used as                                                                                                                                                    |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `kiln-node-<target-triple>[.exe]` | Tauri `externalBin` `binaries/kiln-node`: the Node binary                                                                                                  |
+| Output                            | Used as                                                                                                                                                                           |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kiln-node-<target-triple>[.exe]` | Tauri `externalBin` `binaries/kiln-node`: the Node binary                                                                                                                         |
 | `server/`                         | Tauri `resources`, installed as `server/`: `launcher.mjs` (the whole server, one minified file: no `node_modules`, no sources), `locales/`, `licenses/` and `web/` (the built UI) |
 
 The Node binary is the one running the script, so run it with the official Node 22.18 or newer

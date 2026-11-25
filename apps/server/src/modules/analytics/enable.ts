@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { AnalyticsError, type AppleAccessType, type AppleAnalyticsPort } from '@kiln/connectors';
 import { type ActorType, analyticsErrorMessages, supports } from '@kiln/core';
+import { coded } from '../../i18n/problem.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
@@ -14,7 +15,6 @@ import {
   withDeadline,
 } from './sync.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * "Enable Apple analytics" (docs/adr/0017-analytics-foundation.md): the ONE store write of analytics. It creates an
  * `analyticsReportRequest` at Apple, so Apple starts producing the reports (ONGOING), and optionally one ONE_TIME_SNAPSHOT for the

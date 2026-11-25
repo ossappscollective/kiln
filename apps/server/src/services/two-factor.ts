@@ -2,8 +2,6 @@ import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 
 import type { Database, Sql } from '@kiln/db';
 import { decryptSecret, encryptSecret } from '@kiln/vault';
 import { translator } from '../i18n/catalogs.ts';
-import { recordAudit } from './audit.ts';
-import { plainAddress } from './mail-mime.ts';
 import {
   emailCodeBox,
   emailFooter,
@@ -12,6 +10,8 @@ import {
   emailRow,
   emailShell,
 } from '../mail/layout.ts';
+import { recordAudit } from './audit.ts';
+import { plainAddress } from './mail-mime.ts';
 import { escapeHtml } from './mail-template.ts';
 import type { MailErrorCode, Mailer, MailHint } from './mailer.ts';
 import {

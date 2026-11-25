@@ -1,6 +1,6 @@
 import type { Api } from './api.ts';
-import { type PendingItemDetail, isDetailKind, itemDetailKey } from './pending-preview.ts';
 import type { PendingItem } from './pending.ts';
+import { isDetailKind, itemDetailKey, type PendingItemDetail } from './pending-preview.ts';
 
 /**
  * The details of pending items that are not staged changes (a pushed draft, a draft release, a version in review or approved, a due

@@ -1,7 +1,7 @@
 import { PLATFORMS, type Platform, platformLabel, sortPlatforms } from '@kiln/core';
 import { formatList, formatNumber } from '../i18n/format.ts';
-import type { IconName } from '../icons.ts';
 import { k, t } from '../i18n/t.ts';
+import type { IconName } from '../icons.ts';
 import type { BadgeTone } from '../portfolio.ts';
 import type { DriftField, ListingDrift } from '../types.ts';
 import { localeName, usage } from './drift.ts';

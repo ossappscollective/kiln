@@ -21,8 +21,8 @@ import {
   formatNumber,
   formatPercent,
 } from '../i18n/format.ts';
-import type { IconName } from '../icons.ts';
 import { k, t } from '../i18n/t.ts';
+import type { IconName } from '../icons.ts';
 import { badgeText } from '../nav-badges.ts';
 
 /**

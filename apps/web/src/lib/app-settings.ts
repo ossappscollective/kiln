@@ -3,7 +3,7 @@ import type { AnalyticsStatus } from './analytics/analytics.ts';
 import { appAddress, parseViewPath } from './app-scope.ts';
 import { testStatus } from './credentials.ts';
 import { k, t } from './i18n/t.ts';
-import { type RailGroup, nonEmptyGroups, railEntries } from './section-rail.ts';
+import { nonEmptyGroups, type RailGroup, railEntries } from './section-rail.ts';
 import type { SettingsSection } from './settings-views.ts';
 import type {
   BuildConventionsView,

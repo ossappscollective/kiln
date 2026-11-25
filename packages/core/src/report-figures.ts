@@ -3,8 +3,9 @@
 // The numbers table of a report: one figure per metric, a period against the one before (docs/adr/0053-timeline-and-reports.md).
 // A change is only given when both periods have a value for nearly every day (`MIN_COVERAGE`): a store's history often starts
 // part way through the period before, and against a half empty period any period reads as a leap. Pure; ES2017.
-import { MIN_COVERAGE, relativeChange, windowStats } from './timeline-impact.ts';
+
 import type { TimelineMetric } from './timeline-events.ts';
+import { MIN_COVERAGE, relativeChange, windowStats } from './timeline-impact.ts';
 import type { Comparison } from './timeline-periods.ts';
 
 export type ReportFigure = {

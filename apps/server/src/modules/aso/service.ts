@@ -32,18 +32,19 @@ import {
   type Row,
   type Sql,
 } from '@kiln/db';
+import { coded } from '../../i18n/problem.ts';
 import { enqueue, type JobHandler } from '../../jobs.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { rankMoveThresholdFor } from '../../services/workspace-settings.ts';
+import { registerSearchImage } from './competitor-images.ts';
 import {
   COMPETITOR_SEARCH_LIMIT,
   type CompetitorSearchResult,
   mapSearchResults,
 } from './competitor-search.ts';
-import { registerSearchImage } from './competitor-images.ts';
 import {
   recordListingChanges,
   storeInitialListingState,
@@ -60,7 +61,6 @@ import {
   termsNeedingHints,
 } from './signals.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * ASO data and its refresh: tracked keywords and their rank checks, followed competitors and their
  * public snapshots (docs/adr/0011-aso-keywords-competitors.md, docs/api/aso.md). Everything read here

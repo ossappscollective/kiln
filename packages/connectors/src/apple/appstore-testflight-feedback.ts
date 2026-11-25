@@ -1,12 +1,12 @@
 import { StoreError } from '../errors.ts';
 import { isRecord, type Json, records, type StoreHttpOptions, text } from '../store-http.ts';
-import {
-  type BetaFeedbackKind,
-  type BetaScreenshot,
-  type BetaScreenshotLink,
-  type ListBetaFeedbackResult,
-  type StoreBetaFeedback,
-  type StoreTestFlightFeedbackConnector,
+import type {
+  BetaFeedbackKind,
+  BetaScreenshot,
+  BetaScreenshotLink,
+  ListBetaFeedbackResult,
+  StoreBetaFeedback,
+  StoreTestFlightFeedbackConnector,
 } from '../testflight-feedback-types.ts';
 import { mapLimit } from './appstore-products.ts';
 import { AppleProductsHttp, seg } from './appstore-products-http.ts';

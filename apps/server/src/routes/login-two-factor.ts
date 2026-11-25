@@ -2,6 +2,8 @@ import type { Context } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, clientIp, parseBody, type Services } from '../http.ts';
+import { coded } from '../i18n/problem.ts';
+import { negotiateLocale } from '../i18n/runtime.ts';
 import { normalizeEmail } from '../services/accounts.ts';
 import type { Mailer } from '../services/mailer.ts';
 import { spendRecoveryCode } from '../services/step-up.ts';
@@ -19,11 +21,8 @@ import {
   loadLoginChallenge,
   spendLoginChallenge,
 } from '../services/two-factor.ts';
-import { negotiateLocale } from '../i18n/runtime.ts';
 import { startLoginSession } from './auth.ts';
 import { codeFailure, sendFailure } from './two-factor.ts';
-
-import { coded } from '../i18n/problem.ts';
 /**
  * The second step of signing in (docs/api/two-factor.md, docs/adr/0021-two-factor-and-smtp.md). Mounted under /api/auth, only on a server
  * with accounts. `POST /api/auth/login` answers `twoFactorRequired` with a `challenge` token INSTEAD of starting a session; these routes

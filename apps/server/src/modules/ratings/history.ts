@@ -8,7 +8,7 @@
 //   - a count that falls is not new ratings; one that falls under half is a reset by the store (a developer can reset the summary rating with a
 //     release), and the ratings counted since are all new; a smaller fall is ratings taken away and counts as none.
 // A day without a reading is carried over: the difference between two readings lands on the later one, and `spansGap` says it.
-import { addDays, type Granularity, bucketsIn, dayRange } from './days.ts';
+import { addDays, bucketsIn, dayRange, type Granularity } from './days.ts';
 
 export type Stars = [number, number, number, number, number];
 export type Reading = {

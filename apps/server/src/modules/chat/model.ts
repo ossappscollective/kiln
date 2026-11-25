@@ -1,6 +1,6 @@
 import { SERVER_LOCALES } from '../../i18n/runtime.ts';
-import type { AlertSeverity } from '../alerts/catalog.ts';
 import { emailTokens } from '../../mail/layout.ts';
+import type { AlertSeverity } from '../alerts/catalog.ts';
 
 /**
  * Chat integrations (docs/chat-integrations.md, docs/adr/0047-chat-integrations.md): the shared vocabulary. A destination is one

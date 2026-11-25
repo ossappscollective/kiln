@@ -6,6 +6,7 @@ import {
   type PullRequestInfo,
 } from '@kiln/connectors';
 import type { ActorType, FileChange } from '@kiln/core';
+import { coded } from '../i18n/problem.ts';
 import { recordAudit } from './audit.ts';
 import {
   commitFailure,
@@ -40,7 +41,6 @@ import {
   rowOf,
 } from './change-sets.ts';
 import { fixupBranchCommit, readBranchFiles } from './local-git.ts';
-
 import {
   type Failure,
   failure,
@@ -55,7 +55,6 @@ import {
   withTimeout,
 } from './repositories.ts';
 
-import { coded } from '../i18n/problem.ts';
 /**
  * Fixing up a branch (docs/adr/0005-local-clone-reads.md, "Fixing up a branch"): refresh the
  * content of a change set whose branch ALREADY EXISTS, and add ONE new commit on top of that

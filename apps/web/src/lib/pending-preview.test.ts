@@ -1,19 +1,19 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { PendingItem } from './pending.ts';
 import type { CartRow } from './pending-cart.ts';
 import {
-  FIRST_ROWS,
-  type PendingItemDetail,
   cartIdsOf,
   detailView,
+  FIRST_ROWS,
   isDetailKind,
   itemDetailKey,
   itemKey,
   needsCart,
+  type PendingItemDetail,
   planOf,
   thumbsOf,
 } from './pending-preview.ts';
-import type { PendingItem } from './pending.ts';
 
 const item = (
   kind: PendingItem['kind'],

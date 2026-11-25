@@ -3,6 +3,7 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody, type Services } from '../http.ts';
+import { coded } from '../i18n/problem.ts';
 import { memberRole } from '../services/accounts.ts';
 import { recordAudit } from '../services/audit.ts';
 import {
@@ -32,8 +33,6 @@ import {
   stepUpActions,
   verifyFactor,
 } from '../services/step-up.ts';
-
-import { coded } from '../i18n/problem.ts';
 /**
  * Step-up confirmation (docs/api/step-up.md, docs/adr/0019-step-up-confirmation.md). Mounted under
  * /api/workspaces. Every route is a person's: closed to API tokens in the registry.

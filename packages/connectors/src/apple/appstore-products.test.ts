@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { StoreError, StoreRateLimitError } from '../errors.ts';
-import * as pf from '../store-products.fixtures.ts';
 import * as fx from '../store.fixtures.ts';
+import * as pf from '../store-products.fixtures.ts';
 import {
   AppleProductsConnector,
   appleProductKind,

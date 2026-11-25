@@ -1,6 +1,6 @@
-import type { AppSummary } from '../types.ts';
-import { k, t } from '../i18n/t.ts';
 import type { CatalogEntry } from '../alerts/alerts.ts';
+import { k, t } from '../i18n/t.ts';
+import type { AppSummary } from '../types.ts';
 
 /**
  * Chat integrations, the pure part of the screen (Settings, Chat): the shapes of the API, the form of a destination and of a routing

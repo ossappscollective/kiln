@@ -1,4 +1,4 @@
-import { type Platform, ciProviderMeta } from '@kiln/core';
+import { ciProviderMeta, type Platform } from '@kiln/core';
 import { k, t } from '../i18n/t.ts';
 import { isFailedRun, runAppIds } from '../running.ts';
 import type { CiWorkflow, WorkflowRun } from '../types.ts';

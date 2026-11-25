@@ -10,12 +10,12 @@ import {
 import { seedWorkspace } from '../../testkit.ts';
 import { expoClientFor, expoFailure } from './index.ts';
 import {
+  bootEas,
   type EasBoot,
   EXPO_TOKEN,
   json,
   OTHER_PROJECT_ID,
   PROJECT_ID,
-  bootEas,
 } from './test-helpers.ts';
 
 /** Everything that could hold a secret, as one string: the credentials (without the ciphertext) and the audit log. */

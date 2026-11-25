@@ -24,7 +24,6 @@ import {
   mkdirSync,
   mkdtempSync,
   readdirSync,
-  readFileSync,
   realpathSync,
   rmSync,
   statSync,
@@ -32,7 +31,7 @@ import {
 import { request as httpRequest } from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { buildServer, writeServer } from './bundle-server.mjs';
@@ -344,7 +343,9 @@ function postgresRefused(nodeBinary, serverDir, dataDir) {
       {
         cwd: dataDir,
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: serverEnv(dataDir, 8788, serverDir, { DATABASE_URL: 'postgres://u:p@127.0.0.1:1/kiln' }),
+        env: serverEnv(dataDir, 8788, serverDir, {
+          DATABASE_URL: 'postgres://u:p@127.0.0.1:1/kiln',
+        }),
       },
     );
     let output = '';

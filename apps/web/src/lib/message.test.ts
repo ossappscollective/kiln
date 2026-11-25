@@ -4,8 +4,8 @@ import { ApiError } from './api.ts';
 import { k } from './i18n/t.ts';
 import { useLocale } from './i18n/test-setup.ts';
 import { builtMsg, msg, msgText, rawMsg } from './message.ts';
-import { classifyFailure, parsePercent } from './store-rollout.ts';
 import { classifyReleaseFailure } from './store-release.ts';
+import { classifyFailure, parsePercent } from './store-rollout.ts';
 
 test('a kept message is written in the language that is active when it is drawn', () => {
   const kept = msg(k('release-store:rollout.fail.timeout'));

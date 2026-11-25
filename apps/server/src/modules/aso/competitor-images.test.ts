@@ -74,9 +74,7 @@ test('refs: only the stored grammar passes; an address, a path or a traversal ne
 });
 
 async function boot(
-  exchange: (
-    req: ExchangeRequest,
-  ) => Promise<{
+  exchange: (req: ExchangeRequest) => Promise<{
     status: number;
     headers: Record<string, string | undefined>;
     body: Uint8Array;

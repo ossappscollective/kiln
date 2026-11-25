@@ -1,9 +1,9 @@
 import {
   type RunState,
-  type SyncKind,
-  type SyncPlanEntry,
   runActive,
   runStates,
+  type SyncKind,
+  type SyncPlanEntry,
 } from './sync-sources.ts';
 
 /**

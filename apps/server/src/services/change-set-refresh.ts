@@ -1,4 +1,5 @@
 import type { ActorType, FileChange } from '@kiln/core';
+import { coded } from '../i18n/problem.ts';
 import { recordAudit } from './audit.ts';
 import {
   type ChangeSetView,
@@ -21,7 +22,6 @@ import {
 } from './repositories.ts';
 import { mergeText } from './text-merge.ts';
 
-import { coded } from '../i18n/problem.ts';
 /**
  * Refreshing a stale change set (docs/api/repositories.md, "Refresh a change set"). A change set
  * records, per file, the text it was made against (`before`) and the text it wants (`after`). When

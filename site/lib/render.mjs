@@ -1,7 +1,8 @@
 // HTML templates: the shared head, header and footer, and the page types. Plain template strings; every dynamic value
 // goes through esc() unless it is HTML this module built itself.
-import { escapeHtml as esc } from './markdown.mjs';
+
 import { site } from './config.mjs';
+import { escapeHtml as esc } from './markdown.mjs';
 
 const THEME_COLORS = { light: '#f5f6fd', dark: '#0b0d22' };
 

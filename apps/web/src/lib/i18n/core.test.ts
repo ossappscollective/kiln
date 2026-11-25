@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   type Catalog,
-  PSEUDO_LOCALE,
   interpolate,
+  PSEUDO_LOCALE,
   pickMessage,
   placeholdersOf,
   pluralCategories,

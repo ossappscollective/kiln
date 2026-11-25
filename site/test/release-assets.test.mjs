@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { buildSearchIndex } from '../lib/search-index.mjs';
 import { formatSize, isGithubUrl, parseAssetName, pickAssets } from '../static/js/release-assets.js';
 import { search, tokenize } from '../static/js/search-core.js';
-import { buildSearchIndex } from '../lib/search-index.mjs';
 
 const asset = (name, size = 1048576) => ({ name, browser_download_url: `https://github.com/o/r/releases/download/v1/${name}`, size });
 

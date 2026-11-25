@@ -2,8 +2,8 @@ import { AnalyticsError } from '@kiln/connectors';
 import {
   type AccessTestCode,
   type AccessTestSource,
-  addDays,
   type ActorType,
+  addDays,
   analyticsErrorMessages,
   normalizeVendorNumber,
   sourcesForPlatform,
@@ -12,8 +12,8 @@ import type { Database } from '@kiln/db';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { serviceAccountEmail, useCredentialSecret } from '../../services/credentials.ts';
-import { getSettings } from '../../services/workspace-settings.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
+import { getSettings } from '../../services/workspace-settings.ts';
 import { resolveAppleVendor, resolvePlayBucket, setCredentialVendor } from './store.ts';
 import { type AnalyticsContext, classifyAnalyticsError, pacificDay } from './sync.ts';
 

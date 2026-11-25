@@ -9,9 +9,9 @@ import {
   deriveScheme,
   deriveTint,
   failures,
+  type Scheme,
   themeSurfaces,
   tintStyle,
-  type Scheme,
 } from './tokens.ts';
 
 const css = readFileSync(fileURLToPath(new URL('../../styles/theme.css', import.meta.url)), 'utf8');

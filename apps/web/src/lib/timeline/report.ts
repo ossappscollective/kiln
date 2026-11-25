@@ -6,13 +6,13 @@
 import {
   type Comparison,
   type Platform,
-  type ReportFigure,
-  type ReportKind,
-  type TimelineEvent,
-  type TimelineMetricId,
   periodAfter,
   periodBefore,
+  type ReportFigure,
+  type ReportKind,
   reportKinds,
+  type TimelineEvent,
+  type TimelineMetricId,
 } from '@kiln/core';
 import { formatDay, formatValue } from '../analytics/analytics.ts';
 import { parseViewPath } from '../app-scope.ts';

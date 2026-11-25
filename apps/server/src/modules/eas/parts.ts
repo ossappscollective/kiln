@@ -3,10 +3,10 @@ import type { AppEnv, Services } from '../../http.ts';
 import type { ModuleShared } from '../module.ts';
 import { easConfigPart } from './config-routes.ts';
 import type { EasDeps } from './index.ts';
-import { easStatusRoutes } from './status-routes.ts';
 import { easLinkRoutes } from './link-routes.ts';
-import { easWorkflowsPart } from './workflows-routes.ts';
+import { easStatusRoutes } from './status-routes.ts';
 import { easUpdatePart } from './update-routes.ts';
+import { easWorkflowsPart } from './workflows-routes.ts';
 
 /** One piece of the EAS module: it mounts its routes. Each feature adds one entry to `easParts` and one array to `easOperations`. */
 export type EasPart = (

@@ -4,15 +4,15 @@
  * translated here, a person's own event carries the title they wrote. Nothing in this file reads the network or the clock.
  */
 import {
+  addDays,
+  daysBetween,
   type Platform,
   type TimelineEvent,
   type TimelineEventKind,
-  addDays,
-  daysBetween,
   timelineEventKinds,
 } from '@kiln/core';
-import { type PlatformScope, appAddress } from '../app-scope.ts';
 import { formatDay } from '../analytics/analytics.ts';
+import { appAddress, type PlatformScope } from '../app-scope.ts';
 import { asoViewHref } from '../aso/aso.ts';
 import { k, t } from '../i18n/t.ts';
 import type { IconName } from '../icons.ts';

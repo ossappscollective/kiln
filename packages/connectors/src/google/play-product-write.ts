@@ -1,16 +1,16 @@
 import { StoreError } from '../errors.ts';
 import { enc, isRecord, type Json, records, text } from '../store-http.ts';
 import {
-  type ProductLocalizationResult,
-  type ProductLocalizationUpdate,
   ProductLocaleMissingError,
   ProductLocalizationDriftError,
+  type ProductLocalizationResult,
+  type ProductLocalizationUpdate,
   ProductMissingError,
   ProductOutcomeUnknownError,
-  sameLocale,
   type StoreProductLocalization,
   type StoreProductRef,
   type StoreProductWriteConnector,
+  sameLocale,
 } from '../store-products-types.ts';
 import { parsePlayListings } from './play-products.ts';
 import { PlayProductsHttp, type PlayProductsHttpOptions } from './play-products-http.ts';

@@ -1,4 +1,4 @@
-import { type Action, type Platform, type Role, can } from '@kiln/core';
+import { type Action, can, type Platform, type Role } from '@kiln/core';
 import type { Api } from './api.ts';
 import { ApiError } from './api.ts';
 import type { RunState, SyncKind, SyncPlanEntry } from './sync-sources.ts';

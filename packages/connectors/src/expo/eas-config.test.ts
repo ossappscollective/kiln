@@ -1,18 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  analyzeEasConfig,
-  type EasConfig,
-  type EasConfigReport,
-  type EasFinding,
-  type EasFindingCode,
-  looksLikeSecret,
-  parseJsonLenient,
-  readEasConfig,
-  readExpoAppConfig,
-  relaxJson,
-} from './eas-config.ts';
-import {
   APP_PLAIN,
   APP_UPDATES,
   app,
@@ -28,6 +16,18 @@ import {
   SENTRY_TOKEN,
   WRONG_TYPES_EAS,
 } from './eas-config.fixtures.ts';
+import {
+  analyzeEasConfig,
+  type EasConfig,
+  type EasConfigReport,
+  type EasFinding,
+  type EasFindingCode,
+  looksLikeSecret,
+  parseJsonLenient,
+  readEasConfig,
+  readExpoAppConfig,
+  relaxJson,
+} from './eas-config.ts';
 
 const analyze = (easJson: string, appText?: string, extra: { dynamic?: string } = {}) =>
   analyzeEasConfig({

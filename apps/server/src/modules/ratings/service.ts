@@ -4,23 +4,23 @@ import type { Sql } from '@kiln/db';
 import type { ManagedApp } from '../../services/apps.ts';
 import { emitEvent } from '../../services/events.ts';
 import { getSourceStates, readDaily } from '../analytics/store.ts';
-import { crashMention } from './crash-words.ts';
 import { alpha2 } from './countries.ts';
+import { crashMention } from './crash-words.ts';
 import { addDays, dayRange, type Granularity } from './days.ts';
 import {
+  compare,
+  dailyRates,
   type Finding,
+  finding,
   type HealthData,
   type Store,
-  type VersionDay,
-  dailyRates,
-  compare,
-  finding,
   steady,
+  type VersionDay,
   versionHealth,
 } from './health.ts';
 import {
-  type Reading,
   countryRows,
+  type Reading,
   ratingBuckets,
   reviewBuckets,
   starSum,
@@ -192,13 +192,11 @@ export async function ratingsView(
   const region = (r: { territory: string | null }) =>
     country === 'all' ? true : alpha2(r.territory) === country;
   const written = reviewBuckets(
-    reviews
-      .filter(region)
-      .map((r) => ({
-        day: r.day,
-        rating: r.rating,
-        territory: country === 'all' ? null : country,
-      })),
+    reviews.filter(region).map((r) => ({
+      day: r.day,
+      rating: r.rating,
+      territory: country === 'all' ? null : country,
+    })),
     { country: 'all', granularity, from, to },
   );
   const buckets = ratingBuckets(readings, { country, granularity, from, to });

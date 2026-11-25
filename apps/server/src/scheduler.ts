@@ -3,15 +3,15 @@ import { enqueue } from './jobs.ts';
 import { type AnalyticsQueueSummary, queueAnalyticsSyncs } from './modules/analytics/schedule.ts';
 import { type AnalyticsUpkeepSummary, analyticsUpkeep } from './modules/analytics/store.ts';
 import {
+  type CompetitorReviewsQueueSummary,
+  queueCompetitorReviewReads,
+} from './modules/aso/competitor-review-schedule.ts';
+import {
   type AsoQueueSummary,
   type AsoUpkeepSummary,
   asoUpkeep,
   queueAsoRefreshes,
 } from './modules/aso/schedule.ts';
-import {
-  type CompetitorReviewsQueueSummary,
-  queueCompetitorReviewReads,
-} from './modules/aso/competitor-review-schedule.ts';
 import { ACTIVE_STATUSES, purgeOrphans } from './modules/ci/runs.ts';
 import { DEFAULT_POLL_MAX_MS, enqueueCiPoll } from './modules/ci/service.ts';
 import { type EasStatusQueueSummary, queueEasStatusSyncs } from './modules/eas/status-sync.ts';

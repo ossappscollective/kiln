@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { ApiError } from './api.ts';
 import {
   amountProblemText,
   bpText,
@@ -11,8 +12,8 @@ import {
   limitsOf,
   moneyChange,
   neededAcks,
-  perCurrency,
   type PriceResultDetail,
+  perCurrency,
   priceBlock,
   readAmount,
   rowChange,
@@ -21,7 +22,6 @@ import {
   subscriberRules,
   verificationText,
 } from './prices.ts';
-import { ApiError } from './api.ts';
 import type { PriceWriteView, StagedPriceChange } from './types.ts';
 
 const row = (over: Partial<Parameters<typeof rowChange>[0]> = {}) => ({

@@ -23,6 +23,7 @@ import {
   validateAssets,
 } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
+import { coded } from '../../i18n/problem.ts';
 import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
@@ -38,7 +39,6 @@ import {
   requestOfManifest,
 } from './store-draft-record.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * Submitting the store's DRAFT for review: the most consequential STORE WRITE of this server, and one it cannot take
  * back. It is written down in docs/adr/0010-store-submit.md and docs/api/submit.md. The design copies the other store

@@ -265,7 +265,7 @@ export function createExpoClient(options: ExpoClientOptions): ExpoClient {
     async rest<T>(request: RestRequest, call: Call = {}) {
       // A path is built by the caller from fixed words and encoded ids; anything else could point the token elsewhere.
       if (
-        !/^\/[A-Za-z0-9._~\/%-]*$/.test(request.path) ||
+        !/^\/[A-Za-z0-9._~/%-]*$/.test(request.path) ||
         request.path.includes('..') ||
         request.path.includes('//')
       ) {

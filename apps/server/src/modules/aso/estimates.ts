@@ -1,7 +1,7 @@
 import {
+  type EstimateStore,
   KEYWORD_ESTIMATE_MODEL,
   listingStoreOf,
-  type EstimateStore,
   type OwnSignal,
 } from '@kiln/core';
 import type { Sql } from '@kiln/db';
@@ -9,9 +9,9 @@ import type { ManagedApp } from '../../services/apps.ts';
 import { adsPopularityFor, adsSignalFor } from '../ads/view.ts';
 import { type AsoKeyword, listKeywords } from './service.ts';
 import {
+  type EstimateView,
   estimateTrend,
   estimateView,
-  type EstimateView,
   latestSignals,
   readSignalDays,
   SIGNAL_RETENTION_DAYS,

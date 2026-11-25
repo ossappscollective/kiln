@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { type Platform, supports, versionCodesOf } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
+import { coded } from '../../i18n/problem.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { emitEvent } from '../../services/events.ts';
@@ -47,7 +48,6 @@ import {
   type SubmitContext,
 } from './store-submit.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * The BATCH PUBLISH of an app: one plan, ONE final confirmation, several gated store steps in order
  * (docs/api/pending.md, docs/adr/0015-pending-and-batch-publish.md).

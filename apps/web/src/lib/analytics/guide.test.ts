@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { sourceOf, statusOf, NOW } from './fixtures.ts';
+import { NOW, sourceOf, statusOf } from './fixtures.ts';
 import { guideKindOf, guideLinks, isTestable, probablyOtherAccount } from './guide.ts';
 import { sourceRows } from './view.ts';
 

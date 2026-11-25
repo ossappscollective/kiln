@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dbTest } from '@kiln/db/testing';
-import { operations } from './operations/registry.ts';
+import { parseUserLocale, recipientLocale } from './i18n/user-locale.ts';
 import { sendDueDigests } from './modules/alerts/digest.ts';
 import { bootAlerts } from './modules/alerts/test-helpers.ts';
-import { recipientLocale, parseUserLocale } from './i18n/user-locale.ts';
+import { operations } from './operations/registry.ts';
 import { boot, registerOwner, send } from './testkit.ts';
 
 type MeBody = { user: { id: string; email: string; locale: string | null }; workspaces: unknown[] };

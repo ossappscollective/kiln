@@ -1,16 +1,16 @@
 import { randomBytes } from 'node:crypto';
 import type { Database } from '@kiln/db';
 import {
-  apps as rcApps,
   entitlement,
   errorBody,
   KEY,
   list,
   offering,
-  packageOf,
   PROJECT_ID,
+  packageOf,
   product,
   project,
+  apps as rcApps,
 } from '../../../../../packages/connectors/src/revenuecat/revenuecat.fixtures.ts';
 import { bootMonetization } from '../monetization/test-helpers.ts';
 

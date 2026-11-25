@@ -2,7 +2,8 @@ import type { Context } from 'hono';
 import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
-import { type AppEnv, clientIp, parseBody, type Services, SESSION_COOKIE_NAME } from '../http.ts';
+import { type AppEnv, clientIp, parseBody, SESSION_COOKIE_NAME, type Services } from '../http.ts';
+import { coded } from '../i18n/problem.ts';
 import {
   countUsers,
   createSession,
@@ -18,8 +19,6 @@ import {
 import { mailConfigured } from '../services/mailer.ts';
 import { createLoginChallenge, loginMethods, loginNeed } from '../services/two-factor.ts';
 import { LOCAL_USER_EMAIL } from '../single-user.ts';
-
-import { coded } from '../i18n/problem.ts';
 export const SESSION_COOKIE = SESSION_COOKIE_NAME;
 
 const registerBody = z.object({

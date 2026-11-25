@@ -4,10 +4,12 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../../http.ts';
+import { coded } from '../../i18n/problem.ts';
 import { memberRole } from '../../services/accounts.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { type Failure, failure, type RepoContext } from '../../services/repositories.ts';
 import { requireStepUp } from '../../services/step-up.ts';
+import { getListingFixes, stageListingFix } from './listing-fixes.ts';
 import {
   clearStaged,
   getStagedChanges,
@@ -16,7 +18,6 @@ import {
   stageText,
   unstage,
 } from './staged-changes.ts';
-import { getListingFixes, stageListingFix } from './listing-fixes.ts';
 import { stageReleaseField } from './staged-release.ts';
 import {
   applyDraftPush,
@@ -27,8 +28,6 @@ import {
   draftDisabledFailure,
   previewDraftPush,
 } from './store-draft.ts';
-
-import { coded } from '../../i18n/problem.ts';
 /**
  * Staged listing text and graphics of an app, and writing them to the store as a DRAFT
  * (docs/api/staged-changes.md, docs/adr/0009-staged-store-drafts.md). Staging reads and writes the

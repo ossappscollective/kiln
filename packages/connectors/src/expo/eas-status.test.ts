@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createExpoClient } from './client.ts';
-import { ExpoError } from './errors.ts';
 import {
   ARTIFACT_URL,
   buildsBody,
@@ -9,6 +8,7 @@ import {
   easSubmission,
   submissionsBody,
 } from './eas-status.fixtures.ts';
+import { ExpoError } from './errors.ts';
 import { PROJECT_ID, TOKEN } from './expo.fixtures.ts';
 import { expoBuilds, expoSubmissions } from './queries.ts';
 

@@ -1,13 +1,13 @@
+import type { Platform } from '@kiln/core';
 import {
   type CheckCode,
   type Fix,
   type ListingFixKind,
-  type UnfixableIssue,
   stageableFixesOf,
+  type UnfixableIssue,
 } from '@kiln/core';
 import { k, t } from '../i18n/t.ts';
 import { notStageableReason } from './edit.ts';
-import type { Platform } from '@kiln/core';
 
 /**
  * One-click fixes of the listing checks, pure parts of the web (docs/adr/0059-listing-fixes-via-cart.md). The SERVER computes every fix

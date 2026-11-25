@@ -131,34 +131,34 @@ function countText(count: number, locale: string): string {
 
 /**
  * Replaces `{{name}}` in one pass (a value that itself holds `{{x}}` is not replaced again). A placeholder with no value stays as
- * written, so a mistake is visible. `count` is written with the language's digit grouping. `escape` (for HTML) is applied to every
+ * written, so a mistake is visible. `count` is written with the language's digit grouping. `escapeText` (for HTML) is applied to every
  * value AND to the fixed text around them.
  */
 export function interpolate(
   message: string,
   params: Params | undefined,
   locale: string,
-  escape: (text: string) => string = (text) => text,
+  escapeText: (text: string) => string = (text) => text,
 ): string {
   let out = '';
   let from = 0;
   const pattern = new RegExp(PLACEHOLDER.source, 'g');
   for (let m = pattern.exec(message); m; m = pattern.exec(message)) {
-    out += escape(message.slice(from, m.index));
+    out += escapeText(message.slice(from, m.index));
     from = m.index + m[0].length;
     const name = m[1] as string;
     if (!params || !Object.hasOwn(params, name)) {
-      out += escape(m[0]);
+      out += escapeText(m[0]);
       continue;
     }
     const value = params[name];
     if (value === null || value === undefined) continue;
     out +=
       name === 'count' && typeof value === 'number' && Number.isFinite(value)
-        ? escape(countText(value, locale))
-        : escape(String(value));
+        ? escapeText(countText(value, locale))
+        : escapeText(String(value));
   }
-  return out + escape(message.slice(from));
+  return out + escapeText(message.slice(from));
 }
 
 export type RichPart = { text: string; tag?: string };

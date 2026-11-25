@@ -1,5 +1,6 @@
 import { type ActorType, type FileChange, type Listing, platformMeta } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
+import { coded } from '../../i18n/problem.ts';
 import {
   type Failure,
   failure,
@@ -26,7 +27,6 @@ import {
 } from './sources.ts';
 import { listListingTargets } from './targets.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * The adapter between an app and the repository side of its listing. It only calls the exported
  * functions of the repository services (`readRepositoryListing`, `readListings`, `mergedListing`,

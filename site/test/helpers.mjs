@@ -1,5 +1,5 @@
 // Shared by the build tests: build once into a temp folder, and a tiny HTML scanner (no dependencies).
-import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { build } from '../build.mjs';

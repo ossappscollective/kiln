@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { bucketsIn, weekStart } from './days.ts';
-import { countryRows, ratingBuckets, reviewBuckets, stepsOf, type Reading } from './history.ts';
+import { countryRows, type Reading, ratingBuckets, reviewBuckets, stepsOf } from './history.ts';
 
 const r = (
   day: string,

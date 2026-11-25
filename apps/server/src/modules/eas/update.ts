@@ -15,13 +15,13 @@ import {
   type RuntimeCheck,
 } from '@kiln/connectors';
 import type { ActorType, Platform } from '@kiln/core';
+import { coded } from '../../i18n/problem.ts';
 import type { ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure, type Outcome } from '../../services/repositories.ts';
 import { expoClientFor, expoFailure } from './client.ts';
 import { type ExpoLinkView, getExpoLink, type LinkContext } from './link.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * EAS Update of the Expo project an app is linked to (docs/adr/0037-eas-update.md, docs/api/eas-update.md): channels, the branch each
  * channel points to, the newest updates of every branch, per-update rollouts, insights of an update group, and a check that the newest

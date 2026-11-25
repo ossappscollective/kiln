@@ -24,15 +24,15 @@ import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
-import { evaluateHealth, recordAppleRatings } from '../ratings/service.ts';
+import { credentialLane, syncActivity } from '../../services/sync-pipeline.ts';
 import {
   type AutoTranslateSummary,
   autoTranslateNewReviews,
   type TranslationContext,
 } from '../../services/translation.ts';
 import { lowRatingThresholdFor } from '../../services/workspace-settings.ts';
+import { evaluateHealth, recordAppleRatings } from '../ratings/service.ts';
 import { parseResponse, type StoreKey } from './service.ts';
-import { credentialLane, syncActivity } from '../../services/sync-pipeline.ts';
 
 /**
  * Reads the customer reviews of an app from its store (read only) into `app_reviews`.

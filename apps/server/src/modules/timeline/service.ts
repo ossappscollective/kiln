@@ -3,11 +3,11 @@ import {
   addDays,
   type Comparison,
   compareWith,
-  dateToDay,
-  dayToMs,
-  daysBetween,
   DEFAULT_IMPACT_DAYS,
   dailyValue,
+  dateToDay,
+  daysBetween,
+  dayToMs,
   figureFor,
   type Impact,
   type ImpactVerdict,
@@ -19,32 +19,32 @@ import {
   type ReportFigure,
   type ReportKind,
   relativeChange,
-  sinceWindowDays,
   type SeriesLike,
+  sinceWindowDays,
   type TimelineEvent,
   type TimelineMetric,
   timelineMetricDefs,
   timelineMetricsFrom,
 } from '@kiln/core';
 import type { Database } from '@kiln/db';
+import type { z } from 'zod';
 import { coded } from '../../i18n/problem.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
-import { type Overview, overview, MAX_OVERVIEW_DAYS } from '../analytics/query.ts';
+import { MAX_OVERVIEW_DAYS, type Overview, overview } from '../analytics/query.ts';
 import {
   countManual,
-  createEventBody,
+  type createEventBody,
   deleteManual,
   getManual,
   insertManual,
   kilnEvents,
-  manualEvents,
   MAX_EVENTS_PER_APP,
+  manualEvents,
   saveManual,
   type updateEventBody,
 } from './events.ts';
-import type { z } from 'zod';
 
 export type TimelineContext = { db: Database; now: () => number };
 type Actor = { type: 'user' | 'token' | 'assistant' | 'system'; id: string };

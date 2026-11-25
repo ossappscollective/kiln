@@ -9,14 +9,14 @@
  *
  * `pnpm i18n:check`, `pnpm i18n:fix`, `pnpm i18n:scan`. The web tests run `check` (apps/web/src/lib/i18n/catalogs.test.ts).
  */
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   KEY_PATTERN,
   NAMESPACE_PATTERN,
-  SOURCE_LOCALE,
   pluralCategories,
+  SOURCE_LOCALE,
   splitKey,
   splitPluralKey,
   tagProblem,

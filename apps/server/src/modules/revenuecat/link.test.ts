@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { dbTest } from '@kiln/db/testing';
-import { planRow } from './link.ts';
 import {
   apps,
   errorBody,
 } from '../../../../../packages/connectors/src/revenuecat/revenuecat.fixtures.ts';
+import { planRow } from './link.ts';
 import { bootRevenueCat, json, PROJECT_ID, REVENUECAT_KEY } from './test-helpers.ts';
 
 const q = (credentialId: string, projectId?: string) =>

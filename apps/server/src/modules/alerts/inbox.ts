@@ -1,6 +1,8 @@
 import type { Role } from '@kiln/core';
 import { can } from '@kiln/core';
 import type { Database, Row, Sql } from '@kiln/db';
+import { coded, type ErrorParams } from '../../i18n/problem.ts';
+import { SOURCE_LOCALE } from '../../i18n/runtime.ts';
 import { recordAudit } from '../../services/audit.ts';
 import {
   type AlertChannel,
@@ -13,9 +15,6 @@ import {
 } from './catalog.ts';
 import { raiseAlert } from './service.ts';
 import { alertText } from './text.ts';
-
-import { coded, type ErrorParams } from '../../i18n/problem.ts';
-import { SOURCE_LOCALE } from '../../i18n/runtime.ts';
 /** Reading side of alerts (docs/api/alerts.md): the inbox of a person, the delivery log, "send a test", and the catalog as the API shows it. */
 
 export type InboxAlert = {

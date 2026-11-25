@@ -8,11 +8,11 @@ import {
 } from '@kiln/connectors';
 import type { ActorType } from '@kiln/core';
 import type { Database } from '@kiln/db';
-import { type Failure, failure } from '../../services/repositories.ts';
+import { coded } from '../../i18n/problem.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
+import { type Failure, failure } from '../../services/repositories.ts';
 import type { EasDeps } from './index.ts';
 
-import { coded } from '../../i18n/problem.ts';
 /**
  * The one way every EAS feature gets a client for Expo (docs/adr/0033-eas-integration.md). It reads the Expo credential, decrypts the
  * token for this one client (audited as `credential.use` with the purpose the caller names), and hands back a client whose closure is

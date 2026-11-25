@@ -1,7 +1,7 @@
 import type { Platform } from '@kiln/core';
-import { type Api } from '../api.ts';
+import type { Api } from '../api.ts';
 import { loadShowEvents, saveShowEvents } from './markers-pref.ts';
-import { type TimelineEntry, entriesOf, windowFor } from './timeline.ts';
+import { entriesOf, type TimelineEntry, windowFor } from './timeline.ts';
 
 /** The events drawn as markers on the Insights charts: read only while the toggle is on, one read per app record, newest read wins. */
 export class EventLayer {

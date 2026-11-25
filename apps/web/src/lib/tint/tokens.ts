@@ -14,9 +14,9 @@
  * pair passes, the chroma is clamped to sRGB. When a pair cannot be met the result is null: no tint, the default accent stays.
  * Pure and deterministic, no DOM.
  */
-import { palette as themePalette, type ThemeName } from '../tokens.ts';
+import { type ThemeName, palette as themePalette } from '../tokens.ts';
 import { over, parseColor, ratio, toHexAlpha } from './contrast.ts';
-import { maxChroma, oklchToHex, parseHex, rgbToOklch, type Rgb } from './oklch.ts';
+import { maxChroma, oklchToHex, parseHex, type Rgb, rgbToOklch } from './oklch.ts';
 
 export type Scheme = ThemeName;
 

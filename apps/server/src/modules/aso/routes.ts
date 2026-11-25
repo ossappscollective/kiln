@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { APPLE_DOCUMENTED_CALLS_PER_MINUTE, PLAY_UNOFFICIAL_NOTICE } from '@kiln/connectors';
 import {
   type Action,
-  can,
   COMPETITOR_CHANGE_RETENTION_DAYS,
+  can,
   FIT_ASSUMPTIONS,
   INDEXED_FIELDS,
   normalizeCountry,
@@ -14,6 +14,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { type AppEnv, parseBody, queryInt } from '../../http.ts';
+import { coded } from '../../i18n/problem.ts';
 import { memberRole } from '../../services/accounts.ts';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
@@ -21,6 +22,31 @@ import { createTestLimiter, type TestLimiter } from '../../services/credential-t
 import { checkSearchTermsQuery, searchTermsFor } from '../../services/play-search-terms.ts';
 import type { Failure } from '../../services/repositories.ts';
 import { rankMoveThresholdFor } from '../../services/workspace-settings.ts';
+import { IMAGE_TYPES, matchesEtag, safeImageHeaders } from '../listing/asset-routes.ts';
+import { THUMB_CACHE_CONTROL } from '../listing/asset-sync-routes.ts';
+import type { StoreImageNet } from '../listing/store-image-net.ts';
+import {
+  COMPETITOR_IMAGE_REF,
+  competitorImageSizeOf,
+  competitorThumbnail,
+  resolveSearchImage,
+  resolveStoredImage,
+  SEARCH_IMAGE_REF,
+} from './competitor-images.ts';
+import {
+  reviewScheduleView,
+  setAppReviewSchedule,
+  setCompetitorOverride,
+} from './competitor-review-schedule.ts';
+import {
+  COMPETITOR_REVIEW_RETENTION_DAYS,
+  competitorReviewStats,
+  ownReviewStats,
+  refreshCompetitorReviews,
+} from './competitor-reviews.ts';
+import { COMPETITOR_QUERY_MAX, COMPETITOR_QUERY_MIN } from './competitor-search.ts';
+import { CHANGES_PAGE_MAX, listCompetitorChanges } from './competitor-watch.ts';
+import { estimateDetail, estimatesForApp, suggestionsForApp } from './estimates.ts';
 import {
   checkLocale,
   coachFor,
@@ -33,39 +59,14 @@ import {
   suggestionsFor,
   summaryFor,
 } from './insights.ts';
-import {
-  COMPETITOR_REVIEW_RETENTION_DAYS,
-  competitorReviewStats,
-  ownReviewStats,
-  refreshCompetitorReviews,
-} from './competitor-reviews.ts';
-import {
-  reviewScheduleView,
-  setAppReviewSchedule,
-  setCompetitorOverride,
-} from './competitor-review-schedule.ts';
-import {
-  COMPETITOR_IMAGE_REF,
-  competitorImageSizeOf,
-  competitorThumbnail,
-  resolveSearchImage,
-  resolveStoredImage,
-  SEARCH_IMAGE_REF,
-} from './competitor-images.ts';
-import { COMPETITOR_QUERY_MAX, COMPETITOR_QUERY_MIN } from './competitor-search.ts';
-import { CHANGES_PAGE_MAX, listCompetitorChanges } from './competitor-watch.ts';
-import { IMAGE_TYPES, matchesEtag, safeImageHeaders } from '../listing/asset-routes.ts';
-import { THUMB_CACHE_CONTROL } from '../listing/asset-sync-routes.ts';
-import type { StoreImageNet } from '../listing/store-image-net.ts';
-import { estimateDetail, estimatesForApp, suggestionsForApp } from './estimates.ts';
 import { checkRankDownloadsQuery, rankVsDownloadsFor } from './rank-downloads.ts';
 import { queueAsoRefreshAll } from './schedule.ts';
 import {
   type AsoContext,
   addCompetitor,
-  checkCompetitorNow,
   addKeywords,
   asoFailure,
+  checkCompetitorNow,
   competitorHistory,
   deleteKeyword,
   enqueueAsoRefresh,
@@ -81,8 +82,6 @@ import {
   searchCompetitors,
   updateKeyword,
 } from './service.ts';
-
-import { coded } from '../../i18n/problem.ts';
 export type AsoRoutesContext = AsoContext & {
   /** Store lookups and refreshes per workspace per minute (default 10, built in createApp). */
   limiter: TestLimiter;

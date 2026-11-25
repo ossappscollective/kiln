@@ -1,9 +1,8 @@
 import type { MetricUnit } from '@kiln/core';
 import { platformSupports, supports } from '@kiln/core';
+import { timeAgo } from '../format.ts';
 import { formatList } from '../i18n/format.ts';
 import { k, t } from '../i18n/t.ts';
-import { timeAgo } from '../format.ts';
-import { type GuideKind, guideKindOf, isTestable } from './guide.ts';
 import {
   type AnalyticsOverview,
   type AnalyticsSeries,
@@ -37,6 +36,7 @@ import {
   stepAction,
   storedErrorText,
 } from './analytics.ts';
+import { type GuideKind, guideKindOf, isTestable } from './guide.ts';
 
 const metricKeys: Record<string, string> = {
   impressions: k('analytics:metric.impressions'),

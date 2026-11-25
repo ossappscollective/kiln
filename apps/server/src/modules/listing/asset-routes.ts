@@ -3,6 +3,7 @@ import type { Database } from '@kiln/db';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import type { AppEnv } from '../../http.ts';
+import { coded } from '../../i18n/problem.ts';
 import { memberRole } from '../../services/accounts.ts';
 import type { AppIcons } from '../../services/app-icons.ts';
 import { getApp } from '../../services/apps.ts';
@@ -10,8 +11,6 @@ import type { TestLimiter } from '../../services/credential-tests.ts';
 import { type Failure, failure, type RepoContext } from '../../services/repositories.ts';
 import { isCommitSha, openAssets } from './asset-repo.ts';
 import { peekStoreImages, storeSideOf } from './store-images.ts';
-
-import { coded } from '../../i18n/problem.ts';
 export type AssetRoutesContext = {
   db: Database;
   now: () => number;
