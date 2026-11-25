@@ -5,6 +5,7 @@ import {
   PLAY_LISTING_MEMBERS,
   versionCodesOf,
 } from '@kiln/core';
+import { mapLimit } from '../concurrency.ts';
 import { StoreError, StoreRateLimitError } from '../errors.ts';
 import { playCodeEligibility } from '../release-eligibility.ts';
 import {
@@ -113,6 +114,8 @@ export type PlayDraftConnectorOptions = Omit<StoreHttpOptions, 'store'> & {
 const DEFAULT_BASE = 'https://androidpublisher.googleapis.com';
 /** Listing languages whose images one read looks at (each costs one request per image type). */
 const MAX_READ_LANGUAGES = 60;
+/** Reads of one throw away edit that run at the same time (Google's quota is per minute, so a few, not all). */
+const READ_CONCURRENCY = 4;
 
 export class PlayDraftConnector
   implements StoreDraftConnector, StoreImageReader, StoreReleaseReader, StoreNotesHistoryReader
@@ -192,34 +195,39 @@ export class PlayDraftConnector
           notes.push(
             `Only the first ${MAX_READ_LANGUAGES} of ${languages.length} listing languages were read.`,
           );
-        for (const locale of languages.slice(0, MAX_READ_LANGUAGES)) {
-          for (const k of kinds) {
-            const reply = await this.#imagesRaw(this.#http, editId, locale, k.target);
-            reply.forEach((image, i) => {
-              const id = text(image.id);
-              if (!id) return;
-              const url = text(image.url) ?? null;
-              const checksum = text(image.sha256)?.toLowerCase() ?? null;
-              out.push({
-                locale,
-                kind: k.kind,
-                device: k.device,
-                target: k.target,
-                position: i + 1,
-                id,
-                name: null,
-                width: null,
-                height: null,
-                bytes: null,
-                checksum,
-                checksumKind: checksum === null ? null : 'sha256',
-                state: null,
-                url,
-                urlKind: url === null ? null : 'play_url',
-              });
+        const slots = languages
+          .slice(0, MAX_READ_LANGUAGES)
+          .flatMap((locale) => kinds.map((k) => ({ locale, k })));
+        const replies = await mapLimit(slots, READ_CONCURRENCY, ({ locale, k }) =>
+          this.#imagesRaw(this.#http, editId, locale, k.target),
+        );
+        slots.forEach(({ locale, k }, at) => {
+          const reply = replies[at] ?? [];
+          reply.forEach((image, i) => {
+            const id = text(image.id);
+            if (!id) return;
+            const url = text(image.url) ?? null;
+            const checksum = text(image.sha256)?.toLowerCase() ?? null;
+            out.push({
+              locale,
+              kind: k.kind,
+              device: k.device,
+              target: k.target,
+              position: i + 1,
+              id,
+              name: null,
+              width: null,
+              height: null,
+              bytes: null,
+              checksum,
+              checksumKind: checksum === null ? null : 'sha256',
+              state: null,
+              url,
+              urlKind: url === null ? null : 'play_url',
             });
-          }
-        }
+          });
+        });
+
         return { version: null, images: out, unplaced: 0, notes };
       } finally {
         await this.#deleteEdit(this.#http, editId);
@@ -816,17 +824,19 @@ export class PlayDraftConnector
         localeExists: listing !== undefined,
       };
     });
-    const assets: DraftAssetState[] = [];
-    for (const slot of request.assets) {
-      assets.push({
+    // One read per image set, a few at a time (a plan of many locales waited for them one after the other).
+    const assets: DraftAssetState[] = await mapLimit(
+      request.assets,
+      READ_CONCURRENCY,
+      async (slot) => ({
         locale: slot.locale,
         kind: slot.kind,
         device: slot.device,
         target: slot.target,
         setExists: true,
         images: await this.#images(http, editId, slot.locale, slot.target),
-      });
-    }
+      }),
+    );
     const fields =
       request.fields !== undefined && request.fields.length > 0
         ? await this.#readFields(http, editId, request.fields)
