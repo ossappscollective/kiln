@@ -80,6 +80,12 @@ export const PUBLISH_ENV = 'KILN_STORE_PUBLISH_BATCH_ENABLED';
 export const PUBLISH_ACTION = 'store.publish';
 /** A batch of up to four steps, each with its own timeout (a draft push alone may take four minutes). */
 export const DEFAULT_PUBLISH_CLAIM_TTL_MS = 900_000;
+/**
+ * The longest one step of a batch may run before the batch gives up waiting for it and answers (a backstop over the step's own
+ * timeouts: a push is bounded by four minutes and the check after it, a submit by two and the check after it). The answer is an
+ * unknown outcome: the step is never retried, and the person is told to look.
+ */
+export const DEFAULT_PUBLISH_STEP_TIMEOUT_MS = 480_000;
 
 export const STEP_ACTION = {
   push_draft: 'store.push_draft',
@@ -117,6 +123,13 @@ export type PublishContext = {
   release: ReleaseContext;
   rollout: RolloutContext;
   claimTtlMs?: number;
+  /** The longest one step may run (default `DEFAULT_PUBLISH_STEP_TIMEOUT_MS`). */
+  stepTimeoutMs?: number;
+  /**
+   * One line to the server log per boundary of a batch (started, each step started and ended with how long it took, finished). Ids,
+   * step names, statuses and error codes only: never a text, a credential or a store answer. Default: silent.
+   */
+  log?: (line: string) => void;
 };
 
 /** What the caller may do, per step: the role right of the session, or the token's list. The route computes it. */
@@ -1085,6 +1098,22 @@ const failedStep = (type: PublishStep, f: Failure): StepResult => {
 
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
+class StepDeadline extends Error {}
+
+/** `job`, or a `StepDeadline` rejection after `ms`. The job is not stopped (its own timeouts bound it); the batch just stops waiting. */
+async function withStepDeadline<T>(job: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new StepDeadline('deadline')), ms);
+  });
+  job.catch(() => undefined);
+  try {
+    return await Promise.race([job, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Runs one step of an accepted plan. A deferred step is previewed now (after the earlier steps applied) and runs only when what it
  * shows is what the plan promised; the batch supplies the phrase the plan promised for the step, never another one.
@@ -1311,9 +1340,14 @@ export async function applyPublish(
   }
 
   const taken = await takeClaim(ctx, { workspaceId: input.workspaceId, app, actor: input.actor });
-  if (!taken.ok) return taken;
+  if (!taken.ok) {
+    ctx.log?.(`publish: app ${app.id} refused: another batch is in flight (${taken.status})`);
+    return taken;
+  }
   const claim = taken.claim;
   try {
+    const planStarted = ctx.now();
+    ctx.log?.(`publish: app ${app.id} building the plan again before it writes`);
     const plan = await buildPlan(ctx, {
       workspaceId: input.workspaceId,
       app,
@@ -1322,6 +1356,7 @@ export async function applyPublish(
       rights: input.rights,
       stepUpCovers: input.stepUpCovers,
     });
+    ctx.log?.(`publish: app ${app.id} plan built after ${ctx.now() - planStarted}ms`);
     if (!plan.confirmable || plan.planHash === null) {
       return failure(
         409,
@@ -1339,10 +1374,26 @@ export async function applyPublish(
       );
     }
 
+    const log = (line: string) => {
+      try {
+        ctx.log?.(`publish: ${line}`);
+      } catch {
+        // A log line never changes what the batch does.
+      }
+    };
+    const stepTimeoutMs = ctx.stepTimeoutMs ?? DEFAULT_PUBLISH_STEP_TIMEOUT_MS;
+    const included = plan.steps.filter((s) => s.included);
+    const batchStarted = ctx.now();
+    log(
+      `app ${app.id} (${app.platform}) plan ${plan.planHash.slice(0, 8)} steps ${included.map((s) => s.type).join(',')} started`,
+    );
     const results: StepResult[] = [];
     let stopped: PublishStep | null = null;
-    for (const step of plan.steps.filter((s) => s.included)) {
+    let position = 0;
+    for (const step of included) {
+      position += 1;
       if (stopped !== null) {
+        log(`step ${position}/${included.length} ${step.type} not run: ${stopped} was not applied`);
         results.push({
           type: step.type,
           status: 'skipped',
@@ -1351,29 +1402,39 @@ export async function applyPublish(
         });
         continue;
       }
+      const stepStarted = ctx.now();
+      log(`step ${position}/${included.length} ${step.type} started`);
       let result: StepResult;
       try {
-        result = await runStep(
-          ctx,
-          { workspaceId: input.workspaceId, app, actor: input.actor },
-          step,
+        result = await withStepDeadline(
+          runStep(ctx, { workspaceId: input.workspaceId, app, actor: input.actor }, step),
+          stepTimeoutMs,
         );
-      } catch {
+      } catch (error) {
+        const late = error instanceof StepDeadline;
         // Not knowing is not "no": never retried, and the person is told to look.
+        log(
+          `step ${position}/${included.length} ${step.type} ${late ? `did not finish within ${Math.round(stepTimeoutMs / 1000)}s` : `threw ${error instanceof Error ? error.name : typeof error}`}`,
+        );
         result = {
           type: step.type,
           status: 'failed',
-          error: 'step_error',
-          httpStatus: 502,
+          error: late ? 'step_timeout' : 'step_error',
+          httpStatus: late ? 504 : 502,
           outcome: 'unknown',
-          message:
-            'The step stopped unexpectedly, so it is not known whether it reached the store. Look at the app in the store, then preview again.',
+          message: late
+            ? `The step did not finish within ${Math.round(stepTimeoutMs / 60_000)} minutes, so it is not known whether it reached the store. Look at the app in the store, then preview again.`
+            : 'The step stopped unexpectedly, so it is not known whether it reached the store. Look at the app in the store, then preview again.',
           ...coded('publish.stepStopped'),
         };
       }
       results.push(result);
+      log(
+        `step ${position}/${included.length} ${step.type} ${result.status}${result.status === 'failed' ? ` (${result.error}, ${result.outcome})` : result.status === 'skipped' ? ` (${result.reason})` : ''} after ${ctx.now() - stepStarted}ms`,
+      );
       if (result.status !== 'applied') stopped = step.type;
     }
+    log(`app ${app.id} finished after ${ctx.now() - batchStarted}ms, stopped at ${stopped ?? 'nothing'}`);
 
     const at = ctx.now();
     const count = (s: StepResult['status']) => results.filter((r) => r.status === s).length;

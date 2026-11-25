@@ -66,6 +66,10 @@ export type PendingRoutesContext = {
     /** KILN_STORE_PUBLISH_BATCH_ENABLED (default false). */
     enabled?: boolean;
     claimTtlMs?: number;
+    /** The longest one step of the batch may run before the batch answers without it (tests). */
+    stepTimeoutMs?: number;
+    /** One line to the server log per boundary of a batch (ids, step names and statuses only). */
+    log?: (line: string) => void;
   };
   /** The same seams as the individual steps (fakes in tests), so the batch reaches the stores the way they do. */
   draft?: {
@@ -187,6 +191,8 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
     release,
     rollout,
     ...(ctx.publish?.claimTtlMs !== undefined ? { claimTtlMs: ctx.publish.claimTtlMs } : {}),
+    ...(ctx.publish?.stepTimeoutMs !== undefined ? { stepTimeoutMs: ctx.publish.stepTimeoutMs } : {}),
+    ...(ctx.publish?.log ? { log: ctx.publish.log } : {}),
   };
 
   /** Not a member and no such workspace look the same (404). A member without the right gets 403. */

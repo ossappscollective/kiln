@@ -31,6 +31,9 @@ async function boot(
     draft?: boolean;
     submit?: boolean;
     release?: boolean;
+    /** The batch's own backstop per step, and where its log lines go (tests). */
+    stepTimeoutMs?: number;
+    log?: (line: string) => void;
   } = {},
 ) {
   const rolloutStores = {
@@ -47,7 +50,11 @@ async function boot(
     ...(options.submit === undefined ? {} : { submit: { enabled: options.submit } }),
     ...(options.release === undefined ? {} : { release: { enabled: options.release } }),
     extra: {
-      storePublish: { enabled: options.publish ?? true },
+      storePublish: {
+        enabled: options.publish ?? true,
+        ...(options.stepTimeoutMs === undefined ? {} : { stepTimeoutMs: options.stepTimeoutMs }),
+        ...(options.log === undefined ? {} : { log: options.log }),
+      },
       rollout: { enabled: options.rollout ?? true, connectorFactory: rolloutFactory },
     },
   });
@@ -1405,5 +1412,62 @@ dbTest(
     );
     assert.equal((t.rolloutStores.android.state as { userFraction: number }).userFraction, 0.5);
     assert.equal((await t.audit('pending.published'))[0]?.detail.applied, 1);
+  },
+);
+
+// ----- a publish always ends, and says where it was ---------------------------------------------------------
+
+dbTest(
+  'a step that never answers does not hold the batch for ever: it ends as an unknown outcome, the lock is released and the log says where it stalled',
+  async (db) => {
+    const lines: string[] = [];
+    const t = await boot(db, { stepTimeoutMs: 60, log: (line) => lines.push(line) });
+    const app = await t.addApp('ios', 'Weather');
+    let open!: () => void;
+    t.releaseStores.ios.gate = new Promise<void>((resolve) => (open = resolve));
+    const p = (await t.plan(app, [{ type: 'release' }])).body.plan;
+    assert.equal(p.confirmable, true, JSON.stringify(p.steps).slice(0, 400));
+    const answered = await Promise.race([
+      t.publish(app, { planHash: p.planHash, phrase: p.confirmation.phrase, steps: p.publishSteps }),
+      new Promise<'hung'>((resolve) => setTimeout(() => resolve('hung'), 5000)),
+    ]);
+    assert.notEqual(answered, 'hung', 'the publish request never answered');
+    const done = answered as Awaited<ReturnType<typeof t.publish>>;
+    assert.equal(done.status, 200, done.text.slice(0, 400));
+    const release = resultOf(done, 'release');
+    assert.deepEqual(
+      [release.status, release.error, release.outcome, release.httpStatus],
+      ['failed', 'step_timeout', 'unknown', 504],
+    );
+    assert.equal(done.body.result.completed, false);
+    assert.equal(done.body.result.stoppedAt, 'release');
+    assert.equal(await t.publishClaim(app), undefined, 'the batch lock is released');
+    assert.ok(lines.some((l) => /step 1\/1 release started/.test(l)), lines.join('\n'));
+    assert.ok(lines.some((l) => /step 1\/1 release did not finish within/.test(l)), lines.join('\n'));
+    assert.ok(lines.some((l) => /finished after/.test(l)), lines.join('\n'));
+    // Let the abandoned step end, so its own timer does not keep the test process waiting.
+    open();
+    await until(() => t.releaseStores.ios.releaseCalls >= 1);
+  },
+);
+
+dbTest(
+  'the log names every boundary of a two step publish (ids, step names and statuses only)',
+  async (db) => {
+    const lines: string[] = [];
+    const t = await boot(db, { log: (line) => lines.push(line) });
+    const app = await stageIos(t, 'Weather');
+    const { publish } = await t.planAndPublish(app);
+    assert.equal(publish.status, 200, publish.text.slice(0, 400));
+    const text = lines.join('\n');
+    assert.match(text, /steps push_draft,submit started/);
+    assert.match(text, /plan built after/);
+    assert.match(text, /step 1\/2 push_draft started/);
+    assert.match(text, /step 1\/2 push_draft applied after/);
+    assert.match(text, /step 2\/2 submit started/);
+    assert.match(text, /step 2\/2 submit applied after/);
+    assert.match(text, /finished after .*stopped at nothing/);
+    assert.doesNotMatch(text, new RegExp(TEXT), 'never a staged text');
+    assert.ok(lines.every((l) => l.startsWith('publish: ')));
   },
 );

@@ -113,6 +113,8 @@ export const DRAFT_PURPOSE = 'store.draft_push';
 export const DEFAULT_DRAFT_TIMEOUT_MS = 240_000;
 /** Longer than the timeout, so a claim is never trusted less than the write it guards can still run. */
 export const DEFAULT_DRAFT_CLAIM_TTL_MS = 300_000;
+/** The read that checks a push whose answer was lost: it must not take as long as the push that just ran out of time. */
+export const DEFAULT_DRAFT_READBACK_TIMEOUT_MS = 60_000;
 
 const FIELDS_NOTE = {
   apple:
@@ -264,6 +266,7 @@ async function withConnector<T>(
   ctx: StoreConnectContext,
   input: Omit<DraftConnectorInput, 'fetch'>,
   job: (connector: StoreDraftConnector) => Promise<T>,
+  timeoutMs?: number,
 ): Promise<T> {
   const controller = new AbortController();
   const baseFetch = globalThis.fetch;
@@ -277,7 +280,7 @@ async function withConnector<T>(
     timer = setTimeout(() => {
       controller.abort();
       reject(new DraftTimeout('timeout'));
-    }, ctx.draftTimeoutMs ?? DEFAULT_DRAFT_TIMEOUT_MS);
+    }, timeoutMs ?? ctx.draftTimeoutMs ?? DEFAULT_DRAFT_TIMEOUT_MS);
   });
   try {
     const work = job(ctx.draftConnectorFactory({ ...input, fetch: guardedFetch }));
@@ -1590,8 +1593,11 @@ export async function applyDraftPush(
   const before = accepted;
   let current: DraftState | undefined;
   try {
-    current = await withConnector(ctx, connection.input, (connector) =>
-      connector.readDraft(requestOf(p)),
+    current = await withConnector(
+      ctx,
+      connection.input,
+      (connector) => connector.readDraft(requestOf(p)),
+      Math.min(ctx.draftTimeoutMs ?? DEFAULT_DRAFT_TIMEOUT_MS, DEFAULT_DRAFT_READBACK_TIMEOUT_MS),
     );
   } catch {
     current = undefined;

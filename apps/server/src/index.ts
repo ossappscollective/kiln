@@ -233,7 +233,11 @@ const app = createApp({
     scratchDir: config.dataDir,
     internalSharingEnabled: config.playInternalSharingEnabled,
   },
-  storePublish: { enabled: config.storePublishBatchEnabled },
+  storePublish: {
+    enabled: config.storePublishBatchEnabled,
+    // Where a long publish is (ids, step names and statuses only): the line to read when a publish seems stuck.
+    log: (line: string) => console.log(line),
+  },
   translation: { allowPrivateUrls: config.translateAllowPrivateUrls },
   ai: { enabled: config.aiEnabled, allowPrivateUrls: config.aiAllowPrivateUrls },
   mail: { env: parseSmtpEnv(process.env) },
