@@ -17,7 +17,10 @@
   import { k, t } from '../../lib/i18n/t.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { queueCartOpen } from '../../lib/pending-cart.ts';
+  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import PendingGroupChanges from './PendingGroupChanges.svelte';
+  import PublishingStatus from '../publish/PublishingStatus.svelte';
+  import Badge from '../ui/Badge.svelte';
   import Icon from '../ui/Icon.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
@@ -30,6 +33,16 @@
   const summary = $derived(cartSummaryStore.summaryOf(workspaceId));
   const rows = $derived(pendingRows(summary, navSignals.appsOf(workspaceId)));
   const totals = $derived(pendingTotals(rows, summary));
+  /** The apps that publish right now, whatever is left in their carts (a publish can empty the cart before it ends). */
+  const publishingApps = $derived.by(() => {
+    const apps = navSignals.appsOf(workspaceId) ?? [];
+    return publishingStore.ids(workspaceId).flatMap((id) => {
+      const app = apps.find((a) => a.id === id);
+      const entry = publishingStore.of(workspaceId, id);
+      return app && entry ? [{ app, entry }] : [];
+    });
+  });
+  const publishingKeys = $derived(new Set(publishingApps.map((p) => p.app.id)));
   let failed = $state(false);
   /** Products whose changes are listed (read lazily when first opened); collapsed by default. */
   let open = $state<ReadonlySet<string>>(new Set());
@@ -65,9 +78,15 @@
   <EmptyState icon="alert-triangle" title={t('app:workspacePending.loadFailed')}>
     {#snippet actions()}<Button onclick={() => void read()}>{t('common:action.retry')}</Button>{/snippet}
   </EmptyState>
-{:else if rows.length === 0}
+{:else if rows.length === 0 && publishingApps.length === 0}
   <EmptyState icon="check" title={t('app:workspacePending.empty')} />
 {:else}
+  {#each publishingApps as p (p.app.id)}
+    <div class="publishing-now" data-testid="workspace-publishing">
+      <strong>{p.app.name}</strong>
+      <PublishingStatus publishing={p.entry} platform={p.app.platform} href={appAddress(p.app.id, 'pending')} />
+    </div>
+  {/each}
   {#if totals}<p class="total" role="status">{pendingAcrossText(totals)}</p>{/if}
   <ul class="rows" aria-label={t('app:workspacePending.listLabel')}>
     {#each rows as row (row.key)}
@@ -80,7 +99,10 @@
           <span class="platforms">{#each row.platforms as p (p)}<PlatformBadge platform={p} showLabel={false} />{/each}</span>
           <span class="muted kinds">{row.kinds.map((x) => `${t(KIND_LABEL[x.kind])} ${x.count}`).join(' · ')}</span>
         </div>
-        <span class="count">{t('shell:badge.pendingChanges', { count: row.count })}</span>
+        <span class="count">
+          {#if row.appIds.some((id) => publishingKeys.has(id))}<Badge tone="info" icon="refresh">{t('publish:publishing.chip')}</Badge>{/if}
+          {t('shell:badge.pendingChanges', { count: row.count })}
+        </span>
         <Button size="sm" icon="upload" label={t('app:workspacePending.openLabel', { name: row.name })} href={appAddress(row.key)} onclick={() => queueCartOpen(row.key)}>{t('app:workspacePending.open')}</Button>
         {#if open.has(row.key)}<PendingGroupChanges {api} {workspaceId} appIds={row.appIds} id="{uid}-{row.key}" />{/if}
       </li>
@@ -89,6 +111,12 @@
 {/if}
 
 <style>
+  .publishing-now {
+    display: grid;
+    gap: var(--space-1);
+    margin: 0 0 var(--space-3);
+  }
+
   .total {
     margin: 0 0 var(--space-3);
     font-size: var(--text-sm);

@@ -18,12 +18,14 @@
   import { describeError, storeName } from '../../lib/portfolio.ts';
   import { dueText, formatTargetDate, rolloutHeadline } from '../../lib/release.ts';
   import { type PromoteOption, promoteHref } from '../../lib/play-promote.ts';
+  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import { type ReleaseRow, buildsForRelease } from '../../lib/releases-table.ts';
   import { PLANS_ENABLED } from '../../lib/features.ts';
   import type { AppBuild, AppSummary, PlanDetail } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
+  import PublishingNote from '../publish/PublishingNote.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import Rollout from './Rollout.svelte';
   import RolloutObserved from './RolloutObserved.svelte';
@@ -124,9 +126,15 @@
       <RolloutObserved release={row.release} />
       {#if promote}
         <p class="promote-line">
-          <Button size="sm" variant="primary" icon="arrow-right" href={promoteHref(promote)}>{promote.label}</Button>
+          {#if publishingStore.isPublishing(workspaceId, app.id)}
+            <!-- a publish of this app is running: promoting now would race it -->
+            <Button size="sm" variant="primary" icon="arrow-right" disabled title={publishingStore.reason(workspaceId, app.id)}>{promote.label}</Button>
+          {:else}
+            <Button size="sm" variant="primary" icon="arrow-right" href={promoteHref(promote)}>{promote.label}</Button>
+          {/if}
           <span class="muted note">{t('release:row.promoteNote', { count: promote.codes.length, codes: formatList(promote.codes.map(String)), from: promote.fromLabel })}</span>
         </p>
+        <PublishingNote {workspaceId} appId={app.id} platform={scope} />
       {/if}
     </section>
 

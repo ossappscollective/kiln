@@ -20,6 +20,7 @@
     takeQueuedCartOpen,
     discardRequests,
     failAll,
+    markBeingPublished,
     mergeResults,
     type Outcomes,
     publishRequests,
@@ -29,6 +30,7 @@
     toRows,
   } from '../../lib/pending-cart.ts';
   import { PUBLISHED_EVENT } from '../../lib/app-page.ts';
+  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import { onStagedChanged } from '../../lib/staged-sync.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -71,8 +73,32 @@
   let lastToast = 0;
 
   const ids = $derived(members.map((m) => m.id));
+  /** The records of this app whose publish runs now (the shared store, polled while one runs): their items are being written. */
+  const publishing = $derived(
+    members.flatMap((m) => {
+      const entry = publishingStore.of(workspaceId, m.id);
+      return entry === null ? [] : [{ appId: m.id, platform: m.platform, entry }];
+    }),
+  );
+  /** A publish of one of these records that did not go through and has ended: its one line, until dismissed or a new publish starts. */
+  const failures = $derived(
+    members.flatMap((m) => {
+      const text = publishingStore.failureOf(m.id);
+      return text !== null && publishingStore.of(workspaceId, m.id) === null ? [{ appId: m.id, text }] : [];
+    }),
+  );
+  const shownRows = $derived(markBeingPublished(rows, new Set(publishing.map((p) => p.appId))));
   const count = $derived(rows.length);
-  const visible = $derived(!hidden && count > 0);
+  const visible = $derived(!hidden && (count > 0 || publishing.length > 0 || failures.length > 0));
+  // Each step that starts or ends changes what the cart holds (the pushed items leave it): read it again, once per change.
+  let stepKey = '';
+  $effect(() => {
+    const key = publishing.map((p) => `${p.appId}:${p.entry.currentStep ?? ''}:${p.entry.stepStartedAt ?? ''}`).join('|');
+    if (key === stepKey) return;
+    const first = stepKey === '';
+    stepKey = key;
+    if (!first && key !== '') untrack(() => void refresh());
+  });
 
   async function refresh(): Promise<void> {
     const mine = ++generation;
@@ -268,7 +294,9 @@
   bind:open
   {api}
   {workspaceId}
-  {rows}
+  rows={shownRows}
+  {publishing}
+  {failures}
   {groupId}
   {platform}
   {loading}

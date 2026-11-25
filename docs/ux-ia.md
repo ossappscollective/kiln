@@ -27,6 +27,13 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   drawer; there is no publish or discard here and nothing across apps. Each row has an expand chevron that lists the individual changes of that app (read lazily from the per-app cart; the summary stays counts only), each expandable to the same
   preview as in the cart drawer (text diff, before and after images, price table, reply with its review) with Expand all / Collapse all, so changes can be reviewed across apps without opening each cart ([ADR 0067](adr/0067-diff-and-preview.md)). The count (`GET /pending/cart-summary`) is read on first paint, on window focus
   (at most every 30 s) and once after `kiln:staged-changed` (debounced; publish, discard, stage, reply drafts): no polling.
+- **A publish that is running (2026-11-25, [pending.md](api/pending.md#publishing-now))**: "Publish all" can be closed with "Close, keep publishing"; the server goes on. While an app
+  publishes, the Pending section, the cart drawer and the Pending page show a status row (spinner, "Publishing to Google Play…", started 3 minutes ago, step 1 of 2: Push the draft,
+  the time running) and the app's items as "Being published" (quiet, not selectable, not removable); Review and publish, Publish, Discard, Promote to production, Release, Submit,
+  Create version, Push as draft and the rollout buttons are off with the reason and a link to the pending panel. One shared store (`lib/publishing-store.svelte.ts`, read from
+  `GET /pending/publishing`) feeds them all: read when a workspace is shown and when the window comes back, **every 5 s only while a publish runs** (30 s in a hidden tab,
+  backing off after failed reads), never when none does. When the claim is gone the pending views, the count, the cart and the app page are read again; a publish that did not
+  go through leaves "Last publish failed: …" until dismissed (from the answer of the dialog that sent it; a publish sent from another browser leaves only the refreshed lists).
 - **Asset proposal on the Releases list (2026-11-24)**: under the Prepare release card, a quiet line "3 store asset changes proposed" with "Review" (opens
   the Assets step, where the card lives), per record with a repository, only when something is proposed and it was not skipped for the release. A cached
   count (`GET .../release/asset-proposal/summary`), asked after the page drew; nothing is drawn while unknown, unavailable or failed.

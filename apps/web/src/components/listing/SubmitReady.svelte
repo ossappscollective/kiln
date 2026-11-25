@@ -32,6 +32,7 @@
     submitBody,
     submitLine,
   } from '../../lib/store-submit.ts';
+  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import { submitStore } from '../../lib/store-submit-store.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
@@ -40,6 +41,7 @@
   import Icon from '../ui/Icon.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
+  import PublishingNote from '../publish/PublishingNote.svelte';
   import SubmitDialog from './SubmitDialog.svelte';
 import { byFamily } from '@kiln/core';
 
@@ -109,8 +111,11 @@ import { byFamily } from '@kiln/core';
     void submitStore.loadConfig(api, workspaceId, true);
   }
 
+  /** A batch publish of this app runs on the server: submitting now would race it. */
+  const publishingNow = $derived(publishingStore.isPublishing(workspaceId, app.id));
+
   async function startPreview() {
-    if (busy || line.kind !== 'ready' || line.disabled) return;
+    if (busy || line.kind !== 'ready' || line.disabled || publishingNow) return;
     const mine = ++seq;
     previewing = true;
     notice = null;
@@ -248,10 +253,11 @@ import { byFamily } from '@kiln/core';
           variant="primary"
           icon="upload"
           loading={previewing}
-          disabled={busy || line.disabled}
-          title={line.reason ?? undefined}
+          disabled={busy || line.disabled || publishingNow}
+          title={publishingNow ? publishingStore.reason(workspaceId, app.id) : (line.reason ?? undefined)}
           onclick={startPreview}
         >{line.button}</Button>
+        {#if publishingNow && !bare}<PublishingNote {workspaceId} appId={app.id} />{/if}
       {:else if line.kind === 'off'}
         {#if bare}<span class="text muted">{line.text}</span>{/if}
         <InfoTip label={t('listing:submitReady.infoLabel')} align="end" text={line.note} />

@@ -40,6 +40,7 @@
     trayCountText,
   } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import { canSubmit } from '../../lib/store-submit.ts';
   import { submitStore } from '../../lib/store-submit-store.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -48,6 +49,7 @@
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
+  import PublishingNote from '../publish/PublishingNote.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import StagedPushDialog from './StagedPushDialog.svelte';
 
@@ -101,7 +103,9 @@
   const pushReason = $derived(
     availability.state === 'ready' ? blocked : availability.state === 'loading' ? t('listing:trayApp.checkingSwitch') : availability.message,
   );
-  const busy = $derived(previewing || applying || clearing || removing !== '');
+  /** A batch publish of this app runs on the server: it is writing these items, so they cannot be pushed again or removed until it ends. */
+  const publishingNow = $derived(publishingStore.isPublishing(workspaceId, app.id));
+  const busy = $derived(previewing || applying || clearing || removing !== '' || publishingNow);
   const store = $derived(platformMeta(app.platform).storeName);
 
   let shownFor = '';
@@ -339,7 +343,7 @@
         icon="upload"
         loading={previewing}
         disabled={busy || availability.state !== 'ready' || blocked !== null}
-        title={pushReason ?? undefined}
+        title={publishingNow ? publishingStore.reason(workspaceId, app.id) : (pushReason ?? undefined)}
         onclick={startPreview}
       >
         {unknown ? t('listing:trayApp.readDraftAgain') : t('listing:trayApp.pushAsDraft')}
@@ -348,6 +352,8 @@
       <Button size="sm" icon="upload" disabled title={availability.state === 'role' ? availability.message : undefined}>{t('listing:trayApp.pushAsDraft')}</Button>
     {/if}
   </div>
+
+  {#if publishingNow}<PublishingNote {workspaceId} appId={app.id} />{/if}
 
   {#if !showPush}
     <!-- notes about the push are on its step -->

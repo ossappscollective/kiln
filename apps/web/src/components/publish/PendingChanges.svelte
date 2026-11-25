@@ -44,6 +44,8 @@
   import { type CartRow, toRows } from '../../lib/pending-cart.ts';
   import { itemKey, needsCart, thumbsOf } from '../../lib/pending-preview.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
+  import { disabledReason } from '../../lib/publishing.ts';
+  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { canStage, stagingError } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
@@ -62,6 +64,7 @@
   import StatusPill from '../ui/StatusPill.svelte';
   import T from '../ui/T.svelte';
   import PublishDialog from '../publish/PublishDialog.svelte';
+  import PublishingStatus from './PublishingStatus.svelte';
   import PendingItemPreview from './PendingItemPreview.svelte';
 
   let {
@@ -93,6 +96,7 @@
   let removing = $state('');
   let confirming = $state('');
   let publishOpen = $state(false);
+  let dialogTargets = $state<AppSummary[]>([]);
   /** After pressing the button while errors block it: the list of what blocks. */
   let showBlockers = $state(false);
   let blockedEl = $state<HTMLElement | null>(null);
@@ -115,6 +119,33 @@
     }, []),
   );
   const empty = $derived(known && totals.items === 0);
+  /** The records of this app whose publish runs now (the shared store, polled while one runs). While it runs their items are being written. */
+  const publishing = $derived(
+    members.flatMap((m) => {
+      const entry = publishingStore.of(workspaceId, m.id);
+      return entry === null ? [] : [{ appId: m.id, platform: m.platform, entry }];
+    }),
+  );
+  const publishingOf = (appId: string) => publishing.find((p) => p.appId === appId)?.entry ?? null;
+  const publishingNow = $derived(publishing.length > 0);
+  /** Why Review and publish is off while a publish runs. */
+  const publishingReason = $derived(publishing[0] ? disabledReason(publishing[0].entry, now) : '');
+  /** A publish of one of these records that did not go through and ended: one line, until dismissed or a new publish starts. */
+  const lastFailures = $derived(
+    members.flatMap((m) => {
+      const text = publishingStore.failureOf(m.id);
+      return text !== null && publishingStore.of(workspaceId, m.id) === null ? [{ appId: m.id, text }] : [];
+    }),
+  );
+  // Each step that starts or ends changes what is pending (the pushed items become "pushed"): read the views again, once per change.
+  let stepKey = '';
+  $effect(() => {
+    const key = publishing.map((p) => `${p.appId}:${p.entry.currentStep ?? ''}:${p.entry.stepStartedAt ?? ''}`).join('|');
+    if (key === stepKey) return;
+    const first = stepKey === '';
+    stepKey = key;
+    if (!first && key !== '') untrack(() => void Promise.all(ids.map((id) => pendingStore.loadView(api, workspaceId, id))).then(() => (now = Date.now())));
+  });
   const availability = $derived(
     publishAvailability({
       role,
@@ -222,7 +253,7 @@
   }
 
   async function discard(appId: string, item: PendingItem) {
-    if (busy) return;
+    if (busy || publishingStore.isPublishing(workspaceId, appId)) return;
     const key = `${appId}/${item.id}`;
     removing = key;
     problem = '';
@@ -242,7 +273,7 @@
   }
 
   async function clearAll(appId: string, platform: string) {
-    if (busy) return;
+    if (busy || publishingStore.isPublishing(workspaceId, appId)) return;
     removing = `clear/${appId}`;
     problem = '';
     try {
@@ -263,6 +294,7 @@
     items.filter((i) => i.kind === 'listing_text' || i.kind === 'asset_set' || i.kind === 'release_field').reduce((n, i) => n + (i.kind === 'listing_text' ? (i.counts.changes ?? i.refs.length) : 1), 0);
 
   function openPublish() {
+    if (publishingNow) return;
     if (availability.state === 'blocked') {
       // The server plans per step, so an item with an error cannot be left out: show what blocks, offer no publish.
       showBlockers = true;
@@ -270,6 +302,9 @@
       return;
     }
     if (availability.state !== 'ready' || targets.length === 0) return;
+    // Kept as they were when the dialog opened: while it publishes the views are read again (each step changes them), and a dialog whose
+    // targets vanish with the last step would be gone before it showed what happened.
+    dialogTargets = targets;
     publishOpen = true;
   }
 
@@ -280,8 +315,9 @@
 
   /** Whether the button can be pressed, and the one line that says why it cannot (empty when it can). */
   export function publishState(): { enabled: boolean; reason: string } {
-    const enabled = (availability.state === 'ready' || availability.state === 'blocked') && targets.length > 0;
+    const enabled = (availability.state === 'ready' || availability.state === 'blocked') && targets.length > 0 && !publishingNow;
     if (enabled) return { enabled, reason: '' };
+    if (publishingNow) return { enabled, reason: publishingReason };
     if (loading && !known) return { enabled, reason: t('publish:pending.stateReading') };
     return { enabled, reason: pillLabel !== '' ? pillLabel : availability.state === 'ready' ? t('publish:pending.stateNothing') : availability.message };
   }
@@ -314,7 +350,8 @@
         variant="primary"
         size="lg"
         icon="upload"
-        disabled={(availability.state !== 'ready' && availability.state !== 'blocked') || targets.length === 0}
+        disabled={(availability.state !== 'ready' && availability.state !== 'blocked') || targets.length === 0 || publishingNow}
+        title={publishingNow ? publishingReason : undefined}
         aria-describedby={availability.state !== 'ready' ? `${uid}-why` : undefined}
         onclick={openPublish}
       >{t('publish:pending.reviewAll')}</Button>
@@ -350,6 +387,13 @@
     </div>
   {/if}
 
+  {#each publishing.filter((p) => !groups.some((g) => g.appId === p.appId)) as p (p.appId)}
+    <PublishingStatus publishing={p.entry} platform={p.platform} />
+  {/each}
+  {#each lastFailures as f (f.appId)}
+    <Alert tone="error" ondismiss={() => publishingStore.dismissFailure(f.appId)}><span data-testid="publish-last-failed">{f.text}</span></Alert>
+  {/each}
+
   {#if loadProblem}
     <Alert tone="error" title={t('publish:pending.loadFailedTitle')}>
       {loadProblem}
@@ -373,7 +417,9 @@
       {@const count = stagedCount(g.platform.items)}
       {@const rows = g.platform.items.map((i) => ({ key: itemKey(g.appId, i) }))}
       {@const allOpen = expansionOf(expanded, rows) === 'all'}
-      <section class="group card" aria-label={t('publish:pending.groupAria', { platform: platformLabel(g.platform.platform) })}>
+      {@const running = publishingOf(g.appId)}
+      <section class="group card" class:publishing={running !== null} aria-label={t('publish:pending.groupAria', { platform: platformLabel(g.platform.platform) })}>
+        {#if running}<PublishingStatus publishing={running} platform={g.platform.platform} />{/if}
         <div class="group-head">
           {#if members.length > 1 || groups.length > 1}<PlatformBadge platform={g.platform.platform} tinted />{/if}
           <span class="muted">{totalsLine(g.platform.totals)}</span>
@@ -393,7 +439,7 @@
                 <Button size="sm" disabled={busy} onclick={() => (confirming = '')}>{t('publish:pending.keepThem')}</Button>
               </span>
             {:else}
-              <Button size="sm" icon="trash" disabled={busy} aria-label={t('publish:pending.discardAllFor', { platform: platformLabel(g.platform.platform) })} onclick={() => (confirming = `clear/${g.appId}`)}>{t('publish:pending.discardAll')}</Button>
+              <Button size="sm" icon="trash" disabled={busy || running !== null} title={running ? publishingReason : undefined} aria-label={t('publish:pending.discardAllFor', { platform: platformLabel(g.platform.platform) })} onclick={() => (confirming = `clear/${g.appId}`)}>{t('publish:pending.discardAll')}</Button>
             {/if}
           {/if}
         </div>
@@ -409,7 +455,7 @@
                 {@const key = `${g.appId}/${item.id}`}
                 {@const open = expanded.has(key)}
                 {@const thumbs = thumbsOf(item, cartRowsOf(g.appId))}
-                <li class="item" id={itemAnchor(g.appId, item.id)} tabindex="-1" data-testid="pending-item">
+                <li class="item" class:being-published={running !== null} id={itemAnchor(g.appId, item.id)} tabindex="-1" data-testid="pending-item">
                   <div class="main">
                     <p class="name">
                       <button
@@ -423,7 +469,7 @@
                         <Icon name={open ? 'chevron-up' : 'chevron-down'} />
                       </button>
                       <strong>{item.label}</strong>
-                      <Badge tone={badge.tone} icon={item.state === 'invalid' ? 'alert-triangle' : undefined}>{badge.label}</Badge>
+                      {#if running}<Badge tone="info" icon="refresh">{t('publish:publishing.itemBadge')}</Badge>{:else}<Badge tone={badge.tone} icon={item.state === 'invalid' ? 'alert-triangle' : undefined}>{badge.label}</Badge>{/if}
                       {#if item.since !== null}<span class="muted when">{t('publish:pending.since', { when: timeAgo(item.since, now) })}</span>{/if}
                     </p>
                     {#if item.kind === 'asset_set' && thumbs.thumbs.length > 0}
@@ -436,7 +482,7 @@
                       <p class="problem warn">{p.message}</p>
                     {/each}
                     {#if item.truncated}<p class="muted small">{t('publish:pending.truncated', { count: item.refs.length })}</p>{/if}
-                    <p class="next muted">{nextStepText(item)}</p>
+                    <p class="next muted">{running ? t('publish:publishing.rowReason') : nextStepText(item)}</p>
                   </div>
                   {#if item.nextStep !== null || isDiscardable(item)}
                     <div class="actions">
@@ -448,7 +494,7 @@
                             <Button size="sm" disabled={busy} onclick={() => (confirming = '')}>{t('publish:pending.keep')}</Button>
                           </span>
                         {:else}
-                          <Button size="sm" variant="ghost" icon="x" disabled={busy} aria-label={t('publish:pending.discardItem', { label: item.label })} onclick={() => (item.refs.length > 1 ? (confirming = key) : discard(g.appId, item))}>{t('publish:pending.discard')}</Button>
+                          <Button size="sm" variant="ghost" icon="x" disabled={busy || running !== null} title={running ? publishingReason : undefined} aria-label={t('publish:pending.discardItem', { label: item.label })} onclick={() => (item.refs.length > 1 ? (confirming = key) : discard(g.appId, item))}>{t('publish:pending.discard')}</Button>
                         {/if}
                       {/if}
                     </div>
@@ -479,8 +525,8 @@
     {/if}
   {/if}
 
-  {#if publishOpen && targets.length > 0}
-    <PublishDialog bind:open={publishOpen} {api} {workspaceId} {targets} onchanged={changed} />
+  {#if publishOpen && dialogTargets.length > 0}
+    <PublishDialog bind:open={publishOpen} {api} {workspaceId} targets={dialogTargets} onchanged={changed} />
   {/if}
 </section>
 
@@ -586,6 +632,16 @@
     background: var(--surface-sunken);
     border: 1px solid var(--line);
     border-radius: var(--radius-md);
+  }
+
+  /* Being written by the publish that runs now: shown, but quiet, and nothing on it can be changed. */
+  .item.being-published {
+    background: var(--surface);
+    border-style: dashed;
+  }
+
+  .item.being-published .name strong {
+    color: var(--muted);
   }
 
   .main {

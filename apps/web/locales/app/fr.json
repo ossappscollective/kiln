@@ -335,6 +335,7 @@
   "cart.reason.noRight": "Vous n’avez pas le droit d’envoyer ceci.",
   "cart.reason.other": "Impossible de l’envoyer pour le moment.",
   "cart.reason.outcomeUnknown": "Le dernier envoi n’a pas répondu. Vérifiez d’abord le store.",
+  "cart.reason.publishing": "Publication en cours. Cet élément ne peut être ni renvoyé ni retiré avant la fin de la publication.",
   "cart.reason.switchOff": "L’envoi vers le store est désactivé sur ce serveur.",
   "cart.reason.workspaceOff": "Les changements de prix sont désactivés pour cet espace de travail.",
   "cart.report.dismiss": "Fermer",

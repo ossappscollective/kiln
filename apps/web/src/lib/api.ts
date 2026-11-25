@@ -155,6 +155,7 @@ import {
 } from './pending-cart.ts';
 import type { PendingItemDetail } from './pending-preview.ts';
 import type { PlayCheckAnswer, PlayCheckBody } from './play-check.ts';
+import type { PublishingList } from './publishing.ts';
 import type { HealthView, RatingsView } from './ratings/ratings.ts';
 import type { EditableRelease, ReleaseCandidates } from './release-candidates.ts';
 import type { NotesHistory } from './release-notes.ts';
@@ -2031,6 +2032,9 @@ export function createApi(options: ApiOptions = {}) {
       request<CartSummary>('GET', `${workspace(workspaceId)}/pending/cart-summary`),
     pendingSummary: (workspaceId: string) =>
       request<PendingSummary>('GET', `${workspace(workspaceId)}/pending/summary`),
+    /** Which apps have a batch publish running now, and where it is (docs/api/pending.md "Publishing now"). One small read; polled while one runs. */
+    pendingPublishing: (workspaceId: string) =>
+      request<PublishingList>('GET', `${workspace(workspaceId)}/pending/publishing`),
     storePublishConfig: (workspaceId: string) =>
       request<PublishConfig>('GET', `${workspace(workspaceId)}/store-publish/config`),
     previewPublish: (workspaceId: string, appId: string, body: { steps?: StepRequest[] } = {}) =>

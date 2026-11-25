@@ -24,6 +24,7 @@
   import { tint } from '../lib/tint/store.svelte.ts';
   import { pendingAcrossText, pendingRows, pendingTotals } from '../lib/cart-summary.ts';
   import { cartSummaryStore } from '../lib/cart-summary.svelte.ts';
+  import { publishingStore } from '../lib/publishing-store.svelte.ts';
   import { onStagedChanged } from '../lib/staged-sync.ts';
   import { loadCollapsed, railApplies, saveCollapsed } from '../lib/sidebar-state.ts';
   import { CHORD_TIMEOUT_MS, type ChordState, chordHint, idleChord, isTypingTarget, stepShortcut } from '../lib/shortcuts.ts';
@@ -113,6 +114,23 @@
     document.addEventListener('visibilitychange', back);
     return () => {
       off();
+      window.removeEventListener('focus', back);
+      document.removeEventListener('visibilitychange', back);
+    };
+  });
+  // Which apps are publishing right now, for every screen (the pending panel and page, the buttons that would release or promote): read
+  // when the workspace is shown and when the window comes back, every few seconds only while a publish runs, never when none does.
+  $effect(() => {
+    if (!canPending) return;
+    const space = workspaceId;
+    const release = untrack(() => publishingStore.watch(api, space));
+    const back = () => {
+      if (document.visibilityState === 'visible') void publishingStore.refresh(api, space);
+    };
+    window.addEventListener('focus', back);
+    document.addEventListener('visibilitychange', back);
+    return () => {
+      release();
       window.removeEventListener('focus', back);
       document.removeEventListener('visibilitychange', back);
     };

@@ -10,6 +10,7 @@ import { ApiError } from './api.ts';
 import { type AppSection, appAddress, type PlatformScope } from './app-scope.ts';
 import { formatList, formatPercent } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
+import type { Publishing } from './publishing.ts';
 import { releaseStepHref } from './release-stepper.ts';
 import type { DraftPreview } from './staged.ts';
 import type { ReleasePreview } from './store-release.ts';
@@ -83,6 +84,8 @@ export type PendingView = {
   platforms: PendingPlatform[];
   totals: PendingTotals & { platforms: Platform[]; nextSteps: PublishStepType[] };
   lastSyncedAt: number | null;
+  /** A publish of this app runs now (an older server sends none). The screens read it from `publishing-store`, which polls it. */
+  publishing?: Publishing | null | undefined;
   generatedAt: number;
 };
 
@@ -95,6 +98,7 @@ export type PendingSummaryApp = {
   waiting: number;
   kinds: PendingKind[];
   nextSteps: PublishStepType[];
+  publishing?: Publishing | null | undefined;
 };
 
 export type PendingSummary = {

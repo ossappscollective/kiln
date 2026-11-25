@@ -25,10 +25,12 @@
     suggestedVersion,
   } from '../../../lib/store-version.ts';
   import { t } from '../../../lib/i18n/t.ts';
+  import { publishingStore } from '../../../lib/publishing-store.svelte.ts';
   import { toast } from '../../../lib/toast.svelte.ts';
   import T from '../../ui/T.svelte';
   import type { AppSummary } from '../../../lib/types.ts';
   import Button from '../../ui/Button.svelte';
+  import PublishingNote from '../../publish/PublishingNote.svelte';
   import TextField from '../../ui/TextField.svelte';
 
   let {
@@ -71,9 +73,12 @@
       .catch(() => undefined);
   });
 
+  /** A batch publish of this app runs on the server: creating a version now would race it. */
+  const publishingNow = $derived(publishingStore.isPublishing(workspaceId, app.id));
+
   async function create() {
     const wanted = versionText.trim();
-    if (wanted === '' || busy) return;
+    if (wanted === '' || busy || publishingNow) return;
     busy = true;
     problem = '';
     announcement = '';
@@ -130,10 +135,11 @@
       inputmode="decimal"
       maxlength={40}
     />
-    <Button type="submit" variant="primary" loading={busy} disabled={versionText.trim() === ''}>
+    <Button type="submit" variant="primary" loading={busy} disabled={versionText.trim() === '' || publishingNow} title={publishingNow ? publishingStore.reason(workspaceId, app.id) : undefined}>
       {t('release-stepper:cv.create', { version: versionText.trim() })}
     </Button>
   </form>
+  <PublishingNote {workspaceId} appId={app.id} />
   <p class="small muted">{t(VERSION_NOTE)}</p>
   {#if problem !== ''}<p class="small bad" role="alert">{problem}</p>{/if}
   <p class="visually-hidden" role="status">{announcement}</p>

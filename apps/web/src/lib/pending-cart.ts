@@ -2,6 +2,7 @@ import type { Platform } from '@kiln/core';
 import { type AppSection, appAddress, type PlatformScope } from './app-scope.ts';
 import { k, t } from './i18n/t.ts';
 import { confirmationPhrase, type PriceResultDetail } from './prices.ts';
+import type { Publishing } from './publishing.ts';
 import type { StagedPriceChange } from './types.ts';
 
 /**
@@ -100,7 +101,14 @@ export type CartRights = {
   discardStaged: boolean;
   discardReply: boolean;
 };
-export type CartResponse = { cart: { items: CartItem[]; can: CartRights; generatedAt: number } };
+export type CartResponse = {
+  cart: {
+    items: CartItem[];
+    can: CartRights;
+    publishing?: Publishing | null | undefined;
+    generatedAt: number;
+  };
+};
 
 export type CartOutcome = {
   status: 'ok' | 'failed' | 'skipped';
@@ -376,6 +384,22 @@ export function takeQueuedCartOpen(groupId: string): boolean {
   return mine;
 }
 
+/**
+ * The rows of apps whose publish runs now: they are being written, so they cannot be selected, sent again or removed until it ends.
+ * Same rows otherwise (the list still shows them, as "being published").
+ */
+export const markBeingPublished = (
+  rows: readonly CartRow[],
+  publishingAppIds: ReadonlySet<string>,
+): CartRow[] =>
+  publishingAppIds.size === 0
+    ? [...rows]
+    : rows.map((r) =>
+        publishingAppIds.has(r.appId)
+          ? { ...r, publishable: false, canDiscard: false, reason: { code: 'publishing' } }
+          : r,
+      );
+
 /** The cart rows made for one locale (listing texts and graphics), in list order. */
 export const rowsForLocale = (rows: readonly CartRow[], locale: string): CartRow[] =>
   rows.filter((r) => (r.kind === 'listing' || r.kind === 'graphics') && r.locale === locale);
@@ -390,6 +414,7 @@ const REASON_KEYS = {
   metadata_locked: k('app:cart.reason.metadataLocked'),
   in_progress: k('app:cart.reason.inProgress'),
   outcome_unknown: k('app:cart.reason.outcomeUnknown'),
+  publishing: k('app:cart.reason.publishing'),
   other: k('app:cart.reason.other'),
 } as const;
 type ReasonCode = keyof typeof REASON_KEYS;

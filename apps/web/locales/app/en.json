@@ -309,6 +309,7 @@
   "cart.reason.noRight": "You do not have the right to send this.",
   "cart.reason.other": "It cannot be sent right now.",
   "cart.reason.outcomeUnknown": "The last send did not answer. Check the store first.",
+  "cart.reason.publishing": "Being published right now. It cannot be sent again or removed until the publish ends.",
   "cart.reason.switchOff": "Sending this to the store is switched off for this server.",
   "cart.reason.workspaceOff": "Price changes are switched off for this workspace.",
   "cart.report.dismiss": "Dismiss",

@@ -31,11 +31,13 @@
     rolloutTargets,
     stateQuery,
   } from '../../lib/store-rollout.ts';
+  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import { irreversibleLine, rolloutNowLine } from '../../lib/release-detail.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
+  import PublishingNote from '../publish/PublishingNote.svelte';
   import RolloutPreviewDialog from './RolloutPreviewDialog.svelte';
 
   let {
@@ -134,7 +136,11 @@
     }
   }
 
+  /** A batch publish of this app runs on the server: changing the rollout now would race it. */
+  const publishingNow = $derived(publishingStore.isPublishing(workspaceId, app.id));
+
   function begin(action: string) {
+    if (publishingNow) return;
     if (action === 'set_fraction') {
       sharing = !sharing;
       percentProblem = null;
@@ -291,8 +297,8 @@
       {#each buttons as b (b.action)}
         <Button
           variant={b.irreversible ? 'danger' : 'secondary'}
-          disabled={b.disabled}
-          title={b.reason ?? undefined}
+          disabled={b.disabled || publishingNow}
+          title={publishingNow ? publishingStore.reason(workspaceId, app.id) : (b.reason ?? undefined)}
           loading={previewing === b.action}
           onclick={() => begin(b.action)}
         >
@@ -300,6 +306,7 @@
         </Button>
       {/each}
     </div>
+    <PublishingNote {workspaceId} appId={app.id} />
     {#if warning}<p class="irreversible" data-testid="rollout-irreversible">{warning}</p>{/if}
 
     {#if sharing && view}

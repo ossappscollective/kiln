@@ -13,6 +13,7 @@
   A native <dialog> shown as a side panel (focus trap, Escape and the focus return come from the browser), like the other drawers.
 -->
 <script lang="ts">
+  import type { Platform } from '@kiln/core';
   import { tick } from 'svelte';
   import { t } from '../../lib/i18n/t.ts';
   import type { Api } from '../../lib/api.ts';
@@ -21,6 +22,8 @@
   import type { PriceDryRunItem } from '../../lib/types.ts';
   import { appAddress, type PlatformScope } from '../../lib/app-scope.ts';
   import { timeAgo } from '../../lib/format.ts';
+  import { disabledReason, type Publishing } from '../../lib/publishing.ts';
+  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import {
     allState,
     type CartCounts,
@@ -50,6 +53,7 @@
   import CartGraphicsDetail from './CartGraphicsDetail.svelte';
   import CartRowPreview from './CartRowPreview.svelte';
   import CartPriceDetail from './CartPriceDetail.svelte';
+  import PublishingStatus from '../publish/PublishingStatus.svelte';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -69,6 +73,8 @@
     running,
     report,
     focusLocale = null,
+    publishing = [],
+    failures = [],
     dryRun = null,
     dryBusy = false,
     onpublish,
@@ -93,6 +99,10 @@
     report: { rows: CartRow[]; outcomes: Outcomes; kind: 'publish' | 'discard' } | null;
     /** Open scrolled to the items of this locale (from the "2 staged" chip of the listing grid), which are marked. */
     focusLocale?: string | null | undefined;
+    /** The records of this app whose publish runs now: a status row each, and their rows (already marked) are "being published". */
+    publishing?: readonly { appId: string; platform: Platform; entry: Publishing }[] | undefined;
+    /** The last publish of a record that did not go through ("Last publish failed: ..."), until it is dismissed. */
+    failures?: readonly { appId: string; text: string }[] | undefined;
     /** The last dry run of price items (read only: nothing was sent). */
     dryRun?: { items: { key: string; title: string; item: PriceDryRunItem }[]; writesEnabled: boolean; failed: string } | null | undefined;
     dryBusy?: boolean | undefined;
@@ -117,6 +127,9 @@
   /** What was typed for the price phrase, by record (a publish is one request per record, each with its own phrase). */
   let typed = $state<Record<string, string>>({});
 
+  /** Why Publish and Review are off while a publish runs: a tooltip on the buttons. */
+  const publishingReason = $derived(publishing[0] ? disabledReason(publishing[0].entry, now) : '');
+  const beingPublished = $derived(new Set(publishing.map((p) => p.appId)));
   const groups = $derived(groupRows(rows));
   const focused = $derived(focusLocale === null ? new Set<string>() : new Set(rowsForLocale(rows, focusLocale).map((r) => r.key)));
   const counts = $derived<CartCounts>(countsOf(rows, selection));
@@ -230,6 +243,12 @@
       </header>
 
       <div class="body">
+        {#each publishing as p (p.appId)}
+          <PublishingStatus publishing={p.entry} platform={p.platform} />
+        {/each}
+        {#each failures as f (f.appId)}
+          <Alert tone="error" ondismiss={() => publishingStore.dismissFailure(f.appId)}>{f.text}</Alert>
+        {/each}
         {#if report}
           <div class="report" role="status" tabindex="-1" bind:this={reportBox} data-testid="cart-report">
             <div class="report-head">
@@ -294,7 +313,7 @@
             <div><Button icon="refresh" onclick={onrefresh}>{t('common:action.tryAgain')}</Button></div>
           </div>
         {:else if rows.length === 0}
-          <p class="muted">{t('app:cart.empty')}</p>
+          {#if publishing.length === 0}<p class="muted">{t('app:cart.empty')}</p>{/if}
         {:else}
           <label class="check all">
             <input
@@ -320,7 +339,7 @@
               <ul class="rows">
                 {#each group.rows as row (row.key)}
                   {@const state = running.has(row.key) ? 'running' : null}
-                  <li class="cart-row" class:blocked={!row.publishable} class:focused={focused.has(row.key)} data-row-key={row.key}>
+                  <li class="cart-row" class:blocked={!row.publishable} class:publishing={beingPublished.has(row.appId)} class:focused={focused.has(row.key)} data-row-key={row.key}>
                     <label class="pick">
                       <input
                         type="checkbox"
@@ -347,7 +366,7 @@
                         <Badge>{row.platform === 'ios' ? 'iOS' : row.platform === 'android' ? 'Android' : row.platform}</Badge>
                         {#if row.locale}<Badge>{row.locale}</Badge>{/if}
                         <Badge tone={row.risk === 'public_reply' || row.risk === 'financial' ? 'warn' : 'neutral'}>{t(RISK_KEYS[row.risk])}</Badge>
-                        {#if state}<Badge tone="info" icon="refresh">{t(STATUS_KEYS.running)}</Badge>{/if}
+                        {#if state}<Badge tone="info" icon="refresh">{t(STATUS_KEYS.running)}</Badge>{:else if beingPublished.has(row.appId)}<Badge tone="info" icon="refresh">{t('publish:publishing.itemBadge')}</Badge>{/if}
                       </div>
                       <div id="{uid}-{row.key}-d" class="detail">
                         {#if row.review}
@@ -435,10 +454,10 @@
             </div>
           {:else}
             <div class="row actions">
-              <Button variant="primary" loading={busy} disabled={busy || counts.selected === 0} onclick={() => ask('publish')}>
+              <Button variant="primary" loading={busy} disabled={busy || counts.selected === 0} title={publishingReason || undefined} onclick={() => ask('publish')}>
                 {t('app:cart.publish', { count: counts.selected })}
               </Button>
-              <Button disabled={busy || review.none} onclick={() => onreview(selection)}>
+              <Button disabled={busy || review.none} title={publishingReason || undefined} onclick={() => onreview(selection)}>
                 {t('app:cart.reviewAndPublish')}
               </Button>
               {#if counts.prices > 0}

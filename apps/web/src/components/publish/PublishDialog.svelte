@@ -54,6 +54,8 @@
   } from '../../lib/pending.ts';
   import { announcePublished } from '../../lib/app-page.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
+  import { failureNote } from '../../lib/publishing.ts';
+  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import { publishSummary, shownErrors } from '../../lib/publish-summary.ts';
   import { elapsedText, failureDetail, minutesOf, PUBLISH_SLOW_AFTER_MS, PUBLISH_WAIT_LIMIT_MS, PublishWaitError, withWaitLimit } from '../../lib/publish-run.ts';
   import { foldWarnings, planHeadline, publishDisabledReason, publishTitle, shownStatusWord, stepGist } from '../../lib/readability.ts';
@@ -294,8 +296,13 @@ import { supports } from '@kiln/core';
     // Read now: the dialog can be closed (and gone) by the time the answer comes.
     const appId = sent.app.id;
     const notify = onchanged;
+    const space = workspaceId;
+    const client = api;
     phase = 'publishing';
     problem = '';
+    // Every screen learns at once that this app is publishing (the pending panel, the buttons that would release or promote), before the
+    // server's own claim is read; the answer below, or a close, reads it again.
+    publishingStore.started(client, space, appId, includedTypes(sent));
     try {
       // The only call that writes. Sent once, with the plan's hash, its steps and the phrase; never sent again by this app.
       // The wait is limited per attempt (the confirmation prompt is outside it): a request that never answers ends in a message.
@@ -308,6 +315,8 @@ import { supports } from '@kiln/core';
       result = out.result;
       changed = true;
       phase = 'done';
+      // Closed while it ran: nobody sees the result here, so the pending panel keeps one line when it did not go through.
+      publishingStore.answered(client, space, appId, open ? null : failureNote(out.result));
       notify();
       // Closed while it ran: nobody is looking at the result, so the app page is told as the close would have.
       if (!open) {
@@ -319,11 +328,15 @@ import { supports } from '@kiln/core';
       if (mine !== seq) return;
       if (e instanceof PublishWaitError) {
         // What the server did is not known (it may still run, or be done): the screens read it again, and only "Review again" is left.
+        // The claim, not this request, says whether it still runs: the shared state follows it.
+        void publishingStore.refresh(client, space);
         problem = t('app:pending.run.noAnswer', { minutes: minutesOf(PUBLISH_WAIT_LIMIT_MS) });
         stale = true;
         changed = true;
         notify();
       } else {
+        // Refused or failed: whatever the server holds is read again (another person's publish may be what refused this one).
+        publishingStore.answered(client, space, appId, null);
         failWith(classifyPublishFailure(e, pendingStore.config(workspaceId)));
         const detail = failureDetail(e);
         if (detail) problem = `${problem} ${t('app:pending.run.detail', { detail })}`;
@@ -335,11 +348,13 @@ import { supports } from '@kiln/core';
   function close() {
     // While a publish runs the dialog can be closed: the request goes on and its answer is handled when it comes.
     if (phase !== 'publishing') seq++;
+    else void publishingStore.refresh(api, workspaceId);
     open = false;
   }
 
   function closed() {
     if (phase !== 'publishing') seq++;
+    else void publishingStore.refresh(api, workspaceId);
     const published = changed;
     changed = false;
     if (published) {

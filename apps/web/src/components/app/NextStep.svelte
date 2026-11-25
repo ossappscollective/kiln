@@ -26,11 +26,13 @@
   import type { PlatformScope } from '../../lib/app-scope.ts';
   import { chooseNextStep, nextStepTrains } from '../../lib/next-step.ts';
   import { pipelineStore } from '../../lib/pipeline-store.svelte.ts';
+  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import { promoteHref, promoteOptions } from '../../lib/play-promote.ts';
   import { reviewUrl } from '../../lib/store-links.ts';
   import { releaseStepHref } from '../../lib/release-stepper.ts';
   import type { StartedRun } from '../../lib/start-release.ts';
   import type { ActiveRuns, AppSummary, ReleaseSummary } from '../../lib/types.ts';
+  import PublishingNote from '../publish/PublishingNote.svelte';
   import TrainSteps from '../release/TrainSteps.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -191,8 +193,14 @@
   {#if promotion}
     <p class="promote" data-testid="next-step-promote">
       <span><T key="app:nextStep.promotion" params={{ count: promotion.codes.length, version: promotion.version, track: promotion.fromLabel, codes: formatList(promotion.codes) }} /></span>
-      <Button size="sm" icon="arrow-right" href={promoteHref(promotion)}>{promotion.label}</Button>
+      {#if publishingStore.isPublishing(workspaceId, promotion.appId)}
+        <!-- a publish of this app is running: promoting now would race it -->
+        <Button size="sm" icon="arrow-right" disabled title={publishingStore.reason(workspaceId, promotion.appId)}>{promotion.label}</Button>
+      {:else}
+        <Button size="sm" icon="arrow-right" href={promoteHref(promotion)}>{promotion.label}</Button>
+      {/if}
     </p>
+    <PublishingNote {workspaceId} appId={promotion.appId} platform={scope} />
   {/if}
 
   {#if step.otherTrains.length > 0}

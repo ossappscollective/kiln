@@ -309,6 +309,7 @@
   "cart.reason.noRight": "Sie haben nicht das Recht, dies zu senden.",
   "cart.reason.other": "Kann gerade nicht gesendet werden.",
   "cart.reason.outcomeUnknown": "Der letzte Versand hat nicht geantwortet. Prüfen Sie zuerst den Store.",
+  "cart.reason.publishing": "Wird gerade veröffentlicht. Bis die Veröffentlichung endet, kann dies weder erneut gesendet noch entfernt werden.",
   "cart.reason.switchOff": "Das Senden an den Store ist auf diesem Server abgeschaltet.",
   "cart.reason.workspaceOff": "Preisänderungen sind für diesen Arbeitsbereich ausgeschaltet.",
   "cart.report.dismiss": "Schließen",

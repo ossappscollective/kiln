@@ -335,6 +335,7 @@
   "cart.reason.noRight": "No tienes permiso para enviar esto.",
   "cart.reason.other": "No se puede enviar ahora.",
   "cart.reason.outcomeUnknown": "El último envío no respondió. Comprueba primero la tienda.",
+  "cart.reason.publishing": "Se está publicando ahora mismo. No se puede enviar de nuevo ni quitar hasta que termine la publicación.",
   "cart.reason.switchOff": "El envío a la tienda está desactivado en este servidor.",
   "cart.reason.workspaceOff": "Los cambios de precio están desactivados para este espacio de trabajo.",
   "cart.report.dismiss": "Cerrar",
