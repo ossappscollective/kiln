@@ -1,22 +1,23 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { type CartItem, markBeingPublished, reasonText, toRows } from './pending-cart.ts';
-import type { PublishResult } from './pending.ts';
+import type { LastPublish } from './pending.ts';
 import {
   byText,
   createPublishingLoader,
   detailText,
   disabledReason,
   elapsedOf,
-  failureNote,
   finishedApps,
   HIDDEN_POLL_MS,
+  appToShow,
   headlineText,
   MAX_POLL_MS,
   OPTIMISTIC_GRACE_MS,
   POLL_MS,
   type Publishing,
   type PublishingList,
+  panelTarget,
   pollDelay,
   stepProgress,
 } from './publishing.ts';
@@ -111,25 +112,35 @@ test('finished apps: the ones that were publishing and are not any more', () => 
   assert.deepEqual(finishedApps(['a'], ['a']), []);
 });
 
-const result = (over: Partial<PublishResult>): PublishResult => ({
-  app: { id: 'a', name: 'Shop', platform: 'android', store: 'googleplay' },
-  planHash: 'h',
+const failedRun = (over: Partial<LastPublish> = {}): LastPublish => ({
+  id: 'run-1',
+  platform: 'android',
+  startedAt: 1,
+  finishedAt: 2,
+  outcome: 'failed',
   completed: false,
-  applied: 1,
-  skipped: 0,
-  failed: 1,
-  stoppedAt: 'submit',
-  steps: [],
-  pending: { items: 1, actionable: 1, blocking: 0 },
-  publishedAt: 1,
+  steps: ['push_draft'],
+  results: [],
+  by: null,
+  dismissed: false,
   ...over,
 });
 
-test('a publish that did not go through leaves one line with the reason; one that did leaves none', () => {
-  assert.equal(failureNote(result({ completed: true, failed: 0, stoppedAt: null })), null);
-  const note = failureNote(result({}));
-  assert.ok(note?.startsWith('Last publish failed: '), String(note));
-  assert.match(String(note), /Submit for review/);
+test('the pending panel opens in the drawer of the open app when it covers the running app, else on the app\'s pending page', () => {
+  assert.deepEqual(panelTarget({ appId: 'a', drawerAppIds: ['a', 'b'], drawerReady: true }), {
+    kind: 'drawer',
+  });
+  assert.deepEqual(panelTarget({ appId: 'c', drawerAppIds: ['a', 'b'], drawerReady: true }), {
+    kind: 'page',
+    href: '#/portfolio/c/pending',
+  });
+  assert.deepEqual(
+    panelTarget({ appId: 'a', drawerAppIds: ['a'], drawerReady: false, scope: 'android' }),
+    { kind: 'page', href: '#/portfolio/a/pending?platform=android' },
+  );
+  assert.equal(appToShow(['x', 'b'], ['a', 'b']), 'b', 'the one the open drawer covers comes first');
+  assert.equal(appToShow(['x', 'y'], ['a']), 'x');
+  assert.equal(appToShow([], ['a']), null);
 });
 
 test('the rows of an app that publishes are marked: not selectable, not removable, with the reason', () => {
@@ -328,4 +339,32 @@ test('loader: another workspace drops everything; a slow older answer is ignored
   assert.deepEqual(loader.ids('w1'), [], 'not the workspace in view');
   assert.deepEqual(loader.ids('w2'), ['z']);
   assert.deepEqual(finished, []);
+});
+
+test('loader: the failure of the last publish comes from the server, is replaced by the next read, and is cleared by a success or a new publish', async () => {
+  const withFailure = (run: LastPublish | null): PublishingList => ({
+    apps: [],
+    lastPublish: run === null ? [] : [{ appId: 'a', lastPublish: run }],
+    generatedAt: 1,
+  });
+  const h = harness((n) => (n === 0 ? withFailure(failedRun()) : n === 1 ? withFailure(null) : list()));
+  h.loader.start('w');
+  await settle();
+  assert.equal(h.loader.failedOf('w', 'a')?.id, 'run-1', 'read after a reload, from the server');
+  assert.equal(h.loader.failedOf('w', 'other'), null);
+  assert.equal(h.loader.failedOf('v', 'a'), null, 'another workspace');
+  await h.loader.refresh('w');
+  assert.equal(h.loader.failedOf('w', 'a'), null, 'a later success (or a dismissal elsewhere) clears it');
+  // The answer of this browser's own publish is shown at once; a successful run clears it; an older server leaves it alone.
+  h.loader.noteResult('w', 'a', failedRun({ id: 'run-2' }));
+  assert.equal(h.loader.failedOf('w', 'a')?.id, 'run-2');
+  await h.loader.refresh('w');
+  assert.equal(h.loader.failedOf('w', 'a')?.id, 'run-2', 'a server that does not say keeps it');
+  h.loader.noteResult('w', 'a', failedRun({ id: 'run-3', completed: true, outcome: 'completed' }));
+  assert.equal(h.loader.failedOf('w', 'a'), null);
+  h.loader.noteResult('w', 'a', failedRun({ id: 'run-4', dismissed: true }));
+  assert.equal(h.loader.failedOf('w', 'a'), null, 'a dismissed run is not a failure to show');
+  h.loader.noteResult('w', 'a', failedRun());
+  h.loader.noteResult('w', 'a', null);
+  assert.equal(h.loader.failedOf('w', 'a'), null);
 });

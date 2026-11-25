@@ -6,32 +6,57 @@
   The one tinted control of the top bar (ADR 0068): the `data-app-tint` marker sits on the button itself, never on the bar, so the
   accent tokens it already reads (gradient, label colour) take the open app's tint and nothing else in the bar does. `tintStyle` is
   the app's inline style (tint.style); empty (no palette, opt-out, an app without a tint) leaves the default accent.
+  While ANY publish of the workspace runs (`publishing-store`, polled while one runs) the button shows it, wherever the person is: a spinner
+  beside the icon, "Publishing…" for the label, the count kept when the open app has changes waiting, `aria-busy` and a polite live
+  region. Pressing it opens the pending panel on the running publish: the open app's drawer when it covers it, else that app's Pending page,
+  with the status row scrolled into view (`publishing-focus`). Props: tintStyle?, workspaceId (whose publishes to show).
 -->
 <script lang="ts">
   import { cartButton } from '../../lib/cart-button.svelte.ts';
   import { t } from '../../lib/i18n/t.ts';
+  import { openPublishingPanel } from '../../lib/publishing-focus.svelte.ts';
+  import { appToShow } from '../../lib/publishing.ts';
+  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import Icon from '../ui/Icon.svelte';
+  import Spinner from '../ui/Spinner.svelte';
 
-  let { tintStyle = '' }: { tintStyle?: string | undefined } = $props();
+  let { tintStyle = '', workspaceId = '' }: { tintStyle?: string | undefined; workspaceId?: string | undefined } = $props();
+
+  /** The apps of the workspace that publish right now (the shared store; empty while none does). */
+  const running = $derived(workspaceId === '' ? [] : publishingStore.ids(workspaceId));
+  const busy = $derived(running.length > 0);
+  /** Shown while changes wait in the open app, and also while any publish runs (the open app may have nothing waiting). */
+  const shown = $derived(cartButton.visible || busy);
+  const showCount = $derived(cartButton.visible);
+
+  function press() {
+    const id = appToShow(running, cartButton.appIds);
+    if (busy && id !== null) openPublishingPanel(id);
+    else cartButton.press?.();
+  }
 </script>
 
-{#if cartButton.visible}
+{#if shown}
   <button
     type="button"
     class="cart-button"
     class:pulse={cartButton.pulse}
-    aria-haspopup="dialog"
-    aria-expanded={cartButton.expanded}
-    aria-label={t('app:cart.openAria', { count: cartButton.count })}
-    title={t('app:cart.buttonTitle')}
+    class:busy
+    aria-haspopup={busy ? undefined : 'dialog'}
+    aria-expanded={busy ? undefined : cartButton.expanded}
+    aria-busy={busy}
+    aria-label={busy ? t('publish:publishing.buttonAria') : t('app:cart.openAria', { count: cartButton.count })}
+    title={busy ? t('publish:publishing.buttonTitle') : t('app:cart.buttonTitle')}
     data-testid="pending-cart-button"
     data-app-tint={tintStyle ? '' : undefined}
     style={tintStyle || undefined}
-    onclick={() => cartButton.press?.()}
+    onclick={press}
   >
-    <Icon name="upload" size={16} />
-    <span class="label">{t('app:cart.fabLabel')}</span>
-    <span class="count" aria-hidden="true">{cartButton.count}</span>
+    {#if busy}<Spinner size={16} label="" />{:else}<Icon name="upload" size={16} />{/if}
+    <span class="label">{busy ? t('publish:publishing.chip') : t('app:cart.fabLabel')}</span>
+    {#if showCount}<span class="count" aria-hidden="true">{cartButton.count}</span>{/if}
+    <!-- read out once when a publish starts or ends, never every few seconds -->
+    <span class="visually-hidden" aria-live="polite" data-testid="pending-cart-live">{busy ? t('publish:publishing.chip') : ''}</span>
   </button>
 {/if}
 
@@ -95,6 +120,16 @@
     filter: saturate(0.5);
     opacity: 0.6;
     box-shadow: var(--shadow-sm);
+  }
+
+  /* The ring on the gradient: the label colour, not the page's grey and blue. */
+  button.cart-button :global(.spinner) {
+    border-color: color-mix(in srgb, var(--accent-ink) 35%, transparent);
+    border-top-color: var(--accent-ink);
+  }
+
+  button.cart-button.busy {
+    cursor: progress;
   }
 
   .count {

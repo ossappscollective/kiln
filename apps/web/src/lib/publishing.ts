@@ -1,7 +1,8 @@
 import { type Platform, platformMeta } from '@kiln/core';
+import { appAddress, type PlatformScope } from './app-scope.ts';
 import { timeAgo } from './format.ts';
 import { t } from './i18n/t.ts';
-import { type PublishResult, type PublishStepType, resultSummary, STEP_NAME } from './pending.ts';
+import { type LastPublish, type PublishStepType, STEP_NAME } from './pending.ts';
 import { elapsedText } from './publish-run.ts';
 
 /**
@@ -23,6 +24,11 @@ export type Publishing = {
 
 export type PublishingList = {
   apps: { appId: string; publishing: Publishing }[];
+  /**
+   * The apps whose latest publish did not complete and was not dismissed, with the reason (absent from an older server: what the
+   * screens hold is then left as it is).
+   */
+  lastPublish?: { appId: string; lastPublish: LastPublish }[] | undefined;
   generatedAt: number;
 };
 
@@ -89,12 +95,30 @@ export const disabledReason = (p: Publishing, now: number): string =>
 /** The row of a pending item that is being written by the publish. */
 export const beingPublishedText = (): string => t('publish:publishing.rowReason');
 
-/** `Last publish failed: …`: the line a failed publish leaves; null when the publish went through. */
-export function failureNote(result: PublishResult): string | null {
-  if (result.completed) return null;
-  const summary = resultSummary(result, null);
-  const reason = summary.title === '' ? summary.text : `${summary.title}. ${summary.text}`;
-  return t('publish:publishing.lastFailed', { reason });
+// ---------------------------------------------------------------------------------------------
+// Opening the pending panel on a running publish
+
+/** Where "show me the publish" goes: the cart drawer of the open app when it covers that app, else the app's pending page. */
+export type PanelTarget = { kind: 'drawer' } | { kind: 'page'; href: string };
+
+export function panelTarget(input: {
+  appId: string;
+  /** The records the open app's cart drawer covers (none when no drawer is mounted). */
+  drawerAppIds: readonly string[];
+  /** A drawer is mounted and can be opened. */
+  drawerReady: boolean;
+  scope?: PlatformScope | null | undefined;
+}): PanelTarget {
+  if (input.drawerReady && input.drawerAppIds.includes(input.appId)) return { kind: 'drawer' };
+  return { kind: 'page', href: appAddress(input.appId, 'pending', input.scope ?? null) };
+}
+
+/** Which of the running apps the top bar button shows: the one the open app's drawer covers, else the first (stable order). */
+export function appToShow(
+  running: readonly string[],
+  drawerAppIds: readonly string[],
+): string | null {
+  return running.find((id) => drawerAppIds.includes(id)) ?? running[0] ?? null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -159,6 +183,8 @@ export function createPublishingLoader(opts: {
   let known: Record<string, PublishingEntry> = {};
   /** Apps the server has shown as publishing (so a missing one means it finished). */
   let confirmed = new Set<string>();
+  /** The latest publish of each app that did not complete (from the server, or noted from this browser's own answer). */
+  let failed: Record<string, LastPublish> = {};
   let token = 0;
   let failures = 0;
   let watchers = 0;
@@ -170,6 +196,7 @@ export function createPublishingLoader(opts: {
     workspace = workspaceId;
     known = {};
     confirmed = new Set();
+    failed = {};
     failures = 0;
     token += 1;
     stop?.();
@@ -212,6 +239,11 @@ export function createPublishingLoader(opts: {
       for (const id of Object.keys(next)) if (!next[id]?.optimistic) confirmed.add(id);
       for (const id of finished) confirmed.delete(id);
       known = next;
+      if (list.lastPublish !== undefined) {
+        const nextFailed: Record<string, LastPublish> = {};
+        for (const entry of list.lastPublish) nextFailed[entry.appId] = entry.lastPublish;
+        failed = nextFailed;
+      }
       opts.onChange();
       if (finished.length > 0) opts.onFinished(workspaceId, finished);
     } catch {
@@ -224,6 +256,19 @@ export function createPublishingLoader(opts: {
     of: (workspaceId: string, appId: string): PublishingEntry | null =>
       workspaceId === workspace ? (known[appId] ?? null) : null,
     ids: (workspaceId: string): string[] => (workspaceId === workspace ? idsOf() : []),
+    /** The latest publish of the app that did not complete and is not dismissed, or null. */
+    failedOf: (workspaceId: string, appId: string): LastPublish | null =>
+      workspaceId === workspace ? (failed[appId] ?? null) : null,
+    /** The apps of the workspace whose latest publish did not complete. */
+    failedIds: (workspaceId: string): string[] =>
+      workspaceId === workspace ? Object.keys(failed) : [],
+    /** This browser got the answer of a publish that did not go through (or one that did: `null` clears the app). */
+    noteResult(workspaceId: string, appId: string, run: LastPublish | null): void {
+      scope(workspaceId);
+      const { [appId]: _old, ...rest } = failed;
+      failed = run !== null && !run.completed && !run.dismissed ? { ...rest, [appId]: run } : rest;
+      opts.onChange();
+    },
     refresh,
     /** A screen needs the answer: read now, keep reading while a publish runs. Returns the function that lets go. */
     start(workspaceId: string): () => void {
@@ -274,6 +319,7 @@ export function createPublishingLoader(opts: {
     reset(): void {
       workspace = '';
       known = {};
+      failed = {};
       confirmed = new Set();
       failures = 0;
       token += 1;

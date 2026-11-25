@@ -19,6 +19,7 @@
   import { queueCartOpen } from '../../lib/pending-cart.ts';
   import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import PendingGroupChanges from './PendingGroupChanges.svelte';
+  import PublishFailure from '../publish/PublishFailure.svelte';
   import PublishingStatus from '../publish/PublishingStatus.svelte';
   import Badge from '../ui/Badge.svelte';
   import Icon from '../ui/Icon.svelte';
@@ -40,6 +41,15 @@
       const app = apps.find((a) => a.id === id);
       const entry = publishingStore.of(workspaceId, id);
       return app && entry ? [{ app, entry }] : [];
+    });
+  });
+  /** Apps whose latest publish did not go through (and nobody hid it), with the reason; an app that publishes again shows its progress instead. */
+  const failedApps = $derived.by(() => {
+    const apps = navSignals.appsOf(workspaceId) ?? [];
+    return publishingStore.failedIds(workspaceId).flatMap((id) => {
+      const app = apps.find((a) => a.id === id);
+      const run = publishingStore.failureOf(workspaceId, id);
+      return app && run && publishingStore.of(workspaceId, id) === null ? [{ app, run }] : [];
     });
   });
   const publishingKeys = $derived(new Set(publishingApps.map((p) => p.app.id)));
@@ -78,13 +88,19 @@
   <EmptyState icon="alert-triangle" title={t('app:workspacePending.loadFailed')}>
     {#snippet actions()}<Button onclick={() => void read()}>{t('common:action.retry')}</Button>{/snippet}
   </EmptyState>
-{:else if rows.length === 0 && publishingApps.length === 0}
+{:else if rows.length === 0 && publishingApps.length === 0 && failedApps.length === 0}
   <EmptyState icon="check" title={t('app:workspacePending.empty')} />
 {:else}
   {#each publishingApps as p (p.app.id)}
     <div class="publishing-now" data-testid="workspace-publishing">
       <strong>{p.app.name}</strong>
-      <PublishingStatus publishing={p.entry} platform={p.app.platform} href={appAddress(p.app.id, 'pending')} />
+      <PublishingStatus publishing={p.entry} platform={p.app.platform} appId={p.app.id} href={appAddress(p.app.id, 'pending')} />
+    </div>
+  {/each}
+  {#each failedApps as f (f.app.id)}
+    <div class="publishing-now" data-testid="workspace-publish-failed">
+      <strong>{f.app.name}</strong>
+      <PublishFailure run={f.run} appName={f.app.name} platform={f.app.platform} ondismiss={() => publishingStore.dismissFailure(api, workspaceId, f.app.id)} />
     </div>
   {/each}
   {#if totals}<p class="total" role="status">{pendingAcrossText(totals)}</p>{/if}

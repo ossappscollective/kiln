@@ -17,6 +17,7 @@
   import { tick } from 'svelte';
   import { t } from '../../lib/i18n/t.ts';
   import type { Api } from '../../lib/api.ts';
+  import type { LastPublish } from '../../lib/pending.ts';
   import { type Expanded, expansionOf, PREVIEW_KEYS, noneExpanded, pruneExpanded, toggleAll, toggleExpanded } from '../../lib/cart-preview.ts';
   import { issueText, money, samePhrase, verificationText } from '../../lib/prices.ts';
   import type { PriceDryRunItem } from '../../lib/types.ts';
@@ -53,6 +54,7 @@
   import CartGraphicsDetail from './CartGraphicsDetail.svelte';
   import CartRowPreview from './CartRowPreview.svelte';
   import CartPriceDetail from './CartPriceDetail.svelte';
+  import PublishFailure from '../publish/PublishFailure.svelte';
   import PublishingStatus from '../publish/PublishingStatus.svelte';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -102,7 +104,7 @@
     /** The records of this app whose publish runs now: a status row each, and their rows (already marked) are "being published". */
     publishing?: readonly { appId: string; platform: Platform; entry: Publishing }[] | undefined;
     /** The last publish of a record that did not go through ("Last publish failed: ..."), until it is dismissed. */
-    failures?: readonly { appId: string; text: string }[] | undefined;
+    failures?: readonly { appId: string; run: LastPublish; name: string; platform: Platform }[] | undefined;
     /** The last dry run of price items (read only: nothing was sent). */
     dryRun?: { items: { key: string; title: string; item: PriceDryRunItem }[]; writesEnabled: boolean; failed: string } | null | undefined;
     dryBusy?: boolean | undefined;
@@ -244,10 +246,10 @@
 
       <div class="body">
         {#each publishing as p (p.appId)}
-          <PublishingStatus publishing={p.entry} platform={p.platform} />
+          <PublishingStatus publishing={p.entry} platform={p.platform} appId={p.appId} />
         {/each}
         {#each failures as f (f.appId)}
-          <Alert tone="error" ondismiss={() => publishingStore.dismissFailure(f.appId)}>{f.text}</Alert>
+          <PublishFailure run={f.run} appName={f.name} platform={f.platform} ondismiss={() => publishingStore.dismissFailure(api, workspaceId, f.appId)} />
         {/each}
         {#if report}
           <div class="report" role="status" tabindex="-1" bind:this={reportBox} data-testid="cart-report">

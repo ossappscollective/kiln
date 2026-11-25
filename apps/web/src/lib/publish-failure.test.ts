@@ -1,0 +1,155 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import type { LastPublish, RunStep } from './pending.ts';
+import {
+  cleanText,
+  clip,
+  failureReport,
+  headlineReason,
+  reasonOf,
+  runSummary,
+  SAID_SHOWN,
+  stepLines,
+} from './publish-failure.ts';
+
+const GOOGLE = 'Only releases with status draft may be created on draft app.';
+const failedPush: RunStep = {
+  type: 'push_draft',
+  status: 'failed',
+  startedAt: 1_000,
+  finishedAt: 2_000,
+  error: 'store_rejected',
+  httpStatus: 422,
+  outcome: 'refused',
+  message: 'Google Play treats this app as a draft app.',
+  code: 'store.google.draftApp',
+  store: {
+    kind: 'unexpected',
+    httpStatus: 400,
+    details: [{ code: 'badRequest', title: 'INVALID_ARGUMENT', detail: GOOGLE }],
+  },
+};
+const run = (steps: RunStep[], over: Partial<LastPublish> = {}): LastPublish => ({
+  id: 'run-1',
+  platform: 'android',
+  startedAt: 1_000,
+  finishedAt: 5_000,
+  outcome: 'failed',
+  completed: false,
+  steps: steps.map((s) => s.type),
+  results: steps,
+  by: { id: 'u1', name: 'Ada' },
+  dismissed: false,
+  ...over,
+});
+const skipped = (type: RunStep['type']): RunStep => ({
+  type,
+  status: 'skipped',
+  startedAt: 2_000,
+  finishedAt: 2_000,
+  reason: 'previous_step_not_applied',
+  message: 'Not run: push_draft was not applied.',
+});
+const lastPublish = run([failedPush, skipped('submit'), skipped('release')]);
+
+test('the reason of a failed step: the title of its code, the advice of the named cause, the words of the store, the technical line', () => {
+  const r = reasonOf(failedPush);
+  assert.equal(r.title, 'The store rejected this step.');
+  assert.match(r.advice, /Google Play treats this app as a draft app/);
+  assert.match(r.advice, /Complete the first release in Play Console/);
+  assert.equal(r.said, GOOGLE);
+  assert.equal(r.technical, 'store_rejected · HTTP 422 · store HTTP 400 · badRequest · INVALID_ARGUMENT');
+  assert.match(r.outcome, /./);
+});
+
+test('a code this app has no sentence for falls back to the server\'s English sentence; a step with no store words says only its title', () => {
+  const newer = reasonOf({ ...failedPush, code: 'store.google.somethingNew', message: 'Brand new problem.' });
+  assert.equal(newer.advice, 'Brand new problem.');
+  const bare = reasonOf({
+    type: 'submit',
+    status: 'failed',
+    startedAt: 1,
+    finishedAt: 2,
+    error: 'step_timeout',
+    httpStatus: 504,
+    outcome: 'unknown',
+    message: 'The step did not finish within 8 minutes.',
+  });
+  assert.equal(bare.said, '');
+  assert.equal(bare.technical, 'step_timeout · HTTP 504');
+  assert.match(bare.title, /step_timeout|did not finish/);
+  const odd = reasonOf({ ...failedPush, error: 'weird code!<script>', code: undefined as never });
+  assert.doesNotMatch(odd.title + odd.technical, /[<>!]/);
+});
+
+test('the lines of a run: done, failed with its reason, not run with its sentence; the summary says where it stopped', () => {
+  const lines = stepLines(lastPublish);
+  assert.deepEqual(
+    lines.map((l) => [l.type, l.status, l.tone, l.reason !== null, l.note !== '']),
+    [
+      ['push_draft', 'failed', 'bad', true, false],
+      ['submit', 'skipped', 'neutral', false, true],
+      ['release', 'skipped', 'neutral', false, true],
+    ],
+  );
+  const s = runSummary(lastPublish);
+  assert.match(s.title, /Stopped at/);
+  assert.match(s.text, /0 done, 1 failed, 2 not run/);
+});
+
+test('the headline of a failure is the advice (or the title) and a short quotation of the store', () => {
+  const line = headlineReason(lastPublish);
+  assert.match(line, /^Google Play treats this app as a draft app/);
+  assert.match(line, /Only releases with status draft/);
+  assert.equal(headlineReason(run([])), '');
+});
+
+test('what a store said is cleaned and cut: no token, no control characters, 300 characters with a Show more', () => {
+  const dirty = `Nope.\n\n\u0000 Bearer ya29.a0AfH6SMBx1234567890abcdef and ${'x'.repeat(60)} end`;
+  const clean = cleanText(dirty);
+  assert.doesNotMatch(clean, /ya29|xxxxxx|\n|\u0000/);
+  assert.match(clean, /Bearer \[redacted\]/);
+  const long = `${'word '.repeat(200)}`.trim();
+  const cut = clip(long);
+  assert.equal(cut.cut, true);
+  assert.ok(cut.text.length <= SAID_SHOWN);
+  assert.ok(cut.text.endsWith('…'));
+  assert.deepEqual(clip('short'), { text: 'short', cut: false });
+  // The reason applies it to what the server sent, too.
+  const tainted = reasonOf({
+    ...failedPush,
+    store: { kind: 'unexpected', details: [{ detail: 'Failed with ya29.a0AfH6SMBx1234567890abcdef' }] },
+  });
+  assert.doesNotMatch(tainted.said, /ya29/);
+});
+
+test('the copied report holds the app, the times, the steps, the codes, the HTTP statuses and the store words, and no name or token', () => {
+  const report = failureReport({
+    appName: 'OSS Document Scanner',
+    platform: 'android',
+    run: run([
+      {
+        ...failedPush,
+        store: {
+          kind: 'unexpected',
+          httpStatus: 400,
+          details: [{ code: 'badRequest', detail: `${GOOGLE} Bearer ya29.a0AfH6SMBx1234567890abcdef` }],
+        },
+      },
+      skipped('submit'),
+    ]),
+  });
+  assert.match(report, /^Kiln publish report\n/);
+  assert.match(report, /App: OSS Document Scanner \(Android\)/);
+  assert.match(report, /Started: 1970-01-01T00:00:01\.000Z/);
+  assert.match(report, /Steps: push_draft, submit/);
+  assert.match(report, /1\. push_draft: failed \(1970-01-01T00:00:01\.000Z to 1970-01-01T00:00:02\.000Z\)/);
+  assert.match(report, /Code: store_rejected/);
+  assert.match(report, /HTTP status: 422/);
+  assert.match(report, /Cause: store\.google\.draftApp/);
+  assert.match(report, /Store: unexpected, HTTP 400/);
+  assert.match(report, /Store said: badRequest: Only releases with status draft may be created on draft app\./);
+  assert.match(report, /2\. submit: not run/);
+  assert.match(report, /Reason: previous_step_not_applied/);
+  assert.doesNotMatch(report, /ya29|Ada|u1/);
+});

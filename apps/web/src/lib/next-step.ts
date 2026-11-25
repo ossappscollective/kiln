@@ -10,9 +10,11 @@ import { releaseTrainsByPlatform, type Train, trainInputOf } from './release-tra
  * "Next step": the one card at the top of the Overview and of Releases. From the releases on their way (the release trains) and the
  * attention items it picks ONE thing to do and one primary button for it. Pure; nothing is fetched here.
  *
- * The card is about the WHOLE app, never about the platform the page is scoped to: `nextStepTrains` takes the pipelines of every record
- * of the app, so a release that waits for the person on iOS is not hidden because the page shows Android (the pending link and the
- * release page already look at every record; a card that did not said "Nothing is waiting for you" beside them).
+ * The card follows the platform switch of the page (iOS, Android, Both): `nextStepTrains` reads the pipelines of the records the page
+ * shows (`members`), so with Android selected the card is about Android only and with iOS selected about iOS only. Before, it looked at
+ * every record "so a release that waits on iOS is not hidden", and a person on Android saw "Attach build 92" for iOS (the pending link and
+ * the Releases page keep looking at every platform). With Both the single most urgent release leads and says its platform in its title;
+ * with several releases on their way each has its own row (no extra "also" line: the rows are that line).
  *
  * Order: a train whose step failed (a rejection, a failed CI run), then a train that waits for the person, then the one that waits
  * for the store, then one that waits for CI; with no release on its way, the most serious attention item that has a link and is a
@@ -30,6 +32,8 @@ export type NextAction =
 /** One release with a next step of its own: a row of the card when several platforms have one. */
 export type NextRow = {
   key: string;
+  /** The record the row's button acts on (a publish of it running turns the button off). */
+  appId: string;
   platforms: Platform[];
   tone: 'bad' | 'warn' | 'info';
   title: string;
@@ -80,11 +84,18 @@ export type NextStepInput = {
   reviewUrlOf?: ((appId: string) => string | null) | undefined;
 };
 
-/** The release trains of the card: one per platform, from the pipelines of every record of the app (never only the scope's). */
+/**
+ * The release trains of the card: one per platform, from the pipelines of the records in scope (the page's platform switch: one
+ * platform, or every record with Both). `platforms` are the platforms in scope; a train of another platform is not the card's business.
+ */
 export function nextStepTrains(
   pipelines: readonly Pick<AppPipeline, 'app' | 'pipeline'>[],
+  platforms?: readonly Platform[] | undefined,
 ): Train[] {
-  return releaseTrainsByPlatform(pipelines.map(trainInputOf));
+  const trains = releaseTrainsByPlatform(pipelines.map(trainInputOf));
+  return platforms === undefined
+    ? trains
+    : trains.filter((train) => train.platforms.some((p) => platforms.includes(p)));
 }
 
 const isUnfinished = (item: AttentionItem): boolean => item.id.endsWith(':unfinished');
@@ -126,6 +137,7 @@ function rowOf(t: Train, input: NextStepInput): NextRow {
   const r = rank(t);
   return {
     key: t.key,
+    appId: t.button.appId,
     platforms: t.platforms,
     tone: r === 0 ? 'bad' : r === 1 ? 'warn' : 'info',
     title: t.title,

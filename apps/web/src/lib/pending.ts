@@ -22,7 +22,8 @@ import type { SubmitPreview } from './store-submit.ts';
  * docs/adr/0015-pending-and-batch-publish.md): the types of the API that the web app owns and the pure logic of the
  * pending view, the readiness of the "Review and publish all" button, the plan as the dialog shows it, the typed
  * phrase and the result of a publish. The server decides every rule; what is checked here only explains things and
- * never widens what the server allows. Results are worded here from fixed vocabulary: a store's own text is never shown.
+ * never widens what the server allows. Results are worded here from fixed vocabulary; the store's own words (cleaned by the server)
+ * are shown beside it, as a quotation, by `publish-failure.ts`.
  * Written for the ES2017 web build: no flatMap, no fromEntries.
  */
 
@@ -86,6 +87,8 @@ export type PendingView = {
   lastSyncedAt: number | null;
   /** A publish of this app runs now (an older server sends none). The screens read it from `publishing-store`, which polls it. */
   publishing?: Publishing | null | undefined;
+  /** The latest publish of this app when it did not complete, kept on the server (an older server sends none). See `publish-failure.ts`. */
+  lastPublish?: LastPublish | null | undefined;
   generatedAt: number;
 };
 
@@ -99,6 +102,7 @@ export type PendingSummaryApp = {
   kinds: PendingKind[];
   nextSteps: PublishStepType[];
   publishing?: Publishing | null | undefined;
+  lastPublish?: LastPublish | null | undefined;
 };
 
 export type PendingSummary = {
@@ -206,6 +210,45 @@ export type StepResult =
       detail?: Record<string, unknown>;
     };
 
+/** What the store answered when it refused (the server cleaned it: no credential, no token, cut to 600 characters). */
+export type StoreFacts = {
+  kind: string;
+  httpStatus?: number;
+  details?: { code?: string; title?: string; detail?: string }[];
+};
+
+/** One step of a kept run: its status and, for a failure, the code, the HTTP status and what the store said. */
+export type RunStep = {
+  type: PublishStepType;
+  status: 'applied' | 'skipped' | 'failed';
+  startedAt: number;
+  finishedAt: number;
+  error?: string;
+  httpStatus?: number;
+  outcome?: 'refused' | 'not_applied' | 'unknown' | 'partial';
+  reason?: string;
+  message?: string;
+  /** The catalogue code of the sentence or of the store's cause (`store.google.draftApp`), with its parameters. */
+  code?: string;
+  params?: Record<string, string | number | boolean | null>;
+  store?: StoreFacts;
+};
+
+/** A batch publish the server kept (migration 72): the newest five per app; `lastPublish` is the latest when it did not complete. */
+export type LastPublish = {
+  id: string;
+  platform: Platform;
+  startedAt: number;
+  finishedAt: number;
+  outcome: 'completed' | 'partial' | 'failed';
+  completed: boolean;
+  steps: PublishStepType[];
+  results: RunStep[];
+  by: { id: string; name: string | null } | null;
+  /** A person hid this failure (it stays hidden until a newer run). */
+  dismissed: boolean;
+};
+
 export type PublishResult = {
   app: { id: string; name: string; platform: Platform; store: string };
   planHash: string;
@@ -217,6 +260,8 @@ export type PublishResult = {
   steps: StepResult[];
   pending: { items: number; actionable: number; blocking: number };
   publishedAt: number;
+  /** This run as the server keeps it, with the reason each failed step gave (an older server sends none). */
+  lastPublish?: LastPublish | null | undefined;
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -959,6 +1004,9 @@ const FAILED_TEXT: Readonly<Record<string, string>> = {
   no_editable_version: k('app:pending.failed.noEditableVersion'),
 };
 
+/** The sentence for a failed step's error code, or '' when the code has none here. */
+export const failedSentence = (error: string): string => said(FAILED_TEXT, error, '');
+
 const OUTCOME_TEXT: Readonly<Record<string, string>> = {
   refused: k('app:pending.outcome.refused'),
   not_applied: k('app:pending.outcome.notApplied'),
@@ -982,6 +1030,13 @@ const said = (
   const key = code === undefined ? undefined : table[code];
   return key === undefined ? fallback : t(key);
 };
+
+/** The sentence for the outcome of a failed step (`refused`, `not_applied`, `unknown`, `partial`), or ''. */
+export const outcomeSentence = (outcome: string | undefined): string => said(OUTCOME_TEXT, outcome);
+
+/** The sentence for why a step was not run, or ''. */
+export const skippedSentence = (reason: string | undefined): string =>
+  said(SKIPPED_TEXT, reason, t('app:pending.skipped.default'));
 
 export type ResultRow = {
   type: PublishStepType;

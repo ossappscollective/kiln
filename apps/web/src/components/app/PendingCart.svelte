@@ -83,8 +83,8 @@
   /** A publish of one of these records that did not go through and has ended: its one line, until dismissed or a new publish starts. */
   const failures = $derived(
     members.flatMap((m) => {
-      const text = publishingStore.failureOf(m.id);
-      return text !== null && publishingStore.of(workspaceId, m.id) === null ? [{ appId: m.id, text }] : [];
+      const run = publishingStore.failureOf(workspaceId, m.id);
+      return run !== null && publishingStore.of(workspaceId, m.id) === null ? [{ appId: m.id, run, name: m.name, platform: m.platform }] : [];
     }),
   );
   const shownRows = $derived(markBeingPublished(rows, new Set(publishing.map((p) => p.appId))));
@@ -153,6 +153,9 @@
   });
   $effect(() => {
     cartButton.expanded = open;
+  });
+  $effect(() => {
+    cartButton.appIds = ids;
   });
   $effect(() => {
     cartButton.press = () => {

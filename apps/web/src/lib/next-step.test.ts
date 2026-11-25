@@ -274,46 +274,80 @@ test('an approved release names its platform in the headline and the sentence', 
   assert.equal(s.waiting?.who, 'you');
 });
 
-// Regression: the card read only the records in the page's platform scope, so with the page on Android an iOS release that was
-// approved and waiting for the person made the card say "Nothing is waiting for you", while the pending link ("1 change waiting
-// on iOS") and the release page looked at every record. The trains of the card come from every record of the app.
-test('an approved iOS release is not hidden by an Android record that is live (page scoped to Android)', () => {
-  const pipeline = (platform: 'ios' | 'android', state: TrainInput['state'], version: string) => ({
-    app: {
-      id: platform,
-      name: 'Acme',
-      platform,
-      store: platform === 'ios' ? 'app-store' : 'google-play',
-    },
-    pipeline: {
-      appId: platform,
-      platform,
-      state,
-      waitingOn: state === 'approved' ? 'you' : null,
-      since: null,
-      stalledAfterHours: 0,
-      stalled: null,
-      stalls: [],
-      steps: state === 'approved' ? approved.steps : [],
-      summary: '',
-      latest: { run: null, build: null, version: { version } },
-    },
-    lastSyncedAt: 1,
-  });
+// The card follows the platform switch of the page. An earlier version read every record of the app, so with the page on Android a
+// person saw "Version 1.11.6 on iOS / Attach build 92" and took it for the Android release. Now: Android shows Android only, iOS shows
+// iOS only, Both keeps the most urgent one with its platform named.
+const pipelineOf = (platform: 'ios' | 'android', state: TrainInput['state'], version: string) => ({
+  app: {
+    id: platform,
+    name: 'Acme',
+    platform,
+    store: platform === 'ios' ? 'app-store' : 'google-play',
+  },
+  pipeline: {
+    appId: platform,
+    platform,
+    state,
+    waitingOn: state === 'approved' ? 'you' : null,
+    since: null,
+    stalledAfterHours: 0,
+    stalled: null,
+    stalls: [],
+    steps: state === 'approved' ? approved.steps : [],
+    summary: '',
+    latest: { run: null, build: null, version: { version } },
+  },
+  lastSyncedAt: 1,
+});
+
+test('the card follows the platform switch: Android shows Android only, iOS iOS only, Both the most urgent with its platform named', () => {
   const data = [
-    pipeline('ios', 'approved', '2.0.1'),
-    pipeline('android', 'live', '2.0.1'),
+    pipelineOf('ios', 'approved', '2.0.1'),
+    pipelineOf('android', 'live', '2.0.1'),
   ] as never;
-  const trains = nextStepTrains(data);
-  const s = chooseNextStep(input({ trains, scope: 'android' }));
-  assert.equal(s.kind, 'train');
-  assert.equal(s.tone, 'warn');
-  assert.equal(s.waiting?.who, 'you');
-  assert.match(s.text, /on iOS is approved/);
-  // The same facts give the same step whatever the order of the records or the scope of the page.
-  const reversed = chooseNextStep(
-    input({ trains: nextStepTrains([...data].reverse() as never), scope: 'ios' }),
+  const ios = chooseNextStep(input({ trains: nextStepTrains(data, ['ios']), scope: 'ios' }));
+  assert.equal(ios.kind, 'train');
+  assert.equal(ios.title, 'Version 2.0.1 on iOS');
+  assert.equal(ios.waiting?.who, 'you');
+  assert.match(ios.text, /on iOS is approved/);
+
+  // Android selected: the iOS release is not the card's subject, whatever its state (nothing is on its way for Android).
+  const android = chooseNextStep(
+    input({ trains: nextStepTrains(data, ['android']), scope: 'android' }),
   );
-  assert.equal(reversed.title, s.title);
-  assert.equal(reversed.text, s.text);
+  assert.equal(nextStepTrains(data, ['android']).length, 0);
+  assert.equal(android.kind, 'start');
+  assert.doesNotMatch(`${android.title} ${android.text}`, /iOS/);
+
+  // Both: the same facts as before the switch existed, and the order of the records does not matter.
+  const both = chooseNextStep(input({ trains: nextStepTrains(data, ['ios', 'android']), scope: 'both' }));
+  assert.equal(both.title, ios.title);
+  const reversed = chooseNextStep(
+    input({ trains: nextStepTrains([...data].reverse() as never, ['ios', 'android']), scope: 'both' }),
+  );
+  assert.equal(reversed.title, both.title);
+  assert.equal(reversed.text, both.text);
+  // No platform list: every record (what a caller with no switch gets).
+  assert.equal(nextStepTrains(data).length, nextStepTrains(data, ['ios', 'android']).length);
+});
+
+test('with one platform selected only its trains count, so the lead is never another platform\'s release', () => {
+  const data = [
+    pipelineOf('ios', 'approved', '1.11.6'),
+    pipelineOf('android', 'approved', '1.11.6'),
+  ] as never;
+  for (const platform of ['ios', 'android'] as const) {
+    const trains = nextStepTrains(data, [platform]);
+    assert.deepEqual(
+      trains.map((tr) => tr.platforms),
+      [[platform]],
+    );
+    const s = chooseNextStep(input({ trains, scope: platform }));
+    assert.equal(s.train?.platforms[0], platform);
+    assert.match(s.title, platform === 'ios' ? /on iOS$/ : /on Android$/);
+    assert.ok(s.primary && 'href' in s.primary && s.primary.href.includes(`/${platform}`));
+  }
+  // Both with two releases waiting: one row each, no row hidden.
+  const s = chooseNextStep(input({ trains: nextStepTrains(data, ['ios', 'android']), scope: 'both' }));
+  assert.equal(s.rows.length, 2);
 });

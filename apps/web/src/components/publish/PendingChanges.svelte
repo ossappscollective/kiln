@@ -64,6 +64,7 @@
   import StatusPill from '../ui/StatusPill.svelte';
   import T from '../ui/T.svelte';
   import PublishDialog from '../publish/PublishDialog.svelte';
+  import PublishFailure from './PublishFailure.svelte';
   import PublishingStatus from './PublishingStatus.svelte';
   import PendingItemPreview from './PendingItemPreview.svelte';
 
@@ -133,8 +134,8 @@
   /** A publish of one of these records that did not go through and ended: one line, until dismissed or a new publish starts. */
   const lastFailures = $derived(
     members.flatMap((m) => {
-      const text = publishingStore.failureOf(m.id);
-      return text !== null && publishingStore.of(workspaceId, m.id) === null ? [{ appId: m.id, text }] : [];
+      const run = publishingStore.failureOf(workspaceId, m.id);
+      return run !== null && publishingStore.of(workspaceId, m.id) === null ? [{ appId: m.id, run, name: m.name, platform: m.platform }] : [];
     }),
   );
   // Each step that starts or ends changes what is pending (the pushed items become "pushed"): read the views again, once per change.
@@ -388,10 +389,10 @@
   {/if}
 
   {#each publishing.filter((p) => !groups.some((g) => g.appId === p.appId)) as p (p.appId)}
-    <PublishingStatus publishing={p.entry} platform={p.platform} />
+    <PublishingStatus publishing={p.entry} platform={p.platform} appId={p.appId} />
   {/each}
   {#each lastFailures as f (f.appId)}
-    <Alert tone="error" ondismiss={() => publishingStore.dismissFailure(f.appId)}><span data-testid="publish-last-failed">{f.text}</span></Alert>
+    <PublishFailure run={f.run} appName={f.name} platform={f.platform} ondismiss={() => publishingStore.dismissFailure(api, workspaceId, f.appId)} />
   {/each}
 
   {#if loadProblem}
@@ -419,7 +420,7 @@
       {@const allOpen = expansionOf(expanded, rows) === 'all'}
       {@const running = publishingOf(g.appId)}
       <section class="group card" class:publishing={running !== null} aria-label={t('publish:pending.groupAria', { platform: platformLabel(g.platform.platform) })}>
-        {#if running}<PublishingStatus publishing={running} platform={g.platform.platform} />{/if}
+        {#if running}<PublishingStatus publishing={running} platform={g.platform.platform} appId={g.appId} />{/if}
         <div class="group-head">
           {#if members.length > 1 || groups.length > 1}<PlatformBadge platform={g.platform.platform} tinted />{/if}
           <span class="muted">{totalsLine(g.platform.totals)}</span>

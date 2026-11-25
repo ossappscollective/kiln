@@ -54,7 +54,6 @@
   } from '../../lib/pending.ts';
   import { announcePublished } from '../../lib/app-page.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
-  import { failureNote } from '../../lib/publishing.ts';
   import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import { publishSummary, shownErrors } from '../../lib/publish-summary.ts';
   import { elapsedText, failureDetail, minutesOf, PUBLISH_SLOW_AFTER_MS, PUBLISH_WAIT_LIMIT_MS, PublishWaitError, withWaitLimit } from '../../lib/publish-run.ts';
@@ -73,6 +72,7 @@
   import SegmentTabs from '../ui/SegmentTabs.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import T from '../ui/T.svelte';
+  import PublishFailureDetail from './PublishFailure.svelte';
   import PublishSummaryBlock from './PublishSummary.svelte';
   import PushPreviewBody from './PushPreviewBody.svelte';
   import ReleasePreviewBody from './ReleasePreviewBody.svelte';
@@ -315,8 +315,8 @@ import { supports } from '@kiln/core';
       result = out.result;
       changed = true;
       phase = 'done';
-      // Closed while it ran: nobody sees the result here, so the pending panel keeps one line when it did not go through.
-      publishingStore.answered(client, space, appId, open ? null : failureNote(out.result));
+      // The panel keeps the failure too (the server keeps the run; this shows it before the next read): it survives the dialog.
+      publishingStore.answered(client, space, appId, out.result.lastPublish ?? null);
       notify();
       // Closed while it ran: nobody is looking at the result, so the app page is told as the close would have.
       if (!open) {
@@ -428,21 +428,27 @@ import { supports } from '@kiln/core';
 
     {#if phase === 'done' && summary && result}
       <section class="stack" aria-label={t('publish:dialog.resultAria')} data-testid="publish-result">
-        <Alert tone={summary.tone} title={summary.title}>
-          {summary.text}
-          {#if !result.completed}<span class="para">{stopNote()}</span>{/if}
-        </Alert>
-        <ol class="results">
-          {#each summary.rows as r (r.type)}
-            <li class="result">
-              <p class="step-head">
-                <strong>{r.label}</strong>
-                <Badge tone={r.tone} icon={r.status === 'applied' ? 'check-circle' : r.status === 'failed' ? 'x-circle' : 'clock'}>{r.word}</Badge>
-              </p>
-              <p class="small">{r.text}</p>
-            </li>
-          {/each}
-        </ol>
+        {#if !result.completed && result.lastPublish && app}
+          <!-- the run the server kept: each step, and under the failed one why (the store's own words, its code and HTTP status), with Copy details -->
+          <PublishFailureDetail run={result.lastPublish} appName={app.name} platform={app.platform} />
+          <p class="muted small">{stopNote()}</p>
+        {:else}
+          <Alert tone={summary.tone} title={summary.title}>
+            {summary.text}
+            {#if !result.completed}<span class="para">{stopNote()}</span>{/if}
+          </Alert>
+          <ol class="results">
+            {#each summary.rows as r (r.type)}
+              <li class="result">
+                <p class="step-head">
+                  <strong>{r.label}</strong>
+                  <Badge tone={r.tone} icon={r.status === 'applied' ? 'check-circle' : r.status === 'failed' ? 'x-circle' : 'clock'}>{r.word}</Badge>
+                </p>
+                <p class="small">{r.text}</p>
+              </li>
+            {/each}
+          </ol>
+        {/if}
         {#if summary.review}
           <p class="muted small">{t('publish:dialog.reviewAgainHint')}</p>
         {/if}

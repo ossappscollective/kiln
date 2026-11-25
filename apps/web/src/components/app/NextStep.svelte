@@ -26,13 +26,14 @@
   import type { PlatformScope } from '../../lib/app-scope.ts';
   import { chooseNextStep, nextStepTrains } from '../../lib/next-step.ts';
   import { pipelineStore } from '../../lib/pipeline-store.svelte.ts';
+  import { openPublishingPanel } from '../../lib/publishing-focus.svelte.ts';
   import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import { promoteHref, promoteOptions } from '../../lib/play-promote.ts';
   import { reviewUrl } from '../../lib/store-links.ts';
   import { releaseStepHref } from '../../lib/release-stepper.ts';
   import type { StartedRun } from '../../lib/start-release.ts';
   import type { ActiveRuns, AppSummary, ReleaseSummary } from '../../lib/types.ts';
-  import PublishingNote from '../publish/PublishingNote.svelte';
+  import PublishingStatus from '../publish/PublishingStatus.svelte';
   import TrainSteps from '../release/TrainSteps.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -78,10 +79,14 @@
     start?.observe(data);
   }
 
-  // The card is about the whole app: the releases of every record (iOS, macOS, Android), whatever platform the page is scoped to.
+  // The card follows the platform switch: the releases of the records the page shows (one platform, or every record with Both).
+  // The pipelines of every record are still read (`records`) so a switch to the other platform has them at once.
   const records = $derived(all ?? members);
   const trains = $derived(
-    nextStepTrains(records.map((m) => pipelineStore.app(m.id)).filter((d): d is NonNullable<typeof d> => d !== null)),
+    nextStepTrains(
+      records.map((m) => pipelineStore.app(m.id)).filter((d): d is NonNullable<typeof d> => d !== null),
+      members.map((m) => m.platform),
+    ),
   );
   const reviewUrlOf = (appId: string) => {
     const record = records.find((m) => m.id === appId);
@@ -100,6 +105,19 @@
     }
     return null;
   });
+  // A publish of this app that runs now: the card says so at its top, and every button that would act on that app is off (the server
+  // refuses them too with 409 publish_in_progress). Buttons that only look at the store (Follow the review) stay.
+  const running = $derived(
+    members.flatMap((m) => {
+      const entry = publishingStore.of(workspaceId, m.id);
+      return entry === null ? [] : [{ appId: m.id, platform: m.platform, entry }];
+    }),
+  );
+  /** Whether a button for this record is off: its own publish runs, or (no record named) any record in scope publishes. */
+  const off = (appId: string | null): boolean =>
+    appId === null ? running.length > 0 : publishingStore.isPublishing(workspaceId, appId);
+  const offReason = $derived(running[0] ? publishingStore.reason(workspaceId, running[0].appId) : '');
+  const primaryAppId = $derived(step.train?.button.appId ?? null);
   const prepareHref = $derived(members[0] ? releaseStepHref(members[0].id, scope, 'build') : '');
   const startsHere = $derived(step.primary !== null && 'action' in step.primary && step.primary.action === 'start-release');
   const preparesHere = $derived(step.primary !== null && 'action' in step.primary && step.primary.action === 'prepare-release');
@@ -128,6 +146,16 @@
 </script>
 
 <section class="card next" data-tone={step.tone} data-testid="next-step" aria-labelledby="{uid}-title">
+  {#each running as p (p.appId)}
+    <div class="running">
+      <PublishingStatus
+        publishing={p.entry}
+        platform={p.platform}
+        appId={p.appId}
+        action={{ label: t('publish:publishing.showPending'), onclick: () => openPublishingPanel(p.appId, scope) }}
+      />
+    </div>
+  {/each}
   <p class="eyebrow">{t('app:nextStep.eyebrow')}</p>
   <div class="main">
     <div class="text">
@@ -141,9 +169,15 @@
     </div>
     <div class="actions">
       {#if step.primary && 'href' in step.primary}
-        <Button variant="primary" size="lg" icon={step.primary.external ? 'external-link' : 'arrow-right'} href={step.primary.href} target={step.primary.external ? '_blank' : undefined}>{step.primary.label}</Button>
+        {#if !step.primary.external && off(primaryAppId)}
+          <Button variant="primary" size="lg" icon="arrow-right" disabled title={offReason}>{step.primary.label}</Button>
+        {:else}
+          <Button variant="primary" size="lg" icon={step.primary.external ? 'external-link' : 'arrow-right'} href={step.primary.href} target={step.primary.external ? '_blank' : undefined}>{step.primary.label}</Button>
+        {/if}
       {:else if preparesHere && step.primary}
-        {#if onprepare}
+        {#if off(null)}
+          <Button variant="primary" size="lg" icon="play" disabled title={offReason}>{step.primary.label}</Button>
+        {:else if onprepare}
           <Button variant="primary" size="lg" icon="play" onclick={onprepare}>{step.primary.label}</Button>
         {:else}
           <Button variant="primary" size="lg" icon="play" href={prepareHref}>{step.primary.label}</Button>
@@ -166,7 +200,12 @@
         <Button variant="ghost" onclick={onprepare} title={t('app:nextStep.withoutCiHint')}>{t('app:nextStep.withoutCi')}</Button>
       {/if}
       {#if pending}
-        <a class="pending-link" href={pending.href} data-testid="next-step-pending">{pending.text}</a>
+        {#if running.length > 0}
+          <!-- Review and publish would race the publish that runs: said once, here, instead of a link that leads to a refusal -->
+          <span class="pending-link off" data-testid="next-step-pending" aria-disabled="true" title={offReason}>{pending.text}<span class="para">{t('publish:publishing.pendingOff')}</span></span>
+        {:else}
+          <a class="pending-link" href={pending.href} data-testid="next-step-pending">{pending.text}</a>
+        {/if}
       {/if}
     </div>
   </div>
@@ -180,7 +219,11 @@
             <span>{r.text}</span>
             {#if r.waiting}<Badge tone={r.waiting.who === 'you' ? 'warn' : 'neutral'}>{r.waiting.text}</Badge>{/if}
           </span>
-          <Button variant={r.urgent ? 'primary' : 'secondary'} icon={r.external ? 'external-link' : 'arrow-right'} href={r.href} target={r.external ? '_blank' : undefined}>{r.label}</Button>
+          {#if !r.external && off(r.appId)}
+            <Button variant="secondary" icon="arrow-right" disabled title={publishingStore.reason(workspaceId, r.appId)}>{r.label}</Button>
+          {:else}
+            <Button variant={r.urgent ? 'primary' : 'secondary'} icon={r.external ? 'external-link' : 'arrow-right'} href={r.href} target={r.external ? '_blank' : undefined}>{r.label}</Button>
+          {/if}
         </li>
       {/each}
     </ul>
@@ -200,7 +243,6 @@
         <Button size="sm" icon="arrow-right" href={promoteHref(promotion)}>{promotion.label}</Button>
       {/if}
     </p>
-    <PublishingNote {workspaceId} appId={promotion.appId} platform={scope} />
   {/if}
 
   {#if step.otherTrains.length > 0}
@@ -299,6 +341,20 @@
   .pending-link {
     font-size: var(--text-base);
     text-align: center;
+  }
+
+  .pending-link.off {
+    display: flex;
+    flex-direction: column;
+    color: var(--muted);
+  }
+
+  .pending-link .para {
+    font-size: var(--text-sm);
+  }
+
+  .running {
+    margin: 0 0 var(--space-4);
   }
 
   /* The follow-up of a started run (and its problem line) goes on its own line under the buttons. */

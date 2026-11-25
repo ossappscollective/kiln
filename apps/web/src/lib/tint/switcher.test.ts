@@ -77,7 +77,7 @@ test('the pending cart button carries the tint marker itself, and the top bar do
   const btn = read('../../components/app/PendingCartButton.svelte');
   assert.match(btn, /data-app-tint=\{tintStyle \? '' : undefined\}/);
   const shell = read('../../components/Shell.svelte');
-  assert.match(shell, /<PendingCartButton tintStyle=\{appTintStyle\} \/>/);
+  assert.match(shell, /<PendingCartButton tintStyle=\{appTintStyle\} \{workspaceId\} \/>/);
   assert.match(shell, /data-app-tint-glow/);
   assert.doesNotMatch(/<header[^>]*>/.exec(shell)?.[0] ?? '', /data-app-tint/);
 });

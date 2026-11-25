@@ -592,7 +592,7 @@
         <AlertBell {api} {workspaceId} />
       {/if}
 
-      <PendingCartButton tintStyle={appTintStyle} />
+      <PendingCartButton tintStyle={appTintStyle} {workspaceId} />
 
       <div class="user" bind:this={userEl} onfocusout={onUserFocusOut}>
         <button

@@ -33,7 +33,12 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   Create version, Push as draft and the rollout buttons are off with the reason and a link to the pending panel. One shared store (`lib/publishing-store.svelte.ts`, read from
   `GET /pending/publishing`) feeds them all: read when a workspace is shown and when the window comes back, **every 5 s only while a publish runs** (30 s in a hidden tab,
   backing off after failed reads), never when none does. When the claim is gone the pending views, the count, the cart and the app page are read again; a publish that did not
-  go through leaves "Last publish failed: …" until dismissed (from the answer of the dialog that sent it; a publish sent from another browser leaves only the refreshed lists).
+  go through leaves "Last publish failed" until dismissed, with each step and, under the failed one, WHY: what the error code means, what to do when the server named a
+  Google Play cause, the store's own words (cut to 300 characters, Show more), the technical line (code, HTTP status, Google's reason) and Copy details (a redacted report).
+  The server keeps the last five runs per app ([pending.md](api/pending.md#why-a-publish-failed)), so the failure survives a reload, shows in another browser, can be
+  dismissed for everybody and clears when a later publish goes through. The top bar Pending button shows any running publish of the workspace (spinner, "Publishing…",
+  `aria-busy`, polite live region, count kept) and opens the panel on that app's status row; the Next step card on the app overview carries the same status as a banner
+  ("Show pending changes") and turns its buttons for that app off. The Next step card follows the platform switch (iOS, Android, Both).
 - **Asset proposal on the Releases list (2026-11-24)**: under the Prepare release card, a quiet line "3 store asset changes proposed" with "Review" (opens
   the Assets step, where the card lives), per record with a repository, only when something is proposed and it was not skipped for the release. A cached
   count (`GET .../release/asset-proposal/summary`), asked after the page drew; nothing is drawn while unknown, unavailable or failed.

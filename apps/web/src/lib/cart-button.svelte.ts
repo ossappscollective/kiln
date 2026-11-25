@@ -9,12 +9,15 @@ export const cartButton = $state<{
   expanded: boolean;
   pulse: boolean;
   press: (() => void) | null;
+  /** The records of the open app's cart (what its drawer covers), so the button knows whether a running publish is shown in it. */
+  appIds: string[];
 }>({
   visible: false,
   count: 0,
   expanded: false,
   pulse: false,
   press: null,
+  appIds: [],
 });
 
 export function resetCartButton(): void {
@@ -23,4 +26,5 @@ export function resetCartButton(): void {
   cartButton.expanded = false;
   cartButton.pulse = false;
   cartButton.press = null;
+  cartButton.appIds = [];
 }

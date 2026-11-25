@@ -2,7 +2,7 @@ import type { Api } from './api.ts';
 import { announcePublished } from './app-page.ts';
 import { cartSummaryStore } from './cart-summary.svelte.ts';
 import { disabledReason, type PublishingEntry, createPublishingLoader } from './publishing.ts';
-import type { PublishStepType } from './pending.ts';
+import type { LastPublish, PublishStepType } from './pending.ts';
 import { pendingStore } from './pending-store.svelte.ts';
 
 /**
@@ -14,8 +14,8 @@ import { pendingStore } from './pending-store.svelte.ts';
  */
 let version = $state(0);
 let current: Api | null = null;
-/** The last publish that did not go through, per app: the line "Last publish failed: ..." until it is dismissed or a new publish starts. */
-let failures = $state<Record<string, string | undefined>>({});
+/** Runs a person hid in this browser (the server keeps the mark too; this makes it immediate and covers a person who cannot dismiss for everybody). */
+let hidden = $state<Record<string, true | undefined>>({});
 
 const loader = createPublishingLoader({
   read: (workspaceId) => {
@@ -71,21 +71,35 @@ export const publishingStore = {
   /** This browser sent a publish: shown at once, confirmed by the server's claim. */
   started(api: Api, workspaceId: string, appId: string, steps: readonly PublishStepType[]): void {
     current = api;
-    delete failures[appId];
+    loader.noteResult(workspaceId, appId, null);
     loader.mark(workspaceId, appId, steps);
     void loader.refresh(workspaceId);
   },
-  /** The answer of that publish arrived, whatever it was: what it left is read again. */
-  answered(api: Api, workspaceId: string, appId: string, failure: string | null): void {
+  /** The answer of that publish arrived, whatever it was: what it left is read again. `run` is the run the server kept, when it sent one. */
+  answered(api: Api, workspaceId: string, appId: string, run: LastPublish | null): void {
     current = api;
-    if (failure !== null) failures[appId] = failure;
+    loader.noteResult(workspaceId, appId, run);
     loader.settle(workspaceId, appId);
     void loader.refresh(workspaceId);
   },
-  failureOf(appId: string): string | null {
-    return failures[appId] ?? null;
+  /** The latest publish of this app that did not go through and nobody hid; its reason is in `results`. Reactive. */
+  failureOf(workspaceId: string, appId: string): LastPublish | null {
+    void version;
+    const run = loader.failedOf(workspaceId, appId);
+    return run === null || run.dismissed || hidden[run.id] ? null : run;
   },
-  dismissFailure(appId: string): void {
-    delete failures[appId];
+  /** The apps of the workspace with a failure to show (not hidden, not publishing again). Reactive. */
+  failedIds(workspaceId: string): string[] {
+    void version;
+    return loader
+      .failedIds(workspaceId)
+      .filter((id) => publishingStore.failureOf(workspaceId, id) !== null);
+  },
+  /** Hides this failure now and tells the server (so it stays hidden after a reload and in other browsers until a newer run). */
+  dismissFailure(api: Api, workspaceId: string, appId: string): void {
+    const run = loader.failedOf(workspaceId, appId);
+    if (run === null) return;
+    hidden[run.id] = true;
+    void api.dismissPublishRun(workspaceId, appId, run.id).catch(() => undefined);
   },
 };

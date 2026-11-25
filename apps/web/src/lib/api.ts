@@ -2035,6 +2035,13 @@ export function createApi(options: ApiOptions = {}) {
     /** Which apps have a batch publish running now, and where it is (docs/api/pending.md "Publishing now"). One small read; polled while one runs. */
     pendingPublishing: (workspaceId: string) =>
       request<PublishingList>('GET', `${workspace(workspaceId)}/pending/publishing`),
+    /** Hides the failure of one kept publish run until a newer run (docs/api/pending.md "Why a publish failed"). */
+    dismissPublishRun: (workspaceId: string, appId: string, runId: string) =>
+      request<{ dismissed: boolean }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/publish/runs/${encodeURIComponent(runId)}/dismiss`,
+        {},
+      ),
     storePublishConfig: (workspaceId: string) =>
       request<PublishConfig>('GET', `${workspace(workspaceId)}/store-publish/config`),
     previewPublish: (workspaceId: string, appId: string, body: { steps?: StepRequest[] } = {}) =>
