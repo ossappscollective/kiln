@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-// Writes the hand-written part of the GitHub Release notes to stdout (the workflow adds the
-// generated changelog after it). Reads the collected installers and the per-platform
-// build metadata, so the signing notes always match what was actually built.
+// Writes the GitHub Release notes to stdout. Reads the collected installers and the
+// per-platform build metadata, so the signing notes always match what was actually built.
+// With --changelog (the section scripts/release/bump.mjs wrote, also the CHANGELOG.md entry) the
+// notes start with it; without it the workflow lets GitHub generate the changelog after them.
 //
 //   node scripts/release/notes.mjs --version 1.2.3 --tag v1.2.3 --repo owner/name --dist dist \
-//     --meta meta [--prerelease] [--image ghcr.io/owner/name] [--docker-digest sha256:...]
+//     --meta meta [--prerelease] [--image ghcr.io/owner/name] [--docker-digest sha256:...] \
+//     [--changelog release-changelog.md]
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +23,17 @@ const LABELS = {
 
 const size = (bytes) => `${(bytes / 1048576).toFixed(1)} MB`;
 
-export function notes({ version, tag, repo, dist, meta, prerelease, image, dockerDigest }) {
+export function notes({
+  version,
+  tag,
+  repo,
+  dist,
+  meta,
+  prerelease,
+  image,
+  dockerDigest,
+  changelog = '',
+}) {
   const files = existsSync(dist)
     ? readdirSync(dist)
         .filter((n) => n.startsWith('kiln_'))
@@ -36,6 +48,12 @@ export function notes({ version, tag, repo, dist, meta, prerelease, image, docke
 
   if (prerelease)
     out.push(`> Pre-release ${version}. Not tagged \`latest\` on Docker; expect rough edges.\n`);
+
+  if (changelog.trim()) {
+    // The section's own "## [1.2.3] - date" line repeats the release title: drop it.
+    const body = changelog.replace(/^## \[[^\n]*\n+/, '').trim();
+    out.push("## What's changed\n", `${body}\n`);
+  }
 
   out.push('## Downloads\n', '| Platform | File | Size |', '| --- | --- | --- |');
   for (const name of files) {
@@ -111,6 +129,7 @@ function main() {
       prerelease: { type: 'boolean', default: false },
       image: { type: 'string' },
       'docker-digest': { type: 'string' },
+      changelog: { type: 'string' },
     },
   });
   for (const k of ['version', 'tag', 'repo', 'dist', 'meta']) {
@@ -119,7 +138,8 @@ function main() {
       process.exit(1);
     }
   }
-  process.stdout.write(notes({ ...v, dockerDigest: v['docker-digest'] }));
+  const changelog = v.changelog ? readFileSync(v.changelog, 'utf8') : '';
+  process.stdout.write(notes({ ...v, dockerDigest: v['docker-digest'], changelog }));
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) main();

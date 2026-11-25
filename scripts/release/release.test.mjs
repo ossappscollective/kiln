@@ -54,12 +54,8 @@ describe('plan', () => {
     assert.equal(outputs.checkout_ref, 'refs/heads/main');
   });
 
-  test('release mode needs a v tag', () => {
+  test('release mode on a tag takes the version from the tag', () => {
     const base = { EVENT_NAME: 'workflow_dispatch', INPUT_MODE: 'release' };
-    assert.match(
-      plan({ ...base, REF: 'refs/heads/main', REF_TYPE: 'branch' }).errors[0],
-      /needs a vX\.Y\.Z tag/,
-    );
     assert.match(
       plan({ ...base, REF: 'refs/tags/release-1', REF_TYPE: 'tag' }).errors[0],
       /does not start with "v"/,
@@ -68,13 +64,63 @@ describe('plan', () => {
       plan({ ...base, REF: 'refs/tags/v1.2', REF_TYPE: 'tag' }).errors[0],
       /not vX\.Y\.Z/,
     );
-    assert.deepEqual(plan({ ...base, REF: 'refs/tags/v1.2.3-rc.1', REF_TYPE: 'tag' }).errors, []);
+    const rc = plan({ ...base, REF: 'refs/tags/v1.2.3-rc.1', REF_TYPE: 'tag' });
+    assert.deepEqual(rc.errors, []);
+    assert.equal(rc.outputs.bump_release, 'false');
+    assert.equal(plan(tagPush).outputs.bump_release, 'false');
+    assert.equal(plan(tagPush).outputs.branch, '');
   });
 
-  test('a bare tag name in ref is normalised, a branch name is refused in release mode', () => {
+  test('release mode on a branch computes the version and commits it there', () => {
+    const base = { EVENT_NAME: 'workflow_dispatch', INPUT_MODE: 'release' };
+    const { errors, outputs } = plan({ ...base, REF: 'refs/heads/main', REF_TYPE: 'branch' });
+    assert.deepEqual(errors, []);
+    assert.equal(outputs.release, 'true');
+    assert.equal(outputs.bump_release, 'true');
+    assert.equal(outputs.branch, 'main');
+    assert.equal(outputs.checkout_ref, 'refs/heads/main');
+    assert.equal(outputs.bump, 'auto');
+    assert.equal(outputs.prerelease_id, '');
+    const forced = plan({
+      ...base,
+      REF: 'refs/heads/release/1.x',
+      INPUT_BUMP: 'minor',
+      INPUT_PRERELEASE: ' rc ',
+    });
+    assert.deepEqual(forced.errors, []);
+    assert.equal(forced.outputs.branch, 'release/1.x');
+    assert.equal(forced.outputs.bump, 'minor');
+    assert.equal(forced.outputs.prerelease_id, 'rc');
+  });
+
+  test('a bare name in ref: a tag is normalised, a branch computes, a sha is refused', () => {
     const base = { EVENT_NAME: 'workflow_dispatch', INPUT_MODE: 'release', REF: 'refs/heads/main' };
-    assert.equal(plan({ ...base, INPUT_REF: 'v1.2.3' }).outputs.checkout_ref, 'refs/tags/v1.2.3');
-    assert.ok(plan({ ...base, INPUT_REF: 'main' }).errors.length > 0);
+    const tag = plan({ ...base, INPUT_REF: 'v1.2.3' });
+    assert.equal(tag.outputs.checkout_ref, 'refs/tags/v1.2.3');
+    assert.equal(tag.outputs.bump_release, 'false');
+    const branch = plan({ ...base, INPUT_REF: 'develop' });
+    assert.equal(branch.outputs.checkout_ref, 'refs/heads/develop');
+    assert.equal(branch.outputs.bump_release, 'true');
+    assert.match(plan({ ...base, INPUT_REF: '9a41879' }).errors[0], /not the commit/);
+    assert.ok(plan({ ...base, REF: 'refs/pull/3/merge', INPUT_REF: '' }).errors.length > 0);
+  });
+
+  test('bump and prerelease are validated and only apply to a release on a branch', () => {
+    const branch = {
+      EVENT_NAME: 'workflow_dispatch',
+      INPUT_MODE: 'release',
+      REF: 'refs/heads/main',
+    };
+    assert.match(plan({ ...branch, INPUT_BUMP: 'huge' }).errors[0], /bump must be/);
+    assert.match(plan({ ...branch, INPUT_PRERELEASE: '1' }).errors[0], /prerelease/);
+    assert.match(plan({ ...branch, INPUT_PRERELEASE: 'rc.1' }).errors[0], /prerelease/);
+    const tag = { ...branch, REF: 'refs/tags/v1.0.0' };
+    assert.deepEqual(plan({ ...tag, INPUT_BUMP: 'auto', INPUT_PRERELEASE: '' }).errors, []);
+    assert.match(plan({ ...tag, INPUT_BUMP: 'minor' }).errors[0], /only apply to mode release/);
+    const buildOnly = { EVENT_NAME: 'workflow_dispatch', REF: 'refs/heads/main' };
+    assert.match(plan({ ...buildOnly, INPUT_PRERELEASE: 'rc' }).errors[0], /only apply/);
+    assert.deepEqual(plan({ ...buildOnly, INPUT_BUMP: 'auto' }).errors, []);
+    assert.equal(plan({ ...buildOnly }).outputs.bump_release, 'false');
   });
 
   test('the version override is only for build-only and must be valid', () => {
@@ -265,6 +311,26 @@ describe('notes', () => {
     const text = notes({ ...args, dist: dir, meta });
     assert.doesNotMatch(text, /Gatekeeper/);
     assert.doesNotMatch(text, /SmartScreen/);
+  });
+
+  test('a changelog section leads the notes, without its own heading line', () => {
+    const { dir, meta } = dist({ mac: 'notarized', win: 'signed' });
+    const changelog = [
+      '## [1.2.3] - 2026-11-25',
+      '',
+      '[Compare changes](https://github.com/o/k/compare/v1.2.2...v1.2.3)',
+      '',
+      '### Fixes',
+      '',
+      '- api: stop the crash (abc1234)',
+      '',
+    ].join('\n');
+    const text = notes({ ...args, dist: dir, meta, changelog });
+    assert.match(text, /^## What's changed\n\n\[Compare changes\]/);
+    assert.match(text, /### Fixes\n\n- api: stop the crash \(abc1234\)\n\n## Downloads/);
+    assert.doesNotMatch(text, /## \[1\.2\.3\]/);
+    // Without a changelog the notes are as before: they start with Downloads.
+    assert.match(notes({ ...args, dist: dir, meta }), /^## Downloads/);
   });
 
   test('signed but not notarized says so; pre-release is flagged', () => {

@@ -1,8 +1,14 @@
 # Release workflow. How to use it: docs/releasing.md.
 #
-#   push of a tag vX.Y.Z[-pre]   full release: desktop installers for every platform, a multi-arch
-#                                Docker image pushed to GHCR, a DRAFT GitHub Release (publish it
-#                                by hand after review).
+#   Run workflow, mode release   release from a branch, no tag made by hand: the next version and
+#     (on a branch)              the changelog come from the Conventional Commits since the last
+#                                release. Everything is built first; only if every build passed does
+#                                the `tag` job commit "chore(release): X.Y.Z" and push it with the
+#                                tag. Then the Docker image is pushed and a DRAFT GitHub Release is
+#                                made (publish it by hand after review).
+#   push of a tag vX.Y.Z[-pre]   the same release for a tag made by hand (the version is the tag's,
+#     or mode release on a tag   there is no `tag` job): desktop installers for every platform, a
+#                                multi-arch Docker image pushed to GHCR, a DRAFT GitHub Release.
 #   Run workflow (manual)        build-only by default: builds everything and uploads Actions
 #                                artifacts (7 days). No GitHub Release, no Docker push, no tags.
 #
@@ -17,16 +23,25 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "build-only: build and upload Actions artifacts, publish nothing. release: draft GitHub Release + Docker push (needs a v* tag)."
+        description: "build-only: build and upload Actions artifacts, publish nothing. release: on a branch, compute the version, build, then commit, tag, push the image and draft a GitHub Release. On a vX.Y.Z tag: release that tag."
         type: choice
         options: [build-only, release]
         default: build-only
+      bump:
+        description: "Release mode on a branch: auto reads the Conventional Commits since the last release (feat is minor, fix is patch, breaking is major, or minor while 0.x). patch, minor and major force the level."
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+      prerelease:
+        description: "Release mode on a branch: optional pre-release identifier. rc gives 1.3.0-rc.1, then 1.3.0-rc.2. Empty: a stable release."
+        type: string
+        required: false
       ref:
-        description: 'Branch, tag or commit to build. Empty: the ref chosen under "Use workflow from". Release mode needs a vX.Y.Z tag.'
+        description: 'Branch, tag or commit to build. Empty: the ref chosen under "Use workflow from". Release mode needs a branch or a vX.Y.Z tag, not a commit.'
         type: string
         required: false
       version:
-        description: "Build-only test builds: pretend the version is this (for example 1.2.3-rc.1) without committing it. Ignored in release mode."
+        description: "Build-only test builds: pretend the version is this (for example 1.2.3-rc.1) without committing it. Not for release mode."
         type: string
         required: false
       docker:
@@ -66,6 +81,12 @@ jobs:
       docker: ${{ steps.plan.outputs.docker }}
       matrix: ${{ steps.plan.outputs.matrix }}
       version_override: ${{ steps.plan.outputs.version_override }}
+      bump_release: ${{ steps.plan.outputs.bump_release }}
+      branch: ${{ steps.plan.outputs.branch }}
+      # The version every job writes into its own checkout (check-version.mjs --set): the test
+      # version of a build-only run, or the version computed for a release from a branch. Empty
+      # for a tag, which already contains its version.
+      set_version: ${{ steps.plan.outputs.version_override || (steps.plan.outputs.bump_release == 'true' && steps.version.outputs.version) || '' }}
       version: ${{ steps.version.outputs.version }}
       major_minor: ${{ steps.version.outputs.major_minor }}
       prerelease: ${{ steps.version.outputs.prerelease }}
@@ -92,28 +113,58 @@ jobs:
           INPUT_VERSION: ${{ inputs.version }}
           INPUT_DOCKER: ${{ inputs.docker }}
           INPUT_PLATFORMS: ${{ inputs.platforms }}
+          INPUT_BUMP: ${{ inputs.bump }}
+          INPUT_PRERELEASE: ${{ inputs.prerelease }}
         run: node scripts/release/plan.mjs
       - uses: actions/checkout@v4
         with:
           ref: ${{ steps.plan.outputs.checkout_ref }}
+          # The whole history and every tag: a release from a branch computes its version from them.
+          fetch-depth: 0
           persist-credentials: false
       - name: Check the version
         id: version
         env:
           RELEASE: ${{ steps.plan.outputs.release }}
+          BUMP_RELEASE: ${{ steps.plan.outputs.bump_release }}
+          BUMP: ${{ steps.plan.outputs.bump }}
+          PRERELEASE_ID: ${{ steps.plan.outputs.prerelease_id }}
           CHECKOUT_REF: ${{ steps.plan.outputs.checkout_ref }}
           VERSION_OVERRIDE: ${{ steps.plan.outputs.version_override }}
+          REPO: ${{ github.repository }}
+          CHANGELOG: ${{ runner.temp }}/release-changelog.md
         run: |
           set -euo pipefail
           if [ -n "$VERSION_OVERRIDE" ]; then
             node scripts/check-version.mjs --set "$VERSION_OVERRIDE"
           fi
-          if [ "$RELEASE" = true ]; then
+          if [ "$BUMP_RELEASE" = true ]; then
+            # Release from a branch: the next version and the changelog section come from the
+            # commits. Fails with "Nothing to release" when there are none since the last release,
+            # and when the tag it would create exists. Nothing is written to the checkout.
+            args=(next --bump "$BUMP" --repo "$REPO" --notes-out "$CHANGELOG" --github-output)
+            if [ -n "$PRERELEASE_ID" ]; then args+=(--prerelease "$PRERELEASE_ID"); fi
+            node scripts/release/bump.mjs "${args[@]}"
+            {
+              echo "### Release plan"
+              echo "Nothing is committed or tagged unless every build passes."
+              echo
+              cat "$CHANGELOG"
+            } >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$RELEASE" = true ]; then
             # Fails unless the ref is a vX.Y.Z tag and every version file equals it.
             node scripts/check-version.mjs --ref "$CHECKOUT_REF" --github-output
           else
             node scripts/check-version.mjs --github-output
           fi
+      - name: Keep the changelog section for the tag and release jobs
+        if: steps.plan.outputs.bump_release == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-changelog
+          path: ${{ runner.temp }}/release-changelog.md
+          if-no-files-found: error
+          retention-days: 7
       - name: Commit
         id: sha
         run: |
@@ -158,11 +209,11 @@ jobs:
         with:
           ref: ${{ needs.plan.outputs.sha }}
           persist-credentials: false
-      - name: Set the test version
-        if: needs.plan.outputs.version_override != ''
+      - name: Set the version
+        if: needs.plan.outputs.set_version != ''
         env:
-          VERSION_OVERRIDE: ${{ needs.plan.outputs.version_override }}
-        run: node scripts/check-version.mjs --set "$VERSION_OVERRIDE"
+          SET_VERSION: ${{ needs.plan.outputs.set_version }}
+        run: node scripts/check-version.mjs --set "$SET_VERSION"
       - uses: pnpm/action-setup@v4 # version comes from "packageManager" in package.json
       - uses: actions/setup-node@v4
         with:
@@ -337,11 +388,11 @@ jobs:
         with:
           ref: ${{ needs.plan.outputs.sha }}
           persist-credentials: false
-      - name: Set the test version
-        if: needs.plan.outputs.version_override != ''
+      - name: Set the version
+        if: needs.plan.outputs.set_version != ''
         env:
-          VERSION_OVERRIDE: ${{ needs.plan.outputs.version_override }}
-        run: node scripts/check-version.mjs --set "$VERSION_OVERRIDE"
+          SET_VERSION: ${{ needs.plan.outputs.set_version }}
+        run: node scripts/check-version.mjs --set "$SET_VERSION"
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:
@@ -369,11 +420,11 @@ jobs:
         with:
           ref: ${{ needs.plan.outputs.sha }}
           persist-credentials: false
-      - name: Set the test version
-        if: needs.plan.outputs.version_override != ''
+      - name: Set the version
+        if: needs.plan.outputs.set_version != ''
         env:
-          VERSION_OVERRIDE: ${{ needs.plan.outputs.version_override }}
-        run: node scripts/check-version.mjs --set "$VERSION_OVERRIDE"
+          SET_VERSION: ${{ needs.plan.outputs.set_version }}
+        run: node scripts/check-version.mjs --set "$SET_VERSION"
       - uses: ./.github/actions/docker-build
         with:
           release: "false"
@@ -391,15 +442,109 @@ jobs:
           retention-days: 7
           compression-level: 0
 
-  # Release mode: push to GHCR. Waits for every installer, so a failed desktop build never
-  # leaves a moved `latest` tag behind.
+  # ---------------------------------------------------------------------------------------------
+  # Release from a branch only (a tag that already exists skips this job). Commits the version bump
+  # and the changelog as "chore(release): X.Y.Z" on top of the commit that was built, pushes it to
+  # the branch, then creates the tag on it. It needs every build and smoke test, so a failed build
+  # leaves no commit and no tag behind.
+  #
+  # Why this does not start a second run: events caused by the workflow's GITHUB_TOKEN do not create
+  # new workflow runs (GitHub docs, "Triggering a workflow": only workflow_dispatch and
+  # repository_dispatch are exempt). The tag is therefore created with github.token and does not
+  # trigger this workflow's `push: tags` job again, and the release commit does not start CI. The
+  # commit push uses RELEASE_PUSH_TOKEN when that secret exists (a branch that does not allow the
+  # Actions token, see docs/releasing.md); a push by that token does start CI on the release commit,
+  # which is wanted, and the tag is still made with github.token so it cannot start a second release.
+  #
+  # If the branch moved since the run started, the push is refused (not a fast-forward) and nothing
+  # is tagged: start the release again. Tagging is a separate API call after the push, so a failure
+  # between the two leaves the pushed commit without its tag; the error says how to finish by hand.
+  tag:
+    name: Commit and tag the release
+    needs: [plan, desktop, docker-smoke]
+    if: >-
+      ${{ !cancelled() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+      && needs.plan.outputs.bump_release == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # push the release commit, create the tag
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+      short_sha: ${{ steps.commit.outputs.short_sha }}
+    steps:
+      # A real clone of the commit that was built: full history for the push, and the credentials
+      # stay in the git config because this job pushes.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PUSH_TOKEN || github.token }}
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-changelog
+          path: ${{ runner.temp }}/changelog
+      - name: Apply the version and the changelog
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          SECTION: ${{ runner.temp }}/changelog/release-changelog.md
+        run: |
+          set -euo pipefail
+          node scripts/check-version.mjs --set "$VERSION"
+          node scripts/release/bump.mjs prepend --version "$VERSION" --section "$SECTION"
+          node scripts/check-version.mjs --tag "$TAG"
+      - name: Commit, push to the branch, tag
+        id: commit
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          BRANCH: ${{ needs.plan.outputs.branch }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" > /dev/null 2>&1; then
+            echo "::error::The tag ${TAG} already exists. Nothing was pushed."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u
+          git add CHANGELOG.md
+          git commit -m "chore(release): ${VERSION}"
+          git show --stat --format='%H %s' HEAD
+          sha="$(git rev-parse HEAD)"
+          if ! git push origin "HEAD:refs/heads/${BRANCH}"; then
+            echo "::error::Could not push the release commit to ${BRANCH}. Either ${BRANCH} moved after this run started (start the release again), or the branch is protected against this token (see docs/releasing.md, Protected branches). Nothing was tagged."
+            exit 1
+          fi
+          if ! gh api -X POST "repos/${GH_REPO}/git/refs" -f ref="refs/tags/${TAG}" -f sha="$sha" > /dev/null; then
+            echo "::error::The release commit ${sha} is on ${BRANCH} but the tag ${TAG} could not be created. Finish by hand: git tag ${TAG} ${sha} && git push origin ${TAG} (that push starts the tag-push release run)."
+            exit 1
+          fi
+          {
+            echo "sha=${sha}"
+            echo "short_sha=${sha:0:7}"
+          } >> "$GITHUB_OUTPUT"
+          echo "### Tagged ${TAG}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit ${sha} on ${BRANCH}." >> "$GITHUB_STEP_SUMMARY"
+
+  # Release mode: push to GHCR. Waits for every installer and, for a release from a branch, for the
+  # tag, so a failed build never leaves a moved `latest` tag behind. Built from the release commit
+  # (it already contains the version), or from the tag's commit for a tag release.
   docker-publish:
     name: Docker image (push to GHCR)
-    needs: [plan, docker-smoke, desktop]
+    needs: [plan, docker-smoke, desktop, tag]
     if: >-
       ${{ !cancelled() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
       && needs.plan.outputs.release == 'true' && needs.plan.outputs.docker == 'true'
-      && needs.docker-smoke.result == 'success' }}
+      && needs.docker-smoke.result == 'success'
+      && (needs.plan.outputs.bump_release != 'true' || needs.tag.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -412,7 +557,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.plan.outputs.sha }}
+          ref: ${{ needs.tag.outputs.sha || needs.plan.outputs.sha }}
           persist-credentials: false
       - uses: ./.github/actions/docker-build
         id: build
@@ -421,8 +566,8 @@ jobs:
           version: ${{ needs.plan.outputs.version }}
           major-minor: ${{ needs.plan.outputs.major_minor }}
           prerelease: ${{ needs.plan.outputs.prerelease }}
-          sha: ${{ needs.plan.outputs.sha }}
-          short-sha: ${{ needs.plan.outputs.short_sha }}
+          sha: ${{ needs.tag.outputs.sha || needs.plan.outputs.sha }}
+          short-sha: ${{ needs.tag.outputs.short_sha || needs.plan.outputs.short_sha }}
           image: ${{ env.IMAGE }}
           token: ${{ github.token }}
       - uses: actions/attest-build-provenance@v2
@@ -434,10 +579,11 @@ jobs:
   # ---------------------------------------------------------------------------------------------
   release:
     name: Draft GitHub Release
-    needs: [plan, desktop, docker-smoke, docker-publish]
+    needs: [plan, desktop, docker-smoke, tag, docker-publish]
     if: >-
       ${{ !cancelled() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
-      && needs.plan.outputs.release == 'true' }}
+      && needs.plan.outputs.release == 'true'
+      && (needs.plan.outputs.bump_release != 'true' || needs.tag.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -447,12 +593,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.plan.outputs.sha }}
+          ref: ${{ needs.tag.outputs.sha || needs.plan.outputs.sha }}
           persist-credentials: false
           sparse-checkout: scripts
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+      - uses: actions/download-artifact@v4
+        if: needs.plan.outputs.bump_release == 'true'
+        with:
+          name: release-changelog
+          path: changelog
       - uses: actions/download-artifact@v4
         if: needs.plan.outputs.desktop == 'true'
         with:
@@ -484,12 +635,16 @@ jobs:
           VERSION: ${{ needs.plan.outputs.version }}
           TAG: ${{ needs.plan.outputs.tag }}
           PRERELEASE: ${{ needs.plan.outputs.prerelease }}
+          BUMP_RELEASE: ${{ needs.plan.outputs.bump_release }}
           REPO: ${{ github.repository }}
           DIGEST: ${{ needs.docker-publish.outputs.digest }}
         run: |
           set -euo pipefail
           args=(--version "$VERSION" --tag "$TAG" --repo "$REPO" --dist dist --meta meta)
           if [ "$PRERELEASE" = true ]; then args+=(--prerelease); fi
+          # A release from a branch has its own changelog (the CHANGELOG.md entry); a tag release
+          # gets GitHub's generated one, see "Create the draft release".
+          if [ "$BUMP_RELEASE" = true ]; then args+=(--changelog changelog/release-changelog.md); fi
           if [ -n "$DIGEST" ]; then args+=(--image "$IMAGE" --docker-digest "$DIGEST"); fi
           node scripts/release/notes.mjs "${args[@]}" > notes.md
       - name: Create the draft release
@@ -499,6 +654,7 @@ jobs:
           TAG: ${{ needs.plan.outputs.tag }}
           VERSION: ${{ needs.plan.outputs.version }}
           PRERELEASE: ${{ needs.plan.outputs.prerelease }}
+          BUMP_RELEASE: ${{ needs.plan.outputs.bump_release }}
         run: |
           set -euo pipefail
           # A re-run replaces its own earlier draft; a published release is never touched.
@@ -511,7 +667,10 @@ jobs:
             fi
             gh api -X DELETE "repos/${GH_REPO}/releases/${id}"
           done <<< "$existing"
-          args=(--draft --verify-tag --title "Kiln ${VERSION}" --notes-file notes.md --generate-notes)
+          # --verify-tag: the tag must exist already (pushed by the tag-push trigger, or made by the
+          # `tag` job); the release never creates a tag of its own.
+          args=(--draft --verify-tag --title "Kiln ${VERSION}" --notes-file notes.md)
+          if [ "$BUMP_RELEASE" != true ]; then args+=(--generate-notes); fi
           if [ "$PRERELEASE" = true ]; then args+=(--prerelease); fi
           gh release create "$TAG" "${args[@]}" dist/*
           echo "### Draft release ${TAG}" >> "$GITHUB_STEP_SUMMARY"
@@ -520,7 +679,7 @@ jobs:
   # ---------------------------------------------------------------------------------------------
   summary:
     name: Summary
-    needs: [plan, desktop, docker-smoke, docker-oci, docker-publish, release]
+    needs: [plan, desktop, docker-smoke, docker-oci, tag, docker-publish, release]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 10

@@ -7,6 +7,9 @@
 //   node scripts/check-version.mjs --set 1.2.3           write 1.2.3 into every version file
 //   --github-output   append version, major_minor, prerelease, tag to $GITHUB_OUTPUT
 //
+// --set is what the Release workflow runs in every job for a computed or test version, and what
+// scripts/release/bump.mjs --write uses (setVersion).
+//
 // No dependencies, no network. Exit 1 with one message per problem.
 import { appendFileSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';

@@ -5,7 +5,12 @@
 //
 //   EVENT_NAME     github.event_name (push | workflow_dispatch)
 //   REF, REF_TYPE  github.ref, github.ref_type
-//   INPUT_MODE, INPUT_REF, INPUT_VERSION, INPUT_DOCKER, INPUT_PLATFORMS   workflow_dispatch inputs
+//   INPUT_MODE, INPUT_REF, INPUT_VERSION, INPUT_DOCKER, INPUT_PLATFORMS, INPUT_BUMP,
+//   INPUT_PRERELEASE                                                      workflow_dispatch inputs
+//
+// Release mode has two shapes. On a vX.Y.Z tag (a tag push, or a manual run on an existing tag) the
+// version comes from the tag. On a branch (manual runs only) the version is computed from the
+// commits by scripts/release/bump.mjs and the workflow commits, tags and pushes it: bump_release.
 import { appendFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseVersion, versionFromRef } from '../check-version.mjs';
@@ -64,6 +69,7 @@ export const PLATFORMS = {
 };
 
 const SAFE_REF = /^[A-Za-z0-9._/-]+$/;
+const BUMPS = ['auto', 'patch', 'minor', 'major'];
 
 export function plan(env) {
   const errors = [];
@@ -80,18 +86,44 @@ export function plan(env) {
   if (!SAFE_REF.test(checkoutRef) || checkoutRef.includes('..')) {
     errors.push('ref contains characters that are not allowed in a branch, tag or commit name.');
   }
+  let bumpRelease = false;
+  let branch = '';
   if (release) {
-    // A bare "v1.2.3" typed in the ref box is a tag; anything else must already be refs/tags/.
-    if (!checkoutRef.startsWith('refs/') && /^v\d/.test(checkoutRef))
-      checkoutRef = `refs/tags/${checkoutRef}`;
-    const parsed = versionFromRef(checkoutRef);
-    if (!checkoutRef.startsWith('refs/tags/') || parsed.error) {
+    if (!checkoutRef.startsWith('refs/')) {
+      if (/^v\d/.test(checkoutRef)) {
+        // A bare "v1.2.3" typed in the ref box is a tag.
+        checkoutRef = `refs/tags/${checkoutRef}`;
+      } else if (/^[0-9a-f]{7,40}$/.test(checkoutRef)) {
+        errors.push(
+          `Release mode needs a branch (it commits the new version there) or a vX.Y.Z tag, not the commit ${checkoutRef}.`,
+        );
+      } else {
+        checkoutRef = `refs/heads/${checkoutRef}`;
+      }
+    }
+    if (checkoutRef.startsWith('refs/heads/')) {
+      bumpRelease = true;
+      branch = checkoutRef.slice('refs/heads/'.length);
+    } else if (checkoutRef.startsWith('refs/tags/')) {
+      const parsed = versionFromRef(checkoutRef);
+      if (parsed.error) errors.push(parsed.error);
+    } else if (errors.length === 0) {
       errors.push(
-        parsed.error && checkoutRef.startsWith('refs/tags/')
-          ? parsed.error
-          : `Release mode needs a vX.Y.Z tag. Pick the tag under "Use workflow from", or put it in "ref" (got ${checkoutRef || 'nothing'}).`,
+        `Release mode needs a branch or a vX.Y.Z tag. Pick one under "Use workflow from", or put it in "ref" (got ${checkoutRef || 'nothing'}).`,
       );
     }
+  }
+
+  const bump = dispatch ? env.INPUT_BUMP || 'auto' : 'auto';
+  const prerelease = dispatch ? (env.INPUT_PRERELEASE ?? '').trim() : '';
+  if (!BUMPS.includes(bump)) errors.push(`bump must be ${BUMPS.join(', ')}, got "${bump}".`);
+  if (prerelease && !/^[A-Za-z][0-9A-Za-z-]*$/.test(prerelease)) {
+    errors.push(`prerelease "${prerelease}" must be letters, digits and "-" (for example rc).`);
+  }
+  if (!bumpRelease && (bump !== 'auto' || prerelease)) {
+    errors.push(
+      'bump and prerelease only apply to mode release on a branch. A tag release takes its version from the tag; build-only runs use "version".',
+    );
   }
 
   const versionOverride = dispatch ? (env.INPUT_VERSION ?? '').trim() : '';
@@ -133,6 +165,10 @@ export function plan(env) {
       release: String(release),
       checkout_ref: checkoutRef,
       version_override: versionOverride,
+      bump_release: String(bumpRelease),
+      branch,
+      bump,
+      prerelease_id: bumpRelease ? prerelease : '',
       docker: String(docker),
       desktop: String(keys.length > 0),
       desktop_count: String(keys.length),

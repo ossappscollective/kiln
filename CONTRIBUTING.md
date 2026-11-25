@@ -10,6 +10,25 @@ The project is at Phase 0. Read [docs/phase-0.md](docs/phase-0.md) and
 - Contributions are licensed under Apache-2.0.
 - Maintainers: how to cut a release is in [docs/releasing.md](docs/releasing.md).
 
+## Commit messages
+
+Releases are cut from the commit history, so write messages as
+[Conventional Commits](https://www.conventionalcommits.org/): `type(scope): subject`, for example
+`fix(vault): reject an empty master key`. The release workflow reads them to choose the next version
+and to write the changelog.
+
+| Type                                                    | Effect on the next release                             |
+| ------------------------------------------------------- | ------------------------------------------------------ |
+| `feat`                                                  | minor version                                          |
+| `fix`, `perf`, `revert`                                 | patch version                                          |
+| `docs`, `style`, `refactor`, `test`, `build`, `ci`, `chore` | patch, but only when nothing above is in the release |
+| `type!:` or a `BREAKING CHANGE:` footer                 | major version (minor while the version is 0.x)         |
+
+The scope is optional (a package or area such as `api`, `ui`, `db`) and shows in the changelog. With
+squash merges, the pull request title is the commit message, so give it that shape. Details and the
+manual fallback: [docs/releasing.md](docs/releasing.md). A CI check that enforces the format (for
+example commitlint on pull request titles) is optional and not set up.
+
 ## Testing against Postgres
 
 Tests for the database and the server run on SQLite (in memory) always, and on Postgres too when
