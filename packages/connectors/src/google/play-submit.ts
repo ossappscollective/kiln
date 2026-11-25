@@ -1,4 +1,5 @@
 import { type AssetKind, PLAY_DEVICES, PLAY_LISTING_MEMBERS } from '@kiln/core';
+import { mapLimit } from '../concurrency.ts';
 import { StoreError, StoreRateLimitError } from '../errors.ts';
 import type {
   DraftAssetState,
@@ -67,6 +68,8 @@ export type PlaySubmitConnectorOptions = Omit<StoreHttpOptions, 'store'> & {
 };
 
 const DEFAULT_BASE = 'https://androidpublisher.googleapis.com';
+/** Image reads of one throw away edit that run at the same time (Google's quota is per minute, so a few, not all). */
+const READ_CONCURRENCY = 4;
 /** The image types read for the checks (screenshots of phones and tablets, icon, feature graphic); more when the push touched them. */
 const CHECKED_IMAGE_TYPES = [
   'phoneScreenshots',
@@ -177,14 +180,20 @@ export class PlaySubmitConnector implements StoreSubmitConnector {
     ];
     const images = new Map<string, Json[]>();
     const locales: SubmitLocale[] = [];
+    // One read per language and image type. They used to run one after the other (languages x types requests in a row, several times
+    // per publish), which is what made a Play submit slow for an app with many languages: a few at a time now, results in order.
+    const slots = [...listings.keys()].flatMap((language) => types.map((type) => ({ language, type })));
+    const lists = await mapLimit(slots, READ_CONCURRENCY, ({ language, type }) =>
+      this.#images(http, editId, language, type),
+    );
+    slots.forEach(({ language, type }, at) => images.set(`${language}\u0000${type}`, lists[at] ?? []));
     for (const [language, listing] of listings) {
       const textOf: Record<string, string | null> = {};
       for (const [field, member] of Object.entries(PLAY_LISTING_MEMBERS))
         textOf[field] = text(listing[member]) ?? null;
       const assets: SubmitAssetSet[] = [];
       for (const type of types) {
-        const list = await this.#images(http, editId, language, type);
-        images.set(`${language}\u0000${type}`, list);
+        const list = images.get(`${language}\u0000${type}`) ?? [];
         const kind = kindOf(type);
         if (!kind) continue;
         assets.push({

@@ -179,3 +179,46 @@ test('submitKey follows the tracks and the listing: a rollout that moved changes
     'a locale nobody pushed changes it too',
   );
 });
+
+test('readSubmitState reads the image sets a few at a time, not one after the other, and keeps their order', async () => {
+  const languages = ['en-US', 'de-DE', 'fr-FR', 'es-ES', 'it-IT', 'ja-JP'];
+  const { api } = setup((a) => {
+    for (const language of languages)
+      a.listings.set(language, { language, title: language, shortDescription: 's', fullDescription: 'f' });
+    a.setImages('fr-FR', 'phoneScreenshots', [new Uint8Array([9, 9])]);
+  });
+  let running = 0;
+  let most = 0;
+  const imageRead = /\/listings\/[^/]+\/[^/]+$/;
+  const inner = api.fetch;
+  const slow = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input instanceof Request ? input.url : input);
+    if (!imageRead.test(url.split('?')[0] ?? '') || init?.method !== undefined && init.method !== 'GET')
+      return inner(input, init);
+    running += 1;
+    most = Math.max(most, running);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    try {
+      return await inner(input, init);
+    } finally {
+      running -= 1;
+    }
+  }) as typeof fetch;
+  const connectorSlow = new PlaySubmitConnector({
+    serviceAccount: fx.serviceAccountJson(key.privateKey),
+    packageName: PKG,
+    fetch: slow,
+    now: () => T0,
+    sleep: async () => undefined,
+  });
+  const state = await connectorSlow.readSubmitState(REQUEST);
+  assert.ok(most > 1, `image reads ran one at a time (most at once: ${most})`);
+  assert.ok(most <= 4, `more than 4 image reads at once (${most})`);
+  assert.deepEqual(
+    state.locales.map((l) => l.locale),
+    [...api.listings.keys()],
+  );
+  const fr = state.locales.find((l) => l.locale === 'fr-FR');
+  assert.equal(fr?.assets.find((a) => a.target === 'phoneScreenshots')?.images.length, 1);
+  assert.equal(state.locales.find((l) => l.locale === 'de-DE')?.assets.find((a) => a.target === 'phoneScreenshots')?.images.length, 0);
+});
