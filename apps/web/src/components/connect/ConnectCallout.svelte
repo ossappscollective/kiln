@@ -1,14 +1,14 @@
 <!--
   ConnectCallout: what the Products page (RevenueCat) and the Builds page (Expo) say while the app is not linked: which key was found in
   Credentials, what is missing (the link of this app) and why that leaves the page empty, with one button that opens "Connect your apps"
-  for this app. Without a key it points to Credentials; for a person who may not change links it says whom to ask. Hidden once linked.
+  for this app. Without a key it points to Credentials; for a person who may not change links it says whom to ask. Hidden once linked, and (Expo) while the repository does not look like an Expo project.
   Props: api, workspaceId, role, app, kind, linked (the page knows: true hides it), compact (one line for a page that has data).
 -->
 <script lang="ts">
   import { can, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
-  import { type ConnectKind, credentialsFor, eligible, missingLinkText } from '../../lib/connect/connect.ts';
+  import { type ConnectKind, credentialsFor, eligible, looksLikeExpo, missingLinkText } from '../../lib/connect/connect.ts';
   import { connectStore } from '../../lib/connect/connect-store.svelte.ts';
   import { t } from '../../lib/i18n/t.ts';
   import type { AppSummary, CredentialSummary } from '../../lib/types.ts';
@@ -28,6 +28,8 @@
   const mayWrite = $derived(can(role, 'apps.write'));
   let credentials = $state<CredentialSummary[] | null>(null);
   let isLinked = $state<boolean | null>(null);
+  // Expo only: does the repository look like an Expo project? Unknown (null) hides the notice.
+  let expoProject = $state<boolean | null>(null);
   let dialogOpen = $state(false);
 
   $effect(() => {
@@ -50,6 +52,15 @@
           if (current) isLinked = (kind === 'revenuecat' ? r.revenuecat : r.expo).indexOf(app.id) >= 0;
         })
         .catch(() => {});
+      if (kind === 'expo' && !linked) {
+        expoProject = null;
+        void api
+          .detectExpoProject(workspaceId, app.id)
+          .then((r) => {
+            if (current) expoProject = looksLikeExpo(r.detection);
+          })
+          .catch(() => {});
+      }
     });
     return () => {
       current = false;
@@ -57,7 +68,9 @@
   });
 
   const keys = $derived(credentials === null ? null : credentialsFor(kind, credentials));
-  const show = $derived(!linked && isLinked === false && eligible(kind, app));
+  const show = $derived(
+    !linked && isLinked === false && eligible(kind, app) && (kind !== 'expo' || expoProject === true),
+  );
   const hasKey = $derived(keys !== null && keys.length > 0);
 </script>
 

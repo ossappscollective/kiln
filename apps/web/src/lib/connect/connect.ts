@@ -60,6 +60,19 @@ export function eligible(kind: ConnectKind, app: Pick<AppSummary, 'platform'>): 
   return app.platform === 'ios' || app.platform === 'android';
 }
 
+/**
+ * Whether what the repository says makes this an Expo app: an app.json with an `expo` section (found, or found without a project id)
+ * or a dynamic config (app.config.js/ts). No repository, no app.json or a failed read say nothing, so the Expo notice stays hidden
+ * for a native or Flutter app instead of nagging it.
+ */
+export function looksLikeExpo(
+  detection: { detected: unknown; reason: string | null } | null,
+): boolean {
+  if (detection === null) return false;
+  if (detection.detected !== null) return true;
+  return detection.reason === 'dynamic_config' || detection.reason === 'no_project_id';
+}
+
 /** The credentials of the workspace of this integration's kind, in the order given. */
 export const credentialsFor = (
   kind: ConnectKind,
