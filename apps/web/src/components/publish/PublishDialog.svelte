@@ -439,7 +439,7 @@ import { supports } from '@kiln/core';
       <Alert tone="error" title={t('publish:dialog.noPlan')}>{problem}</Alert>
     {:else if plan}
       {@const head = planHeadline(plan, store)}
-      <PublishSummaryBlock summary={whatSummary} busy={phase === 'previewing'} />
+      <PublishSummaryBlock summary={whatSummary} busy={phase === 'previewing'} {api} {workspaceId} {app} />
       {#if plan.included > 1 && head.sequence}<p class="muted headline" data-testid="plan-headline">{t('publish:dialog.sequence', { sequence: head.sequence })}</p>{:else if plan.included === 0}<p class="muted headline" data-testid="plan-headline">{t('publish:dialog.headlineTitle', { title: head.title })}</p>{/if}
       {#if notice}<p class="notice muted small" role="status"><Icon name="info" size={14} /> {notice}</p>{/if}
 
