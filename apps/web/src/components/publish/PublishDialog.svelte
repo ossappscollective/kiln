@@ -35,7 +35,6 @@
     canPublish,
     classifyPublishFailure,
     draftOnlySteps,
-    errorsOf,
     includedTypes,
     isDirectPlan,
     needsReview,
@@ -55,6 +54,7 @@
   } from '../../lib/pending.ts';
   import { announcePublished } from '../../lib/app-page.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
+  import { publishSummary, shownErrors } from '../../lib/publish-summary.ts';
   import { foldWarnings, planHeadline, publishDisabledReason, publishTitle, shownStatusWord, stepGist } from '../../lib/readability.ts';
   import { EVERYONE, releaseInputsFor } from '../../lib/release-settings.ts';
   import { releaseSettingsStore } from '../../lib/release-settings-store.svelte.ts';
@@ -70,6 +70,7 @@
   import SegmentTabs from '../ui/SegmentTabs.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import T from '../ui/T.svelte';
+  import PublishSummaryBlock from './PublishSummary.svelte';
   import PushPreviewBody from './PushPreviewBody.svelte';
   import ReleasePreviewBody from './ReleasePreviewBody.svelte';
   import RolloutPreviewBody from './RolloutPreviewBody.svelte';
@@ -113,6 +114,8 @@ import { supports } from '@kiln/core';
   let track = $state('production');
   let share = $state('');
   let shareError = $state('');
+  /** The person typed in the Track or Share fields (or pressed the button): only then is the prompt for them shown as a problem. */
+  let inputTouched = $state(false);
   /** Google Play: the plan releases the staged fields in one step (the server made it so, or the person added it so). */
   let direct = $state(false);
   let changed = false;
@@ -125,6 +128,13 @@ import { supports } from '@kiln/core';
   // Google Play offers a staged rollout for updates only: no share is asked for the first release in production, or when the app setting says never.
   const inputs = $derived(releaseInputsFor({ view: app ? releaseSettingsStore.get(app.id) : null, track, stagedPercent: '' }));
   const offered = $derived(inputs.offer.offered);
+  // The Track and Share fields while the release step is not added yet: the summary shows them live (never sent from here).
+  const liveRelease = $derived(
+    rows.some((r) => r.needsInput) ? { track, fraction: offered ? parsePercent(share) : EVERYONE } : null,
+  );
+  const whatSummary = $derived(
+    plan ? publishSummary({ plan, wanted, identifier: app?.identifier ?? '', typed: liveRelease }) : null,
+  );
   const stepOf = (type: PublishStepType): PlanStep | undefined => plan?.steps.filter((s) => s.type === type)[0];
   const ready = $derived(phase === 'ready' && !stale && canPublish(plan, wanted, typed, ack));
   const store = $derived(app ? storeName(app.platform) : t('publish:dialog.theStore'));
@@ -156,6 +166,7 @@ import { supports } from '@kiln/core';
     typed = '';
     ack = false;
     shareError = '';
+    inputTouched = false;
   }
 
   function failWith(failure: PublishFailure) {
@@ -232,6 +243,7 @@ import { supports } from '@kiln/core';
 
   function addRelease() {
     if (!plan || busy) return;
+    inputTouched = true;
     const fraction = offered ? parsePercent(share) : EVERYONE;
     if (track.trim() === '') {
       shareError = t('publish:dialog.error.nameTrack');
@@ -384,11 +396,13 @@ import { supports } from '@kiln/core';
         {/if}
       </section>
     {:else if phase === 'previewing' && !plan}
+      <PublishSummaryBlock summary={null} />
       {@render pending()}
     {:else if phase === 'error' && !plan}
       <Alert tone="error" title={t('publish:dialog.noPlan')}>{problem}</Alert>
     {:else if plan}
       {@const head = planHeadline(plan, store)}
+      <PublishSummaryBlock summary={whatSummary} busy={phase === 'previewing'} />
       {#if plan.included > 1 && head.sequence}<p class="muted headline" data-testid="plan-headline">{t('publish:dialog.sequence', { sequence: head.sequence })}</p>{:else if plan.included === 0}<p class="muted headline" data-testid="plan-headline">{t('publish:dialog.headlineTitle', { title: head.title })}</p>{/if}
       {#if notice}<p class="notice muted small" role="status"><Icon name="info" size={14} /> {notice}</p>{/if}
 
@@ -424,12 +438,12 @@ import { supports } from '@kiln/core';
                 <div class="inputs">
                   <div class="field">
                     <label for="{uid}-track">{t('publish:dialog.track')}</label>
-                    <input id="{uid}-track" type="text" autocomplete="off" spellcheck="false" bind:value={track} disabled={busy || stale} />
+                    <input id="{uid}-track" type="text" autocomplete="off" spellcheck="false" bind:value={track} oninput={() => (inputTouched = true)} disabled={busy || stale} />
                   </div>
                   {#if offered}
                     <div class="field">
                       <label for="{uid}-share">{t('publish:dialog.share')}</label>
-                      <input id="{uid}-share" type="text" inputmode="decimal" autocomplete="off" placeholder="10" bind:value={share} disabled={busy || stale} aria-invalid={shareError !== '' ? 'true' : undefined} />
+                      <input id="{uid}-share" type="text" inputmode="decimal" autocomplete="off" placeholder="10" bind:value={share} oninput={() => (inputTouched = true)} disabled={busy || stale} aria-invalid={shareError !== '' ? 'true' : undefined} />
                     </div>
                   {:else}
                     <p class="small muted" data-testid="no-staged-rollout">{inputs.offer.message}</p>
@@ -439,7 +453,7 @@ import { supports } from '@kiln/core';
                 </div>
               {/if}
 
-              {#each errorsOf(step) as p (p.code + p.message + (p.item ?? ''))}<p class="problem bad">{p.message}</p>{/each}
+              {#each shownErrors(step, inputTouched) as p (p.code + p.message + (p.item ?? ''))}<p class="problem bad">{p.message}</p>{/each}
               {#each stepWarnings.inline as w (w)}<p class="problem warn">{w}</p>{/each}
               {#if stepWarnings.folded.length > 0}
                 <Disclosure summary={stepWarnings.label}>
