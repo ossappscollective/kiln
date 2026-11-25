@@ -3,10 +3,12 @@
 //
 // For one target triple this puts into src-tauri/binaries (git-ignored):
 //   kiln-node-<triple>[.exe]   the Node binary. Tauri `externalBin` entry "binaries/kiln-node".
-//   server/                   the server as TypeScript sources plus its runtime dependencies,
-//                             the launcher, and the web UI. Tauri `resources` entry.
+//   server/                   launcher.mjs (the whole server, bundled and minified by esbuild: no
+//                             node_modules, no loose sources), locales/, licenses/ and web/ (the built
+//                             UI). Tauri `resources` entry.
 //
-// No network and no compilation: it only copies files that are already on this machine.
+// No network: the Node binary and the web UI are copied, the server is bundled by
+// scripts/bundle-server.mjs (needs the esbuild devDependency of @kiln/desktop).
 //
 //   node scripts/prepare-sidecar.mjs --check        show what would happen, write nothing
 //   node scripts/prepare-sidecar.mjs                stage for the host target
@@ -26,7 +28,6 @@ import {
   realpathSync,
   rmSync,
   statSync,
-  writeFileSync,
 } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import { createServer } from 'node:net';
@@ -34,19 +35,13 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+import { buildServer, writeServer } from './bundle-server.mjs';
 
 const desktopDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = resolve(desktopDir, '../..');
 
-// Same floor as the root package.json "engines": type stripping without a flag or warning.
+// Same floor as the root package.json "engines". The bundle itself needs only node:sqlite (Node 22.13+).
 const MIN_NODE = [22, 18, 0];
-
-// Dependencies the SQLite-only desktop server never loads. Skipping them keeps the bundle small.
-// The smoke test only proves the startup path, so keep this list short and justified.
-const SKIPPED_DEPENDENCIES = new Map([
-  ['pg', 'Postgres driver, imported only when DATABASE_URL points at Postgres (ADR 0002)'],
-  ['drizzle-orm', 'only the schema files import it, and the server never loads them'],
-]);
 
 // Tauri target triple -> what `process.platform` and `process.arch` report for its Node binary,
 // and the name of the matching archive at https://nodejs.org/dist/.
@@ -210,101 +205,34 @@ const outDir = resolve(options.out ?? join(desktopDir, 'src-tauri/binaries'));
 const nodeDest = join(outDir, `kiln-node-${triple}${exe}`);
 const serverDest = join(outDir, 'server');
 
-const readJson = (file) => JSON.parse(readFileSync(file, 'utf8'));
-
-/** Test files and helpers are not needed at run time. */
-const isTestFile = (name) =>
-  name.endsWith('.test.ts') || ['testkit.ts', 'testing.ts', 'repo-test-helpers.ts'].includes(name);
-
 /** Every regular file below `dir` (symlinks followed, sorted) as { from, to } copy jobs. */
-function collect(dir, destDir, skip = () => false, seen = new Set()) {
+function collect(dir, destDir, seen = new Set()) {
   const real = realpathSync(dir);
   if (seen.has(real)) return [];
   seen.add(real);
   const jobs = [];
   const entries = readdirSync(dir, { withFileTypes: true });
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-    if (skip(entry.name)) continue;
     const from = join(dir, entry.name);
     const kind = entry.isSymbolicLink() ? statSync(from) : entry;
-    if (kind.isDirectory()) jobs.push(...collect(from, join(destDir, entry.name), skip, seen));
+    if (kind.isDirectory()) jobs.push(...collect(from, join(destDir, entry.name), seen));
     else if (kind.isFile()) jobs.push({ from, to: join(destDir, entry.name) });
   }
   return jobs;
 }
 
-const workspacePackages = new Map(); // '@kiln/db' -> directory
-for (const name of readdirSync(join(repoRoot, 'packages'))) {
-  const file = join(repoRoot, 'packages', name, 'package.json');
-  if (!existsSync(file)) continue;
-  workspacePackages.set(readJson(file).name, join(repoRoot, 'packages', name));
+const jobs = []; // files copied as they are: { from, to } (absolute)
+let bundle; // what bundle-server.mjs made: launcher.mjs, locales/, licenses/
+
+try {
+  bundle = await buildServer({ repoRoot });
+} catch (error) {
+  problem(`Cannot bundle the server: ${error.message}`);
 }
-
-/** Finds a package the way Node does: walk up through node_modules folders. */
-function findPackage(name, fromDir) {
-  for (let dir = fromDir; ; dir = dirname(dir)) {
-    const modules = basename(dir) === 'node_modules' ? dir : join(dir, 'node_modules');
-    if (existsSync(join(modules, name, 'package.json'))) return realpathSync(join(modules, name));
-    if (dirname(dir) === dir) return undefined;
+if (bundle) {
+  for (const file of bundle.files) {
+    if (file.from) jobs.push({ from: file.from, to: join(serverDest, file.to) });
   }
-}
-
-const jobs = [];
-const staged = { workspace: [], thirdParty: [], skipped: [] };
-const thirdParty = new Map(); // name -> { dir, version }
-
-function addThirdParty(name, fromDir) {
-  if (workspacePackages.has(name) || thirdParty.has(name)) return;
-  if (SKIPPED_DEPENDENCIES.has(name)) {
-    if (!staged.skipped.includes(name)) staged.skipped.push(name);
-    return;
-  }
-  const dir = findPackage(name, fromDir);
-  if (!dir) {
-    const from = relative(repoRoot, fromDir);
-    problem(`Dependency "${name}" is not installed (looked from ${from}). Run pnpm install.`);
-    return;
-  }
-  const manifest = readJson(join(dir, 'package.json'));
-  thirdParty.set(name, { dir, version: manifest.version });
-  // Type declarations are not used at run time, and nested node_modules are not wanted.
-  const skip = (n) => n === 'node_modules' || /\.d\.[cm]?ts$/.test(n);
-  jobs.push(...collect(dir, join(serverDest, 'node_modules', name), skip));
-  for (const dependency of Object.keys(manifest.dependencies ?? {})) addThirdParty(dependency, dir);
-}
-
-function addWorkspacePackage(srcDir, destDir, label) {
-  const manifestFile = join(srcDir, 'package.json');
-  if (!existsSync(join(srcDir, 'src')) || !existsSync(manifestFile)) {
-    problem(`${label} has no src/ or package.json at ${relative(repoRoot, srcDir)}.`);
-    return;
-  }
-  jobs.push({ from: manifestFile, to: join(destDir, 'package.json') });
-  jobs.push(...collect(join(srcDir, 'src'), join(destDir, 'src'), isTestFile));
-  staged.workspace.push(label);
-  const manifest = readJson(manifestFile);
-  for (const [name, range] of Object.entries(manifest.dependencies ?? {})) {
-    const local = workspacePackages.get(name);
-    if (local && String(range).startsWith('workspace:')) {
-      if (staged.workspace.includes(name)) continue;
-      addWorkspacePackage(local, join(serverDest, 'packages', basename(local)), name);
-    } else {
-      addThirdParty(name, srcDir);
-    }
-  }
-}
-
-const serverEntry = join(repoRoot, 'apps/server/src/index.ts');
-if (!existsSync(serverEntry)) problem(`Server entry not found: ${relative(repoRoot, serverEntry)}`);
-else {
-  const serverDir = join(repoRoot, 'apps/server');
-  addWorkspacePackage(serverDir, join(serverDest, 'apps/server'), '@kiln/server');
-}
-
-for (const file of ['launcher.mjs', 'workspace-resolve.mjs']) {
-  const from = join(desktopDir, 'sidecar', file);
-  if (!existsSync(from)) problem(`Missing ${relative(repoRoot, from)}.`);
-  else jobs.push({ from, to: join(serverDest, file) });
 }
 
 const webDist = join(repoRoot, 'apps/web/dist');
@@ -320,7 +248,8 @@ if (existsSync(join(webDist, 'index.html'))) {
 // ---- report ----------------------------------------------------------------------------------
 
 const mb = (bytes) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-const bytes = jobs.reduce((sum, job) => sum + statSync(job.from).size, 0);
+const bundleBytes = bundle?.stats.bytes ?? 0;
+const bytes = jobs.reduce((sum, job) => sum + statSync(job.from).size, 0) + bundleBytes;
 const nodeBytes = existsSync(nodeSource) ? statSync(nodeSource).size : 0;
 const rel = (p) => {
   const shown = relative(process.cwd(), p) || '.';
@@ -334,13 +263,16 @@ const nodeNote = nodeInfo
   : '';
 console.log(`  node       ${nodeSource}${nodeNote}`);
 console.log(`  -> binary  ${rel(nodeDest)}  (${mb(nodeBytes)})`);
-console.log(`  -> server  ${rel(serverDest)}  (${jobs.length} files, ${mb(bytes)})`);
-console.log(`     workspace   ${staged.workspace.join(', ')}`);
-console.log(
-  `     third party ${[...thirdParty].map(([n, v]) => `${n}@${v.version}`).join(', ') || '(none)'}`,
-);
-for (const name of staged.skipped) {
-  console.log(`     skipped     ${name}: ${SKIPPED_DEPENDENCIES.get(name)}`);
+const fileCount = jobs.length + (bundle ? 1 : 0);
+console.log(`  -> server  ${rel(serverDest)}  (${fileCount} files, ${mb(bytes)})`);
+if (bundle) {
+  const { stats } = bundle;
+  console.log(
+    `     launcher.mjs  ${mb(bundleBytes)}: ${stats.repoModules} server modules, esbuild, minified`,
+  );
+  console.log(`     third party   ${stats.packages.join(', ') || '(none)'}`);
+  for (const line of stats.stubbed) console.log(`     stubbed       ${line}`);
+  for (const message of bundle.warnings) caution(message);
 }
 for (const message of warnings) console.log(`warning: ${message}`);
 for (const message of errors) console.error(`error: ${message}`);
@@ -368,13 +300,11 @@ if (!unchanged) {
 }
 
 rmSync(serverDest, { recursive: true, force: true });
-for (const job of jobs) {
+writeServer(bundle.files, serverDest);
+for (const job of jobs.filter((j) => j.to.startsWith(join(serverDest, 'web')))) {
   mkdirSync(dirname(job.to), { recursive: true });
   copyFileSync(job.from, job.to);
 }
-// Makes `.ts` files under the staged folder load as ES modules (the server's own package.json
-// says so too; this covers anything copied without one).
-writeFileSync(join(serverDest, 'package.json'), '{ "private": true, "type": "module" }\n');
 console.log(`\nStaged. Node binary ${unchanged ? 'was up to date' : 'copied'}; server rewritten.`);
 
 if (options.smoke) {
@@ -387,6 +317,45 @@ if (options.smoke) {
 }
 
 // ---- smoke test ------------------------------------------------------------------------------
+
+/** The environment the desktop shell gives the server (single-user mode, secrets, no argv). */
+function serverEnv(dataDir, port, serverDir, extra = {}) {
+  return {
+    ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
+    KILN_MODE: 'single_user',
+    KILN_LAUNCH_SECRET: randomBytes(32).toString('hex'),
+    KILN_MASTER_KEY: randomBytes(32).toString('base64'),
+    PORT: String(port),
+    KILN_DATA_DIR: dataDir,
+    DATABASE_URL: `file:${join(dataDir, 'kiln.db')}`,
+    KILN_WEB_DIST: join(serverDir, 'web'),
+    KILN_WORKER: 'inline',
+    KILN_EXIT_WITH_PARENT: '1',
+    ...extra,
+  };
+}
+
+/** Starts the server with a Postgres URL: the bundle has no driver and must say so and exit non-zero. */
+function postgresRefused(nodeBinary, serverDir, dataDir) {
+  return new Promise((done) => {
+    const child = spawn(
+      nodeBinary,
+      ['--disable-warning=ExperimentalWarning', join(serverDir, 'launcher.mjs')],
+      {
+        cwd: dataDir,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: serverEnv(dataDir, 8788, serverDir, { DATABASE_URL: 'postgres://u:p@127.0.0.1:1/kiln' }),
+      },
+    );
+    let output = '';
+    for (const stream of [child.stdout, child.stderr]) stream.on('data', (c) => (output += c));
+    const timer = setTimeout(() => child.kill('SIGKILL'), 10_000);
+    child.once('exit', (code) => {
+      clearTimeout(timer);
+      done({ code, output });
+    });
+  });
+}
 
 /**
  * Starts the staged server the way the desktop shell does (single-user mode, secret and master
@@ -406,18 +375,7 @@ async function smoke(nodeBinary, serverDir, hasWeb) {
   const child = spawn(nodeBinary, args, {
     cwd: dataDir,
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: {
-      ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
-      KILN_MODE: 'single_user',
-      KILN_LAUNCH_SECRET: randomBytes(32).toString('hex'),
-      KILN_MASTER_KEY: randomBytes(32).toString('base64'),
-      PORT: String(port),
-      KILN_DATA_DIR: dataDir,
-      DATABASE_URL: `file:${join(dataDir, 'kiln.db')}`,
-      KILN_WEB_DIST: join(serverDir, 'web'),
-      KILN_WORKER: 'inline',
-      KILN_EXIT_WITH_PARENT: '1',
-    },
+    env: serverEnv(dataDir, port, serverDir),
   });
   let output = '';
   child.stdout.on('data', (chunk) => {
@@ -484,5 +442,11 @@ async function smoke(nodeBinary, serverDir, hasWeb) {
   if (!result) return finish(false, 'server did not exit within 5 seconds of stdin closing');
   if (result.code !== 0) return finish(false, `server exited with code ${result.code}`);
   steps.push('exits cleanly when stdin closes');
+
+  const pg = await postgresRefused(nodeBinary, serverDir, dataDir);
+  if (pg.code === 0 || pg.code === null || !pg.output.includes('PostgreSQL is not available')) {
+    return finish(false, `a Postgres URL was not refused clearly (exit ${pg.code}): ${pg.output}`);
+  }
+  steps.push('Postgres refused with a clear message');
   return finish(true, '', steps);
 }

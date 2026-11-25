@@ -119,7 +119,7 @@ the raw state). A phased release currently shows as `live` because it is not rea
 - **Decide:** keep the manual name, fill it from the store on first sync only, or refresh it on every
   sync (which would overwrite a name the person chose).
 
-## Desktop app ([ADR 0004](adr/0004-desktop-sidecar.md), proposed, not built into an app)
+## Desktop app ([ADR 0004](adr/0004-desktop-sidecar.md), server bundled; not built into an app yet)
 
 ### 12. Node major to ship
 
@@ -131,11 +131,9 @@ the raw state). A phased release currently shows as `live` because it is not rea
 
 ### 13. esbuild bundling (ADR option C)
 
-- **Today:** the proposal copies the server sources and runs them with Node's type stripping, which
-  is stability 1.2 in Node 22. Option C bundles to one `server.mjs` with esbuild, removing the resolve
-  hook and about 900 files.
-- **Decide:** adopt it now or only when size or file count hurts. It needs `esbuild` as a declared
-  devDependency (a network install).
+- **Decided and built:** the desktop server is one minified `launcher.mjs` made by esbuild, with no
+  `node_modules` and no loose sources. `esbuild` is a devDependency of `@kiln/desktop`; the
+  lockfile still needs `pnpm add -D esbuild --filter @kiln/desktop`.
 
 ### 14. Apple notarization account
 

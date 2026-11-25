@@ -1,6 +1,6 @@
 /**
  * Loads the server's catalogs (`apps/server/locales/<namespace>/<language>.json`) and builds translators. English is the source and the
- * fallback of every other language. Files are read once, on first use, with plain `fs` (the server has no bundler); a missing file is
+ * fallback of every other language. Files are read once, on first use, with plain `fs` (the packaged server is bundled, see `localesDir`); a missing file is
  * an empty catalog, so a language that is not translated yet answers in English.
  */
 import { readFileSync } from 'node:fs';
@@ -16,7 +16,20 @@ import {
   SOURCE_LOCALE,
 } from './runtime.ts';
 
-export const LOCALES_DIR = fileURLToPath(new URL('../../locales/', import.meta.url));
+/**
+ * Where the catalogs are. A packaged build (docs/adr/0004) is one bundled file, so `import.meta.url` no longer points into
+ * `apps/server/src/i18n`; it sets `KILN_LOCALES_DIR` to the `locales` folder it ships next to itself. From a checkout the variable
+ * is unset and the folder is found from this file. The result always ends in a slash.
+ */
+export function localesDir(env: Record<string, string | undefined>, fallback: string): string {
+  const set = env.KILN_LOCALES_DIR?.trim();
+  return `${(set || fallback).replace(/[\\/]+$/, '')}/`;
+}
+
+export const LOCALES_DIR = localesDir(
+  process.env,
+  fileURLToPath(new URL('../../locales/', import.meta.url)),
+);
 
 const cache = new Map<string, Catalog>();
 

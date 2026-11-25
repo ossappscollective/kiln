@@ -13,13 +13,14 @@ see [docs/i18n-desktop.md](../../docs/i18n-desktop.md). Try one with `KILN_LANG=
 
 ## What gets packaged
 
-`scripts/prepare-sidecar.mjs` copies files that are already on this machine into
-`src-tauri/binaries/` (git-ignored). It does not download or compile anything.
+`scripts/prepare-sidecar.mjs` copies the Node binary and the built web UI into `src-tauri/binaries/`
+(git-ignored) and bundles the server with `scripts/bundle-server.mjs` (esbuild, a devDependency of
+this package). It downloads nothing.
 
 | Output                            | Used as                                                                                                                                                    |
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `kiln-node-<target-triple>[.exe]` | Tauri `externalBin` `binaries/kiln-node`: the Node binary                                                                                                  |
-| `server/`                         | Tauri `resources`, installed as `server/`: server sources, `@kiln/*` packages, `hono`, `zod`, `@hono/node-server`, the launcher, and `web/` (the built UI) |
+| `server/`                         | Tauri `resources`, installed as `server/`: `launcher.mjs` (the whole server, one minified file: no `node_modules`, no sources), `locales/`, `licenses/` and `web/` (the built UI) |
 
 The Node binary is the one running the script, so run it with the official Node 22.18 or newer
 (nodejs.org, nvm, fnm, Volta). Homebrew and distribution packages are refused because they link
@@ -37,6 +38,7 @@ pnpm --filter @kiln/desktop build                        # stages the sidecar, t
 
 - `build` and `dev` run the staging step first, because Tauri refuses to build when the
   `externalBin` file for the target is missing. `dev` passes `--allow-missing-web`.
+- If `esbuild` is missing the script says so; run `pnpm install`.
 - Debug builds (`tauri dev`) still run `apps/server/src/index.ts` from the checkout with the system
   `node` (`KILN_NODE` picks another). Set `KILN_USE_PACKAGED_SERVER=1` to run the staged one.
 - Test the staged server on its own, without Tauri:
@@ -79,6 +81,8 @@ Not yet tried; see the ADR.
 ## Files
 
 - `scripts/prepare-sidecar.mjs`: the staging script.
-- `sidecar/launcher.mjs`, `sidecar/workspace-resolve.mjs`: the server entry inside the bundle.
+- `scripts/bundle-server.mjs`: bundles the server into `launcher.mjs` (`node scripts/bundle-server.mjs --out <dir>` runs it alone; `--no-minify` for reading).
+- `scripts/bundle-server.test.mjs`: tests for it (`pnpm --filter @kiln/desktop test`; the real bundle test is skipped when esbuild is not installed).
+- `pg`, `drizzle-orm` and demo mode are not in the bundle: a Postgres `DATABASE_URL` stops the desktop server with "PostgreSQL is not available in the Kiln desktop app". See [ADR 0004](../../docs/adr/0004-desktop-sidecar.md) for what else the bundle had to handle.
 - `src-tauri/`: `tauri.conf.json`, `capabilities/default.json` (grants the page no IPC),
   `entitlements.plist`, `src/main.rs`.

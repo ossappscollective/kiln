@@ -91,7 +91,14 @@ if (demoRequested(process.env)) {
 const config = loadConfig();
 
 await mkdir(config.dataDir, { recursive: true });
-const database = await createDatabase(config.databaseUrl);
+let database: Awaited<ReturnType<typeof createDatabase>>;
+try {
+  database = await createDatabase(config.databaseUrl);
+} catch (error) {
+  // E.g. the desktop bundle, which has no Postgres driver: say so in one line, not as a stack trace.
+  console.error(`Cannot open the database: ${(error as Error).message}`);
+  process.exit(1);
+}
 // Store reads: bounded requests per host with a shared 429 pause, and one Google token per account and scope (docs/adr/0050).
 installSyncPipeline({
   appleConcurrency: config.syncAppleConcurrency,

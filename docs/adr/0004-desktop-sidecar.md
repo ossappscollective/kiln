@@ -1,8 +1,8 @@
 # ADR 0004: How the desktop app ships the server
 
-Status: proposed. The staging script and the packaged start path are tested on Linux arm64. The
-Tauri bundle, macOS signing and notarization, Windows and Rust compilation are not (see "What is
-verified"). Closes the "how is the server shipped" half of [the sidecar spike](../spikes/sidecar.md).
+Status: accepted, with option C (one esbuild bundle) built. The staging script, the bundle and the
+packaged start path were run on Linux arm64 (staging with `--smoke`). The Tauri bundle, macOS
+signing and notarization, Windows and Rust compilation are not (see "What is verified"). Closes the "how is the server shipped" half of [the sidecar spike](../spikes/sidecar.md).
 
 ## Context
 
@@ -39,30 +39,34 @@ dependencies (`hono`, `@hono/node-server`, `zod`) plus four workspace packages t
   (type stripping is on by default and silent since 22.18), so the server runs as it does in
   development, and a Node upgrade is a file swap.
 - Constraint: Node refuses to strip types from files under a `node_modules` path. The workspace
-  packages must therefore live outside `node_modules` in the bundle, which pnpm's symlinks cannot
-  express. A 30-line resolve hook (`apps/desktop/sidecar/workspace-resolve.mjs`) maps `@kiln/*`
-  to the copied package folders instead.
-- Third-party packages are JavaScript and are copied as real folders.
-- Sources are readable in the app bundle. Acceptable for an open source project.
+  packages had to live outside `node_modules` in the bundle, which pnpm's symlinks cannot
+  express, so a 30-line resolve hook mapped `@kiln/*` to the copied package folders. (Removed
+  with option C.)
+- Third-party packages were JavaScript and were copied as real folders (about 1,500 files with
+  the sources). Sources were readable in the app bundle.
 
-**C. Bundle the server to one file, then use B.** The same layout with one `server.mjs` made by
-esbuild (`--platform=node --format=esm`, `node:*` external, `pg` external). It removes the resolve
-hook and about 900 small files, and is what to move to if bundle size or file count becomes a
-problem. It needs `esbuild` as a declared devDependency, which needs a network install. Not needed
-to ship.
+**C. Bundle the server to one file, then use B.** The same layout with one `launcher.mjs` made by
+esbuild (`platform=node`, `format=esm`, `node:*` external, `pg` and `drizzle-orm` stubbed). It removes
+the resolve hook, `node_modules` and every loose source file. **Done** (see "Option C: the bundle"
+below); it was chosen to avoid shipping about 1,500 loose files and Node's type stripping, which is
+stability 1.2 in Node 22. It needs `esbuild` as a devDependency of `@kiln/desktop`.
 
 Bun `--compile` and a thin client stay as listed in the spike. They were not researched here. Bun
 has its own SQLite module, so it would reopen ADR 0002.
 
 ## Decision
 
-Adopt **B**. Ship the official Node binary as the Tauri sidecar `kiln-node`, and the server as a
-`server/` resource folder, both staged by `apps/desktop/scripts/prepare-sidecar.mjs`.
+Adopt **B**, then **C**. Ship the official Node binary as the Tauri sidecar `kiln-node`, and the
+server as a `server/` resource folder holding one bundled file, both staged by
+`apps/desktop/scripts/prepare-sidecar.mjs`.
 
-Reasons: it uses only documented, stable Tauri features; it runs exactly the code CI tests; it
-needs no new dependency, bundler or network step; and `node:sqlite` is part of the Node binary, so
-there is no native module to sign or notarize. SEA adds a CommonJS-only, experimental layer and a
-bundler to ship the same 117 MB binary. Revisit C once `esbuild` is added for another reason.
+Reasons: it uses only documented, stable Tauri features; `node:sqlite` is part of the Node binary,
+so there is no native module to sign or notarize; and the server is plain JavaScript, so a Node
+upgrade stays a file swap and nothing depends on type stripping. SEA adds a CommonJS-only,
+experimental layer to ship the same 117 MB binary. B alone shipped TypeScript sources, a resolve
+hook and copied `node_modules`; C ships one file and the smoke test starts exactly that file. The
+cost is one declared devDependency, `esbuild`, and a build step that must keep up with new
+file-reading code (the script fails loudly, see the table).
 
 ### Layout
 
@@ -70,16 +74,41 @@ bundler to ship the same 117 MB binary. Revisit C once `esbuild` is added for an
 src-tauri/binaries/                      git-ignored, made by prepare-sidecar.mjs
   kiln-node-<target-triple>[.exe]         externalBin "binaries/kiln-node"
   server/                                resources {"binaries/server/": "server/"}
-    launcher.mjs  workspace-resolve.mjs  registers the hook, imports apps/server/src/index.ts
-    apps/server/{package.json,src/}      tests and test helpers left out
-    packages/{core,db,vault,connectors}/{package.json,src/}
-    node_modules/{hono,@hono/node-server,zod}/   real copies, no .d.ts
+    launcher.mjs                         the whole server, minified (about 3 MB)
+    locales/<namespace>/<language>.json  apps/server/locales, read at run time
+    licenses/<package>/LICENSE           of hono, @hono/node-server and zod
     web/                                 apps/web/dist
 ```
 
-`pg` and `drizzle-orm` are left out on purpose: `pg` is imported only for Postgres, and
-`drizzle-orm` only by schema files the server never loads. If a later change imports either at
-startup, the smoke test fails and the skip list in the script changes.
+No `node_modules`, no TypeScript, no resolve hook. About 20 files plus `web/`.
+
+### Option C: the bundle
+
+`apps/desktop/scripts/bundle-server.mjs` (called by `prepare-sidecar.mjs`, also runnable alone) runs
+esbuild from `apps/server/src/index.ts`: `platform=node`, `format=esm`, `target=node22`, minified, tree
+shaken, `node:*` and Node built-ins left external. `.ts` imports and the `@kiln/*` workspace packages
+resolve through `node_modules` as in development. A banner defines `require` (for any CommonJS
+dependency) and sets `KILN_LOCALES_DIR`.
+
+Things that load files or detect "I am the entry point" were checked one by one:
+
+| Risk | Handling |
+| --- | --- |
+| SQL migrations | TypeScript modules (`packages/db/src/migrations*.ts`), so they are bundled. Nothing reads `.sql`. |
+| `import('node:sqlite')` | `node:*` is external; the Node binary has it. |
+| `import('pg')` | Stubbed. The stub throws "PostgreSQL is not available in the Kiln desktop app" when loaded; the server prints it and exits 1 (`index.ts` catches the failure of `createDatabase`). The smoke test checks this. |
+| `drizzle-orm` | Stubbed the same way; only schema files import it and nothing loads them. If a startup path ever does, the smoke test fails. |
+| Message catalogs | `apps/server/src/i18n/catalogs.ts` read `../../locales/` from `import.meta.url`. It now takes `KILN_LOCALES_DIR` first (`localesDir`, unit tested); the banner points it at `locales/` next to the bundle, which the script copies. The previous copy step did not stage the catalogs, so a packaged server answered in message keys; this fixes that. |
+| `demo/main.ts` and `mcp/stdio.ts` | Both start themselves when `import.meta.url` equals `process.argv[1]`, which is always true inside a one-file bundle. The demo server (not part of the desktop app) is stubbed. `mcp/stdio.ts` is not imported by the server. The script fails the bundle if any other bundled file has such a guard. |
+| Other `import.meta.url` users | The script fails the bundle for any repository file other than `catalogs.ts` that uses `import.meta.url`, `dirname` or `filename`, so a new file read cannot go unnoticed. |
+| Version | `VERSION` is a constant in `version.ts`, not read from `package.json`. |
+| Top-level `await` | Fine in ES modules; `index.ts` uses it. |
+| Worker threads, `createRequire`, `new Worker` | None in the server. The desktop runs `KILN_WORKER=inline`. |
+| Licences | The licence files of the bundled third-party packages are copied to `licenses/`. |
+
+`esbuild` is declared in `apps/desktop/package.json`. Add it to the lockfile with
+`pnpm add -D esbuild --filter @kiln/desktop`; CI uses `--frozen-lockfile` and fails until that is
+committed.
 
 ### Tauri wiring
 
@@ -128,7 +157,10 @@ startup, the smoke test fails and the skip list in the script changes.
    end of life whether to move to 24 (`node:sqlite` is still experimental in 22; check its status
    in the version chosen).
 2. **Type stripping is "release candidate", not stable** (Node 22 docs, 1.2). Option C removes
-   the dependency by shipping JavaScript.
+   the dependency by shipping JavaScript. The server still needs it from a checkout and in Docker.
+   A new `import.meta.url` file read, a new `await import()` of a package, or a new "run when
+   entry point" check in the server breaks the bundle in a way the checkout does not show; the
+   bundle script and the smoke test are the guard.
 3. **Unproven Tauri details**: the directory form of `resources`, where the resource folder ends
    up in each package format (dmg, deb, AppImage, msi), and that the entitlements path is relative
    to `src-tauri`. Each is a first-build check.
@@ -142,9 +174,10 @@ startup, the smoke test fails and the skip list in the script changes.
 
 ## Consequences
 
-- Installer size is the Node binary (about 117 MB uncompressed on Linux arm64) plus about 4.4 MB of
-  server files. Cold start measured on Linux arm64 from the staged tree: 150 to 200 ms to a
-  healthy `/api/health` (three runs).
+- Installer size is the Node binary (about 117 MB uncompressed on Linux arm64) plus the server:
+  `launcher.mjs` 3.1 MB minified, 3.2 MB for everything but `web/` in 20 files (was about 1,500
+  files), plus the 7.0 MB web UI. Measured on Linux arm64 with esbuild 0.28.2: healthy
+  `/api/health` after about 300 ms (one run, polled every 100 ms, so coarse).
 - Releasing now includes fetching a verified official Node per target. The script does not
   download; it takes `--node <path>`.
 - `main.rs` changes (still uncompiled): `packaged_server`, `spawn_server` takes the app handle,

@@ -58,7 +58,8 @@ universal binary: each ships the Node binary for its own architecture ([ADR 0004
 | Linux, ARM64            | `ubuntu-22.04-arm` | `kiln_<v>_linux_arm64.deb`, `.rpm`, `.AppImage`               |
 
 Plus `SHA256SUMS` on the release. Each desktop job builds the web UI, stages the server sidecar for
-its own target (`apps/desktop/scripts/prepare-sidecar.mjs`, which also starts the staged server once
+its own target (`apps/desktop/scripts/prepare-sidecar.mjs`: the Node binary, the web UI and the
+server bundled into one minified `launcher.mjs` with esbuild, which also starts the staged server once
 as a smoke test), then runs `tauri build`. Windows ARM64 is off by default because Tauri's support
 and the runner are the least proven; name it in `platforms` to try it.
 There is no server tarball: the repository documents Docker and `node` from a checkout only.
@@ -160,6 +161,9 @@ tests (`pnpm test:scripts`); the YAML parses; nothing else was run. Check these 
   are free for public repositories only; private ones need a larger-runner plan).
 - Tauri bundle names (`app,dmg`, `nsis,msi`, `deb,rpm,appimage`), and the output folders and file
   names `scripts/release/collect.mjs` looks for. It fails loudly when one is missing.
+- The esbuild bundle of the server (ADR 0004, option C) was run on Linux arm64 only, and `esbuild`
+  must be in `pnpm-lock.yaml` (`pnpm add -D esbuild --filter @kiln/desktop`) or the install and the
+  staging step fail on every runner.
 - ADR 0004's open points: the directory form of `resources`, the sidecar inside each package
   format, the entitlements path, whether Tauri signs `kiln-node(.exe)` and the AppImage on arm64.
 - `.rpm` and `.deb` with a pre-release version (`1.2.3-rc.1`): use the `version` input to try it.

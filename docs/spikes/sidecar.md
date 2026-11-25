@@ -123,7 +123,7 @@ Not verified:
 - Windows and Linux bundles, SmartScreen, AppImage behaviour, `universal-apple-darwin`.
 - Any SEA build: `postject` is not installed and the network is off. SEA claims above come from the
   docs only, including `node:sqlite` inside a SEA.
-- `esbuild` single-file bundling (option C in ADR 0004).
+- `esbuild` single-file bundling (option C in ADR 0004) was later built and run on Linux arm64 with esbuild 0.28.2; see the ADR. The version pinned in `apps/desktop/package.json` (0.25.12) has not been run.
 - The staged server was run only with the web UI stubbed: `apps/web/dist` has not been built.
 - Node 22 end-of-life date and the `node:sqlite` status in Node 24.
 

@@ -162,8 +162,8 @@ The dashboard groups states into preparing, in review, ready to release and live
 - [ADR 0001](adr/0001-stack-and-license.md): stack, license, packaging
 - [ADR 0002](adr/0002-node-sqlite-and-sql-migrations.md): `node:sqlite` and SQL migrations
 - [ADR 0003](adr/0003-single-user-mode.md): single-user mode for the desktop app
-- [ADR 0004](adr/0004-desktop-sidecar.md): how the desktop app ships the server (proposed, not built
-  into an app)
+- [ADR 0004](adr/0004-desktop-sidecar.md): how the desktop app ships the server (Node binary plus one
+  esbuild bundle; not built into an app yet)
 - Spikes with what was and was not verified: [docs/spikes](spikes/store-api-conventions.md)
   (store API conventions, repo conventions, Expo store config, dual dialect, sidecar, credential
   guides)

@@ -8,9 +8,11 @@
     "build": "node scripts/prepare-sidecar.mjs && tauri build",
     "prepare-sidecar": "node scripts/prepare-sidecar.mjs",
     "check-sidecar": "node scripts/prepare-sidecar.mjs --check",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "node --test \"scripts/*.test.mjs\""
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0"
+    "@tauri-apps/cli": "^2.0.0",
+    "esbuild": "^0.25.12"
   }
 }
