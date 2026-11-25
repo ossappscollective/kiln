@@ -246,6 +246,33 @@ jobs:
             echo "bundles=${bundles}"
             echo "signing=${KILN_SIGNING_STATE}"
           } >> "$GITHUB_OUTPUT"
+      - name: Verify the macOS signature (reports what the app really is)
+        if: runner.os == 'macOS'
+        env:
+          TARGET: ${{ matrix.target }}
+          EXPECTED: ${{ steps.build.outputs.signing }}
+        run: |
+          set +e
+          bundle="apps/desktop/src-tauri/target/${TARGET}/release/bundle"
+          app="$(find "$bundle/macos" -maxdepth 1 -name '*.app' | head -n 1)"
+          dmg="$(find "$bundle/dmg" -maxdepth 1 -name '*.dmg' | head -n 1)"
+          {
+            echo "#### macOS signature check"
+            echo '```'
+            codesign --verify --deep --strict --verbose=1 "$app" 2>&1
+            codesign -dvv "$app" 2>&1 | grep -E '^(Authority|TeamIdentifier|Signature|Identifier)=?' 
+            spctl --assess --type execute --verbose=2 "$app" 2>&1
+            xcrun stapler validate "$app" 2>&1
+            [ -n "$dmg" ] && xcrun stapler validate "$dmg" 2>&1
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$EXPECTED" = notarized ] && ! xcrun stapler validate "$app" >/dev/null 2>&1; then
+            echo "::warning::Notarization was expected but the app has no stapled ticket. Check the notary log in the build step."
+          fi
+          if [ "$EXPECTED" != unsigned ] && ! codesign --verify --deep --strict "$app" >/dev/null 2>&1; then
+            echo "::warning::The app does not pass codesign --verify."
+          fi
+          exit 0
       - name: Name the installers
         env:
           COPYFILE_DISABLE: "1" # no AppleDouble files in the .app.tar.gz
