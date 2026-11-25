@@ -578,6 +578,11 @@ export async function deleteApp(
         input.workspaceId,
       ]);
     }
+    // The build numbers read from inside the app's CI artifacts (modules/builds/artifact-inspect.ts).
+    await tx.execute('DELETE FROM ci_artifact_meta WHERE app_id = ? AND workspace_id = ?', [
+      input.id,
+      input.workspaceId,
+    ]);
     // The link to the app's RevenueCat project and the cached RevenueCat configuration (modules/revenuecat).
     for (const table of [
       'app_revenuecat_links',

@@ -6,6 +6,7 @@ import { analyticsBucketMigrations } from './migrations-analytics-bucket.ts';
 import { analyticsVendorMigrations } from './migrations-analytics-vendor.ts';
 import { appleAdsMigrations } from './migrations-apple-ads.ts';
 import { chatMigrations } from './migrations-chat.ts';
+import { ciArtifactMetaMigrations } from './migrations-ci-artifact-meta.ts';
 import { ciProviderMigrations } from './migrations-ci-provider.ts';
 import { competitorChangesMigrations } from './migrations-competitor-changes.ts';
 import { competitorReviewsMigrations } from './migrations-competitor-reviews.ts';
@@ -1864,4 +1865,5 @@ export const migrations: Migration[] = [
   ...easArtifactMigrations,
   ...priceWriteMigrations,
   ...reviewControlMigrations,
+  ...ciArtifactMetaMigrations,
 ];

@@ -3195,3 +3195,28 @@ export const adsTermPopularity = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.workspaceId, t.country, t.termKey, t.genre] })],
 );
+
+/**
+ * What was read from inside a CI artifact: the build number of an APK, AAB or IPA, per app and GitHub artifact id (migration 70). `status`
+ * is read (the other columns are set) or unreadable (the file held no build number; they are null). Nothing of the file is kept.
+ */
+export const ciArtifactMeta = sqliteTable(
+  'ci_artifact_meta',
+  {
+    appId: text('app_id').notNull(),
+    artifactId: text('artifact_id').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    status: text('status').notNull(),
+    buildNumber: text('build_number'),
+    version: text('version'),
+    packageId: text('package_id'),
+    format: text('format'),
+    readAt: integer('read_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.artifactId] }),
+    index('ci_artifact_meta_workspace_idx').on(t.workspaceId),
+  ],
+);

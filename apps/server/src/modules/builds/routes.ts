@@ -3,6 +3,7 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import type { AppEnv } from '../../http.ts';
 import { memberRole } from '../../services/accounts.ts';
+import { inspectArtifact } from './artifact-inspect.ts';
 import {
   type BuildsContext,
   createDownloadLink,
@@ -92,6 +93,21 @@ export function buildsRoutes(ctx: BuildsContext) {
         actor(c),
       );
       return opened.ok ? zipResponse(opened) : respond(c, opened);
+    },
+  );
+
+  // The real build number of a CI artifact, read from inside the file (once: the answer is kept). Same rights, switch and limits as a download.
+  app.post(
+    '/:workspaceId/apps/:id/builds/artifacts/:artifactId/inspect',
+    needs('builds.download'),
+    async (c) => {
+      const done = await inspectArtifact(
+        ctx,
+        { workspaceId: ws(c), appId: param(c, 'id'), artifactId: param(c, 'artifactId') },
+        actor(c),
+      );
+      if (!done.ok) return respond(c, done);
+      return c.json({ artifact: done.artifact });
     },
   );
 

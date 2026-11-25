@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { tmpdir } from 'node:os';
 import {
   type CiArtifact,
   type InternalSharingConnector,
@@ -24,6 +25,7 @@ import { timedCache } from '../../services/timed-cache.ts';
 import { listConventions } from '../ci/conventions.ts';
 import { listRuns, runCountsForApp, type WorkflowRunView } from '../ci/runs.ts';
 import { type CiContext, guarded, openCi } from '../ci/service.ts';
+import { type ArtifactBuild, type ArtifactMeta, loadArtifactMeta } from './artifact-meta-store.ts';
 
 /**
  * Builds you can test before publishing (docs/api/builds.md, docs/research/test-builds.md): the zips that CI runs
@@ -54,6 +56,8 @@ export type BuildsSettings = {
   linkTtlMs: number;
   /** Tests only: let the fake storage be an http address. */
   allowHttpRedirects: boolean;
+  /** A folder for the temporary file of an artifact being read (its build number). Default: the system temp folder. */
+  scratchDir: string;
   /** Builds the read-only App Store Connect connector for the TestFlight public links. Replaced by a fake in tests. */
   storeConnectorFactory: StoreConnectorFactory;
   /** KILN_PLAY_INTERNAL_SHARING_ENABLED (default false): uploading a build to Google Play internal app sharing (docs/api/internal-sharing.md). */
@@ -90,6 +94,8 @@ export type BuildsContext = CiContext & {
   /** The links handed out and not yet expired, by their id. Per process: a restart forgets them. */
   links: Map<string, { w: string; a: string; i: string; u: string; e: number; used: boolean }>;
   downloading: Map<string, number>;
+  /** The reads of build numbers in flight or waiting, by app: one at a time per app. */
+  inspecting: Map<string, Promise<unknown>>;
 };
 
 export function createBuildsContext(
@@ -107,6 +113,7 @@ export function createBuildsContext(
       downloadTimeoutMs: options.downloadTimeoutMs ?? DOWNLOAD_TIMEOUT_MS,
       linkTtlMs: options.linkTtlMs ?? LINK_TTL_MS,
       allowHttpRedirects: options.allowHttpRedirects ?? false,
+      scratchDir: options.scratchDir ?? tmpdir(),
       storeConnectorFactory: options.storeConnectorFactory ?? defaultStoreConnectorFactory,
       internalSharingEnabled: options.internalSharingEnabled ?? false,
       internalSharingConnectorFactory:
@@ -119,6 +126,7 @@ export function createBuildsContext(
       options.downloadLimiter ?? createTestLimiter({ limit: DOWNLOADS_PER_MINUTE, now: ci.now }),
     links: new Map(),
     downloading: new Map(),
+    inspecting: new Map(),
   };
 }
 
@@ -212,6 +220,12 @@ export type ArtifactItem = {
   /** Not expired and within the size limit. Whether downloads are on at all is `downloadEnabled`. */
   downloadable: boolean;
   tooLarge: boolean;
+  /**
+   * The real build number read from inside the file (the Android versionCode, the iOS CFBundleVersion), when it was read; null before
+   * that and when the file held none. `buildRead` says which: read, unreadable (looked at, nothing found) or null (not looked at yet).
+   */
+  build: ArtifactBuild | null;
+  buildRead: 'read' | 'unreadable' | null;
   /**
    * Names of the apps a multi-app run is shared by, when the name of the artifact does not tell which of them it belongs to
    * (so it is shown under each of them); null when the run is for one app or the owner is known.
@@ -442,11 +456,12 @@ export function artifactOwner(
 
 const shortSha = (sha: string | null) => (sha ? sha.slice(0, 7) : null);
 
-function artifactItem(
+export function artifactItem(
   a: CiArtifact,
   run: WorkflowRunView,
   app: ManagedApp,
   maxBytes: number,
+  meta?: ArtifactMeta | undefined,
 ): ArtifactItem {
   const guess = guessArtifact(a.name, app.platform);
   const tooLarge = a.sizeInBytes > maxBytes;
@@ -462,6 +477,8 @@ function artifactItem(
     expiresAt: a.expiresAt,
     downloadable: !a.expired && !tooLarge,
     tooLarge,
+    build: meta?.build ?? null,
+    buildRead: meta?.status ?? null,
     sharedWith: null,
     run: {
       id: run.id,
@@ -752,6 +769,7 @@ export async function listBuildArtifacts(
   const runs = await listRuns(ctx.db, input.workspaceId, repository.id, { limit: 100 });
   const byRun = new Map(runs.filter((r) => runCountsForApp(r, app.id)).map((r) => [r.id, r]));
   const artifacts: ArtifactItem[] = [];
+  const metas = await loadArtifactMeta(ctx.db, input.workspaceId, app.id);
   let hidden = 0;
   // A run linked to several apps (a monorepo): who each artifact belongs to is read from its name.
   const conventions = await listConventions(ctx.db, input.workspaceId, repository.id);
@@ -784,7 +802,7 @@ export async function listBuildArtifacts(
       hidden++;
       continue;
     }
-    const item = artifactItem(a, run, app, ctx.builds.maxDownloadBytes);
+    const item = artifactItem(a, run, app, ctx.builds.maxDownloadBytes, metas.get(a.id));
     if (run.appIds.length > 1) {
       const candidates = await candidatesOf(run);
       const owner = artifactOwner(a.name, candidates);
@@ -946,7 +964,7 @@ export async function openArtifactDownload(
     workspaceId: string;
     appId: string;
     artifactId: string;
-    via: 'session' | 'link' | 'share';
+    via: 'session' | 'link' | 'share' | 'inspect';
   },
   actor: Actor,
 ): Promise<OpenedDownload | BuildsFailure | Failure> {
@@ -1030,21 +1048,23 @@ export async function openArtifactDownload(
         ...coded('builds.artifactTooLarge'),
       });
     }
-    // Ids and a size only: no name, no address.
-    await recordAudit(ctx.db, {
-      workspaceId: input.workspaceId,
-      actor,
-      action: 'build.download',
-      target: { type: 'app', id: app.id },
-      detail: {
-        artifactId: artifact.id,
-        runId: run.id,
-        repositoryId: repository.id,
-        sizeBytes: artifact.sizeInBytes,
-        via: input.via,
-      },
-      at: ctx.now(),
-    });
+    // Ids and a size only: no name, no address. The server reading a file for itself (`inspect`: a build number, nothing leaves
+    // this machine) is not a download by a person and writes no row.
+    if (input.via !== 'inspect')
+      await recordAudit(ctx.db, {
+        workspaceId: input.workspaceId,
+        actor,
+        action: 'build.download',
+        target: { type: 'app', id: app.id },
+        detail: {
+          artifactId: artifact.id,
+          runId: run.id,
+          repositoryId: repository.id,
+          sizeBytes: artifact.sizeInBytes,
+          via: input.via,
+        },
+        at: ctx.now(),
+      });
     started = true;
     return {
       ok: true,

@@ -32,7 +32,7 @@ dbTest(
       "INSERT INTO aso_competitors (id, workspace_id, app_id, store, external_id, country, name, added_by, added_at) VALUES ('c1', 'w1', 'a1', 'app_store', '123', 'us', 'Rival', 'u', 1)",
     );
     assert.deepEqual(
-      (await migrate(db)).filter((id) => id >= 67),
+      (await migrate(db)).filter((id) => id >= 67 && id <= 69),
       [67, 68, 69],
     );
     const cols = (await tableColumns(db, 'aso_competitors')).map((c) => c.name);

@@ -619,6 +619,36 @@ test('Test builds: the demo repository lists small artifacts named like the buil
   assert.equal(bytes[1], 0x4b);
 });
 
+test('Test builds: the demo artifacts hold a manifest or Info.plist, so their build numbers can be read (IPA, APK, AAB)', async () => {
+  const rt = await seeded();
+  const { call } = await session(rt);
+  const seen = new Set<string>();
+  // The demo repository is shared by the apps, so each app lists the artifacts of the others.
+  for (const [platform, kind] of [
+    ['ios', 'ipa'],
+    ['android', 'apk'],
+    ['android', 'aab'],
+  ] as const) {
+    const id = await appOf(call, 'Demo Notes', platform);
+    const list = (await call('GET', `/apps/${id}/builds/artifacts`)).body.artifacts as Json[];
+    const file = list.find((x) => x.kind === kind);
+    assert.ok(file, `a ${kind} artifact`);
+    assert.equal(file.buildRead, null, 'not read before it is asked for');
+    const read = await call('POST', `/apps/${id}/builds/artifacts/${file.id}/inspect`, {});
+    assert.equal(read.status, 200, JSON.stringify(read.body));
+    const item = read.body.artifact as Json;
+    assert.equal(item.buildRead, 'read');
+    // The artifact is named `<app>-<version>-<build>.<kind>`: the number read from the file is
+    // the one in the name.
+    const named = new RegExp(`^demo-[a-z]+-[0-9.]+-${item.build.number}\\.${kind}$`);
+    assert.match(file.name, named);
+    assert.equal(item.build.format, kind);
+    assert.match(item.build.packageId, /^com\.demostudio\./);
+    seen.add(item.build.format);
+  }
+  assert.deepEqual([...seen].sort(), ['aab', 'apk', 'ipa']);
+});
+
 test('Test builds: Share to device works end to end in the demo (no passkey, nothing leaves the machine)', async () => {
   const rt = await start();
   try {

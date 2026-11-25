@@ -230,6 +230,7 @@ const app = createApp({
   builds: {
     downloadEnabled: config.buildsDownloadEnabled,
     maxDownloadBytes: config.buildsDownloadMaxBytes,
+    scratchDir: config.dataDir,
     internalSharingEnabled: config.playInternalSharingEnabled,
   },
   storePublish: { enabled: config.storePublishBatchEnabled },

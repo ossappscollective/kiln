@@ -1,10 +1,17 @@
 import { createHash } from 'node:crypto';
+import {
+  axmlManifest,
+  binaryPlist,
+  infoPlist,
+  protoManifest,
+} from '../modules/builds/artifact-meta/fixtures.ts';
 import { crc32 } from '../services/png-codec.ts';
 
 /**
  * The tiny files of the demo's workflow artifacts. Every artifact is a real, valid zip of a few hundred bytes, so the
  * download, the checksum and the Google Play internal app sharing flow can run end to end without anything large.
- * Nothing here is a real app binary.
+ * Nothing here is a real app binary: the .apk, .aab and .ipa hold only a manifest or an Info.plist with the version and the build
+ * number (made by the test fixture builders), so "Reading the build number" works in the demo like on a real artifact.
  */
 
 const text = new TextEncoder();
@@ -68,6 +75,8 @@ export function artifactZip(input: {
   name: string;
   kind: ArtifactKind;
   appName: string;
+  /** The bundle id or package name. */
+  identifier: string;
   version: string;
   build: string;
 }): Uint8Array {
@@ -75,21 +84,41 @@ export function artifactZip(input: {
     text.encode(
       `${what}\nDemo file: made up by demo mode, not a real build.\n${input.appName} ${input.version} (${input.build})\n`,
     );
+  const code = Number.parseInt(input.build, 10);
   if (input.kind === 'ipa')
     return storedZip([
       {
         name: `Payload/${input.appName.replace(/\s+/g, '')}.app/Info.plist`,
-        data: note('Demo Info.plist'),
+        data: binaryPlist(
+          infoPlist({
+            buildNumber: input.build,
+            version: input.version,
+            bundleId: input.identifier,
+            name: input.appName,
+          }),
+        ),
       },
     ]);
   if (input.kind === 'dmg')
     return storedZip([
       { name: `${input.appName.replace(/\s+/g, '')}.dmg`, data: note('Demo disk image') },
     ]);
+  const manifest = {
+    versionCode: Number.isFinite(code) ? code : 1,
+    versionName: input.version,
+    packageName: input.identifier,
+  };
+  const aab = input.kind === 'aab';
   return storedZip([
     {
       name: input.name,
-      data: note(input.kind === 'aab' ? 'Demo Android App Bundle' : 'Demo Android package'),
+      // The build file is itself a small zip: the manifest of an APK, or the base module manifest of a bundle.
+      data: storedZip([
+        aab
+          ? { name: 'base/manifest/AndroidManifest.xml', data: protoManifest(manifest) }
+          : { name: 'AndroidManifest.xml', data: axmlManifest(manifest) },
+        { name: 'DEMO.txt', data: note(aab ? 'Demo Android App Bundle' : 'Demo Android package') },
+      ]),
     },
   ]);
 }

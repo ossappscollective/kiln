@@ -627,6 +627,7 @@ export class DemoRepo extends BlobRepo {
         name,
         kind,
         appName: app.name,
+        identifier: app.identifier,
         version: run.inputs.version ?? build.version,
         build: build.number,
       });

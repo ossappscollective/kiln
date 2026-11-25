@@ -13,6 +13,13 @@ const W = '/api/workspaces/{workspaceId}';
 const platform = z.enum(['ios', 'macos', 'android']);
 const kind = z.enum(['ipa', 'apk', 'aab', 'app', 'dmg', 'pkg', 'zip', 'other']);
 
+const artifactBuild = z.object({
+  number: z.string().describe('The Android versionCode or the iOS CFBundleVersion.'),
+  version: z.string().nullable().describe('versionName or CFBundleShortVersionString.'),
+  packageId: z.string().nullable(),
+  format: z.enum(['apk', 'aab', 'ipa']),
+});
+
 const artifact = z.object({
   id: z.string(),
   name: z.string(),
@@ -25,6 +32,17 @@ const artifact = z.object({
   expiresAt: z.number().int().nullable(),
   downloadable: z.boolean(),
   tooLarge: z.boolean(),
+  build: artifactBuild
+    .nullable()
+    .describe(
+      'The real build number read from inside the file (`inspectBuildArtifact`); null until it was read, and when the file held none.',
+    ),
+  buildRead: z
+    .enum(['read', 'unreadable'])
+    .nullable()
+    .describe(
+      '`read`, `unreadable` (looked at, no build number found) or null (not looked at yet).',
+    ),
   run: z.object({
     id: z.string(),
     number: z.number().int().nullable(),
@@ -181,6 +199,25 @@ export const buildsOperations: Operation[] = [
     appScope: { kind: 'param', name: 'id' },
     rateLimited: true,
     responses: { '200': { description: 'The zip.', contentType: 'application/zip' } },
+  },
+  {
+    id: 'inspectBuildArtifact',
+    method: 'post',
+    path: `${W}/apps/{id}/builds/artifacts/{artifactId}/inspect`,
+    tags: ['builds'],
+    summary: 'Read the real build number (versionCode, CFBundleVersion) from inside a CI artifact',
+    description:
+      "Downloads the artifact ONCE through this server (the same guarded path as a download: the GitHub credential never leaves the server, audited as `credential.use`, purpose `builds.download`; no `build.download` audit row, nothing is handed to the caller) into a temporary file that is deleted before the answer, looks for an .apk, .aab or .ipa in it (or an unpacked app), reads its manifest or `Info.plist` and keeps the result per app and artifact. Answers `{ artifact }`: the same item as the list, with `build` ({ number, version, packageId, format }) and `buildRead` (`read`, or `unreadable` when the file held no build number: kept, so it is not downloaded again). An artifact already read answers from the store with no download. One read at a time per app. Needs `builds.download` (explicit-only for tokens) and `KILN_BUILDS_DOWNLOAD_ENABLED=true` (`409 builds_download_disabled`). `404` for an artifact that is not one of this app's, `410 artifact_expired`, `413 artifact_too_large` (limit `KILN_BUILDS_DOWNLOAD_MAX_MB`), `429` (shares the download limits), `502 download_failed` (not kept: it may work next time). Parsing is written from the documented file layouts and has not been run against real store files.",
+    risk: 'read',
+    access: { action: 'builds.download' },
+    appScope: { kind: 'param', name: 'id' },
+    rateLimited: true,
+    responses: {
+      '200': {
+        description: 'The artifact, with its build number.',
+        schema: z.object({ artifact }),
+      },
+    },
   },
   {
     id: 'createBuildDownloadLink',
