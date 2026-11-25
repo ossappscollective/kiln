@@ -1,4 +1,12 @@
-import { type Platform, platformMeta, supports } from '@kiln/core';
+import {
+  type AssetKind,
+  type Platform,
+  deviceLabel as storeDeviceLabel,
+  kindHasDevice,
+  platformMeta,
+  supports,
+} from '@kiln/core';
+import { kindLabel } from './assets/assets.ts';
 import { formatList } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
 import {
@@ -13,7 +21,9 @@ import {
   type PublishStepType,
 } from './pending.ts';
 import type { DraftPreview } from './staged.ts';
+import { PLAY_CONSOLE_URL } from './store-links.ts';
 import { percentText } from './store-release.ts';
+import { testflightConsoleUrl } from './testflight.ts';
 
 /**
  * "What will be published": the block at the top of the publish dialog that says WHAT goes out and WHERE, in plain words, before the
@@ -43,18 +53,83 @@ export type NotesPreview = {
   truncated: boolean;
   /** The text is empty. */
   empty: boolean;
+  /** The whole text. */
+  text: string;
 };
 
+/** The release notes of one language, as the push writes them. */
+export type NoteEntry = { locale: string; text: string };
+
 export type NotesDetail = {
-  /** The first language with a text, as a short preview (null when no text is known). */
-  first: NotesPreview | null;
-  /** The other languages, by name. */
-  others: { locale: string; empty: boolean }[];
+  /** The text shown as a preview: the app's default language when the push has a text for it, else the first language with a text (null when there is none). */
+  shown: NotesPreview | null;
+  /** `shown` is the default language of the app. */
+  shownIsDefault: boolean;
+  /** The label of the preview: "Release notes (en-US, default)", or without "default" when it is not known to be one. */
+  title: string;
+  /** Why the shown language may not be the default one (a tooltip); null when there is nothing to say. */
+  hint: string | null;
+  /** The other languages, by name, each with its whole text (the chips open it). */
+  others: { locale: string; empty: boolean; text: string }[];
 };
+
+/** Which kind of build the summary names, and which numbers (build number on Apple, version codes on Google Play). */
+export type BuildFacts = {
+  kind: 'apple' | 'play';
+  platform: Platform;
+  version: string | null;
+  numbers: string[];
+};
+
+/** One changed listing text, as the push would write it (never the release notes, never a text that is unchanged). */
+export type TextItem = {
+  id: string;
+  field: string;
+  label: string;
+  locale: string;
+  /** The text the push writes. */
+  after: string;
+  excerpt: string;
+  truncated: boolean;
+  /** What the store holds now; null when the plan does not carry it (or the language is new). */
+  before: string | null;
+  beforeExcerpt: string | null;
+  beforeTruncated: boolean;
+  isNew: boolean;
+};
+
+export type TextDetail = { items: TextItem[]; more: number; total: number };
+
+export type GraphicsFile = { key: string; name: string; oid: string; path: string; width: number | null; height: number | null; bytes: number };
+
+/** One changed graphics set: a language, a kind and a device, with its files (as many as `GRAPHICS_FILES_SHOWN`). */
+export type GraphicsItem = {
+  id: string;
+  locale: string;
+  kind: AssetKind;
+  title: string;
+  files: GraphicsFile[];
+  fileCount: number;
+  moreFiles: number;
+  willUpload: number;
+  willRemove: number;
+};
+
+export type GraphicsDetail = { items: GraphicsItem[]; more: number; total: number };
 
 export type PublishSummary = {
   rows: SummaryRow[];
+  /** The release notes with the default language as the plan alone can tell it (nothing: the first language). */
   notes: NotesDetail | null;
+  /** The notes of every language, to choose the preview again once the default language is known (`notesDetail`). */
+  noteEntries: NoteEntry[];
+  /** The build named by the summary, for its link and its date; null when no build is named. */
+  build: BuildFacts | null;
+  /** The staged texts and graphics of this push, for the two disclosures. */
+  texts: TextDetail | null;
+  graphics: GraphicsDetail | null;
+  /** The app of the plan. */
+  appId: string;
   /** "Nothing else is changed.", or why the staged changes are not part of this publish. */
   footnote: string | null;
   /** One plain sentence on what pressing Publish does, following the ticked steps. */
@@ -72,10 +147,18 @@ export type SummaryInput = {
   /** The bundle id (iOS, macOS) or package name (Android) of the app record; '' when not known. */
   identifier: string;
   typed?: TypedRelease | null | undefined;
+  /** The default language of the app (en-US); null or missing when it is not known (the preview then shows the first language). */
+  defaultLocale?: string | null | undefined;
 };
 
 export const NOTE_LINES = 3;
 export const NOTE_LINE_CHARS = 140;
+/** Texts and graphics sets drawn in the disclosures; the rest is "and N more". */
+export const DETAIL_ITEMS = 12;
+/** Characters of a text before "Show full". */
+export const TEXT_EXCERPT_CHARS = 200;
+/** Thumbnails of one set. */
+export const GRAPHICS_FILES_SHOWN = 6;
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
 const str = (v: unknown): string | null =>
@@ -117,10 +200,10 @@ export function notesPreview(locale: string, text: string): NotesPreview {
     cut = true;
     return `${line.slice(0, NOTE_LINE_CHARS).trimEnd()}…`;
   });
-  return { locale, lines, truncated: cut, empty: all.length === 0 };
+  return { locale, lines, truncated: cut, empty: all.length === 0, text };
 }
 
-type Note = { locale: string; text: string };
+type Note = NoteEntry;
 
 /**
  * The release notes the push writes, per language: Play release
@@ -212,6 +295,196 @@ function graphicsParts(push: DraftPreview): string[] {
     parts.push(t('publish:summary.graphics.feature', { count: counts.feature }));
   if (counts.other > 0) parts.push(t('publish:summary.graphics.other', { count: counts.other }));
   return parts;
+}
+
+const sameLocale = (a: string, b: string): boolean =>
+  a.trim().replace(/_/g, '-').toLowerCase() === b.trim().replace(/_/g, '-').toLowerCase();
+
+/**
+ * The release notes to show: the preview of the default language of the app when the push has a text for it, else the first language
+ * with a text, said plainly ("the first language is shown") when the default language is not known or has no text here.
+ * Pure: the same notes and default language always give the same words.
+ */
+export function notesDetail(
+  entries: readonly NoteEntry[],
+  defaultLocale: string | null | undefined,
+): NotesDetail | null {
+  if (entries.length === 0) return null;
+  const wanted = defaultLocale === undefined || defaultLocale === null ? '' : defaultLocale.trim();
+  const filled = entries.filter((n) => n.text.trim() !== '');
+  const ofDefault = wanted === '' ? undefined : filled.filter((n) => sameLocale(n.locale, wanted))[0];
+  const picked = ofDefault ?? filled[0];
+  let hint: string | null = null;
+  if (picked !== undefined && ofDefault === undefined) {
+    if (wanted !== '')
+      hint = t('publish:summary.notes.hintNoDefault', { default: wanted, locale: picked.locale });
+    else if (entries.length > 1) hint = t('publish:summary.notes.hintUnknown');
+  }
+  const title =
+    picked === undefined
+      ? t('publish:summary.row.notes')
+      : ofDefault !== undefined
+        ? t('publish:summary.notes.titleDefault', { locale: picked.locale })
+        : t('publish:summary.notes.titleLocale', { locale: picked.locale });
+  return {
+    shown: picked ? notesPreview(picked.locale, picked.text) : null,
+    shownIsDefault: ofDefault !== undefined,
+    title,
+    hint,
+    others: entries
+      .filter((n) => !picked || n.locale !== picked.locale)
+      .map((n) => ({ locale: n.locale, empty: n.text.trim() === '', text: n.text })),
+  };
+}
+
+/** A text cut at `max` characters (on a word when it can), with "..." when something was cut. */
+export function cutText(text: string, max: number = TEXT_EXCERPT_CHARS): { excerpt: string; cut: boolean } {
+  const clean = text.trim();
+  if (clean.length <= max) return { excerpt: clean, cut: false };
+  const head = clean.slice(0, max);
+  const space = head.lastIndexOf(' ');
+  const base = space > max * 0.6 ? head.slice(0, space) : head;
+  return { excerpt: `${base.trimEnd()}…`, cut: true };
+}
+
+/**
+ * The listing texts the push changes, one item per field and language (never the release notes, which have their own row, and never a
+ * text that is the same as in the store), at most `limit` of them; the rest is counted in `more`. null when there is no push.
+ */
+export function textDetail(push: DraftPreview | null, limit: number = DETAIL_ITEMS): TextDetail | null {
+  if (push === null) return null;
+  const all: TextItem[] = [];
+  for (const x of push.text) {
+    if (x.field === 'release_notes' || x.status === 'unchanged') continue;
+    const after = cutText(x.after);
+    const before = x.before === null || x.before === undefined ? null : cutText(x.before);
+    all.push({
+      id: x.id,
+      field: x.field,
+      label: textLabel(x.field),
+      locale: x.locale,
+      after: x.after,
+      excerpt: after.excerpt,
+      truncated: after.cut,
+      before: before === null ? null : x.before,
+      beforeExcerpt: before === null ? null : before.excerpt,
+      beforeTruncated: before === null ? false : before.cut,
+      isNew: x.status === 'new_locale',
+    });
+  }
+  return { items: all.slice(0, limit), more: Math.max(0, all.length - limit), total: all.length };
+}
+
+/**
+ * The graphics sets the push changes, one item per language, kind and device with its files (as many as `GRAPHICS_FILES_SHOWN`), at most
+ * `limit` sets; the rest is counted in `more`. null when there is no push. A set the plan carries without its files has none listed.
+ */
+export function graphicsDetail(
+  push: DraftPreview | null,
+  limit: number = DETAIL_ITEMS,
+): GraphicsDetail | null {
+  if (push === null) return null;
+  const store = supports(push.app.platform, 'releaseTracks') ? 'google_play' : 'app_store';
+  const all: GraphicsItem[] = [];
+  for (const set of push.assets) {
+    if (set.status === 'unchanged') continue;
+    const kind = set.slot.kind;
+    const device = kindHasDevice(kind) ? storeDeviceLabel(store, set.slot.device) : '';
+    const files = (set.after?.files ?? []).map((f, i) => ({
+      key: `${set.id}#${i}`,
+      name: f.name,
+      oid: f.oid,
+      path: f.path,
+      width: f.width ?? null,
+      height: f.height ?? null,
+      bytes: f.bytes ?? 0,
+    }));
+    all.push({
+      id: set.id,
+      locale: set.locale,
+      kind,
+      title: device === '' ? kindLabel(kind) : t('publish:summary.graphics.setTitle', { kind: kindLabel(kind), device }),
+      files: files.slice(0, GRAPHICS_FILES_SHOWN),
+      fileCount: files.length,
+      moreFiles: Math.max(0, files.length - GRAPHICS_FILES_SHOWN),
+      willUpload: set.willUpload ?? 0,
+      willRemove: set.willRemove ?? 0,
+    });
+  }
+  return { items: all.slice(0, limit), more: Math.max(0, all.length - limit), total: all.length };
+}
+
+export type BuildLink = {
+  href: string;
+  /** The visible words. */
+  text: string;
+  /** The accessible name. */
+  label: string;
+  /** What the link really opens (a tooltip), so a generic page is never passed off as the page of the build. */
+  title: string;
+};
+
+const APP_STORE_CONNECT_APPS = 'https://appstoreconnect.apple.com/apps';
+
+/**
+ * Where to look at the build in the store's console. Google Play: the Console itself, because its pages need the developer account id
+ * and the numeric app id, which Google Play's API does not give (the app bundle explorer is one click away). App Store Connect: the
+ * app's TestFlight page when the Apple app id is known (its builds are listed there), else the list of the apps. Pure.
+ */
+export function buildLink(facts: BuildFacts, storeAppId: string | null | undefined): BuildLink {
+  const builds = facts.numbers.join(', ');
+  if (facts.kind === 'play') {
+    return {
+      href: PLAY_CONSOLE_URL,
+      text: t('publish:summary.build.link.play'),
+      label:
+        builds === ''
+          ? t('publish:summary.build.link.playLabelPlain')
+          : t('publish:summary.build.link.playLabel', { builds }),
+      title: t('publish:summary.build.link.playTitle'),
+    };
+  }
+  const direct = testflightConsoleUrl(storeAppId ?? null);
+  return {
+    href: direct ?? APP_STORE_CONNECT_APPS,
+    text: t('publish:summary.build.link.apple'),
+    label:
+      builds === ''
+        ? t('publish:summary.build.link.appleLabelPlain')
+        : t('publish:summary.build.link.appleLabel', { builds }),
+    title:
+      direct === null
+        ? t('publish:summary.build.link.appleTitleApps')
+        : t('publish:summary.build.link.appleTitle'),
+  };
+}
+
+/** When the build was uploaded, as far as the stored builds say. */
+export type BuildDate =
+  | { state: 'known'; at: number }
+  /** Google Play gives no upload date of a build (its API lists version codes and tracks only). */
+  | { state: 'notProvided' }
+  /** App Store Connect gives it, but the stored builds do not hold this build (yet) or hold no date for it. */
+  | { state: 'notRead' };
+
+/**
+ * The upload date of the build of the summary. `stored` is the list of the builds the last sync stored (`AppBuilds.builds`), or null when it
+ * was not read (then nothing is known and null is returned, so nothing is shown). Google Play never has one, so it says so. Pure.
+ */
+export function buildDate(
+  facts: BuildFacts | null,
+  stored: readonly { platform: Platform; buildNumber: string; version?: string | undefined; uploadedAt: number | null }[] | null,
+): BuildDate | null {
+  if (facts === null) return null;
+  if (facts.kind === 'play') return { state: 'notProvided' };
+  if (stored === null || facts.numbers.length === 0) return null;
+  const mine = stored.filter(
+    (b) => b.platform === facts.platform && facts.numbers.indexOf(b.buildNumber) >= 0,
+  );
+  const same = mine.filter((b) => facts.version === null || b.version === undefined || b.version === facts.version);
+  const dated = (same.length > 0 ? same : mine).filter((b) => b.uploadedAt !== null);
+  const newest = dated.sort((a, b) => (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0))[0];
+  return newest?.uploadedAt != null ? { state: 'known', at: newest.uploadedAt } : { state: 'notRead' };
 }
 
 /**
@@ -347,6 +620,7 @@ export function publishSummary(input: SummaryInput): PublishSummary {
     push?.version?.versionString ??
     release?.version?.versionString ??
     fieldAfter(pushed, 'version_string');
+  let build: BuildFacts | null = null;
   if (play) {
     const name =
       (releaseOn ? (release?.direct?.name ?? release?.release?.name ?? null) : null) ??
@@ -372,6 +646,7 @@ export function publishSummary(input: SummaryInput): PublishSummary {
     else if (name !== null) value = name;
     else value = t('publish:summary.release.inDraft');
     rows.push({ id: 'release', label: t('publish:summary.row.release'), value });
+    build = { kind: 'play', platform, version: name, numbers: codes };
   } else {
     rows.push({
       id: 'version',
@@ -382,6 +657,7 @@ export function publishSummary(input: SummaryInput): PublishSummary {
     const number = str(submit?.build?.version) ?? str(release?.build?.buildNumber);
     const loadedWithoutBuild =
       (submit !== null && submit.build === null) || (release !== null && release.build === null);
+    build = { kind: 'apple', platform, version: appleVersion, numbers: number === null ? [] : [number] };
     rows.push({
       id: 'build',
       label: t('publish:summary.row.build'),
@@ -434,17 +710,7 @@ export function publishSummary(input: SummaryInput): PublishSummary {
 
   // The release notes that go out.
   const notes = notesOf(pushed, platform);
-  const detail: NotesDetail | null = (() => {
-    if (notes.length === 0) return null;
-    const filled = notes.filter((n) => n.text.trim() !== '');
-    const first = filled[0];
-    return {
-      first: first ? notesPreview(first.locale, first.text) : null,
-      others: notes
-        .filter((n) => !first || n.locale !== first.locale)
-        .map((n) => ({ locale: n.locale, empty: n.text.trim() === '' })),
-    };
-  })();
+  const detail = notesDetail(notes, input.defaultLocale ?? null);
   const missing: string[] = [];
   for (const n of notes) if (n.text.trim() === '') missing.push(n.locale);
   if (play && notes.some((n) => n.text.trim() !== '')) {
@@ -519,6 +785,11 @@ export function publishSummary(input: SummaryInput): PublishSummary {
   return {
     rows,
     notes: detail,
+    noteEntries: notes,
+    build,
+    texts: textDetail(pushed),
+    graphics: graphicsDetail(pushed),
+    appId: plan.app.id,
     footnote,
     outcome: outcomeText({ plan, wanted, play, direct, track, fraction, kind, appleVersion }),
     nothing: wanted.length === 0,

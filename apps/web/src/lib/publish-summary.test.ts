@@ -2,7 +2,20 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { useLocale } from './i18n/test-setup.ts';
 import type { PlanStep, PublishPlan, PublishStepType } from './pending.ts';
-import { notesPreview, publishSummary, shownErrors } from './publish-summary.ts';
+import {
+  buildDate,
+  buildLink,
+  cutText,
+  DETAIL_ITEMS,
+  GRAPHICS_FILES_SHOWN,
+  graphicsDetail,
+  notesDetail,
+  notesPreview,
+  publishSummary,
+  shownErrors,
+  textDetail,
+} from './publish-summary.ts';
+import type { DraftPreview } from './staged.ts';
 
 type Fields = { field: string; locale?: string; after: string };
 
@@ -103,10 +116,10 @@ test('a Google Play plan says where it goes, which build, the notes and the asse
   assert.equal(row(s, 'graphics')?.value, '2 screenshot sets, 1 icon set, 1 feature graphic set');
   assert.equal(row(s, 'fields')?.value, '5 release fields');
   assert.equal(s.footnote, 'Nothing else is changed.');
-  assert.equal(s.notes?.first?.locale, 'en-US');
-  assert.deepEqual(s.notes?.first?.lines, ['Faster sync', 'Bug fixes', 'New icon']);
-  assert.equal(s.notes?.first?.truncated, true);
-  assert.deepEqual(s.notes?.others, [{ locale: 'de-DE', empty: false }]);
+  assert.equal(s.notes?.shown?.locale, 'en-US');
+  assert.deepEqual(s.notes?.shown?.lines, ['Faster sync', 'Bug fixes', 'New icon']);
+  assert.equal(s.notes?.shown?.truncated, true);
+  assert.deepEqual(s.notes?.others, [{ locale: 'de-DE', empty: false, text: 'Schneller' }]);
   assert.equal(
     s.outcome,
     'Pressing Publish pushes these to Google Play as a draft, then submits the draft for review, then rolls out the draft release to Production for 100% of users. Review takes the store hours to days; you can follow it in Builds.',
@@ -204,7 +217,7 @@ test('release notes: a locale without text is named, a long text is cut', () => 
   });
   assert.equal(row(s, 'notes')?.value, '1 language');
   assert.equal(row(s, 'notes')?.hint, 'No release notes for fr-FR, es-ES, and it-IT and 1 more');
-  assert.deepEqual(s.notes?.others, [{ locale: 'fr-FR', empty: true }]);
+  assert.deepEqual(s.notes?.others, [{ locale: 'fr-FR', empty: true, text: '  ' }]);
   const long = notesPreview('en-US', `${'x'.repeat(200)}\n\na\nb\nc`);
   assert.equal(long.lines.length, 3);
   assert.equal(long.lines[0]?.length, 141);
@@ -307,4 +320,248 @@ test('the prompt for a track or a share waits until the fields were touched', ()
   assert.deepEqual(shownErrors(waiting, true).map((p) => p.code), ['track_required', 'blocked']);
   const blocked = { availability: 'blocked', problems: [prompt] } as PlanStep;
   assert.equal(shownErrors(blocked, false).length, 1);
+});
+
+// ---------------------------------------------------------------------------------------------
+// The default language of the release notes
+
+const NOTES = [
+  { locale: 'de-DE', text: 'Schneller' },
+  { locale: 'en-US', text: 'Faster sync' },
+  { locale: 'fr-FR', text: 'Plus rapide' },
+];
+
+test('the release notes preview is the default language when the push has a text for it', () => {
+  const d = notesDetail(NOTES, 'en-US');
+  assert.equal(d?.shown?.locale, 'en-US');
+  assert.equal(d?.shownIsDefault, true);
+  assert.equal(d?.title, 'Release notes (en-US, default)');
+  assert.equal(d?.hint, null);
+  assert.deepEqual(d?.others.map((o) => o.locale), ['de-DE', 'fr-FR']);
+  // en_us and a different case are the same language.
+  assert.equal(notesDetail(NOTES, 'EN_us')?.shown?.locale, 'en-US');
+});
+
+test('without a known default language the first language is shown, and it says so', () => {
+  const d = notesDetail(NOTES, null);
+  assert.equal(d?.shown?.locale, 'de-DE');
+  assert.equal(d?.shownIsDefault, false);
+  assert.equal(d?.title, 'Release notes (de-DE)');
+  assert.match(d?.hint ?? '', /not known here/);
+});
+
+test('a default language without a text in the push falls back to the first language with a text', () => {
+  const d = notesDetail([{ locale: 'en-US', text: '  ' }, ...NOTES.slice(0, 1)], 'en-US');
+  assert.equal(d?.shown?.locale, 'de-DE');
+  assert.equal(d?.shownIsDefault, false);
+  assert.match(d?.hint ?? '', /en-US\) has no release notes in this publish, so de-DE is shown/);
+  assert.deepEqual(d?.others, [{ locale: 'en-US', empty: true, text: '  ' }]);
+});
+
+test('a single language needs no hint, with or without a default language', () => {
+  const one = [{ locale: 'en-US', text: 'Fixes' }];
+  assert.equal(notesDetail(one, null)?.hint, null);
+  assert.equal(notesDetail(one, null)?.title, 'Release notes (en-US)');
+  assert.equal(notesDetail(one, 'en-US')?.title, 'Release notes (en-US, default)');
+  assert.equal(notesDetail(one, 'fr-FR')?.shown?.locale, 'en-US');
+  assert.deepEqual(notesDetail(one, 'en-US')?.others, []);
+  assert.equal(notesDetail([], 'en-US'), null);
+});
+
+test('the summary takes the default language from its input, and keeps every note for a later choice', () => {
+  const input = { plan: plan(playSteps()), wanted: ['push_draft'] as PublishStepType[], identifier: '' };
+  const without = publishSummary(input);
+  assert.equal(without.notes?.shown?.locale, 'en-US');
+  assert.match(without.notes?.hint ?? '', /not known here/);
+  const withDefault = publishSummary({ ...input, defaultLocale: 'de-DE' });
+  assert.equal(withDefault.notes?.shown?.locale, 'de-DE');
+  assert.equal(withDefault.notes?.title, 'Release notes (de-DE, default)');
+  assert.deepEqual(without.noteEntries.map((n) => n.locale), ['en-US', 'de-DE']);
+  assert.equal(notesDetail(without.noteEntries, 'de-DE')?.shown?.locale, 'de-DE');
+});
+
+// ---------------------------------------------------------------------------------------------
+// The build: its link and its date
+
+test('the build facts: version codes on Google Play, the build number on the App Store', () => {
+  const play = publishSummary({ plan: plan(playSteps()), wanted: ['push_draft'], identifier: '' });
+  assert.deepEqual(play.build, { kind: 'play', platform: 'android', version: '1.26.2', numbers: ['165'] });
+  assert.equal(play.appId, 'a');
+  const { plan: p, wanted } = applePlan();
+  const apple = publishSummary({ plan: p, wanted, identifier: '' });
+  assert.equal(apple.build?.kind, 'apple');
+  assert.equal(apple.build?.platform, 'ios');
+  assert.equal(apple.build?.version, '2.9.0');
+});
+
+test('the build link: the Play Console itself, never a page that was not built from known ids', () => {
+  const link = buildLink({ kind: 'play', platform: 'android', version: '1.26.2', numbers: ['165', '166'] }, null);
+  assert.equal(link.href, 'https://play.google.com/console/');
+  assert.equal(link.label, 'Open Google Play Console (build 165, 166)');
+  assert.match(link.title, /does not give Kiln/);
+  const none = buildLink({ kind: 'play', platform: 'android', version: null, numbers: [] }, null);
+  assert.equal(none.label, 'Open Google Play Console');
+});
+
+test('the build link: the TestFlight page of the app when the Apple id is known, else the list of apps', () => {
+  const facts = { kind: 'apple', platform: 'ios', version: '2.9.0', numbers: ['412'] } as const;
+  const known = buildLink(facts, '1234567890');
+  assert.equal(known.href, 'https://appstoreconnect.apple.com/apps/1234567890/testflight');
+  assert.equal(known.label, 'Open TestFlight in App Store Connect (build 412)');
+  for (const id of [null, undefined, '', 'not-a-number']) {
+    const missing = buildLink(facts, id);
+    assert.equal(missing.href, 'https://appstoreconnect.apple.com/apps');
+    assert.match(missing.title, /id of the app is not known|app id is not known/);
+  }
+  assert.equal(buildLink({ ...facts, numbers: [] }, '1').label, 'Open TestFlight in App Store Connect');
+});
+
+test('the build date: Google Play says it gives none, App Store Connect gives it when stored', () => {
+  const play = { kind: 'play', platform: 'android', version: null, numbers: ['165'] } as const;
+  assert.deepEqual(buildDate(play, null), { state: 'notProvided' });
+  assert.deepEqual(buildDate(play, [{ platform: 'android', buildNumber: '165', uploadedAt: 5 }]), { state: 'notProvided' });
+  const apple = { kind: 'apple', platform: 'ios', version: '2.9.0', numbers: ['412'] } as const;
+  const stored = [
+    { platform: 'ios', buildNumber: '411', version: '2.9.0', uploadedAt: 100 },
+    { platform: 'ios', buildNumber: '412', version: '2.9.0', uploadedAt: 200 },
+    { platform: 'android', buildNumber: '412', version: '2.9.0', uploadedAt: 300 },
+  ] as const;
+  assert.deepEqual(buildDate(apple, stored), { state: 'known', at: 200 });
+  assert.deepEqual(buildDate(apple, [{ platform: 'ios', buildNumber: '412', version: '2.9.0', uploadedAt: null }]), { state: 'notRead' });
+  assert.deepEqual(buildDate(apple, []), { state: 'notRead' });
+  // Not read (or no build named): nothing is said at all.
+  assert.equal(buildDate(apple, null), null);
+  assert.equal(buildDate({ ...apple, numbers: [] }, stored), null);
+  assert.equal(buildDate(null, stored), null);
+});
+
+// ---------------------------------------------------------------------------------------------
+// The texts and graphics, to see them one last time
+
+const file = (n: number) => ({ path: `up/${n}.png`, name: `shot-${n}.png`, oid: `oid${n}`, bytes: 1000 * n, width: 1290, height: 2796, format: 'png' });
+const preview = (text: object[], assets: object[], platform = 'ios'): DraftPreview =>
+  ({
+    app: { id: 'a', name: 'Kiln', platform, store: 'x' },
+    version: null,
+    text,
+    assets,
+    summary: {},
+  }) as unknown as DraftPreview;
+const textRow = (i: number, over: object = {}) => ({
+  id: `t${i}`,
+  locale: 'en-US',
+  field: 'description',
+  before: 'Old text',
+  after: 'New text',
+  localeExists: true,
+  status: 'changed',
+  ...over,
+});
+const setRow = (i: number, files: number, over: object = {}) => ({
+  id: `en-US/screenshot:iphone_6_9${i}`,
+  locale: 'en-US',
+  slot: { kind: 'screenshot', device: 'APP_IPHONE_67' },
+  status: 'changed',
+  willUpload: files,
+  willRemove: 0,
+  before: { setExists: true, files: [] },
+  after: { files: Array.from({ length: files }, (_, n) => file(n + 1)) },
+  ...over,
+});
+
+test('cutText cuts on a word and says it cut', () => {
+  assert.deepEqual(cutText('short'), { excerpt: 'short', cut: false });
+  const long = cutText(`${'word '.repeat(80)}`, 50);
+  assert.equal(long.cut, true);
+  assert.ok(long.excerpt.endsWith('…'));
+  assert.ok(long.excerpt.length <= 51);
+  assert.equal(cutText('x'.repeat(300), 100).excerpt.length, 101);
+});
+
+test('the changed texts: field, language, new text, the text now in the store, cut with a flag', () => {
+  const longText = 'A long description. '.repeat(30);
+  const d = textDetail(
+    preview(
+      [
+        textRow(1),
+        textRow(2, { field: 'subtitle', locale: 'fr-FR', before: null, after: longText, status: 'new_locale', localeExists: false }),
+        textRow(3, { status: 'unchanged' }),
+        textRow(4, { field: 'release_notes' }),
+      ],
+      [],
+    ),
+  );
+  assert.equal(d?.total, 2);
+  assert.equal(d?.more, 0);
+  assert.deepEqual(d?.items.map((i) => [i.field, i.label, i.locale]), [
+    ['description', 'Description', 'en-US'],
+    ['subtitle', 'Subtitle', 'fr-FR'],
+  ]);
+  assert.equal(d?.items[0]?.before, 'Old text');
+  assert.equal(d?.items[0]?.truncated, false);
+  assert.equal(d?.items[1]?.before, null);
+  assert.equal(d?.items[1]?.isNew, true);
+  assert.equal(d?.items[1]?.truncated, true);
+  assert.equal(d?.items[1]?.after, longText);
+  assert.ok((d?.items[1]?.excerpt.length ?? 999) < longText.length);
+  assert.equal(textDetail(null), null);
+});
+
+test('the changed texts show at most the cap and count the rest', () => {
+  const rows = Array.from({ length: DETAIL_ITEMS + 5 }, (_, i) => textRow(i, { locale: `l${i}` }));
+  const d = textDetail(preview(rows, []));
+  assert.equal(d?.items.length, DETAIL_ITEMS);
+  assert.equal(d?.more, 5);
+  assert.equal(d?.total, DETAIL_ITEMS + 5);
+  assert.equal(textDetail(preview(rows, []), 3)?.more, DETAIL_ITEMS + 2);
+});
+
+test('the changed graphics: one item per set with its files, counts and a device name', () => {
+  const d = graphicsDetail(
+    preview(
+      [],
+      [
+        setRow(1, 3),
+        setRow(2, 2, { status: 'unchanged' }),
+        setRow(3, 1, { locale: 'de-DE', slot: { kind: 'icon', device: null } }),
+      ],
+    ),
+  );
+  assert.equal(d?.total, 2);
+  const first = d?.items[0];
+  assert.equal(first?.locale, 'en-US');
+  assert.equal(first?.kind, 'screenshot');
+  assert.match(first?.title ?? '', /^Screenshots · /);
+  assert.equal(first?.fileCount, 3);
+  assert.equal(first?.files.length, 3);
+  assert.deepEqual(first?.files[0], { key: `${first?.id}#0`, name: 'shot-1.png', oid: 'oid1', path: 'up/1.png', width: 1290, height: 2796, bytes: 1000 });
+  assert.equal(first?.willUpload, 3);
+  assert.equal(d?.items[1]?.title, 'Store icon');
+  assert.equal(graphicsDetail(null), null);
+});
+
+test('a graphics set caps its thumbnails and the list caps its sets', () => {
+  const many = graphicsDetail(preview([], [setRow(1, GRAPHICS_FILES_SHOWN + 4)]));
+  assert.equal(many?.items[0]?.files.length, GRAPHICS_FILES_SHOWN);
+  assert.equal(many?.items[0]?.fileCount, GRAPHICS_FILES_SHOWN + 4);
+  assert.equal(many?.items[0]?.moreFiles, 4);
+  const sets = Array.from({ length: DETAIL_ITEMS + 2 }, (_, i) => setRow(i, 1));
+  const capped = graphicsDetail(preview([], sets));
+  assert.equal(capped?.items.length, DETAIL_ITEMS);
+  assert.equal(capped?.more, 2);
+  // A plan that does not carry the files (older server) lists none and does not fail.
+  const bare = graphicsDetail(preview([], [{ id: 's', locale: 'en-US', slot: { kind: 'icon', device: null }, status: 'changed' }], 'android'));
+  assert.equal(bare?.items[0]?.fileCount, 0);
+  assert.deepEqual(bare?.items[0]?.files, []);
+});
+
+test('the summary carries the texts and graphics of the ticked push only', () => {
+  const push = preview([textRow(1)], [setRow(1, 2)], 'android');
+  const steps = [step('push_draft', { order: 1, preview: push })];
+  const on = publishSummary({ plan: plan(steps), wanted: ['push_draft'], identifier: '' });
+  assert.equal(on.texts?.total, 1);
+  assert.equal(on.graphics?.total, 1);
+  const off = publishSummary({ plan: plan(steps), wanted: [], identifier: '' });
+  assert.equal(off.texts, null);
+  assert.equal(off.graphics, null);
 });
