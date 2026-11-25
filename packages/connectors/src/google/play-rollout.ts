@@ -26,7 +26,12 @@ import {
   text,
 } from '../store-http.ts';
 import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
-import { googleError, isPlayPackageName, serializedPlayEdits } from './googleplay.ts';
+import {
+  googleError,
+  isPlayPackageName,
+  redactedError,
+  serializedPlayEdits,
+} from './googleplay.ts';
 
 /**
  * Google Play: change the staged rollout of a release on a track. A STORE WRITE: it changes what
@@ -382,17 +387,22 @@ export class PlayRolloutConnector implements StoreRolloutConnector {
     const error = googleError(reply, what, {
       packageName: this.packageName,
       ...(this.#account.projectId ? { projectId: this.#account.projectId } : {}),
+      causes: true,
     });
     if (error instanceof StoreRateLimitError) return error;
-    if (write && reply.status === 403 && error.kind === 'forbidden') {
-      return new StoreError(
-        'googleplay',
-        'forbidden',
+    if (
+      write &&
+      reply.status === 403 &&
+      error.kind === 'forbidden' &&
+      error.code !== 'store.google.releasePermission'
+    ) {
+      return redactedError(
+        error,
+        (x) => this.#http.redact(x),
         'Google Play refused the change (403). The service account must be allowed to release this app in Play Console (Users and permissions). See docs/credentials.md.',
-        403,
       );
     }
-    return new StoreError('googleplay', error.kind, this.#http.redact(error.message), error.status);
+    return redactedError(error, (x) => this.#http.redact(x));
   }
 
   async #call(

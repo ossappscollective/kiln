@@ -51,7 +51,12 @@ import {
   text,
 } from '../store-http.ts';
 import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
-import { googleError, isPlayPackageName, serializedPlayEdits } from './googleplay.ts';
+import {
+  googleError,
+  isPlayPackageName,
+  redactedError,
+  serializedPlayEdits,
+} from './googleplay.ts';
 
 /**
  * Google Play: write listing text and images into an EDIT and commit it WITHOUT sending it for
@@ -959,17 +964,21 @@ export class PlayDraftConnector
     const error = googleError(reply, what, {
       packageName: this.packageName,
       ...(this.#account.projectId ? { projectId: this.#account.projectId } : {}),
+      causes: true,
     });
     if (error instanceof StoreRateLimitError) return error;
-    if (reply.status === 403 && error.kind === 'forbidden') {
-      return new StoreError(
-        'googleplay',
-        'forbidden',
+    if (
+      reply.status === 403 &&
+      error.kind === 'forbidden' &&
+      error.code !== 'store.google.releasePermission'
+    ) {
+      return redactedError(
+        error,
+        (x) => this.#http.redact(x),
         'Google Play refused the change (403). The service account must be allowed to edit the store listing of this app in Play Console (Users and permissions). See docs/credentials.md.',
-        403,
       );
     }
-    return new StoreError('googleplay', error.kind, this.#http.redact(error.message), error.status);
+    return redactedError(error, (x) => this.#http.redact(x));
   }
 
   async #call(

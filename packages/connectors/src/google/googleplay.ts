@@ -1,5 +1,5 @@
 import type { ListingSections, LocaleText, MediaSet, PlayField } from '@kiln/core';
-import { StoreError, StoreRateLimitError } from '../errors.ts';
+import { StoreError, type StoreErrorDetail, StoreRateLimitError } from '../errors.ts';
 import { mapPlayTrackRelease } from '../mappings.ts';
 import {
   enc,
@@ -29,6 +29,7 @@ import type {
   StoreVersion,
 } from '../types.ts';
 import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
+import { googleFacts, playCauseOf } from './play-causes.ts';
 
 /**
  * Read-only Google Play Developer API connector.
@@ -134,12 +135,36 @@ function describeGoogle(json: unknown): { message: string; reasons: string } {
 export function googleError(
   reply: StoreReply,
   what: string,
-  context: { packageName?: string; projectId?: string } = {},
+  context: { packageName?: string; projectId?: string; causes?: boolean } = {},
 ): StoreError {
   const { message, reasons } = describeGoogle(reply.json);
   const status = reply.status;
   const app = context.packageName ? ` ${context.packageName}` : ' this app';
   const haystack = `${message} ${reasons}`;
+  // A write of a draft, a submit or a release (`causes`): what Google said, kept in `details` for the person, and a known cause named.
+  const facts = googleFacts(reply);
+  const said: StoreErrorDetail[] =
+    context.causes && (facts.message !== '' || facts.reasons !== '')
+      ? [
+          {
+            ...(facts.reasons !== '' ? { code: facts.reasons.split(',')[0] ?? '' } : {}),
+            ...(facts.googleStatus !== '' ? { title: facts.googleStatus } : {}),
+            ...(facts.message !== '' ? { detail: facts.message.slice(0, 600) } : {}),
+          },
+        ]
+      : [];
+  const known = context.causes && status !== 401 ? playCauseOf(facts) : null;
+  const named = (kind: StoreError['kind']): StoreError | null =>
+    known === null
+      ? null
+      : new StoreError(
+          'googleplay',
+          kind,
+          known.message,
+          status,
+          said.length > 0 ? said : undefined,
+          { code: known.code, ...(known.params ? { params: known.params } : {}) },
+        );
   if (status === 401) {
     return new StoreError(
       'googleplay',
@@ -165,6 +190,9 @@ export function googleError(
           : { code: 'store.google.apiDisabled' },
       );
     }
+    const permission = known?.cause === 'releasePermission' ? named('forbidden') : null;
+    if (permission) return permission;
+    if (known !== null) return named('unexpected') as StoreError;
     if (/projectNotLinked/i.test(reasons)) {
       return new StoreError(
         'googleplay',
@@ -180,7 +208,7 @@ export function googleError(
       'forbidden',
       `The service account has no access to${app} (403). In Play Console, open Users and permissions, invite the service account's email address and grant it access to the app. If that was just done, wait and try again.`,
       status,
-      undefined,
+      said.length > 0 ? said : undefined,
       context.packageName
         ? { code: 'store.google.noAccessPackage', params: { package: context.packageName } }
         : { code: 'store.google.noAccess' },
@@ -218,11 +246,41 @@ export function googleError(
       status,
     );
   }
+  const other = named('unexpected');
+  if (other) return other;
   return new StoreError(
     'googleplay',
     'unexpected',
     `Google Play answered ${what} with HTTP ${status}${message ? ` (${message.slice(0, 200)})` : ''}.`,
     status,
+    said.length > 0 ? said : undefined,
+  );
+}
+
+/**
+ * A Google error with its message (and Google's own words in `details`) redacted by `redact`, for the writers that refuse in their own
+ * words: `message` replaces the sentence (then the coding, which describes the original sentence, is dropped); without it the error
+ * keeps its coding and its cause.
+ */
+export function redactedError(
+  error: StoreError,
+  redact: (text: string) => string,
+  message?: string,
+): StoreError {
+  const details = error.details?.map((d) => ({
+    ...d,
+    ...(d.detail !== undefined ? { detail: redact(d.detail) } : {}),
+    ...(d.title !== undefined ? { title: redact(d.title) } : {}),
+  }));
+  return new StoreError(
+    'googleplay',
+    error.kind,
+    redact(message ?? error.message),
+    error.status,
+    details,
+    message === undefined && error.code !== undefined
+      ? { code: error.code, ...(error.params ? { params: error.params } : {}) }
+      : undefined,
   );
 }
 
