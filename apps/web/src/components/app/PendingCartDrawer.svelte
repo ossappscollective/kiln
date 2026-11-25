@@ -35,10 +35,10 @@
     placeOf,
     pricePhrases,
     prune,
-    queuePublishOpen,
     rowsForLocale,
     reasonText,
     resultText,
+    reviewScope,
     RISK_KEYS,
     type Selection,
     selectAll,
@@ -74,6 +74,7 @@
     onpublish,
     ondiscard,
     ondryrun,
+    onreview,
     onrefresh,
     ondismiss,
     now,
@@ -98,6 +99,7 @@
     onpublish: (selection: Selection, confirmations: Readonly<Record<string, string>>) => void;
     ondiscard: (selection: Selection) => void;
     ondryrun: (selection: Selection) => void;
+    onreview: (selection: Selection) => void;
     onrefresh: () => void;
     ondismiss: () => void;
     now: number;
@@ -126,6 +128,8 @@
   const listed = $derived(report ? outcomeRows(report.rows, report.outcomes) : []);
   /** Why a whole request failed (the server's code and message), once, not on every row. */
   const details = $derived(report ? [...new Set(Object.values(report.outcomes).flatMap((o) => (o.detail ? [o.detail] : [])))] : []);
+  /** Whether "Review and publish" has a staged change to plan (the selection, or everything when nothing is selected). */
+  const review = $derived(reviewScope(rows, selection));
   const phrases = $derived(pricePhrases(rows, selection));
   const phraseOk = $derived(phrases.every((p) => samePhrase(typed[p.appId] ?? '', p.phrase)));
   const platformName = (appId: string) => {
@@ -434,7 +438,7 @@
               <Button variant="primary" loading={busy} disabled={busy || counts.selected === 0} onclick={() => ask('publish')}>
                 {t('app:cart.publish', { count: counts.selected })}
               </Button>
-              <Button href={appAddress(groupId, 'pending', platform)} onclick={() => { queuePublishOpen(); open = false; }}>
+              <Button disabled={busy || review.none} onclick={() => onreview(selection)}>
                 {t('app:cart.reviewAndPublish')}
               </Button>
               {#if counts.prices > 0}

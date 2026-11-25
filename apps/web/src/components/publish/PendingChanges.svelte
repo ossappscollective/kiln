@@ -41,7 +41,7 @@
     totalsLine,
     warningsOf,
   } from '../../lib/pending.ts';
-  import { type CartRow, takeQueuedPublishOpen, toRows } from '../../lib/pending-cart.ts';
+  import { type CartRow, toRows } from '../../lib/pending-cart.ts';
   import { itemKey, needsCart, thumbsOf } from '../../lib/pending-preview.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
@@ -272,14 +272,6 @@
     if (availability.state !== 'ready' || targets.length === 0) return;
     publishOpen = true;
   }
-
-  // Sent here by the cart drawer's "Review and publish": open the plan once the page can.
-  $effect(() => {
-    if (headless || compact || !list) return;
-    if (availability.state !== 'ready' && availability.state !== 'blocked') return;
-    if (targets.length === 0 || !takeQueuedPublishOpen()) return;
-    untrack(() => openPublish());
-  });
 
   /** For a parent that holds the button (the stepper's footer): open the plan, or show what blocks it. */
   export function open() {

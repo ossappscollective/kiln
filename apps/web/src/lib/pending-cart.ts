@@ -473,17 +473,21 @@ export const STATUS_KEYS: Record<CartOutcome['status'] | 'running', string> = {
   running: k('app:cart.status.running'),
 };
 
-let queuedPublish = 0;
-const QUEUED_PUBLISH_MS = 15_000;
+/** The staged kinds: what "Review and publish" plans (a price or a reply is sent from the drawer itself). */
+const planned = (row: CartRow) => row.risk === 'store_draft';
 
-/** The pending page opens the review and publish plan as soon as it can: the cart drawer's "Review and publish" links there (the page does not exist yet to hear an event). */
-export function queuePublishOpen(now: number = Date.now()): void {
-  queuedPublish = now;
-}
-
-/** True once after a link queued it, and only for a few seconds: a later visit to the page does not open the plan by itself. */
-export function takeQueuedPublishOpen(now: number = Date.now()): boolean {
-  const fresh = queuedPublish !== 0 && now - queuedPublish < QUEUED_PUBLISH_MS;
-  queuedPublish = 0;
-  return fresh;
+/**
+ * What the drawer's "Review and publish" plans. Nothing selected means everything; otherwise only the apps with a selected staged
+ * change. When the selection leaves out some of what could be sent, the plan is the draft push alone (`steps` is a list); when it holds
+ * everything, `steps` is null: the default plan, with the later steps (submit, release) as well. `none` when no staged change is in play.
+ */
+export function reviewScope(
+  rows: readonly CartRow[],
+  selection: Selection,
+): { appIds: string[]; steps: { type: 'push_draft' }[] | null; none: boolean } {
+  const chosen = selection.size === 0 ? rows.filter(selectable) : selectedRows(rows, selection);
+  const staged = chosen.filter(planned);
+  const appIds = [...new Set(staged.map((r) => r.appId))];
+  const everything = rows.filter(selectable).every((r) => selection.size === 0 || selection.has(r.key));
+  return { appIds, steps: everything ? null : [{ type: 'push_draft' }], none: staged.length === 0 };
 }

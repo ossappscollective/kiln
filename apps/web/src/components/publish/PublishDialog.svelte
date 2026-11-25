@@ -81,12 +81,15 @@ import { supports } from '@kiln/core';
     api,
     workspaceId,
     targets,
+    steps = null,
     onchanged,
   }: {
     open?: boolean | undefined;
     api: Api;
     workspaceId: string;
     targets: AppSummary[];
+    /** The steps to plan for: null is the default plan (every step that is available and has work); a list keeps the plan to those (the cart drawer's partial selection). */
+    steps?: PublishPlan['publishSteps'] | null | undefined;
     onchanged: () => void;
   } = $props();
 
@@ -251,7 +254,7 @@ import { supports } from '@kiln/core';
   /** Back to the default plan (the direct release when only release fields are staged). */
   function backToDirect() {
     if (busy) return;
-    void review(null);
+    void review(steps);
   }
 
   const pushStep = $derived(plan ? stepOf('push_draft') : undefined);
@@ -301,7 +304,7 @@ import { supports } from '@kiln/core';
   $effect(() => {
     if (!open || started) return;
     started = true;
-    untrack(() => void review(null));
+    untrack(() => void review(steps));
   });
 
   $effect(() => {
@@ -314,7 +317,7 @@ import { supports } from '@kiln/core';
       }
       currentId = next;
       reset();
-      void review(null);
+      void review(steps);
     });
   });
 </script>
@@ -534,7 +537,7 @@ import { supports } from '@kiln/core';
 
   {#snippet footer()}
     {#if phase === 'done'}
-      {#if summary?.review}<Button icon="refresh" onclick={() => review(null)}>{t('publish:dialog.reviewAgain')}</Button>{/if}
+      {#if summary?.review}<Button icon="refresh" onclick={() => review(steps)}>{t('publish:dialog.reviewAgain')}</Button>{/if}
       <Button variant="primary" onclick={close}>{t('common:action.close')}</Button>
     {:else}
       {#if why}
@@ -546,7 +549,7 @@ import { supports } from '@kiln/core';
       {/if}
       <Button disabled={phase === 'publishing'} onclick={close}>{t('common:action.cancel')}</Button>
       {#if stale || (phase === 'error' && !plan)}
-        <Button icon="refresh" disabled={busy} onclick={() => review(null)}>{t('publish:dialog.reviewAgain')}</Button>
+        <Button icon="refresh" disabled={busy} onclick={() => review(steps)}>{t('publish:dialog.reviewAgain')}</Button>
       {/if}
       {#if plan}
         <Button variant="primary" icon="upload" loading={phase === 'publishing'} disabled={!ready || busy} onclick={publish}>

@@ -19,7 +19,7 @@ import {
   pricePhrases,
   prune,
   publishRequests,
-  queuePublishOpen,
+  reviewScope,
   reasonKey,
   reasonText,
   resultKey,
@@ -27,7 +27,6 @@ import {
   rowKey,
   rowsForLocale,
   selectAll,
-  takeQueuedPublishOpen,
   tally,
   toggle,
   toRows,
@@ -324,13 +323,22 @@ test('a price result keeps what the store showed after the write', () => {
   assert.equal(out[rowKey('a', 'price:1')]?.price?.verification, 'confirmed');
 });
 
-test('a queued "review and publish" opens the plan once, and only within a few seconds', () => {
-  assert.equal(takeQueuedPublishOpen(1_000), false);
-  queuePublishOpen(1_000);
-  assert.equal(takeQueuedPublishOpen(2_000), true);
-  assert.equal(takeQueuedPublishOpen(2_100), false);
-  queuePublishOpen(1_000);
-  assert.equal(takeQueuedPublishOpen(1_000 + 60_000), false);
+test('review scope: nothing selected is everything, a partial selection is the draft push of its apps', () => {
+  const a = toRows('a1', [
+    item('listing:1', { risk: 'store_draft' }),
+    item('graphics:1', { risk: 'store_draft' }),
+  ]);
+  const b = toRows('a2', [item('listing:2', { risk: 'store_draft' })]);
+  const reply = toRows('a1', [item('review_reply:9', { kind: 'review_reply', risk: 'public_reply' })]);
+  const rows = [...a, ...b, ...reply];
+  const none = reviewScope(rows, noSelection);
+  assert.deepEqual([none.appIds.sort(), none.steps, none.none], [['a1', 'a2'], null, false]);
+  const everything = reviewScope(rows, selectAll(rows));
+  assert.equal(everything.steps, null);
+  const some = reviewScope(rows, new Set([a[0]?.key ?? '', a[1]?.key ?? '']));
+  assert.deepEqual([some.appIds, some.steps], [['a1'], [{ type: 'push_draft' }]]);
+  const onlyReply = reviewScope(rows, new Set(reply.map((r) => r.key)));
+  assert.equal(onlyReply.none, true);
 });
 
 test('a failed whole request keeps its detail on every row', () => {

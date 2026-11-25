@@ -23,6 +23,7 @@
     mergeResults,
     type Outcomes,
     publishRequests,
+    reviewScope,
     type Selection,
     selectedRows,
     toRows,
@@ -33,6 +34,7 @@
   import { toast } from '../../lib/toast.svelte.ts';
   import { classifyPriceFailure } from '../../lib/prices.ts';
   import type { AppSummary, PriceDryRunItem } from '../../lib/types.ts';
+  import PublishDialog from '../publish/PublishDialog.svelte';
   import PendingCartDrawer from './PendingCartDrawer.svelte';
 
   let {
@@ -46,7 +48,7 @@
     api: Api;
     workspaceId: string;
     groupId: string;
-    members: readonly Pick<AppSummary, 'id'>[];
+    members: readonly AppSummary[];
     platform: PlatformScope | null;
     hidden?: boolean | undefined;
   } = $props();
@@ -225,6 +227,20 @@
     await refresh();
   }
 
+  /** "Review and publish": the plan dialog opens right here, for the apps of the selection and (when only part is selected) the draft push alone. */
+  let reviewing = $state(false);
+  let reviewTargets = $state<AppSummary[]>([]);
+  let reviewSteps = $state<{ type: 'push_draft' }[] | null>(null);
+  function review(selection: Selection) {
+    const scope = reviewScope(rows, selection);
+    if (scope.none) return;
+    reviewTargets = members.filter((m) => scope.appIds.includes(m.id));
+    reviewSteps = scope.steps;
+    if (reviewTargets.length === 0) return;
+    open = false;
+    reviewing = true;
+  }
+
   async function discard(selection: Selection) {
     const snapshot = selectedRows(rows, selection).filter((r) => r.canDiscard);
     busy = true;
@@ -268,5 +284,10 @@
   ondryrun={dryRunPrices}
   ondiscard={discard}
   onrefresh={refresh}
+  onreview={review}
   ondismiss={() => (report = null)}
 />
+
+{#if reviewing}
+  <PublishDialog bind:open={reviewing} {api} {workspaceId} targets={reviewTargets} steps={reviewSteps} onchanged={() => void refresh()} />
+{/if}
