@@ -55,6 +55,7 @@
   import { announcePublished } from '../../lib/app-page.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
   import { publishSummary, shownErrors } from '../../lib/publish-summary.ts';
+  import { elapsedText, failureDetail, minutesOf, PUBLISH_SLOW_AFTER_MS, PUBLISH_WAIT_LIMIT_MS, PublishWaitError, withWaitLimit } from '../../lib/publish-run.ts';
   import { foldWarnings, planHeadline, publishDisabledReason, publishTitle, shownStatusWord, stepGist } from '../../lib/readability.ts';
   import { EVERYONE, releaseInputsFor } from '../../lib/release-settings.ts';
   import { releaseSettingsStore } from '../../lib/release-settings-store.svelte.ts';
@@ -120,6 +121,19 @@ import { supports } from '@kiln/core';
   let direct = $state(false);
   let changed = false;
   let seq = 0;
+
+  /** While publishing: when it started and "now", so the dialog shows it is alive and says when it is slow. */
+  let startedAt = $state(0);
+  let tick = $state(0);
+  const waited = $derived(phase === 'publishing' ? Math.max(0, tick - startedAt) : 0);
+  $effect(() => {
+    if (phase !== 'publishing') return;
+    const started = Date.now();
+    startedAt = started;
+    tick = started;
+    const timer = setInterval(() => (tick = Date.now()), 1000);
+    return () => clearInterval(timer);
+  });
 
   const busy = $derived(phase === 'previewing' || phase === 'publishing');
   const visible = $derived(plan ? visibleRows(stepRows(plan)) : { shown: [], left: [] });
@@ -277,31 +291,55 @@ import { supports } from '@kiln/core';
     if (!plan || !ready) return;
     const sent = plan;
     const mine = ++seq;
+    // Read now: the dialog can be closed (and gone) by the time the answer comes.
+    const appId = sent.app.id;
+    const notify = onchanged;
     phase = 'publishing';
     problem = '';
     try {
       // The only call that writes. Sent once, with the plan's hash, its steps and the phrase; never sent again by this app.
+      // The wait is limited per attempt (the confirmation prompt is outside it): a request that never answers ends in a message.
       const publishPayload = publishBody(sent, typed);
-      const out = await confirmed((grant) => api.publishPending(workspaceId, sent.app.id, publishPayload, grant), publishPayload.planHash);
+      const out = await confirmed(
+        (grant) => withWaitLimit((signal) => api.publishPending(workspaceId, appId, publishPayload, grant, signal)),
+        publishPayload.planHash,
+      );
       if (mine !== seq) return;
       result = out.result;
       changed = true;
       phase = 'done';
-      onchanged();
+      notify();
+      // Closed while it ran: nobody is looking at the result, so the app page is told as the close would have.
+      if (!open) {
+        changed = false;
+        announcePublished(appId);
+      }
     } catch (e) {
+      // A dialog that was closed while publishing keeps its state, so this answer is still ours (close() does not bump `seq` then).
       if (mine !== seq) return;
-      failWith(classifyPublishFailure(e, pendingStore.config(workspaceId)));
+      if (e instanceof PublishWaitError) {
+        // What the server did is not known (it may still run, or be done): the screens read it again, and only "Review again" is left.
+        problem = t('app:pending.run.noAnswer', { minutes: minutesOf(PUBLISH_WAIT_LIMIT_MS) });
+        stale = true;
+        changed = true;
+        notify();
+      } else {
+        failWith(classifyPublishFailure(e, pendingStore.config(workspaceId)));
+        const detail = failureDetail(e);
+        if (detail) problem = `${problem} ${t('app:pending.run.detail', { detail })}`;
+      }
       phase = 'ready';
     }
   }
 
   function close() {
-    seq++;
+    // While a publish runs the dialog can be closed: the request goes on and its answer is handled when it comes.
+    if (phase !== 'publishing') seq++;
     open = false;
   }
 
   function closed() {
-    seq++;
+    if (phase !== 'publishing') seq++;
     const published = changed;
     changed = false;
     if (published) {
@@ -364,7 +402,6 @@ import { supports } from '@kiln/core';
   size="lg"
   {title}
   description={app ? `${app.name} · ${platformLabel(app.platform)}` : ''}
-  dismissible={phase !== 'publishing'}
   onclose={closed}
 >
   <div class="stack">
@@ -543,7 +580,13 @@ import { supports } from '@kiln/core';
       {#if problem}<Alert tone="error">{problem}</Alert>{/if}
       {#if phase === 'publishing'}
         <div role="status" class="running">
-          <Alert tone="info" title={t('publish:dialog.publishingTitle')}>{t('publish:dialog.publishingBody')}</Alert>
+          <Alert tone="info" title={t('publish:dialog.publishingTitle')}>
+            {t('app:pending.run.body', { steps: formatList(plan.steps.filter((s) => s.included).map((s) => STEP_NAME[s.type])) })}
+            <span class="para" data-testid="publish-elapsed">{t('app:pending.run.elapsed', { time: elapsedText(waited) })}</span>
+            {#if waited >= PUBLISH_SLOW_AFTER_MS}
+              <span class="para" data-testid="publish-slow">{t('app:pending.run.slow', { minutes: minutesOf(PUBLISH_WAIT_LIMIT_MS) })}</span>
+            {/if}
+          </Alert>
         </div>
       {/if}
     {/if}
@@ -561,7 +604,7 @@ import { supports } from '@kiln/core';
           <span class="why-text" data-testid="why-publish-disabled">{why}</span>
         {/if}
       {/if}
-      <Button disabled={phase === 'publishing'} onclick={close}>{t('common:action.cancel')}</Button>
+      <Button onclick={close}>{phase === 'publishing' ? t('app:pending.run.closeButton') : t('common:action.cancel')}</Button>
       {#if stale || (phase === 'error' && !plan)}
         <Button icon="refresh" disabled={busy} onclick={() => review(steps)}>{t('publish:dialog.reviewAgain')}</Button>
       {/if}

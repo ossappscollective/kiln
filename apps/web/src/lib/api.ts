@@ -2044,6 +2044,8 @@ export function createApi(options: ApiOptions = {}) {
       appId: string,
       body: { planHash: string; steps: StepRequest[]; phrase?: string },
       grant?: string,
+      /** Lets go of the request when the dialog stops waiting (lib/publish-run.ts); the server is not told to stop. */
+      signal?: AbortSignal,
     ) =>
       request<{ result: PublishResult }>(
         'POST',
@@ -2051,6 +2053,7 @@ export function createApi(options: ApiOptions = {}) {
         body,
         undefined,
         grantHeader(grant),
+        signal,
       ),
     // Customer reviews (docs/api/reviews.md): reads of our own database, a store read on sync, and
     // internal triage. Nothing in this group writes to a store; replying is the group below.
