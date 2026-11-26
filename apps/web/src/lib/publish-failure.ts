@@ -1,8 +1,10 @@
-import { type Platform, platformMeta } from '@kiln/core';
+import { type Platform, platformMeta, supports } from '@kiln/core';
 import { codedText, paramsOf } from './error-text.ts';
 import { t } from './i18n/t.ts';
+import { PLAY_CONSOLE_URL } from './store-links.ts';
 import {
   failedSentence,
+  isDraftRefused,
   type LastPublish,
   outcomeSentence,
   type RunStep,
@@ -208,4 +210,25 @@ export function failureReport(input: {
     }
   });
   return `${lines.join('\n')}\n`;
+}
+
+/**
+ * What a person can do about a failed step, beyond reading why. Today one case: Google Play would not keep the changes as a draft
+ * (`draft_not_allowed` on the push), which is not a fault but how that app works. The two ways forward are the push and the submit in
+ * ONE step (the dialog, with the confirmation and the step-up it always asks) or the change made in Play Console itself. Pure.
+ */
+export type FailureActions = {
+  /** Offer "Push and submit for review in one step". */
+  pushAndSubmit: boolean;
+  /** Offer "Make the change in Play Console": its address. */
+  playConsoleUrl: string | null;
+};
+
+export function failureActions(run: Pick<LastPublish, 'results'>, platform: Platform): FailureActions {
+  const refused = run.results.some((r) => r.status === 'failed' && isDraftRefused(r));
+  const google = supports(platform, 'releaseTracks');
+  return {
+    pushAndSubmit: refused && google,
+    playConsoleUrl: refused && google ? PLAY_CONSOLE_URL : null,
+  };
 }

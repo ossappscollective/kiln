@@ -5,15 +5,18 @@
   with "Show more") and the technical line (code, HTTP status, the store's reason). "Copy details" puts a redacted plain-text report
   on the clipboard. Draws nothing it was not given; sends nothing.
   Props: run (the kept run), appName (for the report), platform, ondismiss? (adds the close button of the alert; the caller tells the
-  server), compact? (no heading: the dialog already has one).
+  server), compact? (no heading: the dialog already has one), onpushsubmit? (Google Play would not keep a draft: "Push and submit for
+  review in one step" opens the plan with that one step, which still asks for the confirmation and the step-up; no button without it;
+  "Make the change in Play Console" is a link that is always shown for that refusal).
 -->
 <script lang="ts">
   import type { Platform } from '@kiln/core';
   import { t } from '../../lib/i18n/t.ts';
   import type { LastPublish } from '../../lib/pending.ts';
-  import { clip, failureReport, runSummary, stepLines } from '../../lib/publish-failure.ts';
+  import { clip, failureActions, failureReport, runSummary, stepLines } from '../../lib/publish-failure.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
+  import Button from '../ui/Button.svelte';
   import CopyButton from '../ui/CopyButton.svelte';
 
   let {
@@ -22,18 +25,21 @@
     platform,
     ondismiss = undefined,
     compact = false,
+    onpushsubmit = undefined,
   }: {
     run: LastPublish;
     appName: string;
     platform: Platform;
     ondismiss?: (() => void) | undefined;
     compact?: boolean | undefined;
+    onpushsubmit?: (() => void) | undefined;
   } = $props();
 
   const uid = $props.id();
   const summary = $derived(runSummary(run));
   const lines = $derived(stepLines(run));
   const report = $derived(failureReport({ appName, platform, run }));
+  const actions = $derived(failureActions(run, platform));
   let open = $state<Record<string, boolean>>({});
 </script>
 
@@ -69,6 +75,15 @@
               {#if r.outcome !== ''}<p class="small muted">{r.outcome}</p>{/if}
               <p class="technical small" data-testid="publish-failure-technical"><span class="visually-hidden">{t('publish:failure.technical')}: </span><code>{r.technical}</code></p>
             </div>
+            {#if line.type === 'push_draft' && actions.playConsoleUrl !== null}
+              <div class="actions" data-testid="publish-failure-actions">
+                {#if actions.pushAndSubmit && onpushsubmit}
+                  <Button size="sm" variant="primary" onclick={onpushsubmit}>{t('publish:failure.pushAndSubmit')}</Button>
+                {/if}
+                <a class="link-button" href={actions.playConsoleUrl} target="_blank" rel="noreferrer noopener">{t('publish:failure.openPlayConsole')}</a>
+              </div>
+              {#if actions.pushAndSubmit && onpushsubmit}<p class="small muted">{t('publish:failure.pushAndSubmitHint')}</p>{/if}
+            {/if}
           {/if}
         </li>
       {/each}
@@ -153,5 +168,18 @@
 
   .copy {
     align-self: flex-start;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    margin-top: var(--space-2);
+  }
+
+  a.link-button {
+    color: var(--link, var(--accent));
+    text-decoration: underline;
   }
 </style>

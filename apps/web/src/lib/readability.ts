@@ -85,7 +85,13 @@ export function capItems<T extends { tone: string }>(
 // The publish dialog
 
 /** The most consequential step that is included: the one the dialog's title names. */
-const TITLE_ORDER: readonly PlanStep['type'][] = ['release', 'submit', 'push_draft', 'rollout'];
+const TITLE_ORDER: readonly PlanStep['type'][] = [
+  'release',
+  'submit',
+  'push_and_submit',
+  'push_draft',
+  'rollout',
+];
 
 /**
  * The title of the publish dialog says what happens ("Release 2.9.0 to the App Store"), from the included steps and the version the
@@ -107,6 +113,9 @@ export function publishTitle(plan: Pick<PublishPlan, 'steps'>, store: string): s
       return version !== ''
         ? t('shell:publish.title.releaseVersion', { version, store })
         : t('shell:publish.title.release', { store });
+    case 'push_and_submit':
+      // Pushing and sending for review in one step is a submit for the person: it is titled like one.
+      return t('shell:publish.title.submit', { store });
     case 'submit':
       return version !== ''
         ? t('shell:publish.title.submitVersion', { version, store })

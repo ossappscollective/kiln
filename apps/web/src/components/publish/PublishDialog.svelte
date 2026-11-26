@@ -36,11 +36,13 @@
     classifyPublishFailure,
     draftOnlySteps,
     includedTypes,
+    isCombinedPlan,
     isDirectPlan,
     needsReview,
     planReady,
     previewBody,
     promiseText,
+    pushAndSubmitSteps,
     publishBody,
     askedFractionOf,
     releaseInputDefaults,
@@ -279,6 +281,15 @@ import { supports } from '@kiln/core';
     void review(draftOnlySteps(), t('publish:dialog.notice.replanDraft'));
   }
 
+  /**
+   * "Push and submit for review in one step" (Google Play would not keep a draft, or the person prefers it): the combined step alone.
+   * Only a new plan is asked for; the confirmation (the typed phrase, or the step-up) is still asked before anything is sent.
+   */
+  function pushAndSubmit() {
+    if (!plan || busy) return;
+    void review(pushAndSubmitSteps(), t('publish:dialog.notice.replanPushSubmit'));
+  }
+
   /** Back to the default plan (the direct release when only release fields are staged). */
   function backToDirect() {
     if (busy) return;
@@ -392,7 +403,7 @@ import { supports } from '@kiln/core';
   {@const submit = asSubmitPreview(step.preview)}
   {@const release = asReleasePreview(step.preview)}
   {@const rollout = asRolloutPreview(step.preview)}
-  {#if step.type === 'push_draft' && push}
+  {#if (step.type === 'push_draft' || step.type === 'push_and_submit') && push}
     <PushPreviewBody preview={push} />
   {:else if step.type === 'submit' && submit}
     <SubmitPreviewBody preview={submit} />
@@ -430,7 +441,7 @@ import { supports } from '@kiln/core';
       <section class="stack" aria-label={t('publish:dialog.resultAria')} data-testid="publish-result">
         {#if !result.completed && result.lastPublish && app}
           <!-- the run the server kept: each step, and under the failed one why (the store's own words, its code and HTTP status), with Copy details -->
-          <PublishFailureDetail run={result.lastPublish} appName={app.name} platform={app.platform} />
+          <PublishFailureDetail run={result.lastPublish} appName={app.name} platform={app.platform} onpushsubmit={plan?.combined?.offered === false ? undefined : pushAndSubmit} />
           <p class="muted small">{stopNote()}</p>
         {:else}
           <Alert tone={summary.tone} title={summary.title}>
@@ -463,6 +474,7 @@ import { supports } from '@kiln/core';
       <PublishSummaryBlock summary={whatSummary} busy={phase === 'previewing'} {api} {workspaceId} {app} />
       {#if plan.included > 1 && head.sequence}<p class="muted headline" data-testid="plan-headline">{t('publish:dialog.sequence', { sequence: head.sequence })}</p>{:else if plan.included === 0}<p class="muted headline" data-testid="plan-headline">{t('publish:dialog.headlineTitle', { title: head.title })}</p>{/if}
       {#if notice}<p class="notice muted small" role="status"><Icon name="info" size={14} /> {notice}</p>{/if}
+      {#if plan.combined?.defaulted && isCombinedPlan(plan)}<p class="notice small" role="status" data-testid="plan-combined-note"><Icon name="info" size={14} /> {t('publish:dialog.combinedDefaulted')}</p>{/if}
 
       <ol class="steps" aria-label={t('publish:dialog.stepsAria')} aria-busy={phase === 'previewing'}>
         {#each rows as row (row.type)}
@@ -485,7 +497,10 @@ import { supports } from '@kiln/core';
                 {#if row.deferred}<Badge tone="info" icon="clock">{t('publish:dialog.checkedLater')}</Badge>{/if}
               </div>
               {#if step.included && !step.deferred && stepGist(step)}<p class="gist" data-testid="plan-step-gist-{row.type}">{stepGist(step)}</p>{/if}
-              {#if row.reason}<p class="reason muted">{row.reason}</p>{/if}
+              {#if row.type === 'push_and_submit'}
+                <!-- the server's reason is English: the two sentences below say it in the person's language -->
+                <p class="reason muted" data-testid="plan-combined-hint">{wanted.includes('push_and_submit') ? t('publish:dialog.combinedOn') : t('publish:dialog.combinedHint')}</p>
+              {:else if row.reason}<p class="reason muted">{row.reason}</p>{/if}
 
               {#if row.needsInput}
                 {#if direct}

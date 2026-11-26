@@ -565,3 +565,52 @@ test('the summary carries the texts and graphics of the ticked push only', () =>
   assert.equal(off.texts, null);
   assert.equal(off.graphics, null);
 });
+
+test('the combined step is described as it is: pushed and sent for review in one step, never as a draft', () => {
+  const steps = [
+    step('push_and_submit', {
+      order: 2,
+      irreversible: true,
+      preview: playPush([{ field: 'track', after: 'production' }], ['screenshot', 'icon'], ['title']),
+      summary: { textChanged: 1, assetSetsChanged: 2, sendsForReview: true },
+    }),
+  ];
+  const s = publishSummary({ plan: plan(steps), wanted: ['push_and_submit'], identifier: 'com.example.kiln' });
+  assert.equal(
+    s.outcome,
+    'Pressing Publish pushes these to Google Play and sends them for review in one step. Review takes the store hours to days; you can follow it in Builds.',
+  );
+  assert.doesNotMatch(s.outcome, /draft/i);
+  // What is written is shown as for a push: the texts, the graphics, the track.
+  assert.equal(row(s, 'track')?.value, 'Production');
+  assert.equal(row(s, 'text')?.value, '1 text change: Title');
+  assert.equal(row(s, 'graphics')?.value, '1 screenshot set, 1 icon set');
+  assert.equal(row(s, 'review')?.value, 'These changes go to Google Play review as part of the push');
+  // Not ticked: the outcome never mentions it, and the pair says what it always said.
+  const pair = publishSummary({ plan: plan([...steps, ...playSteps()]), wanted: ['push_draft', 'submit'], identifier: '' });
+  assert.doesNotMatch(pair.outcome, /in one step/);
+  assert.match(pair.outcome, /as a draft, then submits the draft for review/);
+});
+
+test('the combined step with a release after it keeps the order of the sentence', () => {
+  const steps = [
+    step('push_and_submit', { order: 2, irreversible: true, preview: PUSH, summary: { textChanged: 0 } }),
+    step('release', { order: 4, deferred: true, summary: { track: 'production', userFraction: 1, audience: 'percent' } }),
+  ];
+  const s = publishSummary({ plan: plan(steps), wanted: ['push_and_submit', 'release'], identifier: '' });
+  assert.match(s.outcome, /^Pressing Publish pushes these to Google Play and sends them for review in one step, then rolls out the draft release to Production/);
+});
+
+test('the combined step, French', () => {
+  useLocale('fr');
+  try {
+    const s = publishSummary({
+      plan: plan([step('push_and_submit', { order: 2, irreversible: true, preview: PUSH, summary: {} })]),
+      wanted: ['push_and_submit'],
+      identifier: '',
+    });
+    assert.match(s.outcome, /^En appuyant sur Publier, cela envoie ces éléments à Google Play et les soumet à l’examen en une seule étape\./);
+  } finally {
+    useLocale('en');
+  }
+});

@@ -36,6 +36,7 @@
     nextStepText,
     platformGroups,
     publishAvailability,
+    pushAndSubmitSteps,
     staleViewIds,
     stateBadge,
     totalsLine,
@@ -98,6 +99,8 @@
   let confirming = $state('');
   let publishOpen = $state(false);
   let dialogTargets = $state<AppSummary[]>([]);
+  /** The steps the dialog plans for: null is the default plan; the push and submit in one step when the person chose it after a refused draft. */
+  let dialogSteps = $state<{ type: 'push_and_submit' }[] | null>(null);
   /** After pressing the button while errors block it: the list of what blocks. */
   let showBlockers = $state(false);
   let blockedEl = $state<HTMLElement | null>(null);
@@ -306,6 +309,24 @@
     // Kept as they were when the dialog opened: while it publishes the views are read again (each step changes them), and a dialog whose
     // targets vanish with the last step would be gone before it showed what happened.
     dialogTargets = targets;
+    dialogSteps = null;
+    publishOpen = true;
+  }
+
+  /**
+   * Google Play would not keep this app's changes as a draft: "Push and submit for review in one step" opens the plan with that one
+   * step for the app. Nothing is sent from here: the plan still asks for the confirmation of a step that cannot be undone, and the step-up.
+   */
+  function reopenAsPushSubmit(appId: string) {
+    const member = members.find((m) => m.id === appId);
+    if (!member || publishingNow) return;
+    if (availability.state === 'blocked') {
+      openPublish();
+      return;
+    }
+    if (availability.state !== 'ready') return;
+    dialogTargets = [member];
+    dialogSteps = pushAndSubmitSteps();
     publishOpen = true;
   }
 
@@ -392,7 +413,7 @@
     <PublishingStatus publishing={p.entry} platform={p.platform} appId={p.appId} />
   {/each}
   {#each lastFailures as f (f.appId)}
-    <PublishFailure run={f.run} appName={f.name} platform={f.platform} ondismiss={() => publishingStore.dismissFailure(api, workspaceId, f.appId)} />
+    <PublishFailure run={f.run} appName={f.name} platform={f.platform} ondismiss={() => publishingStore.dismissFailure(api, workspaceId, f.appId)} onpushsubmit={() => reopenAsPushSubmit(f.appId)} />
   {/each}
 
   {#if loadProblem}
@@ -527,7 +548,7 @@
   {/if}
 
   {#if publishOpen && dialogTargets.length > 0}
-    <PublishDialog bind:open={publishOpen} {api} {workspaceId} targets={dialogTargets} onchanged={changed} />
+    <PublishDialog bind:open={publishOpen} {api} {workspaceId} targets={dialogTargets} steps={dialogSteps} onchanged={changed} />
   {/if}
 </section>
 

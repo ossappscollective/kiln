@@ -4,6 +4,7 @@ import type { LastPublish, RunStep } from './pending.ts';
 import {
   cleanText,
   clip,
+  failureActions,
   failureReport,
   headlineReason,
   reasonOf,
@@ -152,4 +153,45 @@ test('the copied report holds the app, the times, the steps, the codes, the HTTP
   assert.match(report, /2\. submit: not run/);
   assert.match(report, /Reason: previous_step_not_applied/);
   assert.doesNotMatch(report, /ya29|Ada|u1/);
+});
+
+const GOOGLE_AUTO = 'Changes are sent for review automatically. The query parameter changesNotSentForReview must not be set.';
+const draftRefused: RunStep = {
+  type: 'push_draft',
+  status: 'failed',
+  startedAt: 1_000,
+  finishedAt: 2_000,
+  error: 'draft_not_allowed',
+  httpStatus: 409,
+  outcome: 'refused',
+  message: 'Google Play sends these changes for review automatically for this app, so it cannot keep them as a draft.',
+  code: 'store.google.draftNotAllowed',
+  store: { kind: 'draft_not_allowed', httpStatus: 400, details: [{ detail: GOOGLE_AUTO }] },
+};
+
+test('a draft Google Play would not keep: the cause in plain words, Google\'s own sentence, and no "make the change in Play Console instead"', () => {
+  const r = reasonOf(draftRefused);
+  assert.equal(r.title, 'Google Play would not keep these changes as a draft.');
+  assert.match(r.advice, /sends these changes for review automatically for this app, so it cannot keep them as a draft/);
+  assert.doesNotMatch(r.advice + r.title, /instead/);
+  assert.equal(r.said, GOOGLE_AUTO);
+  assert.equal(r.technical, 'draft_not_allowed · HTTP 409 · store HTTP 400');
+  // The report a person copies says the same, with the code the server kept.
+  const report = failureReport({ appName: 'OSS PDF Document Scanner, OCR', platform: 'android', run: run([draftRefused, skipped('submit'), skipped('release')]) });
+  assert.match(report, /Code: draft_not_allowed/);
+  assert.match(report, /Cause: store\.google\.draftNotAllowed/);
+  assert.match(report, /Store said: Changes are sent for review automatically/);
+});
+
+test('the actions of a refused draft: push and submit in one step, or the Play Console; nothing for any other failure or for the App Store', () => {
+  const refusedRun = run([draftRefused, skipped('submit')]);
+  assert.deepEqual(failureActions(refusedRun, 'android'), {
+    pushAndSubmit: true,
+    playConsoleUrl: 'https://play.google.com/console/',
+  });
+  assert.deepEqual(failureActions(lastPublish, 'android'), { pushAndSubmit: false, playConsoleUrl: null });
+  assert.deepEqual(failureActions(refusedRun, 'ios'), { pushAndSubmit: false, playConsoleUrl: null });
+  // A refusal in another step (a submit) is not a refused draft.
+  const submitRefused = run([{ ...draftRefused, type: 'submit' }]);
+  assert.equal(failureActions(submitRefused, 'android').pushAndSubmit, false);
 });

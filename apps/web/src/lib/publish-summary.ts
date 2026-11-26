@@ -543,13 +543,16 @@ export function publishSummary(input: SummaryInput): PublishSummary {
   const has = (type: PublishStepType): boolean => wanted.indexOf(type) >= 0;
   const direct = isDirectPlan(plan);
 
-  const pushStep = stepOf(plan, 'push_draft');
+  // The combined step (Google Play: push and send for review in one commit) writes what a push writes, so it is read like the push.
+  const combined = has('push_and_submit');
+  const hasPush = has('push_draft') || combined;
+  const pushStep = stepOf(plan, combined ? 'push_and_submit' : 'push_draft');
   const submitStep = stepOf(plan, 'submit');
   const releaseStep = stepOf(plan, 'release');
   const push = asPushPreview(pushStep?.preview);
   const submit = asSubmitPreview(submitStep?.preview);
   const release = asReleasePreview(releaseStep?.preview);
-  const pushed = has('push_draft') ? push : null;
+  const pushed = hasPush ? push : null;
   const releaseSummary = summaryOf(releaseStep);
   const submitSummary = summaryOf(submitStep);
   const releaseOn = has('release') && releaseStep?.included === true;
@@ -590,7 +593,7 @@ export function publishSummary(input: SummaryInput): PublishSummary {
       fraction = input.typed.fraction;
       kind = fraction === 1 ? 'all' : null;
       notAdded = true;
-    } else if (has('push_draft')) {
+    } else if (hasPush) {
       track = staged;
     }
     if (track !== null) {
@@ -672,12 +675,14 @@ export function publishSummary(input: SummaryInput): PublishSummary {
     });
   }
 
-  if (has('submit')) {
+  if (has('submit') || combined) {
     rows.push({
       id: 'review',
       label: t('publish:summary.row.review'),
       value: play
-        ? t('publish:summary.review.play')
+        ? combined
+          ? t('publish:summary.review.playCombined')
+          : t('publish:summary.review.play')
         : appleVersion !== null
           ? t('publish:summary.review.apple', { version: appleVersion })
           : t('publish:summary.review.appleNoVersion'),
@@ -819,7 +824,10 @@ function outcomeText(input: {
   );
   const where = track === null ? null : capitalized(track);
   const clauses: string[] = [];
-  if (has('push_draft')) {
+  if (has('push_and_submit')) {
+    // One commit: Google Play sends what is pushed for review as part of it. Said as it is, never as a draft.
+    clauses.push(t('publish:summary.outcome.pushSubmitPlay'));
+  } else if (has('push_draft')) {
     if (play) clauses.push(t('publish:summary.outcome.pushPlay'));
     else clauses.push(t('publish:summary.outcome.pushApple'));
   }
@@ -852,7 +860,8 @@ function outcomeText(input: {
   }
   if (has('rollout')) clauses.push(t('publish:summary.outcome.rollout'));
   const sentence = t('publish:summary.outcome.sentence', { actions: joinThen(clauses) });
-  const sendsToReview = has('submit') || (has('release') && play && direct);
+  const sendsToReview =
+    has('submit') || has('push_and_submit') || (has('release') && play && direct);
   const tail = sendsToReview
     ? t('publish:summary.outcome.review')
     : wanted.length === 1 && has('push_draft')

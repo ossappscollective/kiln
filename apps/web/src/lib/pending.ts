@@ -41,9 +41,10 @@ export type PendingKind =
   | 'in_review'
   | 'approved'
   | 'rollout_step';
-export type PublishStepType = 'push_draft' | 'submit' | 'release' | 'rollout';
+export type PublishStepType = 'push_draft' | 'push_and_submit' | 'submit' | 'release' | 'rollout';
 export const PUBLISH_STEPS: readonly PublishStepType[] = [
   'push_draft',
+  'push_and_submit',
   'submit',
   'release',
   'rollout',
@@ -187,6 +188,12 @@ export type PublishPlan = {
   direct?: { track: string; versionCodes: string[]; stagedFraction: number | null } | null;
   /** Google Play: only release fields are staged, so the plan is one direct release step (absent from an older server). */
   defaultedToDirect?: boolean;
+  /**
+   * Google Play: the push and the submit as ONE step (`push_and_submit`). `offered`: the plan lists it beside the pair; `draftRefused`:
+   * Google refused to keep a draft for this app on the last run (no draft push went through since); `defaulted`: the plan was made with
+   * it instead of the pair because of that. Absent from an older server.
+   */
+  combined?: { offered: boolean; draftRefused: boolean; defaulted: boolean };
   readAt: number;
 };
 
@@ -309,6 +316,7 @@ export const KIND_LABEL: Readonly<Record<PendingKind, string>> = translated({
 
 export const STEP_NAME: Readonly<Record<PublishStepType, string>> = translated({
   push_draft: k('app:pending.step.pushDraft'),
+  push_and_submit: k('app:pending.step.pushAndSubmit'),
   submit: k('app:pending.step.submit'),
   release: k('app:pending.step.release'),
   rollout: k('app:pending.step.rollout'),
@@ -755,8 +763,21 @@ export function visibleRows(rows: readonly StepRow[]): { shown: StepRow[]; left:
   };
 }
 
-export const stepRows = (plan: PublishPlan): StepRow[] =>
-  [...plan.steps].sort((a, b) => a.order - b.order).map((s) => stepRow(s, plan.app.platform));
+export const stepRows = (plan: PublishPlan): StepRow[] => {
+  // The combined step (Google Play: push and send for review in one commit) is offered only beside a submit that is part of the plan, or
+  // when it is itself part of it: "Google Play may refuse to keep a draft" is a question for a person who wants a review.
+  const wantsReview = plan.steps.some(
+    (s) => s.included && (s.type === 'submit' || s.type === 'push_and_submit'),
+  );
+  return [...plan.steps]
+    .sort((a, b) => a.order - b.order)
+    .map((s) => {
+      const row = stepRow(s, plan.app.platform);
+      if (s.type !== 'push_and_submit') return row;
+      // Named in the person's language (the server's label is English), and left out unless a review is wanted.
+      return { ...row, label: STEP_NAME.push_and_submit, idle: row.idle || (!s.included && !wantsReview) };
+    });
+};
 
 /**
  * The requests to preview after the person ticked or unticked a step: the steps that are ticked, in the plan's own form (a step
@@ -824,7 +845,32 @@ export const toggled = (
   current: readonly PublishStepType[],
   type: PublishStepType,
   on: boolean,
-): PublishStepType[] => PUBLISH_STEPS.filter((t) => (t === type ? on : current.indexOf(t) >= 0));
+): PublishStepType[] => {
+  const keep = (t: PublishStepType): boolean => (t === type ? on : current.indexOf(t) >= 0);
+  // The combined step IS the push and the submit: ticking one side unticks the other, and unticking the combined step goes back to
+  // the pair (what it replaced), never to nothing.
+  if (type === 'push_and_submit')
+    return PUBLISH_STEPS.filter((t) => {
+      if (t === 'push_and_submit') return on;
+      if (t === 'push_draft' || t === 'submit') return !on;
+      return keep(t);
+    });
+  return PUBLISH_STEPS.filter((t) => {
+    if (t === 'push_and_submit') return !(on && (type === 'push_draft' || type === 'submit')) && keep(t);
+    return keep(t);
+  });
+};
+
+/** "Push and submit for review in one step": the combined step alone (Google Play). The person still confirms the plan it makes. */
+export const pushAndSubmitSteps = (): StepRequest[] => [{ type: 'push_and_submit' }];
+
+/** The plan holds the combined step. */
+export const isCombinedPlan = (plan: PublishPlan | null): boolean =>
+  plan !== null && plan.steps.some((s) => s.type === 'push_and_submit' && s.included);
+
+/** A failed step Google Play refused to keep as a draft: the way forward is the combined step, or Play Console. */
+export const isDraftRefused = (step: { type: string; error?: string | undefined }): boolean =>
+  step.type === 'push_draft' && step.error === 'draft_not_allowed';
 
 /** The plan can be published as it is: confirmable, with its hash, and the ticks are exactly the plan's own steps. */
 export function planReady(plan: PublishPlan | null, wanted: readonly PublishStepType[]): boolean {
@@ -925,7 +971,7 @@ export function summaryParts(step: Pick<PlanStep, 'type' | 'summary'>): string[]
   const str = (key: string): string | null =>
     typeof s[key] === 'string' && s[key] !== '' ? (s[key] as string) : null;
   const parts: string[] = [];
-  if (step.type === 'push_draft') {
+  if (step.type === 'push_draft' || step.type === 'push_and_submit') {
     const t = num('textChanged');
     const a = num('assetSetsChanged');
     const f = num('fieldsChanged');
@@ -1002,6 +1048,7 @@ const FAILED_TEXT: Readonly<Record<string, string>> = {
   nothing_staged: k('app:pending.failed.nothingStaged'),
   nothing_pushed: k('app:pending.failed.nothingPushed'),
   no_editable_version: k('app:pending.failed.noEditableVersion'),
+  draft_not_allowed: k('app:pending.failed.draftNotAllowed'),
 };
 
 /** The sentence for a failed step's error code, or '' when the code has none here. */
