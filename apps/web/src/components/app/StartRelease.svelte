@@ -12,7 +12,8 @@
   scopeIsBoth (the scope covers several platforms), showRunning = true (false where the screen already draws
   RunningNow: then feed its answers to `observe`), button = 'primary' | 'secondary' | 'none' (the Next step card draws the
   button as its one primary action, as a quiet secondary one, or not at all: the dialog and the follow-up stay), showPrepare = true
-  (false where the Next step card already leads to the release steps).
+  (false where the Next step card already leads to the release steps), blockedReason? (the state model's reason why starting or preparing
+  a release is off now: a publish runs, a publish failed, a role; the buttons are disabled with it and the dialog does not open).
   onstarted? (called with the started run, changed when GitHub names it, and with null when it is forgotten: a screen
   that draws its own RunningNow can then show that run too).
   Exports: observe(data) takes a RunningNow answer, so a screen with its own feed does not read twice.
@@ -51,6 +52,7 @@
     showRunning = true,
     button = 'primary',
     showPrepare = true,
+    blockedReason = null,
     onstarted,
   }: {
     api: Api;
@@ -62,6 +64,7 @@
     showRunning?: boolean | undefined;
     button?: 'primary' | 'secondary' | 'none' | undefined;
     showPrepare?: boolean | undefined;
+    blockedReason?: string | null | undefined;
     onstarted?: ((started: StartedRun | null) => void) | undefined;
   } = $props();
 
@@ -117,6 +120,7 @@
 
   /** Finds the release workflow on the first linked repository that has one, and opens the dialog on it. */
   async function begin() {
+    if (blockedReason !== null) return;
     if (preparing) return;
     preparing = true;
     problem = '';
@@ -225,13 +229,17 @@
           size={started || button === 'secondary' ? 'md' : 'lg'}
           icon="rocket"
           loading={preparing}
-          disabled={linked.length === 0}
-          title={linked.length === 0 ? t('app:startRelease.linkFirst') : t('app:startRelease.openHint')}
+          disabled={linked.length === 0 || blockedReason !== null}
+          title={blockedReason ?? (linked.length === 0 ? t('app:startRelease.linkFirst') : t('app:startRelease.openHint'))}
           onclick={begin}
         >{t('app:nextStep.startAction')}</Button>
       {/if}
       {#if build && showPrepare}
-        <Button variant="primary" size="lg" icon="arrow-right" href={prepareReleaseHref(build.appId, build.build, scopeIsBoth)}>{t('app:nextStep.prepareAction')}</Button>
+        {#if blockedReason !== null}
+          <Button variant="primary" size="lg" icon="arrow-right" disabled title={blockedReason}>{t('app:nextStep.prepareAction')}</Button>
+        {:else}
+          <Button variant="primary" size="lg" icon="arrow-right" href={prepareReleaseHref(build.appId, build.build, scopeIsBoth)}>{t('app:nextStep.prepareAction')}</Button>
+        {/if}
       {/if}
       {#if line}<p class="line" role="status">{line}</p>{/if}
     </div>

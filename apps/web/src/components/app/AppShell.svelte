@@ -33,8 +33,8 @@
   import { tint } from '../../lib/tint/store.svelte.ts';
   import { dataChips } from '../../lib/app-chips.ts';
   import { canonicalAppHash, canonicalSection, pageTitle, resolveView, showsScope, viewsFor } from '../../lib/app-nav.ts';
-  import { PUBLISHED_EVENT, pendingBar, pendingPlacement } from '../../lib/app-page.ts';
-  import { lineFor } from '../../lib/pending.ts';
+  import { PUBLISHED_EVENT } from '../../lib/app-page.ts';
+  import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
   import { batchAppIds, onStagedChanged } from '../../lib/staged-sync.ts';
   import { canSubmit } from '../../lib/store-submit.ts';
@@ -48,7 +48,6 @@
   import { runActive } from '../../lib/sync-sources.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
-  import { platformLabel } from '../../lib/portfolio.ts';
   import Alert from '../ui/Alert.svelte';
   import AppIcon from '../ui/AppIcon.svelte';
   import Button from '../ui/Button.svelte';
@@ -101,18 +100,12 @@
   const views = $derived(viewsFor(section, allowed, { androidInScope, appleInScope }));
   const view = $derived(resolveView(section, hash, allowed, { androidInScope, appleInScope }));
   const anySyncing = $derived(scoped.some((m) => syncing[m.id] === true) || runActive(runsOfApps(syncRun.runs, members.map((m) => m.id))));
-  /** What is pending for the app, from the workspace summary (all its records, not only those in scope); null draws no chip. */
-  const lineOf = (list: readonly AppSummary[]) => lineFor(pendingStore.summary(workspaceId), list.map((m) => m.id), pendingStore.viewsOf(list.map((m) => m.id)));
-  /** What is pending on the records of the page (the platform in scope). */
-  const pendingLine = $derived(lineOf(scoped));
-  /** What is pending on the other records of the app: the strip says where it is instead of showing it on a page that has none. */
-  const elsewhere = $derived(members.filter((m) => !scoped.includes(m)));
-  const elsewhereLine = $derived(lineOf(elsewhere));
-  const bar = $derived(pendingBar(pendingLine, section) ?? pendingBar(elsewhereLine, section, elsewhere.map((m) => platformLabel(m.platform)).join(' and ')));
-  const barHref = $derived(appAddress(id, 'pending', pendingBar(pendingLine, section) !== null || elsewhere.length === 0 ? address.platform : (elsewhere[0] as AppSummary).platform));
-  /** On the Overview the pending changes are a link in the Next step card. The top bar cart button (PendingCartButton) shows what waits on every page. */
-  const placed = $derived(pendingPlacement(bar, section));
-  const pendingLink = $derived(placed.link !== null ? { text: placed.link, href: barHref } : null);
+  // The state model's view of the open app (docs/state-model.md): the top bar button reads it, scoped like this page. The Next step card, the
+  // pending panels and every action read the same model through `appStateStore`; this page works out no pending count of its own.
+  $effect(() => {
+    appStateStore.setOpenApp({ workspaceId, role, records: members, scope: resolved.scope, onPendingPage: section === 'pending' });
+    return () => appStateStore.setOpenApp(null);
+  });
   const scopeShown = $derived(showsScope(section, members.length));
 
   // The header row of a versioned page: its pickers, from data already loaded here and by the pages.
@@ -395,11 +388,10 @@
         {syncing}
         lockedPlatforms={lock.locked}
         locale={params.locale}
-        pending={pendingLink}
       />
     </div>
   {/if}
-  <PendingCart {api} {workspaceId} groupId={id} {members} platform={address.platform} hidden={section === 'pending'} />
+  <PendingCart {api} {workspaceId} {role} groupId={id} members={scoped} platform={address.platform} />
 </section>
 
 <style>

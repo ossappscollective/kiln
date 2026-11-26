@@ -7,7 +7,7 @@
   pages make too (reviews summary, builds, listing drift, staged changes, plans); a read that fails or is not allowed is left out.
   Nothing here reads a store or writes anything by itself. Sync lives in the app header's Status button, not here.
   Props: api, workspaceId, role, members (the records in scope), all? (every record, for the dispatch dialog), releases (by app id),
-  now, syncRuns (changes when a sync finished, so the reads run again), pending? (the changes waiting as one link for the Next step card).
+  now, syncRuns (changes when a sync finished, so the reads run again).
   Layout (docs/design/mockups/app-overview.dc.html): "Your next step" card, the platform cards side by side (their tint, what is on the store,
   the version in flight with its status), then "Also worth a look" (the rest of the attention list, at most three lines and "Show N more").
   "Running now" lists the GitHub Actions runs of the app's repository that are going (it draws nothing when none is); see
@@ -21,7 +21,7 @@
   import type { Api } from '../../lib/api.ts';
   import { address } from '../../lib/address.svelte.ts';
   import { type AttentionItem, attentionItems, stagedUnpushedCount } from '../../lib/app-attention.ts';
-  import { pipelineStore } from '../../lib/pipeline-store.svelte.ts';
+  import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
   import type { SummaryStall } from '../../lib/release-pipeline.ts';
   import { appAddress } from '../../lib/app-scope.ts';
   import { scopeRunsToApps } from '../../lib/running.ts';
@@ -54,7 +54,6 @@
     releases,
     now,
     syncRuns,
-    pending = null,
   }: {
     api: Api;
     workspaceId: string;
@@ -64,7 +63,6 @@
     releases: Record<string, ReleaseSummary[]>;
     now: number;
     syncRuns: number;
-    pending?: { text: string; href: string } | null | undefined;
   } = $props();
 
   let newReviews = $state<Record<string, number | undefined>>({});
@@ -164,7 +162,7 @@
       }
       await Promise.all(jobs);
     });
-    if (can(role, 'apps.read')) void pipelineStore.loadSummary(api, workspaceId);
+    if (can(role, 'apps.read')) appStateStore.loadPipelineSummary(api, workspaceId);
     await Promise.all(reads);
   }
 
@@ -206,7 +204,7 @@
       plans,
       aso: asoSummaries,
       unfinished: members.reduce<Record<string, SummaryStall | null>>((acc, m) => {
-        acc[m.id] = pipelineStore.summary(workspaceId)?.apps.filter((a) => a.app.id === m.id)[0]?.stalled ?? null;
+        acc[m.id] = appStateStore.stalledApps(workspaceId).filter((a) => a.app.id === m.id)[0]?.stalled ?? null;
         return acc;
       }, {}),
       submitReady: members.reduce<Record<string, boolean>>((acc, m) => {
@@ -231,7 +229,6 @@
     {releases}
     refreshKey={syncRuns}
     onstarted={(s) => (startedRun = s)}
-    {pending}
     onitems={(list) => (rest = list)}
   />
 

@@ -1,19 +1,16 @@
 /**
- * The state of the app's pending cart button, which lives in the top bar (Shell) while the cart itself (PendingCart, ADR 0054)
- * lives inside the app page. PendingCart writes it, the button in the top bar reads it; leaving the app clears it, so the
- * button exists only inside an app and only while changes wait.
+ * The UI plumbing of the pending cart button, which lives in the top bar (Shell) while the cart itself (PendingCart, ADR 0054) lives
+ * inside the app page: how to open the drawer, whether it is open, the pulse, which records it covers. PendingCart writes it, the button
+ * reads it; leaving the app clears it. What the button SAYS (pending, publishing, failed, the count) is not here: it comes from the
+ * state model (`appStateStore.topBar`), so the top bar can never disagree with a page.
  */
 export const cartButton = $state<{
-  visible: boolean;
-  count: number;
   expanded: boolean;
   pulse: boolean;
   press: (() => void) | null;
   /** The records of the open app's cart (what its drawer covers), so the button knows whether a running publish is shown in it. */
   appIds: string[];
 }>({
-  visible: false,
-  count: 0,
   expanded: false,
   pulse: false,
   press: null,
@@ -21,8 +18,6 @@ export const cartButton = $state<{
 });
 
 export function resetCartButton(): void {
-  cartButton.visible = false;
-  cartButton.count = 0;
   cartButton.expanded = false;
   cartButton.pulse = false;
   cartButton.press = null;

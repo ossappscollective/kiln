@@ -3,13 +3,16 @@ import type { Api } from '../api.ts';
 import type { AttentionItem } from '../app-attention.ts';
 import type { PlatformScope } from '../app-scope.ts';
 import { cartSummaryStore } from '../cart-summary.svelte.ts';
-import type { PendingLine } from '../pending.ts';
+import { pendingRows, type PendingRow, pendingTotals } from '../cart-summary.ts';
+import type { LastPublish, PendingLine } from '../pending.ts';
+import type { Publishing } from '../publishing.ts';
+import type { PipelineSummary, PipelineSummaryApp } from '../release-pipeline.ts';
 import { pendingStore } from '../pending-store.svelte.ts';
 import { pipelineStore } from '../pipeline-store.svelte.ts';
 import { publishingStore } from '../publishing-store.svelte.ts';
 import { onStagedChanged } from '../staged-sync.ts';
 import type { AppSummary, ReleaseSummary } from '../types.ts';
-import { deriveAppState, deriveTopBar, promoteOfferFor } from './derive.ts';
+import { activeFailure, deriveAppState, deriveTopBar, promoteOfferFor } from './derive.ts';
 import { assembleFacts, type FactSources, lineOfRecords } from './facts.ts';
 import type { AppFacts, AppState, GuardedAction, Promotion, TopBarBadge, Verdict } from './types.ts';
 
@@ -23,6 +26,9 @@ import type { AppFacts, AppState, GuardedAction, Promotion, TopBarBadge, Verdict
  * Refreshed on the same triggers as before: the window comes back, something was staged, discarded or published (`kiln:staged-changed`),
  * every few seconds while a publish runs (the claims' own poll), and when a mutation says it is done (`refresh`).
  */
+
+/** The pending line of an app for a chip or a badge: the count, what blocks, what only waits for the store, and whether the last publish failed. */
+export type AppLine = PendingLine & { failed: boolean };
 
 /** What `of` needs from the screen: who is asking, for which records, in which platform scope, and what only the page has loaded. */
 export type StateInput = {
@@ -39,7 +45,14 @@ export type StateInput = {
 };
 
 /** The app that is open (AppShell registers it): the top bar button reads its state, scoped like the page. */
-type OpenApp = { workspaceId: string; role: Role; records: readonly AppSummary[]; scope: PlatformScope };
+type OpenApp = {
+  workspaceId: string;
+  role: Role;
+  records: readonly AppSummary[];
+  scope: PlatformScope;
+  /** The Pending page itself is open: it is the review, so the button does not repeat "N pending" there (a publish or a failure still shows). */
+  onPendingPage: boolean;
+};
 let open = $state<OpenApp | null>(null);
 
 function sourcesOf(workspaceId: string): FactSources {
@@ -87,20 +100,53 @@ export const appStateStore = {
     return promoteOfferFor(appStateStore.of({ workspaceId, role, records, scope: app.platform }), role, release, siblings);
   },
 
-  /** The pending line of an app (the chips, the badges): the same count as everywhere. Null when not read or nothing waits. */
-  lineOf(workspaceId: string, appIds: readonly string[]): PendingLine | null {
-    return lineOfRecords(sourcesOf(workspaceId), appIds);
+  /**
+   * The pending line of an app (the chips, the badges): the same count as everywhere, and whether its last publish failed. Null when
+   * the count is not read, or nothing waits and nothing failed.
+   */
+  lineOf(workspaceId: string, appIds: readonly string[]): AppLine | null {
+    const line = lineOfRecords(sourcesOf(workspaceId), appIds);
+    const failed = appIds.some((id) => activeFailure(publishingStore.failureOf(workspaceId, id), publishingStore.of(workspaceId, id)) !== null);
+    if (line === null && !failed) return null;
+    return { count: line?.count ?? 0, blocking: line?.blocking ?? 0, waiting: line?.waiting ?? 0, failed };
   },
 
-  /** The pending changes of the whole workspace, as the "Pending" entry of the navigation counts them; null while not read. */
-  workspaceChanges(workspaceId: string): number | null {
+  /** Whether the pending count of the workspace was read (a screen that says "nothing" asks first). */
+  pendingKnown(workspaceId: string): boolean {
+    return cartSummaryStore.summaryOf(workspaceId) !== null;
+  },
+
+  /** The "Pending" entry of the navigation and the Pending overview: the changes and the apps that hold them; null while not read. */
+  workspaceTotals(workspaceId: string, apps: readonly AppSummary[] | null): { changes: number; apps: number } | null {
     const cart = cartSummaryStore.summaryOf(workspaceId);
-    return cart === null ? null : cart.apps.reduce((n, line) => n + (Number.isFinite(line.count) && line.count > 0 ? Math.floor(line.count) : 0), 0);
+    return pendingTotals(pendingRows(cart, apps), cart);
   },
 
-  /** The apps of the workspace that publish right now (the claims). */
-  publishingIds(workspaceId: string): string[] {
-    return publishingStore.ids(workspaceId);
+  /** The rows of the Pending overview: one per product, the records merged, the most pending first. */
+  workspaceRows(workspaceId: string, apps: readonly AppSummary[] | null): PendingRow[] {
+    return pendingRows(cartSummaryStore.summaryOf(workspaceId), apps);
+  },
+
+  /** The apps of the workspace that publish right now (the claims), with the app they belong to. */
+  workspacePublishing(workspaceId: string, apps: readonly AppSummary[] | null): { app: AppSummary; entry: Publishing }[] {
+    const out: { app: AppSummary; entry: Publishing }[] = [];
+    for (const id of publishingStore.ids(workspaceId)) {
+      const app = (apps ?? []).find((a) => a.id === id);
+      const entry = publishingStore.of(workspaceId, id);
+      if (app && entry) out.push({ app, entry });
+    }
+    return out;
+  },
+
+  /** The apps of the workspace whose last publish failed and nobody hid it (an app that publishes again shows its progress instead). */
+  workspaceFailures(workspaceId: string, apps: readonly AppSummary[] | null): { app: AppSummary; run: LastPublish }[] {
+    const out: { app: AppSummary; run: LastPublish }[] = [];
+    for (const id of publishingStore.failedIds(workspaceId)) {
+      const app = (apps ?? []).find((a) => a.id === id);
+      const run = activeFailure(publishingStore.failureOf(workspaceId, id), publishingStore.of(workspaceId, id));
+      if (app && run) out.push({ app, run });
+    }
+    return out;
   },
 
   // ---- The top bar --------------------------------------------------------------------------
@@ -116,7 +162,8 @@ export const appStateStore = {
     const state = here === null ? null : appStateStore.of({ workspaceId, role: here.role, records: here.records, scope: here.scope });
     const mine = here === null ? [] : here.records.map((r) => r.id);
     const other = publishingStore.ids(workspaceId).find((id) => mine.indexOf(id) < 0) ?? null;
-    return deriveTopBar(state, other);
+    const badge = deriveTopBar(state, other);
+    return badge.kind === 'pending' && here?.onPendingPage === true ? { kind: 'idle' } : badge;
   },
 
   // ---- Reading ------------------------------------------------------------------------------
@@ -153,6 +200,27 @@ export const appStateStore = {
       window.removeEventListener('focus', back);
       document.removeEventListener('visibilitychange', back);
     };
+  },
+
+  /** The shell shows another app (or the same one again): the count and what blocks are read unless they are fresh. */
+  ensure(api: Api, workspaceId: string): void {
+    void cartSummaryStore.ensure(api, workspaceId);
+    void pendingStore.loadSummary(api, workspaceId);
+  },
+
+  /** The workspace summary of the release pipelines (which releases are left unfinished); null until read. */
+  pipelineSummary(workspaceId: string): PipelineSummary | null {
+    return pipelineStore.summary(workspaceId);
+  },
+
+  /** The apps of that summary (empty until read): what the sidebar badge and the Overview count as "left unfinished". */
+  stalledApps(workspaceId: string): PipelineSummaryApp[] {
+    return pipelineStore.summary(workspaceId)?.apps ?? [];
+  },
+
+  /** Reads the release pipeline summary of the workspace. */
+  loadPipelineSummary(api: Api, workspaceId: string): void {
+    void pipelineStore.loadSummary(api, workspaceId);
   },
 
   /** The release pipelines of these records (the next step is built from them). A finished sync passes `force`. */

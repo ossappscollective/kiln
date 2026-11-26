@@ -1,37 +1,39 @@
 <!--
-  PendingCartButton: this app's pending changes, in the top bar next to the account menu (docs/adr/0054-pending-cart.md). Compact:
-  upload icon, "Pending" and the count; below 600px the icon and the count only. State comes from `cartButton` (PendingCart writes it),
-  so it shows only inside an app and only while changes wait. Not the workspace-wide "Pending" page in the navigation (ADR 0064):
-  its name and tooltip say "this app".
+  PendingCartButton: the app's pending changes, in the top bar next to the account menu (docs/adr/0054-pending-cart.md). It draws what the
+  ONE state model says (docs/state-model.md, `appStateStore.topBar`), nothing it works out itself: pending (upload icon, "Pending" and the
+  count), publishing (a spinner, "Publishing...", the count kept), failed (a warning icon, "Publish failed", the count kept). It shows
+  when the badge is not idle, so it can never say nothing while the Overview says changes wait. Below 600px the icon and the count only.
+  Pressing it opens the pending panel: the drawer of the open app for pending, the running publish for publishing, the failure block for
+  failed (the open app's drawer when it covers the app, else that app's Pending page).
   The one tinted control of the top bar (ADR 0068): the `data-app-tint` marker sits on the button itself, never on the bar, so the
   accent tokens it already reads (gradient, label colour) take the open app's tint and nothing else in the bar does. `tintStyle` is
-  the app's inline style (tint.style); empty (no palette, opt-out, an app without a tint) leaves the default accent.
-  While ANY publish of the workspace runs (`publishing-store`, polled while one runs) the button shows it, wherever the person is: a spinner
-  beside the icon, "Publishing…" for the label, the count kept when the open app has changes waiting, `aria-busy` and a polite live
-  region. Pressing it opens the pending panel on the running publish: the open app's drawer when it covers it, else that app's Pending page,
-  with the status row scrolled into view (`publishing-focus`). Props: tintStyle?, workspaceId (whose publishes to show).
+  the app's inline style (tint.style); empty (no palette, opt-out, an app without a tint) leaves the default accent. The failed state is
+  the warning colour with the same label colour (`--accent-ink`, a tested pair), never the tint.
+  A polite live region says "Publishing..." or "Publish failed" once when the state changes, never every few seconds.
+  Props: tintStyle?, workspaceId (whose state to show).
 -->
 <script lang="ts">
+  import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import { openPendingPanel } from '../../lib/app-state/panel.svelte.ts';
   import { cartButton } from '../../lib/cart-button.svelte.ts';
   import { t } from '../../lib/i18n/t.ts';
-  import { openPublishingPanel } from '../../lib/publishing-focus.svelte.ts';
-  import { appToShow } from '../../lib/publishing.ts';
-  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import Icon from '../ui/Icon.svelte';
   import Spinner from '../ui/Spinner.svelte';
 
   let { tintStyle = '', workspaceId = '' }: { tintStyle?: string | undefined; workspaceId?: string | undefined } = $props();
 
-  /** The apps of the workspace that publish right now (the shared store; empty while none does). */
-  const running = $derived(workspaceId === '' ? [] : publishingStore.ids(workspaceId));
-  const busy = $derived(running.length > 0);
-  /** Shown while changes wait in the open app, and also while any publish runs (the open app may have nothing waiting). */
-  const shown = $derived(cartButton.visible || busy);
-  const showCount = $derived(cartButton.visible);
+  /** What the top bar says, from the state model (the open app's state in the page's scope, or a publish anywhere in the workspace). */
+  const badge = $derived(workspaceId === '' ? ({ kind: 'idle' } as const) : appStateStore.topBar(workspaceId));
+  const shown = $derived(badge.kind !== 'idle');
+  const busy = $derived(badge.kind === 'publishing');
+  const failed = $derived(badge.kind === 'failed');
+  const count = $derived(badge.kind === 'idle' ? 0 : badge.count);
+  const showCount = $derived(count > 0);
+  const label = $derived(busy ? t('publish:publishing.chip') : failed ? t('state:topBar.failed') : t('app:cart.fabLabel'));
 
   function press() {
-    const id = appToShow(running, cartButton.appIds);
-    if (busy && id !== null) openPublishingPanel(id);
+    if (badge.kind === 'publishing') openPendingPanel('publishing', badge.appId);
+    else if (badge.kind === 'failed') openPendingPanel('failed', badge.appId);
     else cartButton.press?.();
   }
 </script>
@@ -42,21 +44,23 @@
     class="cart-button"
     class:pulse={cartButton.pulse}
     class:busy
-    aria-haspopup={busy ? undefined : 'dialog'}
-    aria-expanded={busy ? undefined : cartButton.expanded}
+    class:failed
+    aria-haspopup={busy || failed ? undefined : 'dialog'}
+    aria-expanded={busy || failed ? undefined : cartButton.expanded}
     aria-busy={busy}
-    aria-label={busy ? t('publish:publishing.buttonAria') : t('app:cart.openAria', { count: cartButton.count })}
-    title={busy ? t('publish:publishing.buttonTitle') : t('app:cart.buttonTitle')}
+    aria-label={busy ? t('publish:publishing.buttonAria') : failed ? t('state:topBar.failedAria') : t('app:cart.openAria', { count })}
+    title={busy ? t('publish:publishing.buttonTitle') : failed ? t('state:topBar.failedTitle') : t('app:cart.buttonTitle')}
     data-testid="pending-cart-button"
-    data-app-tint={tintStyle ? '' : undefined}
-    style={tintStyle || undefined}
+    data-state={badge.kind}
+    data-app-tint={tintStyle && !failed ? '' : undefined}
+    style={tintStyle && !failed ? tintStyle : undefined}
     onclick={press}
   >
-    {#if busy}<Spinner size={16} label="" />{:else}<Icon name="upload" size={16} />{/if}
-    <span class="label">{busy ? t('publish:publishing.chip') : t('app:cart.fabLabel')}</span>
-    {#if showCount}<span class="count" aria-hidden="true">{cartButton.count}</span>{/if}
-    <!-- read out once when a publish starts or ends, never every few seconds -->
-    <span class="visually-hidden" aria-live="polite" data-testid="pending-cart-live">{busy ? t('publish:publishing.chip') : ''}</span>
+    {#if busy}<Spinner size={16} label="" />{:else if failed}<Icon name="alert-triangle" size={16} />{:else}<Icon name="upload" size={16} />{/if}
+    <span class="label">{label}</span>
+    {#if showCount}<span class="count" aria-hidden="true">{count}</span>{/if}
+    <!-- read out once when a publish starts, ends or fails, never every few seconds -->
+    <span class="visually-hidden" aria-live="polite" data-testid="pending-cart-live">{busy ? t('publish:publishing.chip') : failed ? t('state:topBar.failed') : ''}</span>
   </button>
 {/if}
 
@@ -130,6 +134,14 @@
 
   button.cart-button.busy {
     cursor: progress;
+  }
+
+  /* Failed: the warning colour behind the same label colour (every state of the button keeps `--accent-ink` on a solid or gradient). */
+  button.cart-button.failed,
+  button.cart-button.failed:hover:not(:disabled),
+  button.cart-button.failed:active:not(:disabled) {
+    color: var(--accent-ink);
+    background: linear-gradient(135deg, var(--warn), var(--warn));
   }
 
   .count {

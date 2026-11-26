@@ -1,39 +1,38 @@
 <!--
-  NextStep: the one card at the top of the Overview and of Releases ("Your next step"; docs/design/mockups/app-overview.dc.html). It says what to do next and offers ONE primary button for it,
-  chosen from the state (lib/next-step.ts): the release that waits for you (rejected, approved, a build to attach, unfinished), the
-  release that waits for the store, or, with nothing on its way, "Start release". The five steps of the release on its way sit in the
-  card; the other releases on their way are one quiet line each; with `attention` (the Overview) the rest of "Needs attention" is
-  listed under it, so nothing is said twice. It reads the release pipeline of our own database and writes nothing:
-  "Start release" only opens its dialog (StartRelease), whose confirmation is the one action.
-  Props: api, workspaceId, role, members (the records in scope), all? (every record, for the dispatch dialog), scope (platform scope
-  for links), releases? (store releases by app id: with them a Google Play release in a non-production track offers "Promote to
-  production"), attention? (items of "Needs attention"; default none), refreshKey (changes when the screen synced), onprepare? (open
-  the release steps in place, on Releases; without it the card links to them; with it, "Prepare without CI" is offered beside
-  "Start release"), showRunning = false (draw the run "Start release" started under the card; the Overview draws its own list),
-  onstarted? (the run "Start release" started).
-  `pending` (the Overview) is the changes waiting as one quiet link under the button ("2 changes waiting. Review and publish"); `onitems`
-  hands the rest of "Needs attention" to the screen, which draws it as its own "Also worth a look" card (without it the list sits in this card).
+  NextStep: the one card at the top of the Overview and of Releases ("Your next step"; docs/design/mockups/app-overview.dc.html). It says what is
+  true about the app and offers ONE primary button, and it says nothing it works out itself: every word and every button comes from the state
+  model (docs/state-model.md, `appStateStore.of`), the same answer the top bar, the pending panels and the release buttons read.
+  By priority: a publish that runs (progress and "Show pending changes"), a publish that failed (headline "The last publish failed", the
+  reason, "Show pending changes" and "Publish again"; Promote and the release buttons stay off with the reason), changes waiting ("N changes
+  waiting", "Review and publish"), then the release flow (the release that waits for you, for the store, for CI, or "Start release").
+  "Nothing is waiting for you" is only ever said by the model when nothing is pending, nothing failed and nothing runs.
+  The five steps of the release on its way sit in the card; the other releases on their way are one quiet line each; the rest of "Needs
+  attention" goes to the screen (`onitems`, drawn as "Also worth a look") or is listed under the card. It reads the release pipelines
+  through the state store and writes nothing: "Start release" only opens its dialog (StartRelease), whose confirmation is the one action.
+  Props: api, workspaceId, role, members (the records in scope), all? (every record, for the dispatch dialog and the state), scope (platform
+  scope for links), releases? (store releases by app id, for Promote), attention? (items of "Needs attention"; default none), refreshKey
+  (changes when the screen synced), onprepare? (open the release steps in place, on Releases; without it the card links to them), showRunning
+  = false (draw the run "Start release" started under the card; the Overview draws its own list), onstarted? (the run "Start release" started),
+  onitems? (hands the rest of "Needs attention" to the screen).
   Exports: observe(data) takes a RunningNow answer, so the screen's own feed is read once.
 -->
 <script lang="ts">
   import T from '../ui/T.svelte';
   import { t } from '../../lib/i18n/t.ts';
   import { formatList } from '../../lib/i18n/format.ts';
-  import { can, type Role, supports } from '@kiln/core';
+  import { can, platformLabel, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import type { AttentionItem } from '../../lib/app-attention.ts';
-  import type { PlatformScope } from '../../lib/app-scope.ts';
-  import { chooseNextStep, nextStepTrains } from '../../lib/next-step.ts';
-  import { pipelineStore } from '../../lib/pipeline-store.svelte.ts';
-  import { openPublishingPanel } from '../../lib/publishing-focus.svelte.ts';
-  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
-  import { promoteHref, promoteOptions } from '../../lib/play-promote.ts';
-  import { reviewUrl } from '../../lib/store-links.ts';
+  import { appAddress, type PlatformScope } from '../../lib/app-scope.ts';
+  import { requestPublishAgain } from '../../lib/app-state/actions.ts';
+  import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import { scopeFor } from '../../lib/app-state/derive.ts';
+  import { openPendingPanel } from '../../lib/app-state/panel.svelte.ts';
+  import type { ActionOffer } from '../../lib/app-state/types.ts';
   import { releaseStepHref } from '../../lib/release-stepper.ts';
   import type { StartedRun } from '../../lib/start-release.ts';
   import type { ActiveRuns, AppSummary, ReleaseSummary } from '../../lib/types.ts';
-  import PublishingStatus from '../publish/PublishingStatus.svelte';
   import TrainSteps from '../release/TrainSteps.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -54,7 +53,6 @@
     showRunning = false,
     onprepare,
     onstarted,
-    pending = null,
     onitems,
   }: {
     api: Api;
@@ -69,7 +67,6 @@
     showRunning?: boolean | undefined;
     onprepare?: (() => void) | undefined;
     onstarted?: ((started: StartedRun | null) => void) | undefined;
-    pending?: { text: string; href: string } | null | undefined;
     onitems?: ((items: AttentionItem[]) => void) | undefined;
   } = $props();
 
@@ -79,53 +76,30 @@
     start?.observe(data);
   }
 
-  // The card follows the platform switch: the releases of the records the page shows (one platform, or every record with Both).
-  // The pipelines of every record are still read (`records`) so a switch to the other platform has them at once.
+  // The card follows the platform switch: the state is derived for the records the page shows (one platform, or every record with Both).
+  // The pipelines of every record are still read so a switch to the other platform has them at once.
   const records = $derived(all ?? members);
-  const trains = $derived(
-    nextStepTrains(
-      records.map((m) => pipelineStore.app(m.id)).filter((d): d is NonNullable<typeof d> => d !== null),
-      members.map((m) => m.platform),
-    ),
-  );
-  const reviewUrlOf = (appId: string) => {
-    const record = records.find((m) => m.id === appId);
-    return record ? reviewUrl(record) : null;
-  };
-  const canStart = $derived(can(role, 'ci.dispatch') && can(role, 'repositories.read') && members.some((m) => m.repositoryId !== null));
-  const canPrepare = $derived(can(role, 'listing.read') && members.length > 0);
-  const step = $derived(chooseNextStep({ trains, attention, scope, canStart, canPrepare, reviewUrlOf }));
-  // A Google Play release that sits in internal, closed or open testing can be promoted: one quiet line with its own button.
-  const promotion = $derived.by(() => {
-    if (!canPrepare || !releases) return null;
-    for (const m of members) {
-      if (!supports(m.platform, 'releaseTracks')) continue;
-      const option = promoteOptions(releases[m.id] ?? [])[0];
-      if (option) return option;
-    }
-    return null;
-  });
-  // A publish of this app that runs now: the card says so at its top, and every button that would act on that app is off (the server
-  // refuses them too with 409 publish_in_progress). Buttons that only look at the store (Follow the review) stay.
-  const running = $derived(
-    members.flatMap((m) => {
-      const entry = publishingStore.of(workspaceId, m.id);
-      return entry === null ? [] : [{ appId: m.id, platform: m.platform, entry }];
-    }),
-  );
-  /** Whether a button for this record is off: its own publish runs, or (no record named) any record in scope publishes. */
-  const off = (appId: string | null): boolean =>
-    appId === null ? running.length > 0 : publishingStore.isPublishing(workspaceId, appId);
-  const offReason = $derived(running[0] ? publishingStore.reason(workspaceId, running[0].appId) : '');
-  const primaryAppId = $derived(step.train?.button.appId ?? null);
+  const stateScope = $derived(scopeFor(records, members));
+  const appState = $derived(appStateStore.of({ workspaceId, role, records, scope: stateScope, releases, attention }));
+  const primary = $derived(appState.primaryAction);
+  const startOffer = $derived([primary, ...appState.secondaryActions].find((a) => a.action === 'start_release') ?? null);
+  const startButton = $derived<'primary' | 'secondary' | 'none'>(startOffer === null ? 'none' : startOffer === primary ? 'primary' : 'secondary');
   const prepareHref = $derived(members[0] ? releaseStepHref(members[0].id, scope, 'build') : '');
-  const startsHere = $derived(step.primary !== null && 'action' in step.primary && step.primary.action === 'start-release');
-  const preparesHere = $derived(step.primary !== null && 'action' in step.primary && step.primary.action === 'prepare-release');
-  // "Start release" is offered as the primary action only, when nothing is in flight; beside a release in flight it is not on the card.
-  const startButton = $derived<'primary' | 'none'>(startsHere ? 'primary' : 'none');
+  const kind = $derived(appState.phase === 'publishing' ? 'publishing' : appState.phase === 'publish_failed' ? 'failed' : 'pending');
+  const elsewhereNames = $derived(formatList(appState.elsewhere.platforms.map((p) => platformLabel(p))));
+  const elsewhereHref = $derived(appAddress(records[0]?.id ?? '', 'pending', appState.elsewhere.platforms[0] ?? null));
+
+  /** An offer that opens a panel or a dialog rather than a page. */
+  function press(offer: ActionOffer) {
+    if (offer.action === 'show_pending') openPendingPanel(kind, offer.appId ?? '', stateScope);
+    else if (offer.action === 'publish_again' && offer.appId !== null) requestPublishAgain(offer.appId);
+    else if (offer.action === 'prepare_release') onprepare?.();
+  }
+  const opensPanel = (offer: ActionOffer) =>
+    offer.action === 'show_pending' || offer.action === 'publish_again' || (offer.action === 'prepare_release' && offer.href === null && onprepare !== undefined);
 
   $effect(() => {
-    const rest = step.items;
+    const rest = appState.rest;
     if (onitems) untrack(() => onitems(rest));
   });
 
@@ -140,49 +114,46 @@
       const force = key === loadedKey && again !== lastRefresh;
       loadedKey = key;
       lastRefresh = again;
-      if (can(role, 'apps.read')) for (const id of list) void pipelineStore.loadApp(api, workspaceId, id, force);
+      if (can(role, 'apps.read')) appStateStore.loadPipelines(api, workspaceId, list, force);
     });
   });
 </script>
 
-<section class="card next" data-tone={step.tone} data-testid="next-step" aria-labelledby="{uid}-title">
-  {#each running as p (p.appId)}
-    <div class="running">
-      <PublishingStatus
-        publishing={p.entry}
-        platform={p.platform}
-        appId={p.appId}
-        action={{ label: t('publish:publishing.showPending'), onclick: () => openPublishingPanel(p.appId, scope) }}
-      />
-    </div>
-  {/each}
+{#snippet offerButton(offer: ActionOffer, variant: 'primary' | 'secondary', size: 'md' | 'lg')}
+  {#if offer.action === 'start_release'}
+    <!-- drawn by StartRelease below (it owns the dialog) -->
+  {:else if opensPanel(offer)}
+    <Button {variant} {size} icon={offer.action === 'publish_again' ? 'upload' : 'arrow-right'} disabled={!offer.enabled} title={offer.disabledReason ?? undefined} onclick={() => press(offer)} data-action={offer.action}>{offer.label}</Button>
+  {:else if offer.href === null}
+    <Button {variant} {size} icon="play" disabled={!offer.enabled} title={offer.disabledReason ?? undefined} href={offer.enabled ? prepareHref : undefined} data-action={offer.action}>{offer.label}</Button>
+  {:else if !offer.enabled}
+    <Button {variant} {size} icon="arrow-right" disabled title={offer.disabledReason ?? undefined} data-action={offer.action}>{offer.label}</Button>
+  {:else}
+    <Button {variant} {size} icon={offer.external ? 'external-link' : 'arrow-right'} href={offer.href} target={offer.external ? '_blank' : undefined} data-action={offer.action}>{offer.label}</Button>
+  {/if}
+{/snippet}
+
+<section class="card next" data-tone={appState.tone} data-phase={appState.phase} data-testid="next-step" aria-labelledby="{uid}-title">
   <p class="eyebrow">{t('app:nextStep.eyebrow')}</p>
   <div class="main">
     <div class="text">
-      <h2 id="{uid}-title">
-        {#if step.train}{#each step.train.platforms as p (p)}<PlatformBadge platform={p} showLabel={false} />{/each}{/if}
-        {step.title}
-        {#if step.waiting}<Badge tone={step.waiting.who === 'you' ? 'warn' : 'neutral'}>{step.waiting.text}</Badge>{/if}
+      <h2 id="{uid}-title" data-testid="next-step-headline">
+        {#if appState.flow?.step.train}{#each appState.flow.step.train.platforms as p (p)}<PlatformBadge platform={p} showLabel={false} />{/each}{/if}
+        {appState.headline}
+        {#if appState.flow?.step.waiting}<Badge tone={appState.flow.step.waiting.who === 'you' ? 'warn' : 'neutral'}>{appState.flow.step.waiting.text}</Badge>{/if}
       </h2>
-      {#if step.text !== ''}<p class="muted">{step.text}</p>{/if}
-      {#if step.rows.length > 0}<p class="muted">{t('app:nextStep.eachStore')}</p>{/if}
+      {#if appState.reason !== ''}<p class="muted" data-testid="next-step-reason">{appState.reason}</p>{/if}
+      {#if appState.flow && appState.flow.rows.length > 0}<p class="muted">{t('app:nextStep.eachStore')}</p>{/if}
     </div>
     <div class="actions">
-      {#if step.primary && 'href' in step.primary}
-        {#if !step.primary.external && off(primaryAppId)}
-          <Button variant="primary" size="lg" icon="arrow-right" disabled title={offReason}>{step.primary.label}</Button>
-        {:else}
-          <Button variant="primary" size="lg" icon={step.primary.external ? 'external-link' : 'arrow-right'} href={step.primary.href} target={step.primary.external ? '_blank' : undefined}>{step.primary.label}</Button>
-        {/if}
-      {:else if preparesHere && step.primary}
-        {#if off(null)}
-          <Button variant="primary" size="lg" icon="play" disabled title={offReason}>{step.primary.label}</Button>
-        {:else if onprepare}
-          <Button variant="primary" size="lg" icon="play" onclick={onprepare}>{step.primary.label}</Button>
-        {:else}
-          <Button variant="primary" size="lg" icon="play" href={prepareHref}>{step.primary.label}</Button>
-        {/if}
+      {#if primary.action !== 'none'}
+        {@render offerButton(primary, 'primary', 'lg')}
+        {#if !primary.enabled && primary.disabledReason}<span class="why muted" data-testid="next-step-why">{primary.disabledReason}</span>{/if}
       {/if}
+      {#each appState.secondaryActions as offer (offer.action)}
+        {@render offerButton(offer, 'secondary', 'md')}
+        {#if !offer.enabled && offer.disabledReason}<span class="why muted">{offer.disabledReason}</span>{/if}
+      {/each}
       <StartRelease
         bind:this={start}
         {api}
@@ -193,68 +164,74 @@
         scopeIsBoth={members.length > 1}
         {showRunning}
         button={startButton}
-        showPrepare={startsHere}
+        showPrepare={startOffer !== null}
+        blockedReason={startOffer !== null && !startOffer.enabled ? startOffer.disabledReason : null}
         {onstarted}
       />
-      {#if onprepare && step.kind === 'start'}
-        <Button variant="ghost" onclick={onprepare} title={t('app:nextStep.withoutCiHint')}>{t('app:nextStep.withoutCi')}</Button>
-      {/if}
-      {#if pending}
-        {#if running.length > 0}
-          <!-- Review and publish would race the publish that runs: said once, here, instead of a link that leads to a refusal -->
-          <span class="pending-link off" data-testid="next-step-pending" aria-disabled="true" title={offReason}>{pending.text}<span class="para">{t('publish:publishing.pendingOff')}</span></span>
-        {:else}
-          <a class="pending-link" href={pending.href} data-testid="next-step-pending">{pending.text}</a>
-        {/if}
+      {#if onprepare && primary.action === 'start_release'}
+        <Button variant="ghost" disabled={!appState.verdicts.prepare_release.enabled} onclick={onprepare} title={appState.verdicts.prepare_release.reason ?? t('app:nextStep.withoutCiHint')}>{t('app:nextStep.withoutCi')}</Button>
       {/if}
     </div>
   </div>
 
-  {#if step.rows.length > 0}
+  {#if appState.elsewhere.pendingCount > 0 || appState.elsewhere.failed || appState.elsewhere.publishing}
+    <!-- what is going on in the platforms this page does not show: said once, with a link, never as the card's own state -->
+    <p class="elsewhere muted" data-testid="next-step-elsewhere">
+      {#if appState.elsewhere.publishing}{t('state:elsewhere.publishing', { platforms: elsewhereNames })}{:else if appState.elsewhere.failed}{t('state:elsewhere.failed', { platforms: elsewhereNames })}{:else}{t('state:elsewhere.pending', { count: appState.elsewhere.pendingCount, platforms: elsewhereNames })}{/if}
+      <a href={elsewhereHref}>{t('state:action.showPending')}</a>
+    </p>
+  {/if}
+
+  {#if appState.flow && appState.flow.rows.length > 0}
     <ul class="rows" aria-label={t('app:nextStep.onTheirWay')} data-testid="next-step-rows">
-      {#each step.rows as r (r.key)}
+      {#each appState.flow.rows as r (r.key)}
         <li class="row" data-tone={r.tone} data-testid="next-step-row">
           <span class="who">{#each r.platforms as p (p)}<PlatformBadge platform={p} />{/each}</span>
           <span class="what">
             <span>{r.text}</span>
             {#if r.waiting}<Badge tone={r.waiting.who === 'you' ? 'warn' : 'neutral'}>{r.waiting.text}</Badge>{/if}
           </span>
-          {#if !r.external && off(r.appId)}
-            <Button variant="secondary" icon="arrow-right" disabled title={publishingStore.reason(workspaceId, r.appId)}>{r.label}</Button>
+          {@render offerButton(r.offer, r.urgent ? 'primary' : 'secondary', 'md')}
+        </li>
+      {/each}
+    </ul>
+  {/if}
+
+  {#if appState.flow?.step.train}
+    <div class="steps"><TrainSteps steps={appState.flow.step.train.steps} /></div>
+  {/if}
+
+  {#if appState.promotion}
+    {@const promotion = appState.promotion}
+    <p class="promote" data-testid="next-step-promote">
+      <span><T key="app:nextStep.promotion" params={{ count: promotion.option.codes.length, version: promotion.option.version, track: promotion.option.fromLabel, codes: formatList(promotion.option.codes) }} /></span>
+      {#if promotion.offer.enabled}
+        <Button size="sm" icon="arrow-right" href={promotion.offer.href ?? undefined} data-action="promote">{promotion.offer.label}</Button>
+      {:else}
+        <!-- off while a publish runs or has failed: the reason is said next to the button, not only in a tooltip -->
+        <Button size="sm" icon="arrow-right" disabled title={promotion.offer.disabledReason ?? undefined} data-action="promote">{promotion.offer.label}</Button>
+        <span class="why muted" data-testid="next-step-promote-why">{promotion.offer.disabledReason}</span>
+      {/if}
+    </p>
+  {/if}
+
+  {#if appState.flow && appState.flow.others.length > 0}
+    <ul class="others" aria-label={t('app:nextStep.otherOnTheirWay')}>
+      {#each appState.flow.others as o (o.title)}
+        <li>
+          <strong>{o.title}</strong> <span class="muted">{o.text}</span>
+          {#if o.offer.enabled && o.offer.href}
+            <a href={o.offer.href} target={o.offer.external ? '_blank' : undefined} rel={o.offer.external ? 'noopener noreferrer' : undefined}>{o.offer.label}</a>
           {:else}
-            <Button variant={r.urgent ? 'primary' : 'secondary'} icon={r.external ? 'external-link' : 'arrow-right'} href={r.href} target={r.external ? '_blank' : undefined}>{r.label}</Button>
+            <span class="muted" title={o.offer.disabledReason ?? undefined}>{o.offer.label}</span>
           {/if}
         </li>
       {/each}
     </ul>
   {/if}
 
-  {#if step.train}
-    <div class="steps"><TrainSteps steps={step.train.steps} /></div>
-  {/if}
-
-  {#if promotion}
-    <p class="promote" data-testid="next-step-promote">
-      <span><T key="app:nextStep.promotion" params={{ count: promotion.codes.length, version: promotion.version, track: promotion.fromLabel, codes: formatList(promotion.codes) }} /></span>
-      {#if publishingStore.isPublishing(workspaceId, promotion.appId)}
-        <!-- a publish of this app is running: promoting now would race it -->
-        <Button size="sm" icon="arrow-right" disabled title={publishingStore.reason(workspaceId, promotion.appId)}>{promotion.label}</Button>
-      {:else}
-        <Button size="sm" icon="arrow-right" href={promoteHref(promotion)}>{promotion.label}</Button>
-      {/if}
-    </p>
-  {/if}
-
-  {#if step.otherTrains.length > 0}
-    <ul class="others" aria-label={t('app:nextStep.otherOnTheirWay')}>
-      {#each step.otherTrains as o (o.title)}
-        <li><strong>{o.title}</strong> <span class="muted">{o.text}</span> <a href={o.href} target={o.external ? '_blank' : undefined} rel={o.external ? 'noopener noreferrer' : undefined}>{o.label}</a></li>
-      {/each}
-    </ul>
-  {/if}
-
-  {#if step.items.length > 0 && !onitems}
-    <div class="more"><AttentionList bare items={step.items} {api} {workspaceId} {role} {members} /></div>
+  {#if appState.rest.length > 0 && !onitems}
+    <div class="more"><AttentionList bare items={appState.rest} {api} {workspaceId} {role} {members} /></div>
   {/if}
 </section>
 
@@ -284,6 +261,15 @@
     align-items: center;
     margin: var(--space-4) 0 0;
     font-size: var(--text-base);
+  }
+
+  .why {
+    font-size: var(--text-sm);
+  }
+
+  .elsewhere {
+    margin: var(--space-3) 0 0;
+    font-size: var(--text-sm);
   }
 
   .eyebrow {
@@ -322,7 +308,7 @@
     line-height: 1.4;
   }
 
-  /* One big primary button, the quieter ones and the pending link under it, in one column. */
+  /* One big primary button, the quieter ones under it, in one column. */
   .actions {
     display: flex;
     flex: 0 0 15.5rem;
@@ -336,25 +322,6 @@
   .actions :global(button.lg),
   .actions :global(a.lg) {
     justify-content: center;
-  }
-
-  .pending-link {
-    font-size: var(--text-base);
-    text-align: center;
-  }
-
-  .pending-link.off {
-    display: flex;
-    flex-direction: column;
-    color: var(--muted);
-  }
-
-  .pending-link .para {
-    font-size: var(--text-sm);
-  }
-
-  .running {
-    margin: 0 0 var(--space-4);
   }
 
   /* The follow-up of a started run (and its problem line) goes on its own line under the buttons. */

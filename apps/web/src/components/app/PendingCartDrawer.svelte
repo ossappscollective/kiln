@@ -23,8 +23,10 @@
   import type { PriceDryRunItem } from '../../lib/types.ts';
   import { appAddress, type PlatformScope } from '../../lib/app-scope.ts';
   import { timeAgo } from '../../lib/format.ts';
-  import { disabledReason, type Publishing } from '../../lib/publishing.ts';
-  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
+  import type { Publishing } from '../../lib/publishing.ts';
+  import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import FailureAnchor from '../app-state/FailureAnchor.svelte';
+  import type { GuardedAction, Verdict } from '../../lib/app-state/types.ts';
   import {
     allState,
     type CartCounts,
@@ -77,6 +79,7 @@
     focusLocale = null,
     publishing = [],
     failures = [],
+    can,
     dryRun = null,
     dryBusy = false,
     onpublish,
@@ -105,6 +108,8 @@
     publishing?: readonly { appId: string; platform: Platform; entry: Publishing }[] | undefined;
     /** The last publish of a record that did not go through ("Last publish failed: ..."), until it is dismissed. */
     failures?: readonly { appId: string; run: LastPublish; name: string; platform: Platform }[] | undefined;
+    /** What each action may do now (the state model's verdicts): Publish, Review and Discard are off with its reason. */
+    can: (action: GuardedAction) => Verdict;
     /** The last dry run of price items (read only: nothing was sent). */
     dryRun?: { items: { key: string; title: string; item: PriceDryRunItem }[]; writesEnabled: boolean; failed: string } | null | undefined;
     dryBusy?: boolean | undefined;
@@ -129,8 +134,10 @@
   /** What was typed for the price phrase, by record (a publish is one request per record, each with its own phrase). */
   let typed = $state<Record<string, string>>({});
 
-  /** Why Publish and Review are off while a publish runs: a tooltip on the buttons. */
-  const publishingReason = $derived(publishing[0] ? disabledReason(publishing[0].entry, now) : '');
+  /** The verdicts of the three actions of the footer, from the state model (a publish that runs, a role, nothing to publish). */
+  const pushVerdict = $derived(can('push'));
+  const publishVerdict = $derived(can('publish'));
+  const discardVerdict = $derived(can('discard'));
   const beingPublished = $derived(new Set(publishing.map((p) => p.appId)));
   const groups = $derived(groupRows(rows));
   const focused = $derived(focusLocale === null ? new Set<string>() : new Set(rowsForLocale(rows, focusLocale).map((r) => r.key)));
@@ -249,7 +256,9 @@
           <PublishingStatus publishing={p.entry} platform={p.platform} appId={p.appId} />
         {/each}
         {#each failures as f (f.appId)}
-          <PublishFailure run={f.run} appName={f.name} platform={f.platform} ondismiss={() => publishingStore.dismissFailure(api, workspaceId, f.appId)} />
+          <FailureAnchor appId={f.appId}>
+            <PublishFailure run={f.run} appName={f.name} platform={f.platform} ondismiss={() => appStateStore.dismissFailure(api, workspaceId, f.appId)} />
+          </FailureAnchor>
         {/each}
         {#if report}
           <div class="report" role="status" tabindex="-1" bind:this={reportBox} data-testid="cart-report">
@@ -456,16 +465,16 @@
             </div>
           {:else}
             <div class="row actions">
-              <Button variant="primary" loading={busy} disabled={busy || counts.selected === 0} title={publishingReason || undefined} onclick={() => ask('publish')}>
+              <Button variant="primary" loading={busy} disabled={busy || counts.selected === 0 || !pushVerdict.enabled} title={pushVerdict.reason ?? undefined} onclick={() => ask('publish')}>
                 {t('app:cart.publish', { count: counts.selected })}
               </Button>
-              <Button disabled={busy || review.none} title={publishingReason || undefined} onclick={() => onreview(selection)}>
+              <Button disabled={busy || review.none || !publishVerdict.enabled} title={publishVerdict.reason ?? undefined} onclick={() => onreview(selection)}>
                 {t('app:cart.reviewAndPublish')}
               </Button>
               {#if counts.prices > 0}
                 <Button loading={dryBusy} disabled={busy || dryBusy} onclick={() => ondryrun(selection)}>{t('app:cart.dryRun.button')}</Button>
               {/if}
-              <Button variant="danger" disabled={busy || !canDiscardSome} onclick={() => ask('discard')}>{t('app:cart.discard')}</Button>
+              <Button variant="danger" disabled={busy || !canDiscardSome || !discardVerdict.enabled} title={discardVerdict.reason ?? undefined} onclick={() => ask('discard')}>{t('app:cart.discard')}</Button>
             </div>
           {/if}
         </footer>

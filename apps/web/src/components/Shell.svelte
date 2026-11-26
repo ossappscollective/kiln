@@ -16,16 +16,11 @@
   import { t } from '../lib/i18n/t.ts';
   import { appNavCounts, badgeText } from '../lib/nav-badges.ts';
   import { navBadgeCount } from '../lib/insights/insights.ts';
-  import { lineFor } from '../lib/pending.ts';
-  import { pendingStore } from '../lib/pending-store.svelte.ts';
+  import { appStateStore } from '../lib/app-state/app-state-store.svelte.ts';
   import { roleLabel } from '../lib/role-label.ts';
-  import { pipelineStore } from '../lib/pipeline-store.svelte.ts';
   import { navSignals } from '../lib/nav-signals.svelte.ts';
   import { tint } from '../lib/tint/store.svelte.ts';
-  import { pendingAcrossText, pendingRows, pendingTotals } from '../lib/cart-summary.ts';
-  import { cartSummaryStore } from '../lib/cart-summary.svelte.ts';
-  import { publishingStore } from '../lib/publishing-store.svelte.ts';
-  import { onStagedChanged } from '../lib/staged-sync.ts';
+  import { pendingAcrossText } from '../lib/cart-summary.ts';
   import { loadCollapsed, railApplies, saveCollapsed } from '../lib/sidebar-state.ts';
   import { CHORD_TIMEOUT_MS, type ChordState, chordHint, idleChord, isTypingTarget, stepShortcut } from '../lib/shortcuts.ts';
   import { initials } from '../lib/format.ts';
@@ -99,41 +94,14 @@
   const unanswered = $derived(workspace && can(workspace.role, 'reviews.read') ? navSignals.unansweredOf(workspaceId) : null);
   /** Pending changes across every app of the workspace (the "Pending" entry): counts only, read from GET /pending/cart-summary (ADR 0064). */
   const canPending = $derived(workspace ? can(workspace.role, 'listing.read') : false);
-  const pendingSummary = $derived(canPending ? cartSummaryStore.summaryOf(workspaceId) : null);
-  const pendingNav = $derived(canPending ? pendingTotals(pendingRows(pendingSummary, navSignals.appsOf(workspaceId)), pendingSummary) : null);
-  // Read on first paint and when the window comes back, again soon after any stage, discard or publish (one read for a burst); no timer.
+  const pendingNav = $derived(canPending ? appStateStore.workspaceTotals(workspaceId, navSignals.appsOf(workspaceId)) : null);
+  // The facts of what is pending and what publishes (docs/state-model.md): read when the workspace is shown and when the window comes back,
+  // again soon after any stage, discard or publish, every few seconds only while a publish runs, never when none does. ONE store reads
+  // them; every screen below asks it.
   $effect(() => {
     if (!canPending) return;
     const space = workspaceId;
-    untrack(() => void cartSummaryStore.ensure(api, space));
-    const off = onStagedChanged(() => cartSummaryStore.request(api, space));
-    const back = () => {
-      if (document.visibilityState === 'visible') void cartSummaryStore.ensure(api, space);
-    };
-    window.addEventListener('focus', back);
-    document.addEventListener('visibilitychange', back);
-    return () => {
-      off();
-      window.removeEventListener('focus', back);
-      document.removeEventListener('visibilitychange', back);
-    };
-  });
-  // Which apps are publishing right now, for every screen (the pending panel and page, the buttons that would release or promote): read
-  // when the workspace is shown and when the window comes back, every few seconds only while a publish runs, never when none does.
-  $effect(() => {
-    if (!canPending) return;
-    const space = workspaceId;
-    const release = untrack(() => publishingStore.watch(api, space));
-    const back = () => {
-      if (document.visibilityState === 'visible') void publishingStore.refresh(api, space);
-    };
-    window.addEventListener('focus', back);
-    document.addEventListener('visibilitychange', back);
-    return () => {
-      release();
-      window.removeEventListener('focus', back);
-      document.removeEventListener('visibilitychange', back);
-    };
+    return untrack(() => appStateStore.watch(api, space));
   });
   /** The badges of the open app's sidebar: unanswered reviews, and a release left unfinished. Nothing is read for this. */
   const appCounts = $derived.by(() => {
@@ -141,16 +109,16 @@
     const apps = navSignals.appsOf(workspaceId);
     const group = apps ? groupApps(apps).filter((g) => g.members.some((m) => m.id === appAddr.id))[0] : undefined;
     const ids = group ? group.members.map((m) => m.id) : [appAddr.id];
-    const line = lineFor(pendingStore.summary(workspaceId), ids, pendingStore.viewsOf(ids));
+    const line = appStateStore.lineOf(workspaceId, ids);
     return {
       insights: can(workspace?.role ?? 'viewer', 'analytics.read') ? navBadgeCount(ids, navSignals.insightsByAppOf(workspaceId)) : null,
       ...appNavCounts({
         memberIds: ids,
         unanswered: can(workspace?.role ?? 'viewer', 'reviews.read') ? navSignals.unansweredByAppOf(workspaceId) : {},
-        stalled: pipelineStore.summary(workspaceId)?.apps ?? [],
+        stalled: appStateStore.stalledApps(workspaceId),
       }),
       pending: line && line.count > 0 ? line.count : null,
-      pendingBlocking: (line?.blocking ?? 0) > 0,
+      pendingBlocking: (line?.blocking ?? 0) > 0 || line?.failed === true,
     };
   });
   /** One status line per platform of the open app (from the releases its screen loaded). */
@@ -164,16 +132,15 @@
     const apps = canApps ? navSignals.appsOf(workspaceId) : null;
     if (!apps) return null;
     const groups = groupApps(apps);
-    const summary = pendingStore.summary(workspaceId);
-    // The pending chip of each app (null when the summary is not known: no chip).
-    return switcherItems(groups).map((item, i) => ({ ...item, pending: lineFor(summary, (groups[i]?.members ?? []).map((m) => m.id), pendingStore.viewsOf((groups[i]?.members ?? []).map((m) => m.id))) }));
+    // The pending chip of each app (null when the count is not known: no chip).
+    return switcherItems(groups).map((item, i) => ({ ...item, pending: appStateStore.lineOf(workspaceId, (groups[i]?.members ?? []).map((m) => m.id)) }));
   });
 
   // The pending summary behind the chips: read when the workspace changes and when an app is opened or left (so the numbers are fresh).
   $effect(() => {
     const space = workspaceId;
     void appAddr?.id;
-    if (space !== '' && workspace && can(workspace.role, 'listing.read')) untrack(() => void pendingStore.loadSummary(api, space));
+    if (space !== '' && workspace && can(workspace.role, 'listing.read')) untrack(() => appStateStore.ensure(api, space));
   });
   // The badge of the Insights entry: one cheap read per record of the open app, when it is opened (and again only when the number is older than
   // five minutes); the Insights page keeps it exact after a dismissal. No timer.

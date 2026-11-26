@@ -224,7 +224,7 @@ const whole = (n: unknown): number =>
   typeof n === 'number' && Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
 
 /** The failure to show: not completed, not dismissed, and not while a newer publish of the record runs. */
-const failureOf = (run: LastPublish | null | undefined, publishing: Publishing | null): LastPublish | null =>
+export const activeFailure = (run: LastPublish | null | undefined, publishing: Publishing | null): LastPublish | null =>
   run != null && !run.completed && !run.dismissed && publishing === null ? run : null;
 
 function recordContext(facts: AppFacts, record: AppSummary, appPublishing: Publishing | null = null): RecordContext {
@@ -234,7 +234,7 @@ function recordContext(facts: AppFacts, record: AppSummary, appPublishing: Publi
     role: facts.role,
     record,
     publishing,
-    failure: failureOf(facts.lastRun[record.id], publishing),
+    failure: activeFailure(facts.lastRun[record.id], publishing),
     appPublishing,
     pending: { count: whole(p.count), blocking: whole(p.blocking) },
     publishBatchEnabled: facts.publishBatchEnabled,
@@ -482,6 +482,7 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
     publishing,
     failures,
     flow,
+    rest: step.items,
     promotion,
     elsewhere,
     verdicts,

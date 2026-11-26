@@ -1,4 +1,4 @@
-import { PUBLISH_STEPS, type LastPublish, type PublishStepType } from '../pending.ts';
+import { type LastPublish, PUBLISH_STEPS, type StepRequest } from '../pending.ts';
 
 /**
  * The two requests a screen can make of the pending panel without owning it (docs/state-model.md): "publish again" (the card, the top bar)
@@ -18,12 +18,17 @@ export function requestPublishAgain(
   return target.dispatchEvent(new CustomEvent(PUBLISH_AGAIN_EVENT, { detail: { appId }, cancelable: true })) === false;
 }
 
+/** The steps that take no input of their own: a run that was only one of them can be repeated as exactly that. */
+const NO_INPUT = ['push_draft', 'push_and_submit'];
+
 /**
- * The steps "Publish again" starts with, from the run that failed: a run that only pushed the draft goes back to the draft alone; any
- * other run opens the whole plan (the dialog lists each step with its own tick, so nothing runs that the person did not see).
+ * The steps "Publish again" starts with, from the run that failed: a run that was one push (the draft, or the draft and its submit) goes
+ * back to exactly that step; any other run opens the whole plan (the dialog lists each step with its own tick and its own inputs, so
+ * nothing runs that the person did not see).
  */
-export function stepsToRepeat(run: Pick<LastPublish, 'steps'> | null): PublishStepType[] | null {
+export function stepsToRepeat(run: Pick<LastPublish, 'steps'> | null): StepRequest[] | null {
   if (run === null) return null;
   const known = run.steps.filter((s) => PUBLISH_STEPS.indexOf(s) >= 0);
-  return known.length === 1 && known[0] === 'push_draft' ? ['push_draft'] : null;
+  const only = known[0];
+  return known.length === 1 && only !== undefined && NO_INPUT.indexOf(only) >= 0 ? [{ type: only }] : null;
 }

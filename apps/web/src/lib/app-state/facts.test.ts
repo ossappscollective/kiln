@@ -83,8 +83,9 @@ test('the chip line is null while the cart is unread, and when nothing waits at 
   assert.deepEqual(lineOfRecords(sources({ pendingSummary: summary({ [IOS.id]: { blocking: 0, waiting: 2 } }) }), [IOS.id]), { count: 0, blocking: 0, waiting: 2 });
 });
 
-test('"publish again" repeats a draft-only run as the draft alone, and anything else as the whole plan', () => {
-  assert.deepEqual(stepsToRepeat({ steps: ['push_draft'] }), ['push_draft']);
+test('"publish again" repeats a single push as that push, and anything else as the whole plan', () => {
+  assert.deepEqual(stepsToRepeat({ steps: ['push_draft'] }), [{ type: 'push_draft' }]);
+  assert.deepEqual(stepsToRepeat({ steps: ['push_and_submit'] }), [{ type: 'push_and_submit' }]);
   assert.equal(stepsToRepeat({ steps: ['push_draft', 'submit'] }), null);
   assert.equal(stepsToRepeat(null), null);
 });

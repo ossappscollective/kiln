@@ -79,7 +79,6 @@
     syncing,
     lockedPlatforms = [],
     locale = null,
-    pending = null,
   }: {
     api: Api;
     workspaceId: string;
@@ -99,8 +98,6 @@
     syncing: Record<string, boolean | undefined>;
     lockedPlatforms?: Platform[] | undefined;
     locale?: string | null | undefined;
-    /** The pending changes as one link (the Overview puts it in the Next step card), or null. */
-    pending?: { text: string; href: string } | null | undefined;
   } = $props();
 
   const uid = $props.id();
@@ -314,7 +311,7 @@
 {:else if section === 'settings'}
   <AppSettings {api} {workspaceId} {role} {members} {all} {now} />
 {:else}
-  <AppDashboard {api} {workspaceId} {role} {members} {all} {releases} {now} {syncRuns} {pending} />
+  <AppDashboard {api} {workspaceId} {role} {members} {all} {releases} {now} {syncRuns} />
 {/if}
 
 <style>

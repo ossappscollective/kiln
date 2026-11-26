@@ -198,8 +198,10 @@ export type AppState = {
   publishing: { appId: string; platform: Platform; name: string; entry: Publishing }[];
   /** The failures to show, in scope, one per record. */
   failures: { appId: string; platform: Platform; name: string; run: LastPublish }[];
-  /** The release flow, or null while a phase above it (publishing, failed, changes) speaks. */
+  /** The release flow, or null while a phase above it (publishing, failed) speaks or when it has nothing of its own to say. */
   flow: Flow | null;
+  /** The rest of "Needs attention" that the card does not already say (always the attention list, whatever the phase). */
+  rest: AttentionItem[];
   /** A Google Play release in a testing track that can go to production: one offer, with its verdict (null when none or no right). */
   promotion: Promotion | null;
   elsewhere: Elsewhere;
