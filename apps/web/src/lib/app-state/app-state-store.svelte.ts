@@ -1,4 +1,4 @@
-import type { Role } from '@kiln/core';
+import { type Role, supports } from '@kiln/core';
 import type { Api } from '../api.ts';
 import type { AttentionItem } from '../app-attention.ts';
 import type { PlatformScope } from '../app-scope.ts';
@@ -13,7 +13,14 @@ import type { PipelineSummary, PipelineSummaryApp } from '../release-pipeline.ts
 import { onStagedChanged } from '../staged-sync.ts';
 import type { AppSummary, ReleaseSummary } from '../types.ts';
 import { activeFailure, deriveAppState, deriveTopBar, promoteOfferFor } from './derive.ts';
+import {
+  analyzeCandidates,
+  buildsWithPipeline,
+  releasesWithPipeline,
+  stallLeftBehind,
+} from './candidates.ts';
 import { assembleFacts, type FactSources, lineOfRecords } from './facts.ts';
+import { storeBuildsStore } from './store-builds-store.svelte.ts';
 import type {
   AppFacts,
   AppState,
@@ -86,6 +93,7 @@ function sourcesOf(workspaceId: string): FactSources {
     publishing: (appId) => publishingStore.of(workspaceId, appId),
     failure: (appId) => publishingStore.failureOf(workspaceId, appId),
     pipeline: (appId) => pipelineStore.app(appId),
+    builds: (appId) => storeBuildsStore.of(appId),
     publishBatchEnabled: pendingStore.config(workspaceId)?.enabled ?? null,
   };
 }
@@ -123,24 +131,27 @@ export const appStateStore = {
       .canDo(action, app.platform);
   },
 
-  /** What a release of a table row offers: "Promote to production" with its verdict, or null (not promotable, or no right). */
+  /** What a release of a table row offers: "Promote to production" with its verdict, or null (not promotable, not newer than production, or no right). */
   promoteFor(
     workspaceId: string,
     role: Role,
     app: AppSummary,
     release: ReleaseSummary,
-    siblings: readonly ReleaseSummary[],
+    all: readonly ReleaseSummary[],
   ): Promotion | null {
     const records =
       open !== null && open.workspaceId === workspaceId && open.records.some((r) => r.id === app.id)
         ? open.records
         : [app];
-    return promoteOfferFor(
-      appStateStore.of({ workspaceId, role, records, scope: app.platform }),
+    // `all` are the store versions of this record as the table shows them (what is live, what is in a testing track).
+    const state = appStateStore.of({
+      workspaceId,
       role,
-      release,
-      siblings,
-    );
+      records,
+      scope: app.platform,
+      releases: { [app.id]: all.length > 0 ? all : [release] },
+    });
+    return promoteOfferFor(state, role, release);
   },
 
   /**
@@ -287,9 +298,28 @@ export const appStateStore = {
     return pipelineStore.summary(workspaceId);
   },
 
-  /** The apps of that summary (empty until read): what the sidebar badge and the Overview count as "left unfinished". */
-  stalledApps(workspaceId: string): PipelineSummaryApp[] {
-    return pipelineStore.summary(workspaceId)?.apps ?? [];
+  /**
+   * The apps of that summary (empty until read): what the sidebar badge and the Overview count as "left unfinished". A stall about a
+   * version or a build that is left behind (not newer than what is live) is not news: it comes back with `stalled` null (the candidate
+   * rules of candidates.ts decide, from the releases the screen has, else from the pipeline).
+   */
+  stalledApps(
+    workspaceId: string,
+    releases?: Readonly<Record<string, readonly ReleaseSummary[] | undefined>>,
+  ): PipelineSummaryApp[] {
+    const apps = pipelineStore.summary(workspaceId)?.apps ?? [];
+    return apps.map((a) => {
+      if (a.stalled === null) return a;
+      const id = a.app.id;
+      const p = pipelineStore.app(id);
+      const analysis = analyzeCandidates({
+        appId: id,
+        platform: a.app.platform,
+        releases: releasesWithPipeline(id, a.app.platform, releases?.[id], p),
+        builds: buildsWithPipeline(a.app.platform, storeBuildsStore.of(id), p),
+      });
+      return stallLeftBehind(a.stalled, analysis) ? { ...a, stalled: null } : a;
+    });
   },
 
   /** Reads the release pipeline summary of the workspace. */
@@ -302,6 +332,13 @@ export const appStateStore = {
     for (const id of appIds) void pipelineStore.loadApp(api, workspaceId, id, force);
   },
 
+  /** The store builds of these records (the release candidates' source); read with the pipelines, in the same refresh. */
+  loadBuilds(api: Api, workspaceId: string, records: readonly AppSummary[], force = false): void {
+    for (const r of records)
+      if (!supports(r.platform, 'releaseTracks'))
+        void storeBuildsStore.load(api, workspaceId, r.id, force);
+  },
+
   /** A mutation is done (published, discarded, a sync ended): every fact is read again, once. */
   async refresh(api: Api, workspaceId: string, appIds: readonly string[] = []): Promise<void> {
     await Promise.all([
@@ -309,6 +346,9 @@ export const appStateStore = {
       pendingStore.loadSummary(api, workspaceId),
       publishingStore.refresh(api, workspaceId),
       ...appIds.map((id) => pipelineStore.loadApp(api, workspaceId, id, true)),
+      ...appIds
+        .filter((id) => storeBuildsStore.of(id) !== null)
+        .map((id) => storeBuildsStore.load(api, workspaceId, id, true)),
     ]);
   },
 

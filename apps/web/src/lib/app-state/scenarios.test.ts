@@ -120,7 +120,8 @@ test('"next step" showing iOS when Android is selected: the card is about the pl
   assert.equal(android.flow, null);
   assert.equal(android.phase, 'ready_to_release');
   const ios = deriveAppState(f, 'ios');
-  assert.equal(ios.phase, 'release_needs_you');
+  // Version 3.1.1 is in Prepare with its build 168 attached: the candidate's step is to submit it.
+  assert.equal(ios.phase, 'version_in_prep');
   assert.match(ios.headline, /3\.1\.1/);
   assert.deepEqual(
     ios.platforms.map((p) => p.platform),

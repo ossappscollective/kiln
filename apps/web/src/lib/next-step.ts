@@ -119,16 +119,20 @@ export function orderTrains(trains: readonly Train[]): Train[] {
 type Dest = { href: string; external: boolean };
 
 /** Where a train's button goes: the store's page for "Follow the review" when there is one, else the release page or a step. */
-function trainDest(t: Train, input: Pick<NextStepInput, 'scope' | 'reviewUrlOf'>): Dest {
+export function trainDest(t: Train, input: Pick<NextStepInput, 'scope' | 'reviewUrlOf'>): Dest {
   const store = t.button.review ? (input.reviewUrlOf?.(t.button.appId) ?? null) : null;
   if (store !== null) return { href: store, external: true };
   const scope = input.scope;
+  const href =
+    t.button.page === 'release' && t.version !== null
+      ? appAddress(t.button.appId, 'releases', scope, t.version)
+      : releaseStepHref(t.button.appId, scope, t.button.step, t.version);
+  // The build a "Create release" button carries rides in the address next to the version (`&build=95`).
   return {
     external: false,
-    href:
-      t.button.page === 'release' && t.version !== null
-        ? appAddress(t.button.appId, 'releases', scope, t.version)
-        : releaseStepHref(t.button.appId, scope, t.button.step, t.version),
+    href: t.button.build
+      ? `${href}${href.indexOf('?') < 0 ? '?' : '&'}build=${encodeURIComponent(t.button.build)}`
+      : href,
   };
 }
 

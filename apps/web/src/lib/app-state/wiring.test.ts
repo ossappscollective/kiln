@@ -90,10 +90,11 @@ const RULES: Rule[] = [
     },
   },
   {
-    what: 'compute the next step, the promote offer or the pending line with the low-level helpers',
+    what: 'compute the next step, the promote offer, the release candidate or the pending line with the low-level helpers',
     instead:
-      'read `appStateStore.of(...)` (`primaryAction`, `secondaryActions`, `promotion`, `flow`) or `appStateStore.lineOf(...)`',
-    pattern: /\b(?:lineFor|chooseNextStep|nextStepTrains|promoteOptions?|promoteHref)\b/,
+      'read `appStateStore.of(...)` (`primaryAction`, `secondaryActions`, `promotion`, `candidates`, `obsolete`, `notices`, `flow`) or `appStateStore.lineOf(...)`',
+    pattern:
+      /\b(?:lineFor|chooseNextStep|nextStepTrains|orderTrains|releaseTrains|releaseTrainsByPlatform|trainInputOf|promoteOptions?|promoteHref|analyzeCandidates|candidateTrain|compareVersionStrings|compareBuildNumbers|obsoleteVersions|pipelineIsObsolete)\b/,
     files: [...COMPONENTS, ...LIB],
     allow: {
       'lib/play-promote.ts': 'it DEFINES the promote option the model offers',
@@ -101,6 +102,26 @@ const RULES: Rule[] = [
         'it DEFINES lineFor (the pending line from the summary) that the model builds its count facts with',
       'lib/next-step.ts':
         'it DEFINES the next-step choice that the model derives its release flow from',
+      'lib/release-trains.ts':
+        'it DEFINES the release trains (a version on its way, one strip, one button) that the model derives its release flow from',
+    },
+  },
+  {
+    what: 'import the release trains, the next-step choice or the promote option outside the model',
+    instead:
+      'the release flow is decided in lib/app-state/ only: read `appStateStore.of(...).flow`, `.candidates` and `.promotion`. (`STEP_HELP` of the strip is words, not a decision: the strip component may read it)',
+    pattern:
+      /\bfrom\s+'[^']*\/(?:next-step|release-trains|play-promote)(?:\.ts)?'/,
+    files: [...COMPONENTS, ...LIB],
+    allow: {
+      'components/release/TrainSteps.svelte': 'it draws the five steps of a train and only reads their help texts (STEP_HELP)',
+      'components/release/stepper/ReleaseStepper.svelte':
+        'it only parses and carries the `Promote` address (source track and codes) of an offer the model made',
+      'components/release/stepper/StepNotes.svelte': 'it only reads the `Promote` address the stepper carries',
+      'components/release/stepper/StepBuild.svelte': 'it only reads the `Promote` address the stepper carries',
+      'components/app/AppReleases.svelte':
+        'it only parses the `Promote` address (`promoteFromHash`) to open the stepper on it',
+      'lib/next-step.ts': 'it builds the next-step card from the trains: both are internal to the model',
     },
   },
   {
@@ -151,6 +172,7 @@ for (const rule of RULES) {
 const ON_THE_MODEL = [
   'components/Shell.svelte',
   'components/app/AppShell.svelte',
+  'components/app/AppReleases.svelte',
   'components/app/AppDashboard.svelte',
   'components/app/NextStep.svelte',
   'components/app/PendingCart.svelte',

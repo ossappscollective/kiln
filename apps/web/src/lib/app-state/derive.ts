@@ -2,19 +2,36 @@ import { can, type Platform, platformLabel, type Role, supports } from '@kiln/co
 import type { AttentionItem } from '../app-attention.ts';
 import { appAddress, type PlatformScope } from '../app-scope.ts';
 import { t } from '../i18n/t.ts';
-import { chooseNextStep, type NextStep, nextStepTrains, orderTrains } from '../next-step.ts';
+import {
+  chooseNextStep,
+  type NextStep,
+  nextStepTrains,
+  orderTrains,
+  trainDest,
+} from '../next-step.ts';
 import type { LastPublish } from '../pending.ts';
-import { type PromoteOption, promoteHref, promoteOption, promoteOptions } from '../play-promote.ts';
+import { type PromoteOption, promoteHref } from '../play-promote.ts';
 import { headlineReason, partlyPublished } from '../publish-failure.ts';
 import type { Publishing } from '../publishing.ts';
 import { detailText, headlineText, disabledReason as publishingReason } from '../publishing.ts';
 import type { Train } from '../release-trains.ts';
 import { reviewUrl } from '../store-links.ts';
-import type { AppSummary } from '../types.ts';
+import type { AppSummary, ReleaseSummary } from '../types.ts';
+import { candidateTrain } from './candidate-trains.ts';
+import {
+  analyzeCandidates,
+  type CandidateAnalysis,
+  buildsWithPipeline,
+  pipelineIsObsolete,
+  quietPipeline,
+  releasesWithPipeline,
+  SUPERSEDED_STATES,
+} from './candidates.ts';
 import {
   type ActionOffer,
   type AppFacts,
   type AppState,
+  type CandidateView,
   type Elsewhere,
   type Flow,
   type FlowOther,
@@ -26,6 +43,7 @@ import {
   type PlatformState,
   type PrimaryAction,
   type Promotion,
+  type StateNotice,
   type TopBarBadge,
   type Verdict,
   type VerdictCode,
@@ -222,6 +240,8 @@ function trainAction(
   external: boolean,
 ): { action: PrimaryAction; guard: GuardedAction | null } {
   if (external) return { action: 'follow_review', guard: null };
+  if (train.button.action === 'create_release')
+    return { action: 'create_release', guard: 'create_version' };
   if (train.button.page === 'release') return { action: 'open_release', guard: null };
   if (train.button.step === 'build') return { action: 'attach_build', guard: 'prepare_release' };
   return { action: 'prepare_release', guard: 'prepare_release' };
@@ -262,6 +282,10 @@ function recordContext(
 
 /** The phase of one release flow step (what the trains and the attention list say), once nothing above it applies. */
 function flowPhase(step: NextStep, known: boolean): Phase {
+  // A step that comes from a release candidate (a newer build in the store) has its own phases.
+  const asked = step.kind === 'train' ? step.train?.candidate : undefined;
+  if (asked === 'create_release') return 'candidate_ready';
+  if (asked === 'attach_build' || asked === 'submit') return 'version_in_prep';
   if (step.kind === 'start' || step.kind === 'prepare')
     return known ? 'ready_to_release' : 'unknown';
   if (step.kind === 'idle') return known ? 'idle' : 'unknown';
@@ -346,22 +370,54 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
     return own === undefined ? verdicts[action] : own[action];
   };
 
-  // The release flow: from the pipelines of the records in scope (never another platform's: Android never shows iOS's build).
+  // The candidates (candidates.ts): what is live, which build is the newest one that is newer, which versions are left behind. One
+  // analysis per record, from the store versions, the store builds and the release pipeline; every surface reads this answer.
+  const analyses: Record<string, CandidateAnalysis> = {};
+  for (const r of facts.records) {
+    const p = facts.pipelines[r.id] ?? null;
+    analyses[r.id] = analyzeCandidates({
+      appId: r.id,
+      platform: r.platform,
+      releases: releasesWithPipeline(r.id, r.platform, facts.releases[r.id], p),
+      builds: buildsWithPipeline(r.platform, facts.builds?.[r.id], p),
+    });
+  }
+
+  // The release flow: from the pipelines of the records in scope (never another platform's: Android never shows iOS's build). A pipeline
+  // whose draft or build is left behind (not newer than what is live) says nothing; a version in Prepare or a build nobody took is the
+  // candidate's step instead (one step, not two).
   const pipelines: {
     app: NonNullable<AppFacts['pipelines'][string]>['app'];
     pipeline: NonNullable<AppFacts['pipelines'][string]>['pipeline'];
   }[] = [];
+  const leftBehind = new Set<string>();
   for (const r of facts.records) {
-    const p = facts.pipelines[r.id];
-    if (p != null) pipelines.push(p);
+    let p = facts.pipelines[r.id];
+    if (p == null) continue;
+    const analysis = analyses[r.id] as CandidateAnalysis;
+    if (pipelineIsObsolete(p, analysis)) {
+      leftBehind.add(r.id);
+      p = quietPipeline(p);
+    } else if (analysis.plan !== null && SUPERSEDED_STATES.indexOf(p.pipeline.state) >= 0) continue;
+    pipelines.push(p);
   }
   const platforms = scoped.map((r) => r.platform);
-  const trains = orderTrains(nextStepTrains(pipelines, platforms));
+  const planTrains: Train[] = [];
+  for (const r of scoped) {
+    const plan = (analyses[r.id] as CandidateAnalysis).plan;
+    if (plan !== null) planTrains.push(candidateTrain(plan, r.platform));
+  }
+  const trains = orderTrains([...nextStepTrains(pipelines, platforms), ...planTrains]);
   const scopedIds = scoped.map((r) => r.id);
   const heldAttention = (item: AttentionItem): boolean =>
     pendingCount > 0 && item.id.slice(-':staged'.length) === ':staged';
   const attention = facts.attention.filter(
-    (item) => scopedIds.some((id) => item.id.indexOf(`${id}:`) === 0) && !heldAttention(item),
+    (item) =>
+      scopedIds.some((id) => item.id.indexOf(`${id}:`) === 0) &&
+      !heldAttention(item) &&
+      // "Release left unfinished" about a version that is left behind is not news.
+      !(item.id.slice(-':unfinished'.length) === ':unfinished' &&
+        leftBehind.has(item.id.slice(0, item.id.length - ':unfinished'.length))),
   );
   const canStart =
     can(facts.role, 'ci.dispatch') &&
@@ -473,11 +529,66 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
   if (can(facts.role, RIGHT.promote)) {
     for (const r of scoped) {
       if (!supports(r.platform, 'releaseTracks')) continue;
-      const option = promoteOptions(facts.releases[r.id] ?? [])[0];
+      const option = (analyses[r.id] as CandidateAnalysis).promote[0];
       if (option === undefined) continue;
       promotion = { option, offer: promoteOffer(option, verdictFor('promote', r.platform), r.id) };
       break;
     }
+  }
+
+  // ---- Candidates ("Ready to release"), the versions left behind and the quiet notices
+  const candidates: CandidateView[] = [];
+  const notices: StateNotice[] = [];
+  const obsolete: AppState['obsolete'] = [];
+  const analysisInScope: Record<string, CandidateAnalysis> = {};
+  for (const r of scoped) {
+    const analysis = analyses[r.id] as CandidateAnalysis;
+    analysisInScope[r.id] = analysis;
+    const plan = analysis.plan;
+    if (plan !== null) {
+      const train = planTrains.find((x) => x.appIds[0] === r.id);
+      const dest = train === undefined ? null : trainDest(train, { scope, reviewUrlOf: undefined });
+      const kind = train === undefined ? null : trainAction(train, false);
+      if (train !== undefined && kind !== null && dest !== null)
+        candidates.push({
+          plan,
+          appId: r.id,
+          platform: r.platform,
+          offer: offerOf(
+            kind.action,
+            train.button.label,
+            kind.guard === null ? null : verdictOfRecord(kind.guard, r.id),
+            { appId: r.id, href: dest.href },
+          ),
+        });
+    }
+    for (const o of analysis.obsolete) {
+      obsolete.push(o);
+      notices.push({
+        kind: 'obsolete_version',
+        appId: r.id,
+        platform: r.platform,
+        version: o.version,
+        text: t('state:obsolete.notice', { version: o.version }),
+        href: reviewUrl(r),
+        linkLabel: supports(r.platform, 'releaseTracks')
+          ? t('state:obsolete.linkPlay')
+          : t('state:obsolete.linkApple'),
+      });
+    }
+    if (analysis.processing !== null)
+      notices.push({
+        kind: 'build_processing',
+        appId: r.id,
+        platform: r.platform,
+        version: analysis.processing.version,
+        text: t('state:notice.processing', {
+          build: analysis.processing.buildNumber,
+          version: analysis.processing.version,
+        }),
+        href: null,
+        linkLabel: null,
+      });
   }
 
   // ---- The words, the primary action and the others
@@ -602,6 +713,10 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
     flow,
     rest: step.items,
     promotion,
+    candidates,
+    obsolete,
+    notices,
+    analysis: analysisInScope,
     elsewhere,
     verdicts,
     canDo: verdictFor,
@@ -613,16 +728,20 @@ export function promoteOffer(option: PromoteOption, verdict: Verdict, appId: str
   return offerOf('promote', option.label, verdict, { appId, href: promoteHref(option) });
 }
 
-/** What a release row of the Releases table offers for ITS release: the promote offer of that record, or null (not promotable, or no right). */
+/**
+ * What a release row of the Releases table offers for ITS release: the promote offer of that record, or null (not promotable, newer than
+ * production it is not, or no right). The option comes from the candidate analysis: the table decides nothing.
+ */
 export function promoteOfferFor(
-  state: Pick<AppState, 'canDo'>,
+  state: Pick<AppState, 'canDo' | 'analysis'>,
   role: Role,
-  release: Parameters<typeof promoteOption>[0],
-  siblings: Parameters<typeof promoteOption>[1],
+  release: Pick<ReleaseSummary, 'appId' | 'platform' | 'track' | 'version'>,
 ): Promotion | null {
   if (!can(role, RIGHT.promote)) return null;
-  const option = promoteOption(release, siblings);
-  if (option === null) return null;
+  const option = (state.analysis[release.appId]?.promote ?? []).find(
+    (o) => o.from === release.track && o.version === release.version,
+  );
+  if (option === undefined) return null;
   return {
     option,
     offer: promoteOffer(option, state.canDo('promote', release.platform), release.appId),

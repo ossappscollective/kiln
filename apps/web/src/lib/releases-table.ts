@@ -238,7 +238,12 @@ export type ReleaseRow = {
   atSource: 'store' | 'seen' | null;
   ci: CiCell;
   plan: PlanCell;
+  /** Left behind by what is live (the state model says so: `AppState.obsolete`): never current, shown as outdated with advice. */
+  obsolete: ObsoleteInfo | null;
 };
+
+/** What the state model says about a store version that is left behind, by release id. */
+export type ObsoleteInfo = { liveVersion: string; href: string | null; linkLabel: string | null };
 
 export type VersionGroup = {
   version: string;
@@ -271,6 +276,8 @@ export type TableInput = {
   builds: Readonly<Record<string, readonly AppBuild[] | undefined>>;
   /** The app ids in scope, in the order of the platforms. */
   appIds: readonly string[];
+  /** The versions left behind, by release id (from the state model). */
+  obsolete?: Readonly<Record<string, ObsoleteInfo | undefined>> | undefined;
 };
 
 /** One group per version, newest first. */
@@ -304,6 +311,7 @@ export function buildReleaseTable(input: TableInput): VersionGroup[] {
             : null,
       ci: ciFor(release, input.builds[release.appId] ?? null),
       plan: planCell(found, input.plans !== null),
+      obsolete: input.obsolete?.[release.id] ?? null,
     };
     let group = groups.get(release.version);
     if (!group) {
@@ -388,10 +396,11 @@ export function splitCurrent(groups: readonly VersionGroup[]): CurrentSplit {
     }
   }
   const isCurrent = (group: VersionGroup, row: ReleaseRow): boolean =>
-    newestVersion.get(row.platform) === group.version ||
+    row.obsolete === null &&
+    (newestVersion.get(row.platform) === group.version ||
     newestLive.get(row.platform) === row.key ||
     (row.status !== 'live' && row.status !== null) ||
-    (row.plan.kind === 'plan' && !row.plan.plan.released);
+    (row.plan.kind === 'plan' && !row.plan.plan.released));
 
   const current: VersionGroup[] = [];
   const older: VersionGroup[] = [];

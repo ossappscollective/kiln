@@ -24,6 +24,7 @@
   import { platformLabel } from '../../../lib/portfolio.ts';
   import { type EditableRelease, type ReleaseCandidates, type PlayCandidates, type BuildCandidate, type ChosenBuildLine, chosenBuildLine, chosenCodeLines } from '../../../lib/release-candidates.ts';
   import { type Promote } from '../../../lib/play-promote.ts';
+  import type { StepPrefill } from '../../../lib/release-stepper.ts';
   import { type PromoteNotesState, noteRows, promoteNotesFill, unsavedLocales } from '../../../lib/release-notes.ts';
   import type { PendingItem } from '../../../lib/pending.ts';
   import { type AppPipeline } from '../../../lib/release-pipeline.ts';
@@ -69,6 +70,7 @@
     releases,
     step,
     promote = null,
+    prefill = null,
     onstep,
     onclose,
     showPlatform = false }: {
@@ -81,6 +83,8 @@
     releases: Record<string, ReleaseSummary[]>;
     step: StepId | null;
     promote?: Promote | null;
+    /** App Store: the version and the build "Create release" starts from (the address), or null. */
+    prefill?: StepPrefill | null;
     onstep: (next: StepId) => void;
     onclose: () => void;
     showPlatform?: boolean;
@@ -434,6 +438,7 @@
             bind:track
             bind:source
             {promote}
+            {prefill}
             onread={readBuilds}
             onreadtracks={readTracks}
           />

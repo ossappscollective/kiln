@@ -114,7 +114,11 @@
       const force = key === loadedKey && again !== lastRefresh;
       loadedKey = key;
       lastRefresh = again;
-      if (can(role, 'apps.read')) appStateStore.loadPipelines(api, workspaceId, list, force);
+      if (can(role, 'apps.read')) {
+        appStateStore.loadPipelines(api, workspaceId, list, force);
+        // The store builds (TestFlight) the release candidates come from: read in the same refresh as the pipelines.
+        appStateStore.loadBuilds(api, workspaceId, records, force);
+      }
     });
   });
 </script>
@@ -215,6 +219,18 @@
     </p>
   {/if}
 
+  {#if appState.notices.length > 0}
+    <!-- quiet, never the headline: an unused older version still in preparation (advice and a link, Kiln deletes no store version), a build still processing -->
+    <ul class="notices muted" data-testid="next-step-notices">
+      {#each appState.notices as n (`${n.kind}:${n.appId}:${n.version ?? ''}`)}
+        <li data-notice={n.kind}>
+          {n.text}
+          {#if n.href && n.linkLabel}<a href={n.href} target="_blank" rel="noopener noreferrer">{n.linkLabel}</a>{/if}
+        </li>
+      {/each}
+    </ul>
+  {/if}
+
   {#if appState.flow && appState.flow.others.length > 0}
     <ul class="others" aria-label={t('app:nextStep.otherOnTheirWay')}>
       {#each appState.flow.others as o (o.title)}
@@ -265,6 +281,16 @@
 
   .why {
     font-size: var(--text-sm);
+  }
+
+  .notices {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: 0;
+    margin: var(--space-3) 0 0;
+    font-size: var(--text-sm);
+    list-style: none;
   }
 
   .elsewhere {

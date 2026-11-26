@@ -73,6 +73,10 @@ export type TrainButton = {
   page?: 'release';
   /** "Follow the review": the screen links to the store's own page for the review (lib/store-links.ts) when it can build one. */
   review?: true;
+  /** "Create release 2.0.1 from TestFlight build 95" (app-state/candidate-trains.ts): the button opens the create-version step with `version` and `build` filled in. */
+  action?: 'create_release';
+  /** The build number the button carries (create release). */
+  build?: string;
 };
 
 export type Train = {
@@ -90,6 +94,8 @@ export type Train = {
   lines: string[];
   /** The one thing to do now. */
   button: TrainButton;
+  /** Set when the train comes from a release candidate (a newer build) and not from the release pipeline: what it asks for. */
+  candidate?: 'create_release' | 'attach_build' | 'submit';
 };
 
 const RANK: Readonly<Record<PipelineStepStatus, number>> = {

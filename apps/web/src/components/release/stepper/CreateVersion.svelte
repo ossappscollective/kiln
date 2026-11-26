@@ -7,7 +7,8 @@
   covers the action with a step-up asks for the person's confirmation. Never retried by this app.
   Drawn for admin and up (`store.push_draft`); otherwise, and while the server's draft-write switch is off, the old sentence
   stays, and the switch case names KILN_STORE_DRAFT_WRITE_ENABLED. docs/api/store-version.md, docs/adr/0031-create-app-store-version.md.
-  Props: api, workspaceId, role, app ({ id, platform }), onread (read the stepper's store state again after a create).
+  Props: api, workspaceId, role, app ({ id, platform }), onread (read the stepper's store state again after a create),
+  prefill? (the version string the form starts with: "Create release 2.0.1 from TestFlight build 95", from the state model's next step).
 -->
 <script lang="ts">
   import { type Role, can } from '@kiln/core';
@@ -39,12 +40,15 @@
     role,
     app,
     onread,
+    prefill = null,
   }: {
     api: Api;
     workspaceId: string;
     role: Role;
     app: AppSummary;
     onread: () => void;
+    /** The version the form starts with ("Create release 2.0.1 from TestFlight build 95"); null: the next patch of the newest version. */
+    prefill?: string | null;
   } = $props();
 
   const mayCreate = $derived(can(role, 'store.push_draft'));
@@ -68,7 +72,8 @@
     api
       .app(workspaceId, id)
       .then((detail) => {
-        if (!touched && id === app.id) versionText = suggestedVersion(detail.releases, platform);
+        if (!touched && id === app.id)
+          versionText = prefill !== null && prefill !== '' ? prefill : suggestedVersion(detail.releases, platform);
       })
       .catch(() => undefined);
   });

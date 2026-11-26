@@ -1,10 +1,12 @@
 import type { Role } from '@kiln/core';
 import type { AttentionItem } from '../app-attention.ts';
+import type { StoreBuildItem } from '../builds.ts';
 import type { CartSummary } from '../cart-summary.ts';
 import type { LastPublish, PendingLine, PendingSummary } from '../pending.ts';
 import type { Publishing } from '../publishing.ts';
 import type { AppPipeline } from '../release-pipeline.ts';
 import type { AppSummary, ReleaseSummary } from '../types.ts';
+import type { StoreBuildFact } from './candidates.ts';
 import type { AppFacts, PendingFacts } from './types.ts';
 
 /**
@@ -16,6 +18,8 @@ import type { AppFacts, PendingFacts } from './types.ts';
  *   publishing      <- the claims (`GET /pending/publishing`)
  *   last run        <- the same read (`lastPublish`), minus what a person hid
  *   pipelines       <- `GET /apps/{id}/release-pipeline`
+ *   store builds    <- the store rows of `GET /apps/{id}/builds/artifacts` (TestFlight, version codes): the candidates' source; null until read
+ *   store versions  <- the releases the app page loaded (`GET /apps/{id}`), by record
  *   batch switch    <- `GET /publish/config`
  */
 
@@ -26,6 +30,8 @@ export type FactSources = {
   /** The latest run that did not complete and nobody hid, or null. */
   failure: (appId: string) => LastPublish | null;
   pipeline: (appId: string) => Pick<AppPipeline, 'app' | 'pipeline'> | null;
+  /** The store builds of a record (TestFlight rows), or null while they are not read (the model then knows the pipeline's newest build). */
+  builds?: ((appId: string) => readonly StoreBuildFact[] | null) | undefined;
   publishBatchEnabled: boolean | null;
 };
 
@@ -61,12 +67,14 @@ export function assembleFacts(input: FactInput, src: FactSources): AppFacts {
   const publishing: Record<string, Publishing | null> = {};
   const lastRun: Record<string, LastPublish | null> = {};
   const pipelines: Record<string, Pick<AppPipeline, 'app' | 'pipeline'> | null> = {};
+  const builds: Record<string, readonly StoreBuildFact[] | null> = {};
   for (const r of input.records) {
     const count = countOf(src.cart, r.id);
     pending[r.id] = { count, blocking: blockingOf(src.pendingSummary, r.id, count) };
     publishing[r.id] = src.publishing(r.id);
     lastRun[r.id] = src.failure(r.id);
     pipelines[r.id] = src.pipeline(r.id);
+    builds[r.id] = src.builds ? src.builds(r.id) : null;
   }
   return {
     role: input.role,
@@ -77,6 +85,7 @@ export function assembleFacts(input: FactInput, src: FactSources): AppFacts {
     lastRun,
     releases: input.releases ?? {},
     pipelines,
+    builds,
     attention: input.attention ?? [],
     publishBatchEnabled: src.publishBatchEnabled,
     now: input.now,
@@ -103,4 +112,17 @@ export function lineOfRecords(
     waiting += line ? whole(line.waiting) : 0;
   }
   return count + waiting === 0 ? null : { count, blocking, waiting };
+}
+
+/** A store row of the Builds page (`app_builds`) as the model's build fact: only what decides a candidate. */
+export function storeBuildFactOf(item: StoreBuildItem): StoreBuildFact {
+  return {
+    buildNumber: item.buildNumber,
+    version: item.version,
+    state: item.state,
+    expired: item.expired,
+    uploadedAt: item.uploadedAt,
+    channel: item.channel,
+    tracks: item.tracks.slice(),
+  };
 }

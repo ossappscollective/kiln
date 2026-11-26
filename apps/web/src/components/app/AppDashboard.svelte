@@ -44,6 +44,7 @@
   import { PLANS_ENABLED } from '../../lib/features.ts';
   import AttentionList from './AttentionList.svelte';
   import NextStep from './NextStep.svelte';
+  import { scopeFor } from '../../lib/app-state/derive.ts';
 
   let {
     api,
@@ -64,6 +65,10 @@
     now: number;
     syncRuns: number;
   } = $props();
+
+  // The release candidates of the records shown (the model's one answer; the card above reads the same): the tile of a platform with nothing in flight says what is ready.
+  const modelRecords = $derived(all ?? members);
+  const modelState = $derived(appStateStore.of({ workspaceId, role, records: modelRecords, scope: scopeFor(modelRecords, members), releases }));
 
   let newReviews = $state<Record<string, number | undefined>>({});
   let builds = $state<Record<string, AppBuild[] | undefined>>({});
@@ -204,7 +209,7 @@
       plans,
       aso: asoSummaries,
       unfinished: members.reduce<Record<string, SummaryStall | null>>((acc, m) => {
-        acc[m.id] = appStateStore.stalledApps(workspaceId).filter((a) => a.app.id === m.id)[0]?.stalled ?? null;
+        acc[m.id] = appStateStore.stalledApps(workspaceId, releases).filter((a) => a.app.id === m.id)[0]?.stalled ?? null;
         return acc;
       }, {}),
       submitReady: members.reduce<Record<string, boolean>>((acc, m) => {
@@ -257,6 +262,7 @@
       {@const list = releases[app.id] ?? []}
       {@const latest = latestRelease(list, app.platform)}
       {@const live = liveRelease(list, app.platform)}
+      {@const candidate = modelState.candidates.filter((c) => c.appId === app.id)[0]}
       {@const inFlight = latest && (!live || latest.version !== live.version || latest.status !== 'live') ? latest : null}
       <section class="card tile {app.platform}" aria-label={t('app:dash.tileLabel', { platform: platformLabel(app.platform) })}>
         <div class="tile-head">
@@ -273,6 +279,9 @@
             {#if inFlight}
               <dt>{t('app:dash.version', { version: inFlight.version })}</dt>
               <dd><ReleaseStatus status={inFlight.status} rawState={inFlight.rawState} rolloutFraction={inFlight.rolloutFraction} sentForReviewAt={inFlight.sentForReviewAt} unconfirmed={playLiveUnconfirmed(inFlight)} /></dd>
+            {:else if candidate}
+              <dt>{t('state:candidate.ready')}</dt>
+              <dd>{#if candidate.offer.enabled && candidate.offer.href}<a href={candidate.offer.href} data-testid="tile-candidate">{candidate.offer.label}</a>{:else}<span class="muted" title={candidate.offer.disabledReason ?? undefined}>{candidate.offer.label}</span>{/if}</dd>
             {:else}
               <dt>{t('app:dash.inFlight')}</dt>
               <dd class="muted">{t('app:dash.nothing')}</dd>

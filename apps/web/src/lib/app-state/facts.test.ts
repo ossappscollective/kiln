@@ -4,8 +4,14 @@ import type { CartSummary } from '../cart-summary.ts';
 import type { PendingSummary } from '../pending.ts';
 import { stepsToRepeat } from './actions.ts';
 import { deriveAppState } from './derive.ts';
-import { assembleFacts, countOf, type FactSources, lineOfRecords } from './facts.ts';
-import { ANDROID, failedRun, IOS, NOW, running } from './fixtures.ts';
+import {
+  assembleFacts,
+  countOf,
+  type FactSources,
+  lineOfRecords,
+  storeBuildFactOf,
+} from './facts.ts';
+import { ANDROID, failedRun, IOS, iosRelease, NOW, running, testflight } from './fixtures.ts';
 
 const cart = (counts: Record<string, number>): CartSummary => ({
   apps: Object.keys(counts).map((appId) => ({
@@ -112,4 +118,53 @@ test('"publish again" repeats a single push as that push, and anything else as t
   assert.deepEqual(stepsToRepeat({ steps: ['push_and_submit'] }), [{ type: 'push_and_submit' }]);
   assert.equal(stepsToRepeat({ steps: ['push_draft', 'submit'] }), null);
   assert.equal(stepsToRepeat(null), null);
+});
+
+test('the store builds are a fact of the snapshot: read by record, null while not read, and the candidate comes from them', () => {
+  const read = [testflight(), testflight({ buildNumber: '88', version: '1.19.0' })];
+  const f = assembleFacts(
+    {
+      role: 'owner',
+      records: [IOS, ANDROID],
+      releases: { [IOS.id]: [iosRelease({ version: '1.19.0', build: '88', status: 'live' })] },
+      now: NOW,
+    },
+    sources({ builds: (id) => (id === IOS.id ? read : null) }),
+  );
+  assert.deepEqual(f.builds?.[IOS.id], read);
+  assert.equal(f.builds?.[ANDROID.id], null);
+  const s = deriveAppState(f, 'ios');
+  assert.equal(s.headline, 'Create release 2.00.1 from TestFlight build 95');
+  // A source that does not read builds leaves them unknown (the model then knows the pipeline's newest build only).
+  const none = assembleFacts({ role: 'owner', records: [IOS], now: NOW }, sources());
+  assert.equal(none.builds?.[IOS.id], null);
+});
+
+test('a store row of the Builds page becomes the build fact: only what decides a candidate', () => {
+  const fact = storeBuildFactOf({
+    platform: 'ios',
+    buildNumber: '95',
+    version: '2.00.1',
+    state: 'processed',
+    rawState: 'VALID',
+    expired: false,
+    uploadedAt: NOW,
+    expiresAt: NOW + 1,
+    expiresAtEstimated: true,
+    channel: 'testflight',
+    tracks: [],
+    releaseStatus: null,
+    optInUrl: null,
+    runId: null,
+    testflightGroupIds: null,
+  });
+  assert.deepEqual(fact, {
+    buildNumber: '95',
+    version: '2.00.1',
+    state: 'processed',
+    expired: false,
+    uploadedAt: NOW,
+    channel: 'testflight',
+    tracks: [],
+  });
 });

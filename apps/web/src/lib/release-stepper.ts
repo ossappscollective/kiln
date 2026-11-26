@@ -67,6 +67,23 @@ export function withStep(hash: string, step: StepId | null): string {
   return search === '' ? path : `${path}?${search}`;
 }
 
+/** What "Create release 2.0.1 from TestFlight build 95" fills in: the version string and the build number from the address (`&version=2.0.1&build=95`). */
+export type StepPrefill = { version: string | null; build: string | null };
+
+const PREFILL = /^[0-9A-Za-z][0-9A-Za-z._-]{0,63}$/;
+
+/** The version and the build the address asks the first step to start from; null when it asks for neither. Nothing is trusted: a value that is not a plain version or build string is dropped. */
+export function prefillFromHash(hash: string): StepPrefill | null {
+  const query = parseViewPath(hash).query;
+  const version = query.get('version');
+  const build = query.get('build');
+  const out: StepPrefill = {
+    version: version !== null && PREFILL.test(version) ? version : null,
+    build: build !== null && PREFILL.test(build) ? build : null,
+  };
+  return out.version === null && out.build === null ? null : out;
+}
+
 /** The link to a step of an app: the releases tab, the platform scope, the version and the step. */
 export function releaseStepHref(
   appId: string,

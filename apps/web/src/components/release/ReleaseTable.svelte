@@ -3,8 +3,11 @@
   rollout share, date, CI and plan state on one dense row. A row opens (chevron) to its store and plan
   detail. The version links to the full release page.
   Props: api, workspaceId, role, groups (from buildReleaseTable), apps (the platform records in scope,
-  by id), builds (by app id; an app without an entry has no CI data), now, scope (the platform scope
-  for links), showPlatform (true when more than one platform is in scope).
+  by id), builds (by app id; an app without an entry has no CI data), releases (the store versions by app id: what is live, what is in a
+  testing track), candidates? (the state model's release candidates: "Ready to release" rows, drawn above the versions), now, scope (the
+  platform scope for links), showPlatform (true when more than one platform is in scope).
+  A version the model says is left behind (not newer than what is live) wears an "Outdated: 1.19.0 is already live" badge and a quiet
+  "Remove this unused version" link to the store's own page (Kiln deletes no store version).
   A Google Play release in a track that is not production, serving users, gets a "Promote to production" link in its platform cell
   and a button in its details: it opens Prepare release with the track and the version codes filled in (lib/play-promote.ts).
 -->
@@ -18,7 +21,9 @@
   import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import type { VersionGroup } from '../../lib/releases-table.ts';
-  import type { AppBuild, AppSummary } from '../../lib/types.ts';
+  import type { AppBuild, AppSummary, ReleaseSummary } from '../../lib/types.ts';
+  import type { CandidateView } from '../../lib/app-state/types.ts';
+  import { formatDate as formatDay } from '../../lib/i18n/format.ts';
   import { PLANS_ENABLED } from '../../lib/features.ts';
   import ReleaseRowDetail from './ReleaseRowDetail.svelte';
   import ReleaseStatus from '../portfolio/ReleaseStatus.svelte';
@@ -33,6 +38,8 @@
     groups,
     apps,
     builds,
+    releases,
+    candidates = [],
     now,
     scope,
     showPlatform,
@@ -43,6 +50,8 @@
     groups: VersionGroup[];
     apps: Record<string, AppSummary | undefined>;
     builds: Record<string, readonly AppBuild[] | undefined>;
+    releases: Record<string, readonly ReleaseSummary[] | undefined>;
+    candidates?: CandidateView[] | undefined;
     now: number;
     scope: PlatformScope | null;
     showPlatform: boolean;
@@ -88,6 +97,39 @@
         {#if PLANS_ENABLED}<th scope="col">{t('release:rt.plan')}</th>{/if}
       </tr>
     </thead>
+    {#if candidates.length > 0}
+      <tbody data-testid="release-candidates">
+        <tr class="group">
+          <th scope="colgroup" colspan={columns}><span class="gv">{t('state:candidate.ready')}</span></th>
+        </tr>
+        {#each candidates as c (`${c.appId}:${c.plan.candidate.version}:${c.plan.candidate.buildNumber}`)}
+          <tr class="item candidate" data-testid="release-candidate">
+            <td class="expander"></td>
+            <th scope="row" class="version">{c.plan.candidate.version}</th>
+            <td>
+              <span class="plat">
+                <PlatformBadge platform={c.platform} />
+                {#if c.offer.enabled && c.offer.href}
+                  <a class="promote" href={c.offer.href} data-action={c.offer.action}>{c.offer.label}</a>
+                {:else}
+                  <span class="promote off" aria-disabled="true" title={c.offer.disabledReason ?? undefined}>{c.offer.label}</span>
+                {/if}
+              </span>
+            </td>
+            <td class="tabular">{c.plan.candidate.buildNumber}</td>
+            <td><Badge tone="info">{t('state:candidate.ready')}</Badge></td>
+            <td class="num tabular"><span class="muted">—</span></td>
+            <td class="muted">
+              {#if c.plan.candidate.builtAt !== null}
+                <time datetime={new Date(c.plan.candidate.builtAt).toISOString()}>{formatDay(c.plan.candidate.builtAt, { year: 'numeric', month: 'short', day: 'numeric' })}</time>
+              {:else}—{/if}
+            </td>
+            <td><span class="muted">—</span></td>
+            {#if PLANS_ENABLED}<td><span class="muted">—</span></td>{/if}
+          </tr>
+        {/each}
+      </tbody>
+    {/if}
     {#each groups as group (group.version)}
       <tbody>
         <tr class="group">
@@ -104,7 +146,7 @@
         {#each group.rows as row (row.key)}
           {@const isOpen = open.has(row.key)}
           {@const app = apps[row.appId]}
-          {@const promote = app ? appStateStore.promoteFor(workspaceId, role, app, row.release, group.rows.map((r) => r.release)) : null}
+          {@const promote = app ? appStateStore.promoteFor(workspaceId, role, app, row.release, releases[row.appId] ?? []) : null}
           <tr class="item" class:open={isOpen}>
             <td class="expander">
               <button
@@ -135,6 +177,12 @@
             <td class="tabular">{row.buildText}</td>
             <td>
               <ReleaseStatus status={row.status} rawState={row.release.rawState} sentForReviewAt={row.release.sentForReviewAt} unconfirmed={playLiveUnconfirmed(row.release)} />
+              {#if row.obsolete}
+                <span class="outdated" data-testid="outdated">
+                  <Badge tone="warn">{t('state:obsolete.badge', { live: row.obsolete.liveVersion })}</Badge>
+                  {#if row.obsolete.href}<a class="remove" href={row.obsolete.href} target="_blank" rel="noopener noreferrer" title={t('state:obsolete.removeHint')}>{t('state:obsolete.remove')}</a>{/if}
+                </span>
+              {/if}
             </td>
             <td class="num tabular">
               {#if row.rolloutText}{row.rolloutText}{:else}<span class="muted" title={supports(row.platform, 'phasedRelease') ? t('release:rt.noPhasedShare') : t('release:rt.noShare')}>—</span>{/if}
@@ -258,6 +306,15 @@
   .promote {
     font-size: var(--text-xs);
     font-weight: var(--weight-semibold);
+  }
+
+  .outdated {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+    align-items: center;
+    margin-top: var(--space-1);
+    font-size: var(--text-sm);
   }
 
   .promote.off {

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { StagedChangesView } from '@kiln/core';
 import {
+  prefillFromHash,
   assetsStatus,
   buildStatus,
   chosenOf,
@@ -437,4 +438,14 @@ test('chosenOf: the summary says which version the chosen codes are when every o
     chosenOf({ platform: 'android', view: two, editable: null, builds: [], codes: both })?.label,
     'Version codes 90, 91 · 2.0',
   );
+});
+
+test('"Create release" fills the first step from the address: a plain version and a plain build, nothing else', () => {
+  assert.deepEqual(prefillFromHash('#/portfolio/a/releases?platform=ios&version=2.00.1&step=build&build=95'), {
+    version: '2.00.1',
+    build: '95',
+  });
+  assert.deepEqual(prefillFromHash('#/portfolio/a/releases?version=2.0.1'), { version: '2.0.1', build: null });
+  assert.equal(prefillFromHash('#/portfolio/a/releases?step=build'), null);
+  assert.equal(prefillFromHash('#/portfolio/a/releases?version=%3Cb%3E&build=a%20b'), null);
 });

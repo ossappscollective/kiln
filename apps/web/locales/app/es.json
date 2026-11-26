@@ -704,7 +704,7 @@
   "releases.notSyncedHelp": "Añadir una app no contacta con la tienda. Abre Estado en la cabecera y elige Sincronizar ahora para leer sus versiones y canales.",
   "releases.notSyncedOn": "Aún sin sincronizar: {{platform}}",
   "releases.nothingInProgress": "Nada en curso",
-  "releases.older": "Lanzamientos anteriores",
+  "releases.older": "Lanzamientos anteriores y versiones sin usar",
   "releases.searchOlder": "Buscar en los lanzamientos anteriores",
   "releases.searchPlaceholder": "Buscar versión, compilación o estado",
   "releases.syncedEmptyHelp": "La última sincronización no encontró versiones ni canales para esta app.",

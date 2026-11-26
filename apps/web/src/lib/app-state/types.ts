@@ -7,6 +7,12 @@ import type { PromoteOption } from '../play-promote.ts';
 import type { Publishing } from '../publishing.ts';
 import type { AppPipeline } from '../release-pipeline.ts';
 import type { AppSummary, ReleaseSummary } from '../types.ts';
+import type {
+  CandidateAnalysis,
+  CandidatePlan,
+  ObsoleteVersion,
+  StoreBuildFact,
+} from './candidates.ts';
 
 /**
  * What is true about an app, as ONE pure answer (docs/state-model.md). `deriveAppState(facts, scope)` takes a plain snapshot of facts
@@ -45,6 +51,11 @@ export type AppFacts = {
   lastRun: Readonly<Record<string, LastPublish | null | undefined>>;
   /** By record id: the releases the store reported (for what can be promoted). */
   releases: Readonly<Record<string, readonly ReleaseSummary[] | undefined>>;
+  /**
+   * By record id: the builds the store holds (TestFlight rows; the Builds page's store rows). Undefined: not read, the model falls back
+   * to the newest build of the release pipeline. A candidate is the newest of these that is newer than what is live (candidates.ts).
+   */
+  builds?: Readonly<Record<string, readonly StoreBuildFact[] | null | undefined>> | undefined;
   /** By record id: the release pipeline (what is in flight, in review, which build can be attached). */
   pipelines: Readonly<Record<string, Pick<AppPipeline, 'app' | 'pipeline'> | null | undefined>>;
   /** The rest of "Needs attention" (reviews, drift, failed CI...): shown by the release flow, never about pending or publishing. */
@@ -64,6 +75,10 @@ export const PHASES = [
   'publish_failed',
   'changes_pending',
   'release_needs_you',
+  /** A version is being prepared for the newest build (attach it, then submit it). */
+  'version_in_prep',
+  /** A newer build is in the store (TestFlight) and no version takes it yet: create the release. */
+  'candidate_ready',
   'in_review',
   'release_running',
   'ready_to_release',
@@ -81,6 +96,8 @@ export const PRIMARY_ACTIONS = [
   'open_release',
   'prepare_release',
   'start_release',
+  /** iOS, macOS: create a release (a store version) from a TestFlight build; opens the existing create-version step with both filled in. */
+  'create_release',
   'promote',
   'follow_review',
   'none',
@@ -169,6 +186,26 @@ export type Promotion = {
   offer: ActionOffer;
 };
 
+/** The next step a newer build asks for on a platform that creates versions: one row of "Ready to release", one button. */
+export type CandidateView = {
+  plan: CandidatePlan;
+  appId: string;
+  platform: Platform;
+  offer: ActionOffer;
+};
+
+/** A quiet line about something that is not the next step (never a headline): an unused older version still in preparation, a build still processing. */
+export type StateNotice = {
+  kind: 'obsolete_version' | 'build_processing';
+  appId: string;
+  platform: Platform;
+  version: string | null;
+  text: string;
+  /** Advice: where to deal with it (the store's own page), or null. */
+  href: string | null;
+  linkLabel: string | null;
+};
+
 /** What is going on in the platforms that are NOT in scope (the page says where, in one quiet line). */
 export type Elsewhere = {
   platforms: Platform[];
@@ -204,6 +241,14 @@ export type AppState = {
   rest: AttentionItem[];
   /** A Google Play release in a testing track that can go to production: one offer, with its verdict (null when none or no right). */
   promotion: Promotion | null;
+  /** The release candidates in scope as the Releases table and the card show them ("Ready to release"): the newest build of each record that is newer than what is live. */
+  candidates: CandidateView[];
+  /** The store versions in scope that are left behind (preparable, not newer than what is live): never the next step, shown as outdated. */
+  obsolete: ObsoleteVersion[];
+  /** Quiet secondary notices (an unused older version, a build still processing). */
+  notices: StateNotice[];
+  /** The candidate analysis of every record in scope, by record id (what is live, which build is the candidate, which versions are obsolete). */
+  analysis: Readonly<Record<string, CandidateAnalysis>>;
   elsewhere: Elsewhere;
   /** The verdict of an action over the whole scope: on only when it is on for every platform in scope that does it. */
   verdicts: Readonly<Record<GuardedAction, Verdict>>;

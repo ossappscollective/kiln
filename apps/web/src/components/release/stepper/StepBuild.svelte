@@ -39,6 +39,7 @@
     noCodeSentence } from '../../../lib/release-candidates.ts';
   import { type EditableState, stagedField } from '../../../lib/release-stepper.ts';
   import { type Promote, promoteNote } from '../../../lib/play-promote.ts';
+  import type { StepPrefill } from '../../../lib/release-stepper.ts';
   import { buildChip, buildHasProblem, orderBuilds, visibleBuilds } from '../../../lib/stepper-layout.ts';
   import { releaseInputsFor } from '../../../lib/release-settings.ts';
   import { releaseSettingsStore } from '../../../lib/release-settings-store.svelte.ts';
@@ -71,6 +72,7 @@
     track = $bindable('production'),
     source = $bindable('beta'),
     promote = null,
+    prefill = null,
     onread,
     onreadtracks }: {
     api: Api;
@@ -87,6 +89,8 @@
     track?: string;
     source?: string;
     promote?: Promote | null;
+    /** App Store: "Create release 2.0.1 from TestFlight build 95": the version the create form starts with and the build to select. */
+    prefill?: StepPrefill | null;
     onread: () => void;
     onreadtracks: () => void;
   } = $props();
@@ -159,6 +163,17 @@
     if (promote !== null && !promoted) {
       promoted = true;
       pickedCodes = [...promote.codes];
+    }
+  });
+  let prefilled = false;
+  $effect(() => {
+    // "Create release ... from TestFlight build 95": the build of the candidate is selected once, when it is among the builds, ahead of nothing the person chose.
+    if (prefill?.build && !prefilled && picked === '' && stagedBuild === null) {
+      const row = rows.filter((r) => r.eligibility.selectable && buildNumberOfTitle(r.title) === prefill.build)[0];
+      if (row) {
+        prefilled = true;
+        picked = row.id;
+      }
     }
   });
   $effect(() => {
@@ -247,7 +262,7 @@
   {#if apple}
     {#if editableState.state === 'none'}
       <Alert tone="warn" title={t('release-stepper:build.noVersionApple')}>
-        <CreateVersion {api} {workspaceId} {role} {app} {onread} />
+        <CreateVersion {api} {workspaceId} {role} {app} {onread} prefill={prefill?.version ?? null} />
       </Alert>
     {:else if editableState.state === 'error'}
       <Alert tone="error" title={t('release-stepper:sb.readVersionFailed')}>{editableState.message}</Alert>

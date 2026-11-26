@@ -656,7 +656,7 @@
   "releases.notSyncedHelp": "Adding an app does not contact the store. Open Status in the header and choose Sync now to read its versions and tracks.",
   "releases.notSyncedOn": "Not synced yet: {{platform}}",
   "releases.nothingInProgress": "Nothing in progress",
-  "releases.older": "Older releases",
+  "releases.older": "Older and unused versions",
   "releases.searchOlder": "Search older releases",
   "releases.searchPlaceholder": "Search version, build or state",
   "releases.syncedEmptyHelp": "The last sync found no versions or tracks for this app.",

@@ -2,6 +2,7 @@ import type { Platform, Role } from '@kiln/core';
 import type { LastPublish, RunStep } from '../pending.ts';
 import type { Publishing } from '../publishing.ts';
 import type { AppSummary, ReleaseSummary } from '../types.ts';
+import type { StoreBuildFact } from './candidates.ts';
 import type { AppFacts } from './types.ts';
 
 /**
@@ -201,5 +202,133 @@ export const failingAndroid = (over: Partial<AppFacts> = {}): AppFacts =>
     pending: { [ANDROID.id]: { count: 29, blocking: 0 } },
     lastRun: { [ANDROID.id]: failedRun('android') },
     releases: { [ANDROID.id]: [internalTesting()] },
+    ...over,
+  });
+
+// ---------------------------------------------------------------------------------------------
+// Candidates (candidates.ts): store versions, TestFlight builds and the scenario of the user's report
+
+/** A store version of the iOS record. */
+export const iosRelease = (over: Partial<ReleaseSummary> = {}): ReleaseSummary => ({
+  id: `rel-${over.version ?? '1.0.0'}`,
+  appId: IOS.id,
+  platform: 'ios',
+  version: '1.0.0',
+  track: null,
+  build: null,
+  status: 'live',
+  rawState: 'READY_FOR_SALE',
+  rolloutFraction: null,
+  versionCodes: null,
+  storeUpdatedAt: NOW - 30 * 86_400_000,
+  syncedAt: NOW - 60_000,
+  ...over,
+});
+
+/** A TestFlight build row (`app_builds`): processed (VALID), not expired, uploaded a day ago. */
+export const testflight = (over: Partial<StoreBuildFact> = {}): StoreBuildFact => ({
+  buildNumber: '95',
+  version: '2.00.1',
+  state: 'processed',
+  expired: false,
+  uploadedAt: NOW - 86_400_000,
+  channel: 'testflight',
+  tracks: [],
+  ...over,
+});
+
+/** A pipeline of the iOS record whose newest version is `version` in `state` (the server's answer, as far as the model reads it). */
+export function iosPipeline(
+  state: 'draft' | 'build_ready' | 'in_review' | 'live' | 'idle',
+  version: { version: string; build: string | null; status: string } | null,
+  build: { buildNumber: string; version: string } | null,
+) {
+  return {
+    app: { id: IOS.id, name: IOS.name, platform: 'ios', store: 'appstoreconnect' },
+    pipeline: {
+      appId: IOS.id,
+      platform: 'ios',
+      state,
+      waitingOn:
+        state === 'draft' || state === 'build_ready'
+          ? 'you'
+          : state === 'in_review'
+            ? 'store'
+            : null,
+      since: NOW - 3_600_000,
+      stalledAfterHours: 48,
+      stalled: null,
+      stalls: [],
+      summary: 'summary',
+      steps: steps(
+        state === 'draft'
+          ? ['done', 'done', 'current', 'todo', 'todo']
+          : state === 'in_review'
+            ? ['done', 'done', 'done', 'current', 'todo']
+            : ['todo', 'todo', 'todo', 'todo', 'todo'],
+      ),
+      latest: {
+        run: null,
+        build:
+          build === null
+            ? null
+            : {
+                ...build,
+                state: 'processed',
+                expired: false,
+                uploadedAt: NOW - 86_400_000,
+                firstSeenAt: NOW - 86_400_000,
+              },
+        version:
+          version === null
+            ? null
+            : {
+                ...version,
+                track: null,
+                rawState: version.status,
+                versionCodes: null,
+                rolloutFraction: null,
+                since: NOW - 3_600_000,
+              },
+      },
+    },
+  } as unknown as NonNullable<AppFacts['pipelines'][string]>;
+}
+
+/**
+ * The user's report (2026-11-26, "OSS Document Scanner", iOS): 1.19.0 build 88 is LIVE; 1.11.6 is still in Prepare for Submission (build
+ * 92 is there to attach); TestFlight holds 2.00.1 build 95 (VALID). The card must say "Create release 2.00.1 from TestFlight build 95".
+ */
+export const reportedIos = (over: Partial<AppFacts> = {}): AppFacts =>
+  facts({
+    records: [IOS],
+    pending: { [IOS.id]: { count: 0, blocking: 0 } },
+    releases: {
+      [IOS.id]: [
+        iosRelease({ id: 'rel-1.19.0', version: '1.19.0', build: '88', status: 'live' }),
+        iosRelease({
+          id: 'rel-1.11.6',
+          version: '1.11.6',
+          build: null,
+          status: 'draft',
+          rawState: 'PREPARE_FOR_SUBMISSION',
+          storeUpdatedAt: null,
+        }),
+      ],
+    },
+    builds: {
+      [IOS.id]: [
+        testflight(),
+        testflight({ buildNumber: '92', version: '1.11.6', uploadedAt: NOW - 200 * 86_400_000 }),
+        testflight({ buildNumber: '88', version: '1.19.0', uploadedAt: NOW - 30 * 86_400_000 }),
+      ],
+    },
+    pipelines: {
+      [IOS.id]: iosPipeline(
+        'draft',
+        { version: '1.11.6', build: null, status: 'draft' },
+        { buildNumber: '92', version: '1.11.6' },
+      ),
+    },
     ...over,
   });

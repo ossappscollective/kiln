@@ -25,7 +25,7 @@
   } from '../lib/portfolio.ts';
   import type { WorkspaceReviewsSummary } from '../lib/reviews/reviews.ts';
   import { toast } from '../lib/toast.svelte.ts';
-  import type { AppSummary } from '../lib/types.ts';
+  import type { AppSummary, ReleaseSummary } from '../lib/types.ts';
   import RunningNow from './ci/RunningNow.svelte';
   import Board from './dashboard/Board.svelte';
   import ViewToggle from './dashboard/ViewToggle.svelte';
@@ -83,7 +83,15 @@
 
   const sorted = $derived(apps ? sortApps(apps) : []);
   const groups = $derived(groupApps(apps ?? []));
-  const pipelineApps = $derived(appStateStore.pipelineSummary(workspaceId)?.apps ?? null);
+  const releaseLists = $derived(
+    Object.keys(releases).reduce<Record<string, ReleaseSummary[]>>((acc, id) => {
+      const load = releases[id];
+      if (load?.state === 'ready') acc[id] = load.releases;
+      return acc;
+    }, {}),
+  );
+  // A release left unfinished that is only a version or a build left behind by what is live is not news (the model decides, from the same facts).
+  const pipelineApps = $derived(appStateStore.pipelineSummary(workspaceId) === null ? null : appStateStore.stalledApps(workspaceId, releaseLists));
   const rows = $derived(buildOverviewRows(groups, releases, reviewSummary?.apps ?? null, pipelineApps, (appIds) => appStateStore.lineOf(workspaceId, appIds)));
   const stats = $derived(overviewStats(rows));
   const batchRunning = $derived(batch?.running === true);

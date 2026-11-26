@@ -704,7 +704,7 @@
   "releases.notSyncedHelp": "L’ajout d’une application ne contacte pas le store. Ouvrez État dans l’en-tête et choisissez Synchroniser maintenant pour lire ses versions et ses pistes.",
   "releases.notSyncedOn": "Pas encore synchronisé : {{platform}}",
   "releases.nothingInProgress": "Rien en cours",
-  "releases.older": "Anciennes publications",
+  "releases.older": "Anciennes publications et versions inutilisées",
   "releases.searchOlder": "Rechercher dans les anciennes publications",
   "releases.searchPlaceholder": "Rechercher une version, un build ou un état",
   "releases.syncedEmptyHelp": "La dernière synchronisation n’a trouvé aucune version ni piste pour cette application.",

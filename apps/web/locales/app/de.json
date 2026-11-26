@@ -656,7 +656,7 @@
   "releases.notSyncedHelp": "Das Hinzufügen einer App kontaktiert den Store nicht. Öffnen Sie im Kopfbereich „Status“ und wählen Sie „Jetzt synchronisieren“, um Versionen und Tracks zu lesen.",
   "releases.notSyncedOn": "Noch nicht synchronisiert: {{platform}}",
   "releases.nothingInProgress": "Nichts in Arbeit",
-  "releases.older": "Ältere Releases",
+  "releases.older": "Ältere und ungenutzte Versionen",
   "releases.searchOlder": "Ältere Releases durchsuchen",
   "releases.searchPlaceholder": "Version, Build oder Status suchen",
   "releases.syncedEmptyHelp": "Bei der letzten Synchronisierung wurden für diese App keine Versionen oder Tracks gefunden.",

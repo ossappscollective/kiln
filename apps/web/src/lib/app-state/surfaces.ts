@@ -36,9 +36,28 @@ export const OFFER_SURFACES: readonly {
       prepare_release: /offer\.action === 'prepare_release'/,
       // StartRelease owns the dialog; the card hands it the verdict as `blockedReason`.
       start_release: /<StartRelease/,
+      // A link to the create-version step with the version and the TestFlight build filled in (`&version=2.0.1&build=95`).
+      create_release: /href=\{offer\.href\}/,
       promote: /href=\{offer\.href\}/,
       follow_review: /href=\{offer\.href\}/,
       // Draws nothing: there is no button.
+      none: 'not_drawn',
+    },
+  },
+  {
+    // The Releases table draws the model's candidates ("Ready to release" rows) and their one button; the card and the table read the same offers.
+    id: 'releases-table',
+    file: 'components/release/ReleaseTable.svelte',
+    handlers: {
+      show_pending: 'not_drawn',
+      publish_again: 'not_drawn',
+      attach_build: /data-action=\{c\.offer\.action\}/,
+      open_release: 'not_drawn',
+      prepare_release: /data-action=\{c\.offer\.action\}/,
+      start_release: 'not_drawn',
+      create_release: /data-action=\{c\.offer\.action\}/,
+      promote: /appStateStore\.promoteFor\(/,
+      follow_review: 'not_drawn',
       none: 'not_drawn',
     },
   },

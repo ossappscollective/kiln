@@ -24,12 +24,15 @@
   import type { Api } from '../../lib/api.ts';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
   import { promoteFromHash, withoutPromote } from '../../lib/play-promote.ts';
-  import { type StepId, stepFromHash, withStep } from '../../lib/release-stepper.ts';
+  import { prefillFromHash, type StepId, stepFromHash, withStep } from '../../lib/release-stepper.ts';
+  import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import { scopeFor } from '../../lib/app-state/derive.ts';
   import {
     buildReleaseTable,
     defaultReleaseFilter,
     filterGroups,
     splitCurrent,
+    type ObsoleteInfo,
     type ReleaseFilter,
   } from '../../lib/releases-table.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
@@ -120,12 +123,25 @@
     });
   });
 
+  // The one answer about candidates and versions left behind: the same state the card above reads.
+  const modelRecords = $derived(all ?? members);
+  const appState = $derived(
+    appStateStore.of({ workspaceId, role, records: modelRecords, scope: scopeFor(modelRecords, members), releases }),
+  );
+  const obsoleteById = $derived(
+    appState.obsolete.reduce<Record<string, ObsoleteInfo>>((acc, o) => {
+      const notice = appState.notices.find((n) => n.kind === 'obsolete_version' && n.appId === o.appId && n.version === o.version);
+      acc[o.releaseId] = { liveVersion: o.liveVersion, href: notice?.href ?? null, linkLabel: notice?.linkLabel ?? null };
+      return acc;
+    }, {}),
+  );
   const groups = $derived(
     buildReleaseTable({
       releases,
       plans: plansOk ? plans : null,
       builds,
       appIds: members.map((m) => m.id),
+      obsolete: obsoleteById,
     }),
   );
   // What matters now is the default view; the rest is under "Older releases". The "not live yet" switch
@@ -154,6 +170,8 @@
   const stepperTab = $derived(members.find((m) => m.platform === stepperPlatform)?.platform ?? members[0]?.platform ?? '');
   // "Promote to production" opens the first step with the track, the codes and the target in the address.
   const promote = $derived(canPrepare && step !== null ? promoteFromHash(address.hash) : null);
+  // "Create release 2.0.1 from TestFlight build 95" opens the same first step with the version and the build in the address.
+  const prefill = $derived(canPrepare && step !== null ? prefillFromHash(address.hash) : null);
   const openStepper = () => replaceHash(withStep(withoutPromote(location.hash), 'build'));
   /** The line "N store asset changes proposed" goes to the Assets step, where the proposal card is. */
   const openAssets = () => replaceHash(withStep(withoutPromote(location.hash), 'assets'));
@@ -202,6 +220,7 @@
             {releases}
             {step}
             promote={supports(app.platform, 'releaseTracks') ? promote : null}
+            prefill={supports(app.platform, 'releaseTracks') ? null : prefill}
             onstep={moveStep}
             onclose={closeStepper}
             showPlatform={members.length > 1}
@@ -247,7 +266,7 @@
         </p>
       {/if}
 
-      {#if visible.length === 0}
+      {#if visible.length === 0 && appState.candidates.length === 0}
         <div class="card">
           <EmptyState icon="check-circle" title={t('app:releases.nothingInProgress')} description={t('app:releases.noMatchFilter')}>
             {#snippet actions()}
@@ -256,7 +275,7 @@
           </EmptyState>
         </div>
       {:else}
-        <ReleaseTable {api} {workspaceId} {role} groups={visible} {apps} {builds} {now} {scope} showPlatform={members.length > 1} />
+        <ReleaseTable {api} {workspaceId} {role} groups={visible} {apps} {builds} {releases} candidates={appState.candidates} {now} {scope} showPlatform={members.length > 1} />
       {/if}
       </div>
     </Section>
@@ -272,7 +291,7 @@
           {#if olderShown.length === 0}
             <p class="muted note">{t('app:releases.noOlderMatch')}</p>
           {:else}
-            <ReleaseTable {api} {workspaceId} {role} groups={olderShown} {apps} {builds} {now} {scope} showPlatform={members.length > 1} />
+            <ReleaseTable {api} {workspaceId} {role} groups={olderShown} {apps} {builds} {releases} {now} {scope} showPlatform={members.length > 1} />
           {/if}
         </div>
       </Section>
