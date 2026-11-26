@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  builtReason,
   latestOf,
   originRun,
   originView,
@@ -150,4 +151,74 @@ test('the chosen builds for Confirm: version, date and the mismatch warning', ()
   assert.equal(apple?.sayUnknown, false);
   assert.match(apple?.mismatch ?? '', /version 2.4.0, but you are releasing 2.5.0/);
   assert.equal(chosenBuildLine(undefined, '2.5.0', NOW), null);
+});
+
+const GAPS = {
+  not_read: /^Build date not known: Kiln has not read this build yet$/,
+  file_gone: /^Build date not known: the CI file is gone$/,
+  github_unreachable: /^Build date not known: GitHub could not be reached$/,
+  github_no_access: /^Build date not known: Kiln cannot read the CI builds of this app$/,
+  no_repository: /^Build date not known: no CI repository is linked to this app$/,
+} as const;
+
+test('a missing build date says why, one sentence per reason the server gives', () => {
+  for (const [gap, text] of Object.entries(GAPS)) {
+    const v = originView({ builtAt: null, builtGap: gap as keyof typeof GAPS }, NOW);
+    assert.match(v.builtText, text, gap);
+    assert.equal(v.builtKnown, false);
+    assert.equal(v.reason?.key, gap);
+    assert.notEqual(v.builtTitle, '', gap);
+  }
+  // Only a code Kiln has not read can be helped by reading the CI builds.
+  assert.equal(builtReason({ builtGap: 'not_read' })?.readable, true);
+  for (const gap of ['file_gone', 'github_unreachable', 'github_no_access', 'no_repository'] as const)
+    assert.equal(builtReason({ builtGap: gap })?.readable, false, gap);
+  assert.equal(builtReason({ builtAt: BUILT, builtGap: null }), null, 'a known date has no reason');
+});
+
+test('the expired file says when GitHub dropped it, when that is known', () => {
+  const on = originView({ builtAt: null, builtGap: 'file_gone', ciExpiredAt: BUILT }, NOW);
+  assert.match(on.builtText, /^Build date not known: the CI file is gone \(expired .*2026.*\)$/);
+});
+
+test('Google Play gives no date: said plainly when the server says nothing else is known, and after the CI builds were read', () => {
+  const none = originView({ builtAt: null, builtGap: null }, NOW);
+  assert.equal(none.builtText, 'Build date not known: Google Play does not provide a build date');
+  assert.equal(none.reason?.readable, false);
+  const tried = originView({ builtAt: null, builtGap: 'not_read' }, NOW, { ciTried: true });
+  assert.match(tried.builtText, /none of the recent CI builds has this version code/);
+  assert.equal(tried.reason?.key, 'not_in_ci');
+  assert.equal(tried.reason?.readable, false, 'asking again would find nothing new');
+  // A server that sends no reason (older) or an App Store build: the plain sentence, no claim.
+  assert.equal(originView({}, NOW).reason, null);
+});
+
+test('matched by build number only is said on the row; first seen is not a build date', () => {
+  const v = originView(
+    { version: '2.00.1', builtAt: BUILT, origin: 'ci', builtFrom: 'ci', matchedBy: 'build_number_only', ci: RUN },
+    NOW,
+  );
+  assert.equal(v.matchNote, 'Matched by build number only');
+  assert.match(v.matchTitle, /another package/);
+  assert.equal(originView({ matchedBy: 'package' }, NOW).matchNote, null);
+  const seen = originView({ builtAt: null, builtGap: 'not_read', firstSeenAt: BUILT }, NOW);
+  assert.match(seen.firstSeenText ?? '', /^First seen by Kiln .*2026/);
+  assert.match(seen.firstSeenTitle, /does not provide the build date/);
+  assert.equal(seen.builtKnown, false, 'first seen never becomes the build date');
+  assert.match(seen.builtText, /^Build date not known/);
+  // With a real build date the first-seen line is not shown.
+  assert.equal(originView({ builtAt: BUILT, builtFrom: 'ci', firstSeenAt: BUILT }, NOW).firstSeenText, null);
+});
+
+test('the Latest badge ignores first seen', () => {
+  const rows = codeRows(
+    [
+      { versionCode: '90', source: 'bundle', sha256: null, inTrack: [], eligibility: { eligible: true, code: 'ok', severity: 'info', message: '' }, builtAt: null, builtGap: 'not_read', firstSeenAt: BUILT },
+      { versionCode: '89', source: 'bundle', sha256: null, inTrack: [], eligibility: { eligible: true, code: 'ok', severity: 'info', message: '' }, builtAt: BUILT, builtFrom: 'ci', origin: 'ci', version: '2.00.0' },
+    ] as unknown as CodeCandidate[],
+    [],
+    NOW,
+  );
+  // An undated higher code could be the newer one, so nothing is marked.
+  assert.equal(rows.filter((r) => r.latest).length, 0);
 });

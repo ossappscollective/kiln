@@ -21,13 +21,15 @@
   import { t } from '../../../lib/i18n/t.ts';
   import T from '../../ui/T.svelte';
   import type { Api } from '../../../lib/api.ts';
-  import { buildNumberOfTitle, testBuildsHref } from '../../../lib/builds.ts';
+  import { buildNumberOfTitle, type ReadFromCi, readRecentCiBuilds, testBuildsHref } from '../../../lib/builds.ts';
+  import { readHintText, readOutcomeText, readProgressText } from '../../../lib/read-from-ci.ts';
   import {
     type AppleCandidates,
     type EditableRelease,
     type PlayCandidates,
     type ReleaseCandidates,
     SUGGESTED_TRACKS,
+    anyReadableFromCi,
     buildRows,
     chosenCodeLines,
     codeRows,
@@ -93,6 +95,8 @@
   const apple = $derived(!supports(app.platform, 'releaseTracks'));
   const mayEdit = $derived(canStage(role));
   const canTest = $derived(can(role, 'builds.read'));
+  // "Read build info from CI" opens CI files through the server: it needs the right to download builds (the server switch is checked when it runs).
+  const canReadCi = $derived(can(role, 'builds.download'));
 
   let picked = $state('');
   let pickedCodes = $state<string[]>([]);
@@ -102,6 +106,19 @@
   let done = $state('');
   let showAll = $state(false);
   let showAllCodes = $state(false);
+  // Reading the recent CI builds so the version and build date of each code can be shown (one file at a time).
+  let ciReading = $state(false);
+  let ciProgress = $state('');
+  let ciOutcome = $state<ReadFromCi | null>(null);
+  // The recent CI builds were read in this view and the codes still without a date are not among them.
+  let ciTried = $state(false);
+  let ciAlive = true;
+  $effect(() => {
+    ciAlive = true;
+    return () => {
+      ciAlive = false;
+    };
+  });
 
   const applePart = $derived(candidates !== null && candidates.store === 'appstoreconnect' ? (candidates as AppleCandidates) : null);
   const playPart = $derived(candidates !== null && candidates.store === 'googleplay' ? (candidates as PlayCandidates) : null);
@@ -117,7 +134,7 @@
   const problemOpen = $derived(buildHasProblem(selectedRow));
   const unstaged = $derived(picked !== '' && picked !== (stagedBuild?.value ?? '') && picked !== attachedId);
 
-  const codes = $derived(playPart ? codeRows(playPart.codes, sourceCandidates ? codesInTrack(sourceCandidates.codes) : []) : []);
+  const codes = $derived(playPart ? codeRows(playPart.codes, sourceCandidates ? codesInTrack(sourceCandidates.codes) : [], Date.now(), { ciTried }) : []);
   const noCodes = $derived(playPart ? noCodeSentence(codes, track) : null);
   const stagedCodes = $derived(stagedField(view, 'version_codes'));
   const stagedTrack = $derived(stagedField(view, 'track'));
@@ -159,6 +176,27 @@
     if (stagedCodes !== null && pickedCodes.length === 0) pickedCodes = stagedCodes.value.split(',').filter((c) => c !== '');
     if (stagedShare !== null && shareText === '') shareText = percentFromFraction(stagedShare.value);
   });
+
+  async function readFromCi() {
+    if (ciReading) return;
+    ciReading = true;
+    ciOutcome = null;
+    ciProgress = '';
+    try {
+      const out = await readRecentCiBuilds({
+        list: () => api.buildArtifacts(workspaceId, app.id),
+        inspect: (artifactId) => api.inspectBuildArtifact(workspaceId, app.id, artifactId),
+        alive: () => ciAlive,
+        onProgress: (p) => (ciProgress = readProgressText(p)) });
+      ciOutcome = out;
+      if (out.problem === null && out.stopped === null) ciTried = true;
+      // Read the candidates again: the server joins what it just kept (versions and dates) into every code.
+      if (out.read > 0 || out.problem === null) onreadtracks();
+    } finally {
+      ciReading = false;
+      ciProgress = '';
+    }
+  }
 
   function toggleCode(code: string, on: boolean) {
     pickedCodes = on ? [...pickedCodes, code].sort((a, b) => Number(a) - Number(b)) : pickedCodes.filter((c) => c !== code);
@@ -305,6 +343,15 @@
     {:else if playPart}
       {#if noCodes}<Alert tone="warn" title={t('release-stepper:build.noCodeGoogle')}>{noCodes}</Alert>{/if}
       {#if codes.length > 0}
+        {#if ciReading || ciOutcome || (canReadCi && anyReadableFromCi(codes))}
+          <div class="row ci-read" data-testid="read-from-ci">
+            {#if canReadCi && (ciReading || anyReadableFromCi(codes))}
+              <span title={readHintText()}><Button size="sm" icon="refresh" loading={ciReading} disabled={ciReading} onclick={readFromCi}>{t('release-stepper:cir.button')}</Button></span>
+            {/if}
+            {#if ciReading}<span class="muted small" role="status" data-testid="read-from-ci-progress">{ciProgress}</span>{/if}
+            {#if ciOutcome && !ciReading}{@const said = readOutcomeText(ciOutcome)}<span class="small" class:bad={said.tone === 'warn'} role="status" data-testid="read-from-ci-outcome">{said.text}</span>{/if}
+          </div>
+        {/if}
         <fieldset class="builds" disabled={!mayEdit || staging}>
           <legend class="visually-hidden">{t('release-stepper:sb.versionCodes')}</legend>
           {#each shownCodes as row (row.versionCode)}

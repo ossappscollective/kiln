@@ -29,6 +29,7 @@
     expiryText,
     hiddenBy,
     humanSize,
+    inspectSequentially,
     installGuide,
     kindLabel,
     nextInspections,
@@ -116,24 +117,32 @@
     if (looping) return;
     looping = true;
     try {
-      while (alive && data) {
-        if (triedFor !== data.app.id) {
-          triedFor = data.app.id;
-          tried = new Set();
-        }
-        const [next] = nextInspections(shown, data, tried);
-        if (!next) break;
-        const owner = data.app.id;
-        tried.add(next.id);
-        inspecting = next.id;
-        try {
-          const done = await api.inspectBuildArtifact(workspaceId, owner, next.id);
-          if (data?.app.id === owner) data = withInspected(data, done.artifact);
-        } catch (e) {
-          // A switch that is off, a missing right or the download limit end the reading for now; any other failure skips that file.
-          if (e instanceof ApiError && [403, 409, 429].includes(e.status)) break;
-        }
-      }
+      // The shared one-at-a-time reader (lib/builds.ts): a switch that is off, a missing right or the download limit end the reading for
+      // now; any other failure skips that file.
+      await inspectSequentially({
+        alive: () => alive && data !== null,
+        next: () => {
+          if (!data) return undefined;
+          if (triedFor !== data.app.id) {
+            triedFor = data.app.id;
+            tried = new Set();
+          }
+          const [next] = nextInspections(shown, data, tried);
+          if (next) tried.add(next.id);
+          return next;
+        },
+        onStart: (a) => {
+          inspecting = a.id;
+        },
+        inspect: async (a) => {
+          const owner = data?.app.id ?? '';
+          const done = await api.inspectBuildArtifact(workspaceId, owner, a.id);
+          return done.artifact;
+        },
+        onDone: (item) => {
+          if (data) data = withInspected(data, item);
+        },
+      });
     } finally {
       inspecting = null;
       looping = false;

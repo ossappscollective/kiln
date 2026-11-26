@@ -25,6 +25,37 @@ export type OriginFields = {
   /** Where `builtAt` came from. */
   builtFrom?: 'ci' | 'store' | null | undefined;
   ci?: OriginCiRun | undefined;
+  /** Why `builtAt` is null (the server says; absent from an older server). */
+  builtGap?: BuiltGap | null | undefined;
+  /** When the CI file is gone: when GitHub deleted (or deletes) it, if known. Epoch milliseconds. */
+  ciExpiredAt?: number | null | undefined;
+  /** `build_number_only`: the CI file was matched on the build number alone (its package is not the app's). */
+  matchedBy?: 'package' | 'build_number_only' | null | undefined;
+  /** When Kiln's store sync first saw the code (epoch milliseconds). NOT a build date. */
+  firstSeenAt?: number | null | undefined;
+};
+
+/** Why a build date is not known, as the server says it. */
+export type BuiltGap = 'not_read' | 'file_gone' | 'github_unreachable' | 'github_no_access' | 'no_repository';
+
+/** The reason model of a missing build date: which sentence, and whether reading the CI files could still help. */
+export type BuiltReasonKey =
+  | 'not_read'
+  | 'file_gone'
+  | 'github_unreachable'
+  | 'github_no_access'
+  | 'no_repository'
+  | 'not_in_ci'
+  | 'play_none';
+
+export type BuiltReason = {
+  key: BuiltReasonKey;
+  /** The short reason, said after "Build date not known:". */
+  text: string;
+  /** The longer sentence behind it (hover and screen reader text). */
+  title: string;
+  /** Reading the recent CI builds could fill it in ("Read build info from CI" is worth offering). */
+  readable: boolean;
 };
 
 export type OriginRun = { text: string; title: string; url: string | null };
@@ -41,7 +72,20 @@ export type OriginView = {
   builtText: string;
   builtKnown: boolean;
   builtTitle: string;
+  /** Why the date is not known; null when it is known. */
+  reason: BuiltReason | null;
+  /** "Matched by build number only" when the CI file's package is not the app's; else null. */
+  matchNote: string | null;
+  matchTitle: string;
+  /** "First seen by Kiln Nov 24, 2026" when the date is not known but the sync saw the code; else null. NOT a build date. */
+  firstSeenText: string | null;
+  firstSeenTitle: string;
   run: OriginRun | null;
+};
+
+export type OriginOptions = {
+  /** "Read build info from CI" was run in this view and this code is still without a date: no recent CI build holds it. */
+  ciTried?: boolean;
 };
 
 const nonEmpty = (value: string | null | undefined): string | null =>
@@ -68,8 +112,82 @@ export function originRun(ci: OriginCiRun | undefined): OriginRun | null {
   };
 }
 
+/**
+ * Why the build date of a code is not known, in one of a fixed set of sentences (never "not known" alone). Null when it is known.
+ * Null too when the server sent no reason (older server, App Store build): nothing is claimed then; the plain sentence is used.
+ * `ciTried`: the recent CI builds were just read and none holds this code, so it was built elsewhere or long ago.
+ */
+export function builtReason(o: OriginFields, options: OriginOptions = {}): BuiltReason | null {
+  if (typeof o.builtAt === 'number' && Number.isFinite(o.builtAt)) return null;
+  // No reason sent at all (an older server, or an App Store build): nothing is claimed about why.
+  if (o.builtGap === undefined) return null;
+  const gap = o.builtGap;
+  const notInCi = (): BuiltReason => ({
+    key: 'not_in_ci',
+    text: t('release-stepper:og.gap.notInCi'),
+    title: t('release-stepper:og.gapTitle.notInCi'),
+    readable: false,
+  });
+  const playNone = (): BuiltReason => ({
+    key: 'play_none',
+    text: t('release-stepper:og.gap.playNone'),
+    title: t('release-stepper:og.gapTitle.playNone'),
+    readable: false,
+  });
+  switch (gap) {
+    case 'not_read':
+      return options.ciTried === true
+        ? notInCi()
+        : {
+            key: 'not_read',
+            text: t('release-stepper:og.gap.notRead'),
+            title: t('release-stepper:og.gapTitle.notRead'),
+            readable: true,
+          };
+    case 'file_gone': {
+      const on = typeof o.ciExpiredAt === 'number' && Number.isFinite(o.ciExpiredAt) ? o.ciExpiredAt : null;
+      return {
+        key: 'file_gone',
+        text:
+          on !== null
+            ? t('release-stepper:og.gap.fileGoneOn', { date: formatDateTime(on) })
+            : t('release-stepper:og.gap.fileGone'),
+        title: t('release-stepper:og.gapTitle.fileGone'),
+        readable: false,
+      };
+    }
+    case 'github_unreachable':
+      return {
+        key: 'github_unreachable',
+        text: t('release-stepper:og.gap.unreachable'),
+        title: t('release-stepper:og.gapTitle.unreachable'),
+        readable: false,
+      };
+    case 'github_no_access':
+      return {
+        key: 'github_no_access',
+        text: t('release-stepper:og.gap.noAccess'),
+        title: t('release-stepper:og.gapTitle.noAccess'),
+        readable: false,
+      };
+    case 'no_repository':
+      return {
+        key: 'no_repository',
+        text: t('release-stepper:og.gap.noRepository'),
+        title: t('release-stepper:og.gapTitle.noRepository'),
+        readable: false,
+      };
+    default:
+      return playNone();
+  }
+}
+
 /** One candidate's origin as text. `now` is the clock of the caller (a test passes its own). */
-export function originView(o: OriginFields, now: number = Date.now()): OriginView {
+export function originView(
+  o: OriginFields,
+  now: number = Date.now(),
+  options: OriginOptions = {},
+): OriginView {
   const version = nonEmpty(o.version);
   const read = readVersionOf(o) !== null;
   const run = originRun(o.ci);
@@ -107,9 +225,16 @@ export function originView(o: OriginFields, now: number = Date.now()): OriginVie
           : t('release-stepper:og.builtFromCi');
     }
   } else {
-    builtText = t('release-stepper:og.builtUnknown');
-    builtTitle = t('release-stepper:og.builtUnknownTitle');
+    const why = builtReason(o, options);
+    builtText = why
+      ? t('release-stepper:og.builtUnknownWhy', { why: why.text })
+      : t('release-stepper:og.builtUnknown');
+    builtTitle = why ? why.title : t('release-stepper:og.builtUnknownTitle');
   }
+  const seen =
+    o.firstSeenAt !== null && o.firstSeenAt !== undefined && Number.isFinite(o.firstSeenAt) && at === null
+      ? o.firstSeenAt
+      : null;
   return {
     versionText,
     version: read ? version : null,
@@ -118,6 +243,11 @@ export function originView(o: OriginFields, now: number = Date.now()): OriginVie
     builtText,
     builtKnown: at !== null && Number.isFinite(at),
     builtTitle,
+    reason: at !== null && Number.isFinite(at) ? null : builtReason(o, options),
+    matchNote: o.matchedBy === 'build_number_only' ? t('release-stepper:og.matchedByNumber') : null,
+    matchTitle: t('release-stepper:og.matchedByNumberTitle'),
+    firstSeenText: seen !== null ? t('release-stepper:og.firstSeen', { when: formatDateTime(seen) }) : null,
+    firstSeenTitle: t('release-stepper:og.firstSeenTitle'),
     run,
   };
 }

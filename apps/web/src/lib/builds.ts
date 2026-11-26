@@ -344,6 +344,123 @@ export function nextInspections(
   return out;
 }
 
+/** The statuses that end the reading for now: no right to download (403), downloads switched off (409), asked to slow down (429). */
+export const STOP_READING_STATUSES: readonly number[] = [403, 409, 429];
+
+/** The status of an error that ends the reading for now, else null (any other failure skips that file). */
+export function stopStatus(error: unknown): number | null {
+  const status = (error as { status?: unknown } | null)?.status;
+  return typeof status === 'number' && STOP_READING_STATUSES.includes(status) ? status : null;
+}
+
+export type InspectRun = {
+  /** Files that were opened and answered. */
+  read: number;
+  /** Files whose read failed for another reason (skipped). */
+  failed: number;
+  /** 403, 409 or 429 when one of them ended the run; else null. */
+  stopped: number | null;
+};
+
+/**
+ * Asks the server to read artifacts ONE AT A TIME (concurrency 1: each is a download of the zip through the server). `next` is asked
+ * before every file and returns the file to read, or undefined to end. A 403, 409 or 429 ends the run (the same on the Test builds
+ * page and in Prepare release); any other failure skips that file. The Test builds page and "Read build info from CI" both run on this.
+ */
+export async function inspectSequentially(deps: {
+  next: () => ArtifactItem | undefined;
+  inspect: (artifact: ArtifactItem) => Promise<ArtifactItem>;
+  alive?: () => boolean;
+  onStart?: (artifact: ArtifactItem) => void;
+  onDone?: (item: ArtifactItem) => void;
+}): Promise<InspectRun> {
+  const out: InspectRun = { read: 0, failed: 0, stopped: null };
+  while (deps.alive?.() ?? true) {
+    const next = deps.next();
+    if (!next) break;
+    deps.onStart?.(next);
+    try {
+      // The answer is awaited first: `onDone?.(await ...)` would skip the request when there is no `onDone`.
+      const item = await deps.inspect(next);
+      out.read += 1;
+      deps.onDone?.(item);
+    } catch (e) {
+      const stop = stopStatus(e);
+      if (stop !== null) {
+        out.stopped = stop;
+        break;
+      }
+      out.failed += 1;
+    }
+  }
+  return out;
+}
+
+/** Most files "Read build info from CI" opens in one go. */
+export const READ_FROM_CI_MAX = INSPECTIONS_PER_VIEW;
+
+/** Kinds of an Android build a version code can come from. */
+const ANDROID_KINDS: readonly string[] = ['apk', 'aab', 'zip'];
+
+/** The newest CI artifacts of an Android app that were not read yet (and can be), newest first, at most `max`. */
+export function unreadAndroidArtifacts(
+  list: Pick<BuildsList, 'artifacts' | 'downloadEnabled' | 'canDownload'>,
+  max: number = READ_FROM_CI_MAX,
+): ArtifactItem[] {
+  return list.artifacts
+    .filter((a) => canInspect(a, list) && ANDROID_KINDS.includes(a.kind) && a.platform !== 'ios')
+    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0) || b.id.localeCompare(a.id))
+    .slice(0, max);
+}
+
+export type ReadFromCi = {
+  /** CI files opened and read. */
+  read: number;
+  /** Files it meant to open (the unread ones, newest first, at most the cap). */
+  total: number;
+  failed: number;
+  /** 403, 409 or 429 when one ended it. */
+  stopped: number | null;
+  /** `list`: the CI builds of the app could not be listed (or none are linked); `off`: downloads are switched off or not allowed. */
+  problem: 'list' | 'off' | null;
+};
+
+/**
+ * "Read build info from CI": lists the CI builds of the app, opens up to `max` unread Android ones (newest first, one at a time) so
+ * their version, build number and date are kept by the server, and reports progress. The caller reads the candidates again after.
+ */
+export async function readRecentCiBuilds(deps: {
+  list: () => Promise<BuildsList>;
+  inspect: (artifactId: string) => Promise<{ artifact: ArtifactItem }>;
+  onProgress?: (progress: { index: number; total: number }) => void;
+  alive?: () => boolean;
+  max?: number;
+}): Promise<ReadFromCi> {
+  let list: BuildsList;
+  try {
+    list = await deps.list();
+  } catch {
+    return { read: 0, total: 0, failed: 0, stopped: null, problem: 'list' };
+  }
+  if (list.problem !== null || list.repository === null)
+    return { read: 0, total: 0, failed: 0, stopped: null, problem: 'list' };
+  if (!list.downloadEnabled || !list.canDownload)
+    return { read: 0, total: 0, failed: 0, stopped: null, problem: 'off' };
+  const queue = unreadAndroidArtifacts(list, deps.max ?? READ_FROM_CI_MAX);
+  const total = queue.length;
+  let index = 0;
+  const run = await inspectSequentially({
+    next: () => queue.shift(),
+    inspect: async (a) => (await deps.inspect(a.id)).artifact,
+    ...(deps.alive ? { alive: deps.alive } : {}),
+    onStart: () => {
+      index += 1;
+      deps.onProgress?.({ index, total });
+    },
+  });
+  return { ...run, total, problem: null };
+}
+
 /** The list with one artifact replaced by its answer (a new list; the others are as they were). */
 export function withInspected<T extends Pick<BuildsList, 'artifacts'>>(
   list: T,

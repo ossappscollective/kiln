@@ -2,6 +2,7 @@ import type { Platform } from '@kiln/core';
 import {
   latestOf,
   type OriginFields,
+  type OriginOptions,
   type OriginView,
   originView,
   versionMismatch,
@@ -408,6 +409,7 @@ export function codeRows(
   codes: readonly CodeCandidate[],
   inFrom: readonly string[] = [],
   now: number = Date.now(),
+  options: OriginOptions = {},
 ): CodeRow[] {
   const latest = latestOf(
     codes.map((c) => ({
@@ -417,7 +419,7 @@ export function codeRows(
     })),
   );
   const rows = codes.map((c) => {
-    const origin = originView(c, now);
+    const origin = originView(c, now, options);
     return {
       versionCode: c.versionCode,
       source:
@@ -442,6 +444,11 @@ export function codeRows(
   });
   const num = (r: CodeRow) => Number(r.versionCode) || 0;
   return rows.sort((a, b) => Number(b.inSource) - Number(a.inSource) || num(b) - num(a));
+}
+
+/** Whether reading the recent CI builds could still tell a version or a date of one of these rows ("Read build info from CI" is offered). */
+export function anyReadableFromCi(rows: readonly Pick<CodeRow, 'origin'>[]): boolean {
+  return rows.some((r) => r.origin.reason?.readable === true);
 }
 
 /** The codes that hold a release of `track` in a read made for that track (a code whose release carries a name or status is "in" it). */
