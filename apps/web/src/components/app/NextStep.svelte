@@ -351,6 +351,15 @@
     justify-content: center;
   }
 
+  /* A long label ('Fix 4 blockers, then submit 2.00.1 for review') wraps inside the button instead of running out of it. */
+  .actions :global(.btn) {
+    height: auto;
+    padding-block: var(--space-2);
+    line-height: 1.25;
+    text-align: center;
+    white-space: normal;
+  }
+
   /* The follow-up of a started run (and its problem line) goes on its own line under the buttons. */
   .actions :global(.start) {
     display: contents;
