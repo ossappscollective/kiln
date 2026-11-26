@@ -90,6 +90,7 @@
   "stepper.confirm.push": "Push the staged changes to the store draft",
   "stepper.confirm.pushNote": "Can be changed again",
   "stepper.confirm.releaseApproved": "Release the approved version",
+  "stepper.confirm.releaseBuild": "Release the chosen build (sent to Google for review)",
   "stepper.confirm.releaseNote": "Cannot be undone from here",
   "stepper.confirm.releaseUsers": "Release to users",
   "stepper.confirm.rollout": "Change the rollout",

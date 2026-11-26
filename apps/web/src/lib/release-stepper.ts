@@ -433,12 +433,19 @@ export function confirmStatus(f: StepperFacts): StepStatus {
   const base = { id: 'confirm' as const, label: STEP_LABELS.confirm };
   if (f.staged.errors > 0)
     return { ...base, level: 'blocked', text: t('release-stepper:confirm.fixErrors') };
-  if (f.staged.unpushed > 0)
+  if (f.staged.unpushed > 0) {
+    // Google Play, a build chosen for a track and nothing else staged: the publish RELEASES it (one step, sent to Google for review),
+    // it does not park it as a draft. Said so, instead of "push to the store draft".
+    const buildOnly =
+      supports(f.platform, 'releaseTracks') && f.staged.texts === 0 && f.staged.assets === 0;
     return {
       ...base,
       level: 'todo',
-      text: t('release-stepper:confirm.push', { count: f.staged.unpushed }),
+      text: buildOnly
+        ? t('release-stepper:confirm.releaseBuild', { count: f.staged.unpushed })
+        : t('release-stepper:confirm.push', { count: f.staged.unpushed }),
     };
+  }
   const p = f.pipeline;
   if (p === null) return { ...base, level: 'unknown', text: t('release-stepper:confirm.unknown') };
   switch (p.state) {

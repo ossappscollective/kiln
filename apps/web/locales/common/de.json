@@ -90,6 +90,7 @@
   "stepper.confirm.push": "Vorbereitete Änderungen in den Store-Entwurf übertragen",
   "stepper.confirm.pushNote": "Kann erneut geändert werden",
   "stepper.confirm.releaseApproved": "Genehmigte Version veröffentlichen",
+  "stepper.confirm.releaseBuild": "Den gewählten Build veröffentlichen (zur Prüfung an Google gesendet)",
   "stepper.confirm.releaseNote": "Lässt sich von hier aus nicht rückgängig machen",
   "stepper.confirm.releaseUsers": "Für Nutzer veröffentlichen",
   "stepper.confirm.rollout": "Einführung ändern",

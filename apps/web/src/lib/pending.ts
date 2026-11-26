@@ -194,7 +194,23 @@ export type PublishPlan = {
    * it instead of the pair because of that. Absent from an older server.
    */
   combined?: { offered: boolean; draftRefused: boolean; defaulted: boolean };
+  /** Google Play: where the staged build comes from (another track that holds its codes) and its version, as the last sync saw them. Absent from an older server. */
+  promotion?: { from: string | null; version: string | null } | null;
+  /**
+   * The step (or steps) the plan recommends, so the dialog never leaves a person with an empty plan while a valid step exists.
+   * `steps` are the requests to send back; a release in them still needs the share from the person (`needsShare`). Absent from an older server.
+   */
+  recommended?: PlanRecommendation | null;
   readAt: number;
+};
+
+export type RecommendedWhy = 'promotion' | 'direct_release' | 'draft_refused' | 'draft' | 'default';
+
+export type PlanRecommendation = {
+  types: PublishStepType[];
+  steps: StepRequest[];
+  why: RecommendedWhy;
+  needsShare: boolean;
 };
 
 export type StepResult =
@@ -703,7 +719,11 @@ export type StepRow = {
   needsInput: boolean;
   /** There is nothing for this step to do now (the dialog leaves it out instead of showing a step that cannot be ticked). */
   idle: boolean;
+  /** Why an idle step is left out, so the line that names it is accurate: it does not apply to this app, there is nothing to do, or it is only an option. */
+  hiddenWhy: HiddenWhy | null;
 };
+
+export type HiddenWhy = 'unsupported' | 'nothing' | 'optional';
 
 /** The row of one step of the plan, from the plan alone. The rollout always names a change, so it stays a single step. */
 export function stepRow(step: PlanStep, platform: Platform): StepRow {
@@ -742,24 +762,41 @@ export function stepRow(step: PlanStep, platform: Platform): StepRow {
     deferred: step.deferred,
     needsInput,
     // Google Play has no review step of its own: the release is what Google reviews, so "submit" is not offered next to it.
-    idle:
-      step.availability === 'nothing_to_do' ||
-      (supports(platform, 'releaseTracks') &&
-        step.type === 'submit' &&
-        step.availability === 'not_requested'),
+    // A step the person asked for is never left out: it shows why it cannot run.
+    idle: hiddenWhyOf(step, platform) !== null,
+    hiddenWhy: hiddenWhyOf(step, platform),
   };
+}
+
+function hiddenWhyOf(step: PlanStep, platform: Platform): HiddenWhy | null {
+  if (step.availability === 'nothing_to_do' && !step.requested) return 'nothing';
+  if (
+    supports(platform, 'releaseTracks') &&
+    step.type === 'submit' &&
+    step.availability === 'not_requested'
+  )
+    return 'unsupported';
+  return null;
 }
 
 /**
  * The rows the dialog shows: the steps that have something to do, numbered one after the other, and the names of the steps left out
  * (for one quiet line). When no step has anything to do, every row stays so the dialog can say why.
  */
-export function visibleRows(rows: readonly StepRow[]): { shown: StepRow[]; left: string[] } {
+export function visibleRows(rows: readonly StepRow[]): {
+  shown: StepRow[];
+  left: string[];
+  /** The same names, by why they are left out (each group is one accurate line). */
+  leftBy: Record<HiddenWhy, string[]>;
+} {
+  const leftBy: Record<HiddenWhy, string[]> = { unsupported: [], nothing: [], optional: [] };
   const active = rows.filter((r) => !r.idle);
-  if (active.length === 0) return { shown: [...rows], left: [] };
+  if (active.length === 0) return { shown: [...rows], left: [], leftBy };
+  for (const r of rows) if (r.idle) leftBy[r.hiddenWhy ?? 'nothing'].push(r.label);
   return {
     shown: active.map((r, i) => ({ ...r, order: i + 1 })),
     left: rows.filter((r) => r.idle).map((r) => r.label),
+    leftBy,
   };
 }
 
@@ -775,7 +812,13 @@ export const stepRows = (plan: PublishPlan): StepRow[] => {
       const row = stepRow(s, plan.app.platform);
       if (s.type !== 'push_and_submit') return row;
       // Named in the person's language (the server's label is English), and left out unless a review is wanted.
-      return { ...row, label: STEP_NAME.push_and_submit, idle: row.idle || (!s.included && !wantsReview) };
+      const optional = !s.included && !wantsReview && row.hiddenWhy === null;
+      return {
+        ...row,
+        label: STEP_NAME.push_and_submit,
+        idle: row.idle || optional,
+        hiddenWhy: row.hiddenWhy ?? (optional ? 'optional' : null),
+      };
     });
 };
 
@@ -836,6 +879,105 @@ export const isDirectPlan = (plan: PublishPlan | null): boolean =>
   plan !== null &&
   (plan.defaultedToDirect === true ||
     plan.steps.some((s) => s.type === 'release' && s.request?.direct === true));
+
+/**
+ * The release step the person adds is DIRECT (made from the staged build and sent in one step) whenever a build is staged and no draft
+ * push is part of the plan: with no draft in the store a plain release would have nothing to start. It follows the plan, never only
+ * the way the dialog first opened. With a draft push in the plan, the release rolls out that draft after it.
+ */
+export const releaseIsDirect = (
+  plan: PublishPlan | null,
+  wanted: readonly PublishStepType[],
+  wasDirect: boolean,
+): boolean =>
+  wasDirect ||
+  (plan !== null &&
+    (plan.direct ?? null) !== null &&
+    wanted.indexOf('push_draft') < 0 &&
+    wanted.indexOf('push_and_submit') < 0);
+
+/**
+ * The requests of the plan's recommended step(s), with the person's share added to a release. Null: the plan recommends nothing, or
+ * the recommended release still needs a share the person has not given (the dialog then asks for it; nothing is implied).
+ */
+export function recommendedRequests(
+  plan: PublishPlan | null,
+  input: { fraction: number | null },
+): StepRequest[] | null {
+  const rec = plan?.recommended ?? null;
+  if (rec === null || rec.steps.length === 0) return null;
+  const out: StepRequest[] = [];
+  for (const step of rec.steps) {
+    if (step.type !== 'release') {
+      out.push({ ...step });
+      continue;
+    }
+    if (input.fraction === null) return null;
+    out.push({ ...step, userFraction: input.fraction });
+  }
+  return out;
+}
+
+/** The ticked steps are exactly the recommended ones. */
+export const isRecommended = (
+  plan: PublishPlan | null,
+  wanted: readonly PublishStepType[],
+): boolean => {
+  const rec = plan?.recommended ?? null;
+  return (
+    rec !== null &&
+    wanted.length === rec.types.length &&
+    rec.types.every((type) => wanted.indexOf(type) >= 0)
+  );
+};
+
+/**
+ * What to say when nothing is ticked: the recommended step (with a button that uses it), or, when the plan recommends nothing, that
+ * there is nothing to publish. Never an error: an empty selection is a choice, not a failure. Null: something is ticked.
+ */
+export type EmptySelectionHint =
+  | { kind: 'recommend'; why: RecommendedWhy; needsShare: boolean; types: PublishStepType[] }
+  | { kind: 'nothing' };
+
+export function emptySelectionHint(
+  plan: PublishPlan | null,
+  wanted: readonly PublishStepType[],
+): EmptySelectionHint | null {
+  if (plan === null || wanted.length > 0) return null;
+  const rec = plan.recommended ?? null;
+  if (rec === null || rec.types.length === 0) return { kind: 'nothing' };
+  return { kind: 'recommend', why: rec.why, needsShare: rec.needsShare, types: rec.types };
+}
+
+/**
+ * Whether the dialog should use the recommended step by itself: the first plan it got holds nothing, and a step is recommended. The
+ * person never starts on an empty plan while a valid step exists. A plan that already holds steps is left as it is.
+ */
+export const shouldAutoRecommend = (plan: PublishPlan): boolean =>
+  plan.included === 0 && (plan.recommended ?? null) !== null;
+
+/**
+ * The sentence that says what is recommended and why, in the person's language. `shareMissing`: the recommended release still waits
+ * for the share of users, and the sentence says so.
+ */
+export function recommendedSentence(
+  plan: PublishPlan | null,
+  input: { shareMissing: boolean },
+): string {
+  const rec = plan?.recommended ?? null;
+  if (plan === null || rec === null) return '';
+  const first = rec.steps[0];
+  const track = (first?.track ?? plan.direct?.track ?? 'production').trim();
+  let text: string;
+  if (rec.why === 'promotion') text = t('publish:dialog.recommendedPromotion', { track });
+  else if (rec.why === 'direct_release') text = t('publish:dialog.recommendedDirect', { track });
+  else if (rec.why === 'draft_refused') text = t('publish:dialog.recommendedDraftRefused');
+  else if (rec.why === 'draft') text = t('publish:dialog.recommendedDraft');
+  else text = t('publish:dialog.recommendedDefault');
+  return rec.needsShare && input.shareMissing
+    ? `${text} ${t('publish:dialog.recommendedNeedsShare')}`
+    : text;
+}
 
 /** The types that are part of the plan. */
 export const includedTypes = (plan: PublishPlan): PublishStepType[] =>

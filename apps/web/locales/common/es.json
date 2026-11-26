@@ -90,6 +90,7 @@
   "stepper.confirm.push": "Enviar los cambios preparados al borrador de la tienda",
   "stepper.confirm.pushNote": "Se puede cambiar de nuevo",
   "stepper.confirm.releaseApproved": "Lanzar la versión aprobada",
+  "stepper.confirm.releaseBuild": "Lanzar el build elegido (enviado a revisión de Google)",
   "stepper.confirm.releaseNote": "No se puede deshacer desde aquí",
   "stepper.confirm.releaseUsers": "Lanzar a los usuarios",
   "stepper.confirm.rollout": "Cambiar el despliegue",

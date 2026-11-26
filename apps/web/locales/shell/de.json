@@ -72,6 +72,7 @@
   "publish.reason.tickBox": "Aktivieren Sie das Kästchen oben, um zu veröffentlichen.",
   "publish.reason.tickOne": "Wählen Sie mindestens einen Schritt aus, um zu veröffentlichen.",
   "publish.reason.typePhrase": "Geben Sie „{{phrase}}“ ein, um zu veröffentlichen.",
+  "publish.reason.useRecommended": "Nichts ausgewählt. Verwenden Sie den empfohlenen Schritt oder wählen Sie einen aus.",
   "publish.then": "{{before}}, danach {{next}}",
   "publish.title.publish": "Auf {{store}} veröffentlichen",
   "publish.title.pushDraft": "Entwurf bei {{store}} aktualisieren",

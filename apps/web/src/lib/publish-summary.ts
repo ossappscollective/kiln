@@ -642,7 +642,15 @@ export function publishSummary(input: SummaryInput): PublishSummary {
       return plan.direct?.versionCodes ?? [];
     })();
     let value: string;
-    if (name !== null && codes.length > 0)
+    const from = str(plan.promotion?.from);
+    const promotedVersion = str(plan.promotion?.version);
+    if (releaseOn && direct && from !== null && track !== null && codes.length > 0)
+      // A build that is in another track and is released here: said as a promotion, with its version when the plan carries it.
+      value =
+        promotedVersion !== null
+          ? t('publish:summary.release.promote', { count: codes.length, codes: codes.join(', '), version: promotedVersion, from, to: track })
+          : t('publish:summary.release.promoteNoVersion', { count: codes.length, codes: codes.join(', '), from, to: track });
+    else if (name !== null && codes.length > 0)
       value = t('publish:summary.release.nameCodes', { name, codes: codes.join(', ') });
     else if (codes.length > 0)
       value = t('publish:summary.release.codes', { count: codes.length, codes: codes.join(', ') });
@@ -837,8 +845,17 @@ function outcomeText(input: {
       clauses.push(t('publish:summary.outcome.submitApple', { version: appleVersion }));
     else clauses.push(t('publish:summary.outcome.submitAppleNoVersion'));
   }
+  const promotedFrom = str(input.plan.promotion?.from);
   if (has('release')) {
-    if (play && direct) {
+    if (play && direct && promotedFrom !== null && track !== null) {
+      // One step: the build is made a release of the target track and committed, which sends it to Google for review.
+      clauses.push(
+        // Everybody is the plain sentence; only a staged share is named.
+        audience !== null && input.kind !== 'all' && input.fraction !== 1
+          ? t('publish:summary.outcome.promoteAudience', { track, audience })
+          : t('publish:summary.outcome.promote', { track }),
+      );
+    } else if (play && direct) {
       if (where !== null && audience !== null)
         clauses.push(t('publish:summary.outcome.sendPlay', { track: where, audience }));
       else if (where !== null)

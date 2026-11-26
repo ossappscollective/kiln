@@ -90,6 +90,7 @@
   "stepper.confirm.push": "Envoyer les modifications en attente vers le brouillon du store",
   "stepper.confirm.pushNote": "Peut encore être modifié",
   "stepper.confirm.releaseApproved": "Publier la version approuvée",
+  "stepper.confirm.releaseBuild": "Publier le build choisi (envoyé à l’examen de Google)",
   "stepper.confirm.releaseNote": "Ne peut pas être annulé d’ici",
   "stepper.confirm.releaseUsers": "Publier auprès des utilisateurs",
   "stepper.confirm.rollout": "Modifier le déploiement",

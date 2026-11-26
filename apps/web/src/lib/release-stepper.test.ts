@@ -294,6 +294,20 @@ test('the Assets and Review dots', () => {
   );
 });
 
+test('Google Play, only a build staged: the Confirm dot says the build is released, not pushed to a draft', () => {
+  const build = { release: 2, texts: 0, assets: 0, total: 2, errors: 0, warnings: 0, unpushed: 2 };
+  assert.equal(
+    confirmStatus(facts({ platform: 'android', staged: build })).text,
+    'Release the chosen build: 2 staged changes',
+  );
+  // Texts or graphics staged too: they need the draft, as before. App Store: unchanged.
+  assert.equal(
+    confirmStatus(facts({ platform: 'android', staged: { ...build, texts: 1 } })).text,
+    'Push 2 staged changes to the store draft',
+  );
+  assert.equal(confirmStatus(facts({ staged: build })).text, 'Push 2 staged changes to the store draft');
+});
+
 test('the Confirm dot follows the staged changes, then the state of the release', () => {
   const staged = { release: 1, texts: 0, assets: 0, total: 1, errors: 0, warnings: 0, unpushed: 1 };
   assert.equal(confirmStatus(facts({ staged })).text, 'Push 1 staged change to the store draft');

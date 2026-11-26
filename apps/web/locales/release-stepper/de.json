@@ -181,6 +181,8 @@
   "confirm.push_one": "{{count}} vorgemerkte Änderung in den Store-Entwurf übertragen",
   "confirm.push_other": "{{count}} vorgemerkte Änderungen in den Store-Entwurf übertragen",
   "confirm.rejected": "Abgelehnt: Beheben Sie, was der Store verlangt, übertragen Sie erneut und reichen Sie wieder ein",
+  "confirm.releaseBuild_one": "Den gewählten Build veröffentlichen: {{count}} vorbereitete Änderung",
+  "confirm.releaseBuild_other": "Den gewählten Build veröffentlichen: {{count}} vorbereitete Änderungen",
   "confirm.rolling": "Wird eingeführt",
   "confirm.unknown": "Der Status des Releases ist unbekannt",
   "cv.create": "Version {{version}} erstellen",

@@ -137,6 +137,8 @@ export function publishDisabledReason(input: {
   ready: boolean;
   wanted: number;
   plan: Pick<PublishPlan, 'confirmable' | 'confirmationRequired' | 'confirmation'> | null;
+  /** The plan recommends a step: an empty selection says so instead of only asking for a tick. */
+  recommended?: boolean;
 }): string {
   if (input.ready || input.phase === 'publishing' || input.phase === 'done') return '';
   if (input.phase === 'previewing') return t('shell:publish.reason.making');
@@ -145,7 +147,9 @@ export function publishDisabledReason(input: {
   if (input.stale) return t('shell:publish.reason.stale');
   if (!plan.confirmable)
     return input.wanted === 0
-      ? t('shell:publish.reason.tickOne')
+      ? input.recommended === true
+        ? t('shell:publish.reason.useRecommended')
+        : t('shell:publish.reason.tickOne')
       : t('shell:publish.reason.cannotRun');
   if (plan.confirmationRequired && plan.confirmation)
     return t('shell:publish.reason.typePhrase', { phrase: plan.confirmation.phrase });

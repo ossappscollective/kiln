@@ -82,6 +82,7 @@
   "publish.reason.tickBox": "Marca la casilla de arriba para publicar.",
   "publish.reason.tickOne": "Marca al menos un paso para publicar.",
   "publish.reason.typePhrase": "Escribe «{{phrase}}» para publicar.",
+  "publish.reason.useRecommended": "No hay nada marcado. Usa el paso recomendado o marca uno.",
   "publish.then": "{{before}}, luego {{next}}",
   "publish.title.publish": "Publicar en {{store}}",
   "publish.title.pushDraft": "Actualizar el borrador en {{store}}",

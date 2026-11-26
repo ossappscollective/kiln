@@ -72,6 +72,7 @@
   "publish.reason.tickBox": "Tick the box above to publish.",
   "publish.reason.tickOne": "Tick at least one step to publish.",
   "publish.reason.typePhrase": "Type \"{{phrase}}\" to publish.",
+  "publish.reason.useRecommended": "Nothing is ticked. Use the recommended step, or tick one.",
   "publish.then": "{{before}}, then {{next}}",
   "publish.title.publish": "Publish to {{store}}",
   "publish.title.pushDraft": "Update the draft on {{store}}",

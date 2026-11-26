@@ -35,9 +35,11 @@
     canPublish,
     classifyPublishFailure,
     draftOnlySteps,
+    emptySelectionHint,
     includedTypes,
     isCombinedPlan,
     isDirectPlan,
+    isRecommended,
     needsReview,
     planReady,
     previewBody,
@@ -45,10 +47,14 @@
     pushAndSubmitSteps,
     publishBody,
     askedFractionOf,
+    recommendedRequests,
+    recommendedSentence,
     releaseInputDefaults,
+    releaseIsDirect,
     releaseStepRequest,
     requestsFor,
     resultSummary,
+    shouldAutoRecommend,
     stepRows,
     visibleRows,
     toggled,
@@ -158,7 +164,9 @@ import { supports } from '@kiln/core';
   const store = $derived(app ? storeName(app.platform) : t('publish:dialog.theStore'));
   const phraseId = `${uid}-phrase`;
   const title = $derived(plan ? publishTitle(plan, store) : t('publish:dialog.title'));
-  const why = $derived(publishDisabledReason({ phase, stale, ready, wanted: wanted.length, plan }));
+  const why = $derived(publishDisabledReason({ phase, stale, ready, wanted: wanted.length, plan, recommended: (plan?.recommended ?? null) !== null }));
+  const emptyHint = $derived(phase === 'ready' ? emptySelectionHint(plan, wanted) : null);
+  const recommendedNote = $derived(plan && isRecommended(plan, wanted) ? recommendedSentence(plan, { shareMissing: false }) : '');
 
   /** Scrolls to the confirmation under the plan and puts the cursor in it (the Publish button stays off until it is done). */
   function focusConfirm() {
@@ -221,7 +229,8 @@ import { supports } from '@kiln/core';
       typed = '';
       ack = false;
       phase = 'ready';
-      if (first) addKnownRelease(out.plan);
+      // A plan that holds nothing never stays so: the known release is added, else the recommended step (the default plan only: a plan the caller scoped is theirs).
+      if (first && !addKnownRelease(out.plan) && steps === null) useRecommendedAtStart(out.plan);
     } catch (e) {
       if (mine !== seq) return;
       failWith(classifyPublishFailure(e, pendingStore.config(workspaceId)));
@@ -234,17 +243,42 @@ import { supports } from '@kiln/core';
    * the default share of the app settings, or no staged rollout is possible so it is everyone) the release step is added for the person.
    * Nothing is written by this; the plan is confirmed as before. Untick the step to type another share.
    */
-  function addKnownRelease(made: PublishPlan) {
+  function addKnownRelease(made: PublishPlan): boolean {
     const step = made.steps.filter((s) => s.type === 'release')[0];
-    if (!supports(made.app.platform, 'releaseTracks') || !step || step.availability !== 'needs_input' || track.trim() === '') return;
+    if (!supports(made.app.platform, 'releaseTracks') || !step || step.availability !== 'needs_input' || track.trim() === '') return false;
     const fraction = offered ? parsePercent(share) : EVERYONE;
-    if (fraction === null) return;
+    if (fraction === null) return false;
     void review(
       requestsFor(made, toggled(includedTypes(made), 'release', true), { release: releaseStepRequest({ track, fraction, direct: isDirectPlan(made) }) }),
       fraction === EVERYONE
         ? t('publish:dialog.notice.addedEveryone', { track: track.trim() })
         : t('publish:dialog.notice.addedShare', { track: track.trim(), share: percentText(fraction) }),
     );
+    return true;
+  }
+
+  /** The share the person gave (or null when it is still missing): none is asked when Google Play offers no staged rollout. */
+  const knownFraction = (): number | null => (offered ? parsePercent(share) : EVERYONE);
+
+  /** The first plan holds nothing: ask for the plan with the recommended step (never an empty plan while a valid step exists). */
+  function useRecommendedAtStart(made: PublishPlan) {
+    if (!shouldAutoRecommend(made)) return;
+    const asked = recommendedRequests(made, { fraction: knownFraction() });
+    if (asked !== null) void review(asked, t('publish:dialog.notice.replanRecommended'));
+  }
+
+  /** "Use the recommended step": the plan is made again with it. A release that still needs the share asks for it, and says so. */
+  function useRecommended() {
+    if (!plan || busy) return;
+    const rec = plan.recommended ?? null;
+    if (rec === null) return;
+    const asked = recommendedRequests(plan, { fraction: knownFraction() });
+    if (asked !== null) {
+      void review(asked, t('publish:dialog.notice.replanRecommended'));
+      return;
+    }
+    inputTouched = true;
+    void review(rec.steps, recommendedSentence(plan, { shareMissing: true }));
   }
 
   function toggle(type: PublishStepType, on: boolean) {
@@ -272,7 +306,9 @@ import { supports } from '@kiln/core';
       return;
     }
     shareError = '';
-    void review(requestsFor(plan, toggled(wanted, 'release', true), { release: releaseStepRequest({ track, fraction, direct }) }), t('publish:dialog.notice.replanRelease'));
+    // Direct whenever a build is staged and no draft push is in the plan: a plain release would find no draft to start.
+    const asDirect = releaseIsDirect(plan, wanted, direct);
+    void review(requestsFor(plan, toggled(wanted, 'release', true), { release: releaseStepRequest({ track, fraction, direct: asDirect }) }), t('publish:dialog.notice.replanRelease'));
   }
 
   /** "Save as a draft only": the push alone. Nothing is submitted or released by it. */
@@ -474,6 +510,7 @@ import { supports } from '@kiln/core';
       <PublishSummaryBlock summary={whatSummary} busy={phase === 'previewing'} {api} {workspaceId} {app} />
       {#if plan.included > 1 && head.sequence}<p class="muted headline" data-testid="plan-headline">{t('publish:dialog.sequence', { sequence: head.sequence })}</p>{:else if plan.included === 0}<p class="muted headline" data-testid="plan-headline">{t('publish:dialog.headlineTitle', { title: head.title })}</p>{/if}
       {#if notice}<p class="notice muted small" role="status"><Icon name="info" size={14} /> {notice}</p>{/if}
+      {#if recommendedNote}<p class="notice small" role="status" data-testid="plan-recommended-note"><Icon name="info" size={14} /> {recommendedNote}</p>{/if}
       {#if plan.combined?.defaulted && isCombinedPlan(plan)}<p class="notice small" role="status" data-testid="plan-combined-note"><Icon name="info" size={14} /> {t('publish:dialog.combinedDefaulted')}</p>{/if}
 
       <ol class="steps" aria-label={t('publish:dialog.stepsAria')} aria-busy={phase === 'previewing'}>
@@ -558,8 +595,14 @@ import { supports } from '@kiln/core';
           {/if}
         {/each}
       </ol>
-      {#if visible.left.length > 0}
-        <p class="muted small" data-testid="plan-left-out">{t('publish:dialog.leftOut', { items: formatList(visible.left, { type: 'unit' }) })}</p>
+      {#if visible.leftBy.unsupported.length > 0}
+        <p class="muted small" data-testid="plan-left-out-unsupported">{t('publish:dialog.leftUnsupported', { items: formatList(visible.leftBy.unsupported, { type: 'unit' }) })}</p>
+      {/if}
+      {#if visible.leftBy.nothing.length > 0}
+        <p class="muted small" data-testid="plan-left-out-nothing">{t('publish:dialog.leftNothing', { items: formatList(visible.leftBy.nothing, { type: 'unit' }) })}</p>
+      {/if}
+      {#if visible.leftBy.optional.length > 0}
+        <p class="muted small" data-testid="plan-left-out-optional">{t('publish:dialog.leftOptional', { items: formatList(visible.leftBy.optional, { type: 'unit' }) })}</p>
       {/if}
 
       {@const planWarnings = foldWarnings(plan.warnings)}
@@ -575,10 +618,15 @@ import { supports } from '@kiln/core';
       {/if}
 
       {#if canDraftOnly}
-        <div class="row">
-          <Button size="sm" disabled={busy || stale} onclick={saveAsDraftOnly}>{t('publish:dialog.draftOnly')}</Button>
-          <span class="muted small">{t('publish:dialog.draftOnlyHint')}</span>
-        </div>
+        <Disclosure summary={t('publish:dialog.advancedDraft')}>
+          <div class="stack" data-testid="plan-advanced-draft">
+            <p class="small warnline"><Icon name="alert-triangle" size={14} /> {t('publish:dialog.advancedDraftWarning')}</p>
+            <div class="row">
+              <Button size="sm" disabled={busy || stale} onclick={saveAsDraftOnly}>{t('publish:dialog.draftOnly')}</Button>
+              <span class="muted small">{t('publish:dialog.draftOnlyHint')}</span>
+            </div>
+          </div>
+        </Disclosure>
       {:else if offersDirect}
         <div class="row">
           <Button size="sm" disabled={busy || stale} onclick={backToDirect}>{t('publish:dialog.directInstead')}</Button>
@@ -586,10 +634,16 @@ import { supports } from '@kiln/core';
         </div>
       {/if}
 
-      {#if !plan.confirmable}
-        <Alert tone="error" title={t('publish:dialog.cannotPublishTitle')}>
-          {wanted.length === 0 ? t('publish:dialog.tickOne') : t('publish:dialog.stepCannotRun')}
-        </Alert>
+      {#if emptyHint}
+        <!-- Nothing ticked is a choice, not an error: say what is recommended and give one click to use it. -->
+        <div class="empty-hint" role="status" data-testid="plan-empty-hint">
+          <p class="small"><Icon name="info" size={14} /> <strong>{t('publish:dialog.emptyTitle')}.</strong> {emptyHint.kind === 'recommend' ? `${t('publish:dialog.emptyRecommend')} ${recommendedSentence(plan, { shareMissing: emptyHint.needsShare && !stale && offered && parsePercent(share) === null })}` : t('publish:dialog.emptyNothing')}</p>
+          {#if emptyHint.kind === 'recommend'}
+            <Button size="sm" variant="primary" disabled={busy || stale} onclick={useRecommended} data-testid="use-recommended">{t('publish:dialog.useRecommended')}</Button>
+          {/if}
+        </div>
+      {:else if !plan.confirmable}
+        <Alert tone="error" title={t('publish:dialog.cannotPublishTitle')}>{t('publish:dialog.stepCannotRun')}</Alert>
       {:else if plan.confirmationRequired && plan.confirmation}
         <div class="confirm" class:irrev={plan.irreversible}>
           {#if plan.irreversible}
@@ -674,6 +728,16 @@ import { supports } from '@kiln/core';
   .why-disabled:hover {
     color: var(--ink);
     text-decoration: underline;
+  }
+
+  .empty-hint {
+    display: grid;
+    gap: var(--space-2);
+    justify-items: start;
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface-sunken);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-xl);
   }
 
   .step-title {

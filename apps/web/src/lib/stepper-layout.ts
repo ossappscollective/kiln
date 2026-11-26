@@ -108,6 +108,17 @@ export function confirmSteps(items: readonly PendingItem[], platform: Platform):
       if (texts > 0) parts.push(t('common:stepper.detail.texts', { count: texts }));
       if (sets > 0) parts.push(t('common:stepper.detail.sets', { count: sets }));
       if (fields > 0) parts.push(t('common:stepper.detail.fields', { count: fields }));
+      if (supports(platform, 'releaseTracks') && texts === 0 && sets === 0 && fields > 0) {
+        // Only the chosen build is staged: publishing releases it (sent to Google for review in one step), it is not parked as a draft.
+        out.push({
+          type,
+          title: t('common:stepper.confirm.releaseBuild'),
+          detail: formatList(parts),
+          note: t('common:stepper.confirm.releaseNote'),
+          irreversible: true,
+        });
+        continue;
+      }
       out.push({
         type,
         title: t('common:stepper.confirm.push'),

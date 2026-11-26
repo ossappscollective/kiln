@@ -181,6 +181,8 @@
   "confirm.push_one": "Push {{count}} staged change to the store draft",
   "confirm.push_other": "Push {{count}} staged changes to the store draft",
   "confirm.rejected": "Rejected: fix what the store asks for, then push and submit again",
+  "confirm.releaseBuild_one": "Release the chosen build: {{count}} staged change",
+  "confirm.releaseBuild_other": "Release the chosen build: {{count}} staged changes",
   "confirm.rolling": "Rolling out",
   "confirm.unknown": "The state of the release is not known",
   "cv.create": "Create version {{version}}",

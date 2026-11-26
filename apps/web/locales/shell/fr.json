@@ -82,6 +82,7 @@
   "publish.reason.tickBox": "Cochez la case ci-dessus pour publier.",
   "publish.reason.tickOne": "Cochez au moins une étape pour publier.",
   "publish.reason.typePhrase": "Saisissez « {{phrase}} » pour publier.",
+  "publish.reason.useRecommended": "Rien n’est coché. Utilisez l’étape recommandée ou cochez-en une.",
   "publish.then": "{{before}}, puis {{next}}",
   "publish.title.publish": "Publier sur {{store}}",
   "publish.title.pushDraft": "Mettre à jour le brouillon sur {{store}}",
