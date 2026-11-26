@@ -124,5 +124,23 @@ If the wiring test fails: read state with `appStateStore.of(...)` (`apps/web/src
 
 ## 4. Migration status
 
-See the end of the commit history of `apps/web/src/lib/app-state/`; what is not migrated is listed in the wiring test's allowlist,
-each entry with the reason.
+Migrated (they read `appStateStore` and decide nothing themselves): the top bar button, the Shell (sidebar badges, switcher chips, workspace
+Pending count), AppShell, the app Overview card (`NextStep`, `StartRelease`), the cart (`PendingCart`, `PendingCartDrawer`), the Pending page
+(`PendingChanges`), the workspace Pending page (`WorkspacePending`), `PendingChip`, `PublishingNote`, the board, the portfolio Overview
+(rows and their next action), the releases table and its row detail (promote), and the buttons that write: `SubmitReady`, `StoreRelease`,
+`CreateVersion`, `RolloutAppControl`, `StagedTrayApp`.
+
+Not migrated, on purpose or not yet:
+
+- The CONTENT of the Pending page (the list of items, their previews, their "next step" text, the `totalsLine`) comes from `pendingStore`
+  views. It is what is listed, not what the app is doing, so it is not a state of the app; but it is a second count of items that can differ
+  from the cart count for a moment. The page re-reads a view that is older than the summary and disagrees (`appStateStore.staleViews`).
+- `publishAvailability` (PendingChanges) still words the reasons "no right", "switch off", "errors block" from the views and the config; the
+  model's `publish` verdict decides the running-publish and failed-publish cases, and the page enables the button only when both agree.
+  The reasons for role and switch exist twice (model: `verdict.role`, `verdict.switchOff`).
+- `ReleaseStepper` and `AiSuggestionCard` still call `pendingStore.view/loadView/refresh`: they refresh content, they decide nothing.
+- `PublishDialog` reports its own publish to the claims store (`started`, `answered`, `refresh`): it writes, it does not read back to decide.
+  It is on the wiring allowlist for that reason.
+- The server is unchanged: it still answers 409 `publish_in_progress` as the last line of defence; the model makes the client never ask.
+
+Every allowlist entry of `wiring.test.ts` has its reason next to it, and a stale entry fails the test.
