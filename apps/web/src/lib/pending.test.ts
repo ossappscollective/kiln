@@ -47,6 +47,7 @@ import {
   STEP_NAME,
   staleViewIds,
   stateBadge,
+  stepRow,
   stepRows,
   toggled,
   totalsLine,
@@ -1099,4 +1100,24 @@ test('a failed push Google Play would not keep as a draft is known by its code, 
   });
   assert.match(row.text, /^Google Play would not keep these changes as a draft\./);
   assert.match(row.text, /sends these changes for review automatically/);
+});
+
+test('a submit blocked by certain blockers says how many things to fix, not the generic reason', () => {
+  const problem = (code: string) => ({ code, severity: 'error' as const, message: `${code} message` });
+  const row = stepRow(
+    step('submit', {
+      included: false,
+      availability: 'blocked',
+      reason: 'Blocked: it would not run yet.',
+      problems: [problem('submit_blocked_missing_text'), problem('submit_blocked_asset_spec')],
+    }),
+    'ios',
+  );
+  assert.equal(row.toggleable, false);
+  assert.equal(row.reason, 'Blocked: 2 things to fix before it can be submitted.');
+  const other = stepRow(
+    step('submit', { included: false, availability: 'blocked', reason: 'Something else.', problems: [] }),
+    'ios',
+  );
+  assert.notEqual(other.reason, 'Blocked: 0 things to fix before it can be submitted.');
 });

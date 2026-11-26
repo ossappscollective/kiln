@@ -10,6 +10,7 @@ import { ApiError } from './api.ts';
 import { type AppSection, appAddress, type PlatformScope } from './app-scope.ts';
 import { formatList, formatPercent } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
+import { blockedStepReason, isReadinessProblem, type PlanReadiness } from './publish-readiness.ts';
 import type { Publishing } from './publishing.ts';
 import { releaseStepHref } from './release-stepper.ts';
 import type { DraftPreview } from './staged.ts';
@@ -215,6 +216,11 @@ export type PublishPlan = {
    * `steps` are the requests to send back; a release in them still needs the share from the person (`needsShare`). Absent from an older server.
    */
   recommended?: PlanRecommendation | null;
+  /**
+   * Whether the draft could be submitted once the staged push is made, known before anything is sent (lib/publish-readiness.ts). Null: the server
+   * said nothing (the submit is off, the plan has nothing to do with a submit, or the store could not be read). Absent from an older server.
+   */
+  readiness?: PlanReadiness | null;
   readAt: number;
 };
 
@@ -754,6 +760,10 @@ export type StepRow = {
 
 export type HiddenWhy = 'unsupported' | 'nothing' | 'optional';
 
+/** How many certain blockers made this step unavailable (the errors the server gave it for them). */
+const blockedByReadiness = (step: PlanStep): number =>
+  step.problems.filter((p) => isReadinessProblem(p.code)).length;
+
 /** The row of one step of the plan, from the plan alone. The rollout always names a change, so it stays a single step. */
 export function stepRow(step: PlanStep, platform: Platform): StepRow {
   const needsInput =
@@ -769,6 +779,9 @@ export function stepRow(step: PlanStep, platform: Platform): StepRow {
     // A Google Play release is ticked after the dialog asked for the track and the share; any other step that needs details stays single.
     toggleable = needsInput;
     if (!needsInput) reason = t('app:pending.row.needsDetails');
+  } else if (step.availability === 'blocked' && blockedByReadiness(step) > 0) {
+    // The submit cannot run yet: the blockers are listed once, in the readiness section; the step says how many.
+    reason = blockedStepReason(blockedByReadiness(step));
   } else if (step.availability === 'feature_disabled') {
     reason = t('app:pending.row.switchedOff', { env: step.requires.envName });
   } else if (step.availability === 'forbidden') {

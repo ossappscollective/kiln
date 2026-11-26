@@ -24,6 +24,7 @@
   import Disclosure from '../ui/Disclosure.svelte';
   import Icon from '../ui/Icon.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import SubmitReadiness from './SubmitReadiness.svelte';
 
   let {
     summary,
@@ -31,8 +32,11 @@
     api,
     workspaceId,
     app,
+    onnavigate,
   }: {
     summary: PublishSummary | null;
+    /** Called when a link of the readiness list to a place in Kiln is followed (the dialog closes). */
+    onnavigate?: (() => void) | undefined;
     busy?: boolean | undefined;
     api?: Api | undefined;
     workspaceId?: string | undefined;
@@ -137,6 +141,9 @@
         </dd>
       {/each}
     </dl>
+
+    <!-- Whether the draft could be submitted once this push is made, known now (the same rules the submit itself applies). -->
+    <SubmitReadiness view={summary.readiness} {onnavigate} />
 
     {#if notes && (notes.shown || notes.others.length > 0)}
       {#snippet notesHead()}<span title={notes?.hint ?? undefined} data-testid="summary-notes-title">{notes?.title}</span>{/snippet}

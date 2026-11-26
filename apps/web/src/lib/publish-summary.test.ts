@@ -737,3 +737,60 @@ test('the combined step, French', () => {
     useLocale('en');
   }
 });
+
+test('the summary carries the readiness of the plan: ready, or what would block the submit', () => {
+  const none = publishSummary({ plan: plan(playSteps()), wanted: ['push_draft'], identifier: '' });
+  assert.equal(none.readiness, null);
+
+  const blocked = publishSummary({
+    plan: plan(playSteps(), {
+      readiness: {
+        submit: {
+          ready: false,
+          blockers: [
+            {
+              code: 'missing_text',
+              message: 'Description is empty in fr-FR',
+              locale: 'fr-FR',
+              item: 'description',
+              fix: { kind: 'listing', href: '#/portfolio/a/listing?view=text&locale=fr-FR' },
+            },
+          ],
+          unknown: ['image_not_ready'],
+          predicted: true,
+          checkedAt: 1,
+        },
+      },
+    }),
+    wanted: ['push_draft'],
+    identifier: '',
+  });
+  assert.equal(blocked.readiness?.title, 'Submit would not run yet: 1 thing to fix');
+  assert.equal(blocked.readiness?.lines[0]?.message, 'Description is empty in fr-FR');
+  assert.equal(blocked.readiness?.note, 'Checked after the push: image processing.');
+
+  const ready = publishSummary({
+    plan: plan(playSteps(), {
+      readiness: {
+        submit: { ready: true, blockers: [], unknown: [], predicted: false, checkedAt: 1 },
+      },
+    }),
+    wanted: ['push_draft'],
+    identifier: '',
+  });
+  assert.equal(ready.readiness?.title, 'Ready to submit for review');
+});
+
+test('the blockers of a submit that cannot run are listed once, not again under the step', () => {
+  const blocked = {
+    availability: 'blocked',
+    problems: [
+      { code: 'submit_blocked_missing_text', severity: 'error', message: 'Description is empty in fr-FR' },
+      { code: 'other', severity: 'error', message: 'Other.' },
+    ],
+  } as PlanStep;
+  assert.deepEqual(
+    shownErrors(blocked, true).map((p) => p.code),
+    ['other'],
+  );
+});

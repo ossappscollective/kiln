@@ -20,6 +20,7 @@ import {
   type PublishPlan,
   type PublishStepType,
 } from './pending.ts';
+import { isReadinessProblem, type ReadinessView, readinessView } from './publish-readiness.ts';
 import type { DraftPreview } from './staged.ts';
 import { PLAY_CONSOLE_URL } from './store-links.ts';
 import { percentText } from './store-release.ts';
@@ -144,6 +145,11 @@ export type PublishSummary = {
   outcome: string;
   /** No step is ticked: the outcome says so and the rows are kept to where it would go. */
   nothing: boolean;
+  /**
+   * Whether the draft could be submitted once the staged push is made: "Ready to submit for review", or "Submit would not run yet: N things to
+   * fix" with the list, known before anything is sent. Null when the plan carries no readiness.
+   */
+  readiness: ReadinessView | null;
 };
 
 /** What the Track and Share fields hold while the release step is not part of the plan yet. */
@@ -548,7 +554,9 @@ export function shownErrors(
 ): PlanProblem[] {
   return errorsOf(step).filter(
     (p) =>
-      inputTouched || step.availability !== 'needs_input' || INPUT_PROMPT_CODES.indexOf(p.code) < 0,
+      // The blockers of a submit that cannot run are listed once, in the readiness section, not again under the step.
+      !isReadinessProblem(p.code) &&
+      (inputTouched || step.availability !== 'needs_input' || INPUT_PROMPT_CODES.indexOf(p.code) < 0),
   );
 }
 
@@ -857,6 +865,7 @@ export function publishSummary(input: SummaryInput): PublishSummary {
     footnote,
     outcome: outcomeText({ plan, wanted, play, direct, track, fraction, kind, appleVersion }),
     nothing: wanted.length === 0,
+    readiness: readinessView(plan),
   };
 }
 

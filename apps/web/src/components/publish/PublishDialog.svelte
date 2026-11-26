@@ -67,6 +67,7 @@
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
   import { endedByServer } from '../../lib/publishing.ts';
   import { publishingStore } from '../../lib/publishing-store.svelte.ts';
+  import { firstFix, readinessView, submitChoice } from '../../lib/publish-readiness.ts';
   import { publishSummary, shownErrors } from '../../lib/publish-summary.ts';
   import { elapsedText, failureDetail, minutesOf, PUBLISH_SLOW_AFTER_MS, PUBLISH_WAIT_LIMIT_MS, PublishWaitError, withWaitLimit } from '../../lib/publish-run.ts';
   import { foldWarnings, planHeadline, publishDisabledReason, publishTitle, shownStatusWord, stepGist } from '../../lib/readability.ts';
@@ -187,6 +188,9 @@ import { supports } from '@kiln/core';
     plan ? publishSummary({ plan, wanted, identifier: app?.identifier ?? '', typed: liveRelease }) : null,
   );
   const stepOf = (type: PublishStepType): PlanStep | undefined => plan?.steps.filter((s) => s.type === type)[0];
+  // A push and a submit asked together while the submit certainly cannot run: the person chooses (push the draft only, or fix first).
+  const choice = $derived(plan ? submitChoice(plan) : null);
+  const fixTarget = $derived(plan ? (() => { const view = readinessView(plan); return view ? firstFix(view) : null; })() : null);
   const ready = $derived(phase === 'ready' && !stale && canPublish(plan, wanted, typed, ack));
   const store = $derived(app ? storeName(app.platform) : t('publish:dialog.theStore'));
   const phraseId = `${uid}-phrase`;
@@ -354,6 +358,17 @@ import { supports } from '@kiln/core';
   function saveAsDraftOnly() {
     if (!plan || busy) return;
     void review(draftOnlySteps(), t('publish:dialog.notice.replanDraft'));
+  }
+
+  /** "Fix the blockers first": closes the dialog and goes to the place of the first blocker (the store's console opens in a new tab). Nothing is sent. */
+  function fixBlockersFirst() {
+    if (!fixTarget || busy) return;
+    if (fixTarget.external) {
+      window.open(fixTarget.href, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    close();
+    window.location.hash = fixTarget.href;
   }
 
   /**
@@ -572,7 +587,16 @@ import { supports } from '@kiln/core';
       <Alert tone="error" title={t('publish:dialog.noPlan')}>{problem}</Alert>
     {:else if plan}
       {@const head = planHeadline(plan, store)}
-      <PublishSummaryBlock summary={whatSummary} busy={phase === 'previewing'} {api} {workspaceId} {app} />
+      <PublishSummaryBlock summary={whatSummary} busy={phase === 'previewing'} {api} {workspaceId} {app} onnavigate={close} />
+      {#if choice}
+        <div class="choice" role="group" aria-label={t('publish:readiness.choice.title')} data-testid="plan-submit-choice">
+          <p class="small warnline"><Icon name="alert-triangle" size={14} /> <span><strong>{t('publish:readiness.choice.title')}.</strong> {t('publish:readiness.choice.text', { count: choice.count })}</span></p>
+          <div class="row">
+            <Button size="sm" variant="primary" disabled={busy || stale} onclick={saveAsDraftOnly} data-testid="choice-draft-only">{t('publish:readiness.choice.draftOnly')}</Button>
+            <Button size="sm" disabled={busy || stale || fixTarget === null} onclick={fixBlockersFirst} data-testid="choice-fix-first">{t('publish:readiness.choice.fixFirst')}</Button>
+          </div>
+        </div>
+      {/if}
       {#if plan.included > 1 && head.sequence}<p class="muted headline" data-testid="plan-headline">{t('publish:dialog.sequence', { sequence: head.sequence })}</p>{:else if plan.included === 0}<p class="muted headline" data-testid="plan-headline">{t('publish:dialog.headlineTitle', { title: head.title })}</p>{/if}
       {#if notice}<p class="notice muted small" role="status"><Icon name="info" size={14} /> {notice}</p>{/if}
       {#if recommendedNote}<p class="notice small" role="status" data-testid="plan-recommended-note"><Icon name="info" size={14} /> {recommendedNote}</p>{/if}
@@ -716,7 +740,7 @@ import { supports } from '@kiln/core';
           {/if}
         </div>
       {:else if !plan.confirmable}
-        <Alert tone="error" title={t('publish:dialog.cannotPublishTitle')}>{t('publish:dialog.stepCannotRun')}</Alert>
+        {#if choice === null}<Alert tone="error" title={t('publish:dialog.cannotPublishTitle')}>{t('publish:dialog.stepCannotRun')}</Alert>{/if}
       {:else if plan.confirmationRequired && plan.confirmation}
         <div class="confirm" class:irrev={plan.irreversible}>
           {#if plan.irreversible}
@@ -804,6 +828,16 @@ import { supports } from '@kiln/core';
   }
 
   .replace-note {
+    display: grid;
+    gap: var(--space-2);
+    justify-items: start;
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface-sunken);
+    border: 1px solid var(--warn, var(--line-strong));
+    border-radius: var(--radius-xl);
+  }
+
+  .choice {
     display: grid;
     gap: var(--space-2);
     justify-items: start;
