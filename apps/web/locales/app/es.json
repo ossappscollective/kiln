@@ -552,7 +552,7 @@
   "pending.failed.assetChanged": "Un archivo preparado cambió. Vuelve a prepararlo y luego revisa.",
   "pending.failed.assetUnreadable": "No se puede leer un archivo preparado. Vuelve a prepararlo y luego revisa.",
   "pending.failed.blocked": "No se escribió nada: una comprobación bloquea ahora este paso. Revisa de nuevo.",
-  "pending.failed.changesInReview": "La tienda rechaza esto mientras haya cambios en revisión. No se envió nada.",
+  "pending.failed.changesInReview": "Google Play ya tiene cambios de esta app en revisión, así que ahora no puede aceptar otro cambio. Este paso no aplicó nada.",
   "pending.failed.confirmationMismatch": "La confirmación no coincidía. No se escribió nada.",
   "pending.failed.draftNotAllowed": "Google Play no quiso conservar estos cambios como borrador.",
   "pending.failed.draftPartial": "Solo una parte llegó al borrador. Lo que se escribió se queda allí. Revisa de nuevo para terminar: los elementos que ya coinciden se omiten.",

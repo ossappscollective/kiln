@@ -309,6 +309,21 @@ sends it for review as part of the commit. A draft release stays a draft (no tra
   `listing.draft_push_failed` with `combined: true`. No draft record is kept (there is no draft left to submit). A lost answer is
   `outcome_unknown` (Google Play shows no review state): look in Play Console; nothing is sent again until a new plan is confirmed.
 
+### One edit, one commit: `push_and_submit` with `release` (Google Play)
+
+Asked together, `push_and_submit` and `release` are ONE step in the same Play edit (texts, graphics, the release on the track with the
+share, `:validate`, one `:commit`), never two sending commits: the plan says `oneCommit: true`, has one irreversibility confirmation, the
+union of the rights and switches (`store.release`, `KILN_STORE_RELEASE_ENABLED` as well), and the `release` row says it is carried by the
+push. The share is still never implied (`needs_input`). `submit` with `release` is `blocked` (`two_review_commits`). The staged track and
+codes must match (`one_commit_release_not_staged`, `one_commit_release_mismatch`). A refusal leaves nothing partial: the edit is deleted.
+
+`push_and_submit` also takes `replaceReview: true`: the commit is sent with `CANCEL_IN_REVIEW_AND_SUBMIT`, which cancels the review in
+progress and sends all changes, so the app loses its place in the queue. The plan says `replacesReview: true` (problem `replaces_review`),
+has its own `planHash` (a step-up grant for the plain plan does not cover it) and its own confirmation. Without it Kiln always sends
+`ERROR_IF_IN_REVIEW`, and Google answers `409 changes_in_review` with nothing applied. After such a failure `recommended` has
+`why: "one_commit"` and `replacesReview: true`; it is only a suggestion and nothing runs until the plan is confirmed. See
+[ADR 0069](../adr/0069-one-play-commit.md) for the recovery of a half-published state.
+
 ### `POST /apps/{id}/publish/preview`
 
 Google Play: without `steps`, when **only release fields are staged** (track, version codes, name, notes; no listing text or graphics),

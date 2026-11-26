@@ -7,13 +7,17 @@
   Props: run (the kept run), appName (for the report), platform, ondismiss? (adds the close button of the alert; the caller tells the
   server), compact? (no heading: the dialog already has one), onpushsubmit? (Google Play would not keep a draft: "Push and submit for
   review in one step" opens the plan with that one step, which still asks for the confirmation and the step-up; no button without it;
-  "Make the change in Play Console" is a link that is always shown for that refusal).
+  "Make the change in Play Console" is a link that is always shown for that refusal), onreplace? (changes were in review: "Replace
+  the review in progress with everything together" opens the plan with the push that replaces the review; it still asks for the
+  confirmation and the step-up, and nothing is sent before. "Wait for the review to finish, then publish again" and "Open Play
+  Console" are always shown for that refusal). A run that applied a step and then failed says "Partly published: ..." with what is
+  where.
 -->
 <script lang="ts">
   import type { Platform } from '@kiln/core';
   import { t } from '../../lib/i18n/t.ts';
   import type { LastPublish } from '../../lib/pending.ts';
-  import { clip, failureActions, failureReport, runSummary, stepLines } from '../../lib/publish-failure.ts';
+  import { clip, failureActions, failureReport, inReviewActions, partlyPublished, runSummary, stepLines } from '../../lib/publish-failure.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -26,6 +30,7 @@
     ondismiss = undefined,
     compact = false,
     onpushsubmit = undefined,
+    onreplace = undefined,
   }: {
     run: LastPublish;
     appName: string;
@@ -33,6 +38,7 @@
     ondismiss?: (() => void) | undefined;
     compact?: boolean | undefined;
     onpushsubmit?: (() => void) | undefined;
+    onreplace?: (() => void) | undefined;
   } = $props();
 
   const uid = $props.id();
@@ -40,12 +46,15 @@
   const lines = $derived(stepLines(run));
   const report = $derived(failureReport({ appName, platform, run }));
   const actions = $derived(failureActions(run, platform));
+  const partly = $derived(partlyPublished(run, platform));
+  const inReview = $derived(inReviewActions(run, platform));
   let open = $state<Record<string, boolean>>({});
 </script>
 
 <Alert tone="error" {ondismiss}>
   <div class="failure" data-testid="publish-last-failed">
     {#if !compact}<strong>{t('publish:failure.heading')}</strong>{/if}
+    {#if partly}<p class="partly" data-testid="publish-partly"><strong>{partly.sentence}</strong></p>{/if}
     <p class="small summary">{summary.title} {summary.text}</p>
     <ol class="steps" aria-label={t('publish:failure.stepsAria')}>
       {#each lines as line (line.key)}
@@ -75,6 +84,22 @@
               {#if r.outcome !== ''}<p class="small muted">{r.outcome}</p>{/if}
               <p class="technical small" data-testid="publish-failure-technical"><span class="visually-hidden">{t('publish:failure.technical')}: </span><code>{r.technical}</code></p>
             </div>
+            {#if line.error === 'changes_in_review' && inReview}
+              <!-- Google Play takes no change while changes are in review. Three ways forward; the first one only opens the plan. -->
+              <div class="in-review" data-testid="publish-in-review">
+                <p class="title">{t('publish:failure.inReview.title')}</p>
+                {#if inReview.replace && onreplace}
+                  <div class="actions">
+                    <Button size="sm" variant="primary" onclick={onreplace}>{t('publish:failure.inReview.replace')}</Button>
+                  </div>
+                  <p class="small muted">{t('publish:failure.inReview.replaceHint')}</p>
+                {/if}
+                <p class="small" data-testid="publish-in-review-wait">{t('publish:failure.inReview.wait')}</p>
+                {#if inReview.playConsoleUrl !== null}
+                  <a class="link-button" href={inReview.playConsoleUrl} target="_blank" rel="noreferrer noopener">{t('publish:failure.inReview.console')}</a>
+                {/if}
+              </div>
+            {/if}
             {#if line.type === 'push_draft' && actions.playConsoleUrl !== null}
               <div class="actions" data-testid="publish-failure-actions">
                 {#if actions.pushAndSubmit && onpushsubmit}
@@ -101,6 +126,21 @@
   }
 
   .summary {
+    margin: 0;
+  }
+
+  .partly {
+    margin: 0;
+  }
+
+  .in-review {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
+
+  .in-review p {
     margin: 0;
   }
 

@@ -52,12 +52,15 @@
     releaseInputDefaults,
     releaseIsDirect,
     releaseStepRequest,
+    replaceReviewSteps,
     requestsFor,
     resultSummary,
     shouldAutoRecommend,
     stepRows,
     visibleRows,
     toggled,
+    withReplaceReview,
+    withWaiting,
     warningsOf,
   } from '../../lib/pending.ts';
   import { announcePublished } from '../../lib/app-page.ts';
@@ -129,6 +132,12 @@ import { supports } from '@kiln/core';
   let inputTouched = $state(false);
   /** Google Play: the plan releases the staged fields in one step (the server made it so, or the person added it so). */
   let direct = $state(false);
+  /**
+   * Google Play: the person chose to REPLACE the review in progress with everything together (the failure block's button, or the
+   * recommended step after a `changes_in_review` refusal). It rides on the push that sends for review, in every plan asked for until
+   * the person takes it off. Never implied: the plan asks for the same confirmation and step-up as any step that cannot be undone.
+   */
+  let replace = $state(untrack(() => (steps ?? []).some((s) => s.replaceReview === true)));
   let changed = false;
   let seq = 0;
 
@@ -193,6 +202,7 @@ import { supports } from '@kiln/core';
     ack = false;
     shareError = '';
     inputTouched = false;
+    replace = false;
   }
 
   function failWith(failure: PublishFailure) {
@@ -211,7 +221,7 @@ import { supports } from '@kiln/core';
     notice = why;
     stale = false;
     try {
-      const out = await api.previewPublish(workspaceId, app.id, previewBody(steps));
+      const out = await api.previewPublish(workspaceId, app.id, previewBody(steps === null ? null : withReplaceReview(steps, replace)));
       if (mine !== seq) return;
       // A first plan (the dialog opened or the platform changed) starts the inputs from what is staged; later plans keep what was typed.
       if (plan === null) {
@@ -249,7 +259,8 @@ import { supports } from '@kiln/core';
     const fraction = offered ? parsePercent(share) : EVERYONE;
     if (fraction === null) return false;
     void review(
-      requestsFor(made, toggled(includedTypes(made), 'release', true), { release: releaseStepRequest({ track, fraction, direct: isDirectPlan(made) }) }),
+      // A push and a release are ONE step on Google Play (`requestsFor` asks for it), and a step that only waits for the share is kept.
+      requestsFor(made, toggled(withWaiting(made, includedTypes(made)), 'release', true), { release: releaseStepRequest({ track, fraction, direct: isDirectPlan(made) }) }),
       fraction === EVERYONE
         ? t('publish:dialog.notice.addedEveryone', { track: track.trim() })
         : t('publish:dialog.notice.addedShare', { track: track.trim(), share: percentText(fraction) }),
@@ -264,6 +275,8 @@ import { supports } from '@kiln/core';
   function useRecommendedAtStart(made: PublishPlan) {
     if (!shouldAutoRecommend(made)) return;
     const asked = recommendedRequests(made, { fraction: knownFraction() });
+    // After a refusal for changes in review the recommendation replaces that review: preselected, never run before the person confirms.
+    replace = made.recommended?.replacesReview === true;
     if (asked !== null) void review(asked, t('publish:dialog.notice.replanRecommended'));
   }
 
@@ -272,6 +285,7 @@ import { supports } from '@kiln/core';
     if (!plan || busy) return;
     const rec = plan.recommended ?? null;
     if (rec === null) return;
+    replace = rec.replacesReview === true;
     const asked = recommendedRequests(plan, { fraction: knownFraction() });
     if (asked !== null) {
       void review(asked, t('publish:dialog.notice.replanRecommended'));
@@ -283,6 +297,13 @@ import { supports } from '@kiln/core';
 
   function toggle(type: PublishStepType, on: boolean) {
     if (!plan || busy) return;
+    if (type === 'push_and_submit' && !on && plan.oneCommit === true) {
+      // Without the push the release stands alone: the direct release of the staged build (the texts stay staged, nothing is pushed).
+      const own = plan.steps.filter((s) => s.type === 'release')[0]?.request ?? { type: 'release' as const };
+      wanted = ['release'];
+      void review(requestsFor(plan, ['release'], { release: { ...own, type: 'release', direct: true } }), t('publish:dialog.notice.replanSteps'));
+      return;
+    }
     const next = toggled(wanted, type, on);
     wanted = next;
     if (next.length === 0) {
@@ -308,7 +329,7 @@ import { supports } from '@kiln/core';
     shareError = '';
     // Direct whenever a build is staged and no draft push is in the plan: a plain release would find no draft to start.
     const asDirect = releaseIsDirect(plan, wanted, direct);
-    void review(requestsFor(plan, toggled(wanted, 'release', true), { release: releaseStepRequest({ track, fraction, direct: asDirect }) }), t('publish:dialog.notice.replanRelease'));
+    void review(requestsFor(plan, toggled(withWaiting(plan, wanted), 'release', true), { release: releaseStepRequest({ track, fraction, direct: asDirect }) }), t('publish:dialog.notice.replanRelease'));
   }
 
   /** "Save as a draft only": the push alone. Nothing is submitted or released by it. */
@@ -324,6 +345,31 @@ import { supports } from '@kiln/core';
   function pushAndSubmit() {
     if (!plan || busy) return;
     void review(pushAndSubmitSteps(), t('publish:dialog.notice.replanPushSubmit'));
+  }
+
+  /**
+   * "Replace the review in progress with everything together" (after Google Play refused for changes in review): the plan is made with
+   * the push that carries `replaceReview` and the release. Nothing is sent from here: the plan still asks for the typed phrase (or the
+   * step-up), says what it replaces and that the app loses its place in the review queue.
+   */
+  function replaceReview() {
+    if (busy) return;
+    replace = true;
+    const fraction = knownFraction();
+    inputTouched = fraction !== null;
+    void review(
+      fraction === null
+        ? replaceReviewSteps()
+        : [{ type: 'push_and_submit', replaceReview: true }, releaseStepRequest({ track, fraction, direct: false })],
+      t('publish:dialog.replaceTitle'),
+    );
+  }
+
+  /** Takes "replace the review" off again: the plan is made without it. */
+  function stopReplacing() {
+    if (!plan || busy) return;
+    replace = false;
+    void review(requestsFor(plan, wanted), t('publish:dialog.notice.replanReplaceStop'));
   }
 
   /** Back to the default plan (the direct release when only release fields are staged). */
@@ -477,7 +523,7 @@ import { supports } from '@kiln/core';
       <section class="stack" aria-label={t('publish:dialog.resultAria')} data-testid="publish-result">
         {#if !result.completed && result.lastPublish && app}
           <!-- the run the server kept: each step, and under the failed one why (the store's own words, its code and HTTP status), with Copy details -->
-          <PublishFailureDetail run={result.lastPublish} appName={app.name} platform={app.platform} onpushsubmit={plan?.combined?.offered === false ? undefined : pushAndSubmit} />
+          <PublishFailureDetail run={result.lastPublish} appName={app.name} platform={app.platform} onpushsubmit={plan?.combined?.offered === false ? undefined : pushAndSubmit} onreplace={replaceReview} />
           <p class="muted small">{stopNote()}</p>
         {:else}
           <Alert tone={summary.tone} title={summary.title}>
@@ -511,6 +557,12 @@ import { supports } from '@kiln/core';
       {#if plan.included > 1 && head.sequence}<p class="muted headline" data-testid="plan-headline">{t('publish:dialog.sequence', { sequence: head.sequence })}</p>{:else if plan.included === 0}<p class="muted headline" data-testid="plan-headline">{t('publish:dialog.headlineTitle', { title: head.title })}</p>{/if}
       {#if notice}<p class="notice muted small" role="status"><Icon name="info" size={14} /> {notice}</p>{/if}
       {#if recommendedNote}<p class="notice small" role="status" data-testid="plan-recommended-note"><Icon name="info" size={14} /> {recommendedNote}</p>{/if}
+      {#if plan.replacesReview}
+        <div class="replace-note" role="status" data-testid="plan-replaces-review">
+          <p class="small warnline"><Icon name="alert-triangle" size={14} /> <strong>{t('publish:dialog.replaceTitle')}.</strong> {t('publish:dialog.replaceText')}</p>
+          <Button size="sm" disabled={busy || stale} onclick={stopReplacing}>{t('publish:dialog.replaceStop')}</Button>
+        </div>
+      {/if}
       {#if plan.combined?.defaulted && isCombinedPlan(plan)}<p class="notice small" role="status" data-testid="plan-combined-note"><Icon name="info" size={14} /> {t('publish:dialog.combinedDefaulted')}</p>{/if}
 
       <ol class="steps" aria-label={t('publish:dialog.stepsAria')} aria-busy={phase === 'previewing'}>
@@ -535,8 +587,10 @@ import { supports } from '@kiln/core';
               </div>
               {#if step.included && !step.deferred && stepGist(step)}<p class="gist" data-testid="plan-step-gist-{row.type}">{stepGist(step)}</p>{/if}
               {#if row.type === 'push_and_submit'}
-                <!-- the server's reason is English: the two sentences below say it in the person's language -->
-                <p class="reason muted" data-testid="plan-combined-hint">{wanted.includes('push_and_submit') ? t('publish:dialog.combinedOn') : t('publish:dialog.combinedHint')}</p>
+                <!-- the server's reason is English: the sentences below say it in the person's language -->
+                <p class="reason muted" data-testid="plan-combined-hint">{wanted.includes('push_and_submit') ? (plan.oneCommit === true ? t('publish:dialog.oneCommitOn') : t('publish:dialog.combinedOn')) : t('publish:dialog.combinedHint')}</p>
+              {:else if row.type === 'release' && plan.oneCommit === true && step.included}
+                <p class="reason muted" data-testid="plan-same-commit">{t('publish:dialog.sameCommit')}</p>
               {:else if row.reason}<p class="reason muted">{row.reason}</p>{/if}
 
               {#if row.needsInput}
@@ -728,6 +782,16 @@ import { supports } from '@kiln/core';
   .why-disabled:hover {
     color: var(--ink);
     text-decoration: underline;
+  }
+
+  .replace-note {
+    display: grid;
+    gap: var(--space-2);
+    justify-items: start;
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface-sunken);
+    border: 1px solid var(--warn, var(--line-strong));
+    border-radius: var(--radius-xl);
   }
 
   .empty-hint {

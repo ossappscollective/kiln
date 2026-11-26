@@ -134,6 +134,11 @@ export type StepRequest = {
   userFraction?: number;
   /** Google Play release: release the staged fields in one step, no draft first (docs/adr/0029-direct-play-release.md). */
   direct?: boolean;
+  /**
+   * Google Play, on `push_and_submit` only: replace the review that is in progress with everything together. Only the person's explicit
+   * choice after a `changes_in_review` refusal (the plan asks for the same confirmation and step-up as any irreversible step).
+   */
+  replaceReview?: boolean;
 };
 
 export type Availability =
@@ -189,6 +194,15 @@ export type PublishPlan = {
   /** Google Play: only release fields are staged, so the plan is one direct release step (absent from an older server). */
   defaultedToDirect?: boolean;
   /**
+   * Google Play: `push_and_submit` and `release` are ONE step with ONE commit (the push carries the texts, the graphics and the release;
+   * the release row runs nothing of its own). Absent from an older server.
+   */
+  oneCommit?: boolean;
+  /** The commit replaces the review in progress (the person chose it). Absent from an older server. */
+  replacesReview?: boolean;
+  /** The last run of this app was refused because changes were in review (a hint from the kept runs). Absent from an older server. */
+  changesInReview?: boolean;
+  /**
    * Google Play: the push and the submit as ONE step (`push_and_submit`). `offered`: the plan lists it beside the pair; `draftRefused`:
    * Google refused to keep a draft for this app on the last run (no draft push went through since); `defaulted`: the plan was made with
    * it instead of the pair because of that. Absent from an older server.
@@ -204,13 +218,21 @@ export type PublishPlan = {
   readAt: number;
 };
 
-export type RecommendedWhy = 'promotion' | 'direct_release' | 'draft_refused' | 'draft' | 'default';
+export type RecommendedWhy =
+  | 'promotion'
+  | 'direct_release'
+  | 'draft_refused'
+  | 'one_commit'
+  | 'draft'
+  | 'default';
 
 export type PlanRecommendation = {
   types: PublishStepType[];
   steps: StepRequest[];
   why: RecommendedWhy;
   needsShare: boolean;
+  /** The recommended push replaces the review in progress (`replaceReview`). Absent from an older server. */
+  replacesReview?: boolean;
 };
 
 export type StepResult =
@@ -832,14 +854,69 @@ export function requestsFor(
   extra: Partial<Record<PublishStepType, StepRequest>> = {},
 ): StepRequest[] {
   const out: StepRequest[] = [];
+  // Google Play: a push and a release are ONE edit and ONE commit, never two that each send for review.
+  const types = oneCommitTypes(plan, wanted);
   for (const type of PUBLISH_STEPS) {
-    if (wanted.indexOf(type) < 0) continue;
+    if (types.indexOf(type) < 0) continue;
     const given = extra[type];
     const step = plan.steps.filter((s) => s.type === type)[0];
     out.push(given ?? (step?.included && step.request ? step.request : { type }));
   }
   return out;
 }
+
+/**
+ * Google Play: the types to ask for when a release is ticked next to a push. A push (a draft) and a release would be two commits, and
+ * Google refuses the second while the first one's changes are in review; the push that sends for review carries the release in its own
+ * edit instead (docs/adr/0069-one-play-commit.md). Only when a release can be made from the staged fields, and never with a separate
+ * submit (the server says why that cannot be). Anything else is as it was.
+ */
+export function oneCommitTypes(
+  plan: PublishPlan,
+  types: readonly PublishStepType[],
+): PublishStepType[] {
+  const has = (t: PublishStepType): boolean => types.indexOf(t) >= 0;
+  if (
+    !supports(plan.app.platform, 'transactionalEdits') ||
+    (plan.direct ?? null) === null ||
+    !has('release') ||
+    !(has('push_draft') || has('push_and_submit')) ||
+    has('submit')
+  )
+    return [...types];
+  return PUBLISH_STEPS.filter((t) => (t === 'push_and_submit' ? true : t === 'push_draft' ? false : has(t)));
+}
+
+/** The types the person has in the plan: the included ones, and a step asked for that only waits for its input (the release's share). */
+export const planTypes = (plan: PublishPlan): PublishStepType[] =>
+  plan.steps
+    .filter((s) => s.included || (s.requested && s.availability === 'needs_input'))
+    .map((s) => s.type);
+
+/** `types` plus the steps the plan waits on (never twice). */
+export const withWaiting = (
+  plan: PublishPlan,
+  types: readonly PublishStepType[],
+): PublishStepType[] => PUBLISH_STEPS.filter((t) => types.indexOf(t) >= 0 || planTypes(plan).indexOf(t) >= 0);
+
+/** The requests with `replaceReview` set (or taken off) on the push that sends for review. Nothing else changes. */
+export function withReplaceReview(requests: readonly StepRequest[], on: boolean): StepRequest[] {
+  return requests.map((r) => {
+    if (r.type !== 'push_and_submit') return r;
+    const { replaceReview: _was, ...rest } = r;
+    return on ? { ...rest, replaceReview: true } : rest;
+  });
+}
+
+/**
+ * "Replace the review in progress with everything together": the push that sends for review with `replaceReview`, and the release
+ * from the staged fields (its share comes from the person in the dialog; the server never implies one). Only a plan that the person
+ * confirms runs it.
+ */
+export const replaceReviewSteps = (): StepRequest[] => [
+  { type: 'push_and_submit', replaceReview: true },
+  { type: 'release' },
+];
 
 /** What the release inputs of the dialog start with: the staged track, and the share staged as an intention (a reminder, never sent by itself). */
 export function releaseInputDefaults(plan: PublishPlan | null): {
@@ -972,6 +1049,12 @@ export function recommendedSentence(
   if (rec.why === 'promotion') text = t('publish:dialog.recommendedPromotion', { track });
   else if (rec.why === 'direct_release') text = t('publish:dialog.recommendedDirect', { track });
   else if (rec.why === 'draft_refused') text = t('publish:dialog.recommendedDraftRefused');
+  else if (rec.why === 'one_commit')
+    text = t(
+      rec.replacesReview === true
+        ? k('publish:dialog.recommendedReplace')
+        : k('publish:dialog.recommendedOneCommit'),
+    );
   else if (rec.why === 'draft') text = t('publish:dialog.recommendedDraft');
   else text = t('publish:dialog.recommendedDefault');
   return rec.needsShare && input.shareMissing
@@ -1121,6 +1204,19 @@ export function summaryParts(step: Pick<PlanStep, 'type' | 'summary'>): string[]
     if (a !== null) parts.push(translate(k('app:pending.summary.graphicsSets'), { count: a }));
     if (f !== null && f > 0)
       parts.push(translate(k('app:pending.summary.releaseFields'), { count: f }));
+    // ONE commit: the same step also releases (the release it carries, in numbers and names).
+    const made = s.release;
+    if (typeof made === 'object' && made !== null) {
+      const r = made as Record<string, unknown>;
+      if (typeof r.track === 'string' && r.track !== '')
+        parts.push(translate(k('app:pending.summary.track'), { track: r.track }));
+      if (typeof r.userFraction === 'number')
+        parts.push(
+          translate(k('app:pending.summary.share'), {
+            share: formatPercent(r.userFraction, { maximumFractionDigits: 2 }),
+          }),
+        );
+    }
   } else if (step.type === 'submit') {
     const v = str('versionString');
     const t = num('texts');

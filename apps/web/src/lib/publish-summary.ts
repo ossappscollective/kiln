@@ -644,7 +644,7 @@ export function publishSummary(input: SummaryInput): PublishSummary {
     let value: string;
     const from = str(plan.promotion?.from);
     const promotedVersion = str(plan.promotion?.version);
-    if (releaseOn && direct && from !== null && track !== null && codes.length > 0)
+    if (releaseOn && (direct || plan.oneCommit === true) && from !== null && track !== null && codes.length > 0)
       // A build that is in another track and is released here: said as a promotion, with its version when the plan carries it.
       value =
         promotedVersion !== null
@@ -689,7 +689,9 @@ export function publishSummary(input: SummaryInput): PublishSummary {
       label: t('publish:summary.row.review'),
       value: play
         ? combined
-          ? t('publish:summary.review.playCombined')
+          ? plan.oneCommit === true
+            ? t('publish:summary.review.playOneCommit')
+            : t('publish:summary.review.playCombined')
           : t('publish:summary.review.play')
         : appleVersion !== null
           ? t('publish:summary.review.apple', { version: appleVersion })
@@ -832,7 +834,17 @@ function outcomeText(input: {
   );
   const where = track === null ? null : capitalized(track);
   const clauses: string[] = [];
-  if (has('push_and_submit')) {
+  // ONE edit, ONE commit: the texts, the graphics and the release are one action, never "pushes ... then rolls out a draft".
+  const oneCommit = input.plan.oneCommit === true && has('push_and_submit') && has('release');
+  if (oneCommit) {
+    clauses.push(
+      where !== null && audience !== null
+        ? t('publish:summary.outcome.oneCommit', { track: where, audience })
+        : where !== null
+          ? t('publish:summary.outcome.oneCommitTrack', { track: where })
+          : t('publish:summary.outcome.oneCommitPlain'),
+    );
+  } else if (has('push_and_submit')) {
     // One commit: Google Play sends what is pushed for review as part of it. Said as it is, never as a draft.
     clauses.push(t('publish:summary.outcome.pushSubmitPlay'));
   } else if (has('push_draft')) {
@@ -846,7 +858,7 @@ function outcomeText(input: {
     else clauses.push(t('publish:summary.outcome.submitAppleNoVersion'));
   }
   const promotedFrom = str(input.plan.promotion?.from);
-  if (has('release')) {
+  if (has('release') && !oneCommit) {
     if (play && direct && promotedFrom !== null && track !== null) {
       // One step: the build is made a release of the target track and committed, which sends it to Google for review.
       clauses.push(
@@ -884,5 +896,8 @@ function outcomeText(input: {
     : wanted.length === 1 && has('push_draft')
       ? t('publish:summary.outcome.draftOnly')
       : '';
-  return tail === '' ? sentence : `${sentence} ${tail}`;
+  // The person chose to replace the review in progress: said in plain words before anything is confirmed.
+  const replaces = input.plan.replacesReview === true && has('push_and_submit');
+  const full = tail === '' ? sentence : `${sentence} ${tail}`;
+  return replaces ? `${full} ${t('publish:summary.outcome.replaceReview')}` : full;
 }

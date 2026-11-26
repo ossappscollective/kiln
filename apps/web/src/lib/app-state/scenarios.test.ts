@@ -9,6 +9,7 @@ import {
   failingAndroid,
   internalTesting,
   IOS,
+  partlyRun,
   pipelineOf,
   running,
   succeededRun,
@@ -161,4 +162,25 @@ test('scopeFor names the scope of the records a page shows', () => {
   assert.equal(scopeFor([IOS, ANDROID], [ANDROID]), 'android');
   assert.equal(scopeFor([IOS, ANDROID], [IOS, ANDROID]), 'both');
   assert.equal(scopeFor([ANDROID], [ANDROID]), 'android');
+});
+
+test('texts and graphics in review, the release in draft (the partly published incident): said plainly, nothing is "failed and nothing changed"', () => {
+  const s = deriveAppState(failingAndroid({ lastRun: { [ANDROID.id]: partlyRun('android') } }), 'android');
+  // Still the failed phase (the person must act), but the words are those of a PARTLY published app.
+  assert.equal(s.phase, 'publish_failed');
+  assert.equal(s.headline, 'Partly published');
+  assert.match(s.reason, /Partly published: the texts and graphics were sent to Google Play for review; the release was not\./);
+  assert.match(s.reason, /The release is still a draft in Google Play\./);
+  assert.match(s.reason, /already has changes of this app in review/);
+  assert.doesNotMatch(`${s.headline} ${s.reason}`, /nothing is waiting/i);
+  assert.equal(s.primaryAction.action, 'show_pending');
+  assert.deepEqual(s.secondaryActions.map((a) => [a.action, a.enabled]), [['publish_again', true]]);
+  assert.deepEqual(s.badge, { kind: 'failed', count: 29, appId: ANDROID.id });
+  assert.equal(s.failures.length, 1);
+  // The same holds as for any failure: promote and the release actions wait for the person to resolve it.
+  for (const a of ['promote', 'release', 'submit', 'start_release'] as const)
+    assert.equal(s.canDo(a, 'android').enabled, false, a);
+  // A plain failure (nothing applied) keeps its own words.
+  const plain = deriveAppState(failingAndroid(), 'android');
+  assert.equal(plain.headline, 'The last publish failed');
 });

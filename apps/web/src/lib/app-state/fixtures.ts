@@ -37,7 +37,7 @@ export const running = (over: Partial<Publishing> = {}): Publishing => ({
   ...over,
 });
 
-const failedStep = (over: Partial<RunStep> = {}): RunStep => ({
+export const failedStep = (over: Partial<RunStep> = {}): RunStep => ({
   type: 'push_draft',
   status: 'failed',
   startedAt: NOW - 400_000,
@@ -61,6 +61,30 @@ export const failedRun = (platform: Platform = 'android', over: Partial<LastPubl
   dismissed: false,
   ...over,
 });
+
+/**
+ * The user's case (an incident of 2026-11-26): the texts and graphics were sent for review (the push applied), then the release was
+ * refused because changes were in review. In the store: texts and graphics in review, the release a draft.
+ */
+export const partlyRun = (platform: Platform = 'android'): LastPublish =>
+  failedRun(platform, {
+    outcome: 'partial',
+    steps: ['push_and_submit', 'release'],
+    results: [
+      { type: 'push_and_submit', status: 'applied', startedAt: NOW - 400_000, finishedAt: NOW - 395_000 },
+      failedStep({
+        type: 'release',
+        error: 'changes_in_review',
+        httpStatus: 409,
+        startedAt: NOW - 395_000,
+        store: {
+          kind: 'changes_in_review',
+          httpStatus: 400,
+          details: [{ code: 'CHANGES_ALREADY_IN_REVIEW', detail: 'You already have changes in review.' }],
+        },
+      }),
+    ],
+  });
 
 export const dismissedRun = (platform: Platform = 'android'): LastPublish => failedRun(platform, { dismissed: true });
 export const unknownRun = (platform: Platform = 'android'): LastPublish =>

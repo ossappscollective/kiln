@@ -9,6 +9,7 @@
   "failed.headline": "Die letzte Veröffentlichung ist fehlgeschlagen",
   "failed.kept_one": "Deine Änderung wartet weiterhin.",
   "failed.kept_other": "Deine {{count}} Änderungen warten weiterhin.",
+  "failed.partlyHeadline": "Teilweise veröffentlicht",
   "failed.reasonUnknown": "Der Store hat sie nicht akzeptiert.",
   "pending.blocking_one": "{{count}} davon hat einen Fehler, der die Veröffentlichung blockiert.",
   "pending.blocking_other": "{{count}} davon haben einen Fehler, der die Veröffentlichung blockiert.",

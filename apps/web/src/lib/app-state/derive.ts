@@ -3,7 +3,7 @@ import type { AttentionItem } from '../app-attention.ts';
 import { appAddress, type PlatformScope } from '../app-scope.ts';
 import { t } from '../i18n/t.ts';
 import { chooseNextStep, type NextStep, nextStepTrains, orderTrains } from '../next-step.ts';
-import { headlineReason } from '../publish-failure.ts';
+import { headlineReason, partlyPublished } from '../publish-failure.ts';
 import { type PromoteOption, promoteHref, promoteOption, promoteOptions } from '../play-promote.ts';
 import { detailText, disabledReason as publishingReason, headlineText } from '../publishing.ts';
 import type { Publishing } from '../publishing.ts';
@@ -419,7 +419,10 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
     primaryAction = showPending(t('publish:publishing.showPending'), lead.appId);
   } else if (phase === 'publish_failed') {
     const lead = failures[0] as (typeof failures)[number];
-    headline = t('state:failed.headline');
+    // A publish that was applied in part is said so: part of the app is in the store, part is not (not a plain failure where nothing changed).
+    headline = failures.some((f) => partlyPublished(f.run, f.platform) !== null)
+      ? t('state:failed.partlyHeadline')
+      : t('state:failed.headline');
     reason = failureReason(failures, pendingCount);
     primaryAction = showPending(t('publish:publishing.showPending'), lead.appId);
     secondaryActions = [offerOf('publish_again', t('state:action.publishAgain'), verdicts.publish, { appId: lead.appId })];
@@ -514,7 +517,10 @@ function failureReason(
 ): string {
   const lines: string[] = [];
   for (const f of failures) {
-    const why = headlineReason(f.run) || t('state:failed.reasonUnknown');
+    const partly = partlyPublished(f.run, f.platform);
+    const why = [partly?.sentence ?? '', headlineReason(f.run) || t('state:failed.reasonUnknown')]
+      .filter((x) => x !== '')
+      .join(' ');
     lines.push(failures.length > 1 ? `${platformLabel(f.platform)}: ${why}` : why);
   }
   if (failures.some((f) => f.run.results.some((r) => r.outcome === 'unknown')))

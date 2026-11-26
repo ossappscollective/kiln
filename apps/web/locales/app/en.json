@@ -513,7 +513,7 @@
   "pending.failed.assetChanged": "A staged file changed. Stage it again, then review.",
   "pending.failed.assetUnreadable": "A staged file cannot be read. Stage it again, then review.",
   "pending.failed.blocked": "Nothing was written: a check blocks this step now. Review again.",
-  "pending.failed.changesInReview": "The store refuses this while changes are in review. Nothing was sent.",
+  "pending.failed.changesInReview": "Google Play already has changes of this app in review, so it cannot take another change now. Nothing was applied by this step.",
   "pending.failed.confirmationMismatch": "The confirmation did not match. Nothing was written.",
   "pending.failed.draftNotAllowed": "Google Play would not keep these changes as a draft.",
   "pending.failed.draftPartial": "Only part of it reached the draft. What was written stays there. Review again to finish: items that already match are skipped.",

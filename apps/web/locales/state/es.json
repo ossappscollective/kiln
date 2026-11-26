@@ -9,6 +9,7 @@
   "failed.headline": "La última publicación falló",
   "failed.kept_one": "Tu cambio sigue pendiente.",
   "failed.kept_other": "Tus {{count}} cambios siguen pendientes.",
+  "failed.partlyHeadline": "Publicación parcial",
   "failed.reasonUnknown": "La tienda no lo aceptó.",
   "pending.blocking_one": "{{count}} de ellos tiene un error que bloquea la publicación.",
   "pending.blocking_other": "{{count}} de ellos tienen un error que bloquea la publicación.",

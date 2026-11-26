@@ -1,12 +1,14 @@
 import { type Platform, platformMeta, supports } from '@kiln/core';
 import { codedText, paramsOf } from './error-text.ts';
-import { t } from './i18n/t.ts';
+import { formatList } from './i18n/format.ts';
+import { k, t } from './i18n/t.ts';
 import { PLAY_CONSOLE_URL } from './store-links.ts';
 import {
   failedSentence,
   isDraftRefused,
   type LastPublish,
   outcomeSentence,
+  type PublishStepType,
   type RunStep,
   STEP_NAME,
   skippedSentence,
@@ -103,6 +105,8 @@ export function reasonOf(step: RunStep): FailureReason {
 export type StepLine = {
   key: string;
   type: RunStep['type'];
+  /** The error code of a failed step (`changes_in_review`), else null. */
+  error: string | null;
   label: string;
   status: RunStep['status'];
   word: string;
@@ -118,6 +122,7 @@ export function stepLines(run: Pick<LastPublish, 'results'>): StepLine[] {
   return run.results.map((step) => ({
     key: step.type,
     type: step.type,
+    error: step.status === 'failed' ? (step.error ?? null) : null,
     label: STEP_NAME[step.type],
     status: step.status,
     word:
@@ -231,4 +236,86 @@ export function failureActions(run: Pick<LastPublish, 'results'>, platform: Plat
     pushAndSubmit: refused && google,
     playConsoleUrl: refused && google ? PLAY_CONSOLE_URL : null,
   };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Partly published, and changes in review
+
+const DONE: Readonly<Record<PublishStepType, string>> = {
+  push_draft: k('publish:failure.partly.done.pushDraft'),
+  push_and_submit: k('publish:failure.partly.done.pushAndSubmit'),
+  submit: k('publish:failure.partly.done.submit'),
+  release: k('publish:failure.partly.done.release'),
+  rollout: k('publish:failure.partly.done.rollout'),
+};
+const NOT_DONE: Readonly<Record<PublishStepType, string>> = {
+  push_draft: k('publish:failure.partly.not.pushDraft'),
+  push_and_submit: k('publish:failure.partly.not.pushAndSubmit'),
+  submit: k('publish:failure.partly.not.submit'),
+  release: k('publish:failure.partly.not.release'),
+  rollout: k('publish:failure.partly.not.rollout'),
+};
+
+export type PartlyPublished = {
+  /** The steps the store took, and the steps it did not (failed or never run). */
+  applied: PublishStepType[];
+  notDone: PublishStepType[];
+  /** `Partly published: the texts and graphics were sent to Google Play for review; the release was not.` */
+  sentence: string;
+};
+
+/**
+ * A run in which a step was APPLIED and a later one was not is a partly published app: part of it is in the store, part is not. The
+ * sentence says which is which, in the person's words, so nobody is left guessing (docs/state-model.md). Null: nothing was applied (a
+ * plain failure: nothing changed) or everything was.
+ */
+export function partlyPublished(
+  run: Pick<LastPublish, 'results'>,
+  platform: Platform,
+): PartlyPublished | null {
+  const applied = run.results.filter((r) => r.status === 'applied').map((r) => r.type);
+  const notDone = run.results.filter((r) => r.status !== 'applied').map((r) => r.type);
+  if (applied.length === 0 || notDone.length === 0) return null;
+  const store = platformMeta(platform).storeName;
+  // The release was carried by the push (ONE commit) when both are in the run and the push applied: a release row is not a second fact.
+  const done = formatList(
+    applied.map((type) => t(DONE[type], { store })),
+    { type: 'conjunction' },
+  );
+  const not = formatList(
+    notDone.map((type) => t(NOT_DONE[type], { store })),
+    { type: 'conjunction' },
+  );
+  let sentence = t('publish:failure.partly.sentence', { done, notDone: not });
+  // A push that sends for review writes the release fields as a DRAFT: when the release itself did not go, say it is still a draft.
+  if (
+    supports(platform, 'releaseTracks') &&
+    applied.indexOf('push_and_submit') >= 0 &&
+    notDone.indexOf('release') >= 0
+  )
+    sentence = `${sentence} ${t('publish:failure.partly.releaseDraft', { store })}`;
+  return { applied, notDone, sentence };
+}
+
+/** The failed step of a run was refused because changes were already in review (`changes_in_review`). */
+export const isInReview = (run: Pick<LastPublish, 'results'>): boolean =>
+  run.results.some((r) => r.status === 'failed' && r.error === 'changes_in_review');
+
+/**
+ * What a person can do after changes in review refused a step on Google Play: replace the review in progress with everything together
+ * (the dialog opens with that plan; it still asks for the confirmation and the step-up, and nothing is sent before), wait for the review
+ * to finish and publish again, or open Play Console. Pure.
+ */
+export type InReviewActions = {
+  /** Offer "Replace the review in progress with everything together". */
+  replace: boolean;
+  playConsoleUrl: string | null;
+};
+
+export function inReviewActions(
+  run: Pick<LastPublish, 'results'>,
+  platform: Platform,
+): InReviewActions | null {
+  if (!isInReview(run) || !supports(platform, 'releaseTracks')) return null;
+  return { replace: true, playConsoleUrl: PLAY_CONSOLE_URL };
 }

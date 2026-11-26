@@ -513,7 +513,7 @@
   "pending.failed.assetChanged": "Eine vorgemerkte Datei hat sich geändert. Merken Sie sie erneut vor und prüfen Sie dann.",
   "pending.failed.assetUnreadable": "Eine vorgemerkte Datei kann nicht gelesen werden. Merken Sie sie erneut vor und prüfen Sie dann.",
   "pending.failed.blocked": "Es wurde nichts geschrieben: Eine Prüfung blockiert diesen Schritt jetzt. Prüfen Sie erneut.",
-  "pending.failed.changesInReview": "Der Store lehnt dies ab, solange Änderungen in Prüfung sind. Es wurde nichts gesendet.",
+  "pending.failed.changesInReview": "Google Play hat bereits Änderungen dieser App in der Prüfung und kann deshalb jetzt keine weitere Änderung annehmen. Dieser Schritt hat nichts angewendet.",
   "pending.failed.confirmationMismatch": "Die Bestätigung stimmte nicht überein. Es wurde nichts geschrieben.",
   "pending.failed.draftNotAllowed": "Google Play wollte diese Änderungen nicht als Entwurf behalten.",
   "pending.failed.draftPartial": "Nur ein Teil hat den Entwurf erreicht. Was geschrieben wurde, bleibt dort. Prüfen Sie erneut, um den Vorgang abzuschließen: Bereits übereinstimmende Elemente werden übersprungen.",

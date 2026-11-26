@@ -7,6 +7,9 @@ import {
   failureActions,
   failureReport,
   headlineReason,
+  inReviewActions,
+  isInReview,
+  partlyPublished,
   reasonOf,
   runSummary,
   SAID_SHOWN,
@@ -194,4 +197,87 @@ test('the actions of a refused draft: push and submit in one step, or the Play C
   // A refusal in another step (a submit) is not a refused draft.
   const submitRefused = run([{ ...draftRefused, type: 'submit' }]);
   assert.equal(failureActions(submitRefused, 'android').pushAndSubmit, false);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Partly published, and changes in review (the user's case: texts and graphics in review, the release a draft)
+
+const applied = (type: RunStep['type']): RunStep => ({
+  type,
+  status: 'applied',
+  startedAt: 1_000,
+  finishedAt: 2_000,
+});
+const inReviewRelease: RunStep = {
+  type: 'release',
+  status: 'failed',
+  startedAt: 2_000,
+  finishedAt: 3_000,
+  error: 'changes_in_review',
+  httpStatus: 409,
+  outcome: 'refused',
+  message: 'Google Play has changes in review for this app.',
+  store: {
+    kind: 'changes_in_review',
+    httpStatus: 400,
+    details: [
+      {
+        code: 'CHANGES_ALREADY_IN_REVIEW',
+        detail:
+          'You already have changes in review. Cancel this review or wait for it to complete before you try again.',
+      },
+    ],
+  },
+};
+const userRun = run([applied('push_and_submit'), inReviewRelease], { outcome: 'partial' });
+
+test('a run that applied a step and then failed says what is where, in plain words', () => {
+  const partly = partlyPublished(userRun, 'android');
+  assert.deepEqual(partly?.applied, ['push_and_submit']);
+  assert.deepEqual(partly?.notDone, ['release']);
+  assert.equal(
+    partly?.sentence,
+    'Partly published: the texts and graphics were sent to Google Play for review; the release was not. The release is still a draft in Google Play.',
+  );
+  // A draft pushed and a release refused: held back, not in review.
+  const draft = partlyPublished(run([applied('push_draft'), inReviewRelease]), 'android');
+  assert.equal(
+    draft?.sentence,
+    'Partly published: the texts, graphics and release fields were saved in Google Play as a draft, not sent for review; the release was not.',
+  );
+  // Nothing applied (a plain failure: nothing changed), or everything applied: not "partly".
+  assert.equal(partlyPublished(run([failedPush, skipped('submit')]), 'android'), null);
+  assert.equal(partlyPublished(run([applied('push_draft'), applied('submit')]), 'android'), null);
+  assert.equal(partlyPublished(run([]), 'android'), null);
+});
+
+test('changes in review: the title says it plainly, the technical line keeps the codes, the options are replace, wait, Play Console', () => {
+  const lines = stepLines(userRun);
+  assert.deepEqual(lines.map((l) => [l.type, l.status, l.error]), [
+    ['push_and_submit', 'applied', null],
+    ['release', 'failed', 'changes_in_review'],
+  ]);
+  const reason = lines[1]?.reason;
+  assert.equal(reason?.title, 'Google Play already has changes of this app in review, so it cannot take another change now. Nothing was applied by this step.');
+  assert.equal(reason?.technical, 'changes_in_review · HTTP 409 · store HTTP 400 · CHANGES_ALREADY_IN_REVIEW');
+  assert.match(reason?.said ?? '', /already have changes in review/);
+  assert.equal(isInReview(userRun), true);
+  assert.deepEqual(inReviewActions(userRun, 'android'), {
+    replace: true,
+    playConsoleUrl: 'https://play.google.com/console/',
+  });
+  // Not on the App Store, and not for another failure.
+  assert.equal(inReviewActions(userRun, 'ios'), null);
+  assert.equal(inReviewActions(lastPublish, 'android'), null);
+  assert.equal(isInReview(lastPublish), false);
+  assert.match(headlineReason(userRun), /already has changes of this app in review/);
+});
+
+test('the report of a partly published run keeps both steps with their codes', () => {
+  const report = failureReport({ appName: 'OSS Card Wallet', platform: 'android', run: userRun });
+  assert.match(report, /1\. push_and_submit: applied/);
+  assert.match(report, /2\. release: failed/);
+  assert.match(report, /Code: changes_in_review/);
+  assert.match(report, /Store: changes_in_review, HTTP 400/);
+  assert.match(report, /CHANGES_ALREADY_IN_REVIEW/);
 });

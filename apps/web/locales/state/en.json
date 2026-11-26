@@ -9,6 +9,7 @@
   "failed.headline": "The last publish failed",
   "failed.kept_one": "Your change is still waiting.",
   "failed.kept_other": "Your {{count}} changes are still waiting.",
+  "failed.partlyHeadline": "Partly published",
   "failed.reasonUnknown": "The store did not accept it.",
   "pending.blocking_one": "{{count}} of them has an error that blocks publishing.",
   "pending.blocking_other": "{{count}} of them have an error that blocks publishing.",

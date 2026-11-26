@@ -552,7 +552,7 @@
   "pending.failed.assetChanged": "Un fichier préparé a changé. Préparez-le de nouveau, puis vérifiez.",
   "pending.failed.assetUnreadable": "Un fichier préparé est illisible. Préparez-le de nouveau, puis vérifiez.",
   "pending.failed.blocked": "Rien n’a été écrit : une vérification bloque désormais cette étape. Vérifiez de nouveau.",
-  "pending.failed.changesInReview": "Le store refuse cette action tant que des modifications sont en cours d’examen. Rien n’a été envoyé.",
+  "pending.failed.changesInReview": "Google Play a déjà des modifications de cette application à l’examen : il ne peut pas en accepter d’autres pour le moment. Cette étape n’a rien appliqué.",
   "pending.failed.confirmationMismatch": "La confirmation ne correspondait pas. Rien n’a été écrit.",
   "pending.failed.draftNotAllowed": "Google Play n’a pas voulu garder ces modifications comme brouillon.",
   "pending.failed.draftPartial": "Seule une partie est arrivée dans le brouillon. Ce qui a été écrit y reste. Vérifiez de nouveau pour terminer : les éléments déjà identiques sont ignorés.",
