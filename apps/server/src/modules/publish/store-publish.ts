@@ -24,6 +24,7 @@ import {
   recordSteps,
 } from './publishing.ts';
 import {
+  changesInReviewBefore,
   draftRefusedBefore,
   type LastPublish,
   type RunOutcome,
@@ -326,6 +327,12 @@ export type PublishPlan = {
   /** The commit replaces the review in progress with everything together (`CANCEL_IN_REVIEW_AND_SUBMIT`): chosen by the person, never implied. */
   replacesReview: boolean;
   /**
+   * Google Play: this app's last run was refused because changes were already in review (`changes_in_review`). A hint from the kept runs,
+   * not a read of Google Play (its API shows no review state): the recommended plan then names the replacing variant, which still runs
+   * only when the person confirms it.
+   */
+  changesInReview: boolean;
+  /**
    * Google Play: the push and the submit as ONE step (`push_and_submit`). `offered`: the plan lists it as an alternative to the pair
    * (Google may refuse to keep a draft for this app, and the plan cannot know before trying). `draftRefused`: the last run of this app
    * was refused a draft by Google (`draft_not_allowed`) and no draft push went through since. `defaulted`: no `steps` were sent and
@@ -370,6 +377,8 @@ export type PlanRecommendation = {
   why: RecommendedWhy;
   /** The release in `steps` still needs the share of users from the person (the server never implies one). */
   needsShare: boolean;
+  /** The recommended step replaces the review in progress (`replaceReview` on the push): only after a `changes_in_review` refusal. */
+  replacesReview: boolean;
 };
 
 const sha = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex');
@@ -581,6 +590,8 @@ export function recommendationOf(input: {
   can: Record<PublishStep, boolean>;
   /** The push and the release in ONE commit can run: the push's and the release's switches are on and the caller has both rights. */
   canOneCommit?: boolean;
+  /** The last run of this app was refused because changes were in review. */
+  changesInReview?: boolean;
   /** The plan found the step unavailable (only for a step that was evaluated). */
   unavailable: Partial<Record<PublishStep, boolean>>;
   /** The plan's own choice when nothing special applies (non-Google): the included steps. */
@@ -595,9 +606,32 @@ export function recommendationOf(input: {
           steps: input.included.map((type) => ({ type })),
           why: 'default',
           needsShare: false,
+          replacesReview: false,
         };
   }
   const listing = staged.texts + staged.assets;
+  const replaces = input.changesInReview === true;
+  const oneCommit = (): PlanRecommendation | null =>
+    direct !== null &&
+    input.canOneCommit === true &&
+    !input.unavailable.release &&
+    !input.unavailable.push_and_submit
+      ? {
+          types: ['push_and_submit', 'release'],
+          steps: [
+            { type: 'push_and_submit', ...(replaces ? { replaceReview: true } : {}) },
+            { type: 'release', track: direct.track, versionCodes: direct.versionCodes },
+          ],
+          why: 'one_commit',
+          needsShare: true,
+          replacesReview: replaces,
+        }
+      : null;
+  // After a refusal for changes in review, even a release alone is recommended as the one commit that replaces the review.
+  if (replaces && listing === 0 && direct !== null) {
+    const again = oneCommit();
+    if (again !== null) return again;
+  }
   if (direct !== null && listing === 0 && input.can.release && !input.unavailable.release) {
     return {
       types: ['release'],
@@ -606,24 +640,12 @@ export function recommendationOf(input: {
       ],
       why: input.from !== null ? 'promotion' : 'direct_release',
       needsShare: true,
+      replacesReview: false,
     };
   }
-  if (
-    direct !== null &&
-    listing > 0 &&
-    input.canOneCommit === true &&
-    !input.unavailable.release &&
-    !input.unavailable.push_and_submit
-  ) {
-    return {
-      types: ['push_and_submit', 'release'],
-      steps: [
-        { type: 'push_and_submit' },
-        { type: 'release', track: direct.track, versionCodes: direct.versionCodes },
-      ],
-      why: 'one_commit',
-      needsShare: true,
-    };
+  if (listing > 0) {
+    const once = oneCommit();
+    if (once !== null) return once;
   }
   if (listing + staged.fields === 0) return null;
   if (
@@ -637,9 +659,16 @@ export function recommendationOf(input: {
       steps: [{ type: 'push_and_submit' }],
       why: 'draft_refused',
       needsShare: false,
+      replacesReview: false,
     };
   if (input.can.push_draft && !input.unavailable.push_draft)
-    return { types: ['push_draft'], steps: [{ type: 'push_draft' }], why: 'draft', needsShare: false };
+    return {
+      types: ['push_draft'],
+      steps: [{ type: 'push_draft' }],
+      why: 'draft',
+      needsShare: false,
+      replacesReview: false,
+    };
   return null;
 }
 
@@ -704,6 +733,13 @@ export async function buildPlan(
   const draftRefused =
     google &&
     (await draftRefusedBefore(ctx.db, {
+      workspaceId,
+      appId: app.id,
+      platform: app.platform,
+    }));
+  const changesInReview =
+    google &&
+    (await changesInReviewBefore(ctx.db, {
       workspaceId,
       appId: app.id,
       platform: app.platform,
@@ -1280,6 +1316,7 @@ export async function buildPlan(
     draftRefused,
     canOneCommit:
       enabled.push_draft && enabled.release && rights.push_draft && rights.release,
+    changesInReview,
     can: {
       push_draft: enabled.push_draft && rights.push_draft,
       push_and_submit: enabled.push_and_submit && rights.push_and_submit,
@@ -1336,6 +1373,7 @@ export async function buildPlan(
     oneCommit: oneCommit && done.push_and_submit?.included === true,
     replacesReview:
       done.push_and_submit?.included === true && requests.get('push_and_submit')?.replaceReview === true,
+    changesInReview,
     combined: {
       offered:
         google &&

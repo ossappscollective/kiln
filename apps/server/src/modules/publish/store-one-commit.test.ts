@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { dbTest } from '@kiln/db/testing';
+import { StoreError } from '@kiln/connectors';
 import { PASSWORD } from '../../testkit.ts';
 import { bootStaged, type StagedBoot } from './test-helpers.ts';
 
@@ -416,7 +417,9 @@ dbTest(
       ],
       why: 'one_commit',
       needsShare: true,
+      replacesReview: false,
     });
+    assert.equal(def.changesInReview, false);
     // The recommendation is accepted as it is once the person gave the share.
     const rec = (await t.plan(app, [def.recommended.steps[0], { ...def.recommended.steps[1], userFraction: 1 }])).body.plan;
     assert.equal(rec.confirmable, true);
@@ -442,6 +445,13 @@ dbTest(
     t.stores.android.inReview = true;
     const failed = await t.planAndPublish(app, TOGETHER);
     assert.equal(resultOf(failed.publish, 'push_and_submit').error, 'changes_in_review');
+    // The kept run says changes were in review: the NEXT plan recommends the replacing variant (a recommendation, not a default).
+    const hint = (await t.plan(app)).body.plan;
+    assert.equal(hint.changesInReview, true);
+    assert.deepEqual(hint.recommended.steps[0], { type: 'push_and_submit', replaceReview: true });
+    assert.equal(hint.recommended.replacesReview, true);
+    assert.equal(hint.replacesReview, false, 'the default plan never replaces a review by itself');
+    assert.equal(hint.publishSteps.some((x: any) => x.replaceReview === true), false);
     // The next plan, asked for the same way, is refused the same way (nothing is replaced by itself).
     const again = await t.planAndPublish(app, TOGETHER);
     assert.equal(resultOf(again.publish, 'push_and_submit').error, 'changes_in_review');
@@ -453,5 +463,44 @@ dbTest(
     assert.equal(t.stores.android.reviewsReplaced, 1);
     assert.equal(t.stores.android.pushAndSubmitCalls, 3, 'two refused attempts and the one that replaced the review');
     assert.equal(t.stores.android.releasesMade.length, 1, 'the release was made once, by the last commit only');
+  },
+);
+
+dbTest(
+  'partial progress is kept: the draft was pushed (applied) and the release refused (changes in review): the run is partial, with both steps',
+  async (db) => {
+    const t = await boot(db);
+    const app = await stagePromotion(t);
+    t.releaseStores.android.behavior = {
+      kind: 'refuse',
+      error: new StoreError(
+        'googleplay',
+        'changes_in_review',
+        'Google Play has changes in review for this app.',
+        400,
+        [{ code: 'CHANGES_ALREADY_IN_REVIEW', detail: 'You already have changes in review.' }],
+      ),
+    };
+    // The draft pair: the push is held back (not sent for review), the release is the second commit.
+    const out = await t.planAndPublish(app, [
+      { type: 'push_draft' },
+      { type: 'release', track: 'production', versionCodes: ['241'], userFraction: 1 },
+    ]);
+    assert.equal(out.publish.status, 200, out.publish.text.slice(0, 500));
+    const run = out.publish.body.result.lastPublish;
+    assert.equal(run.outcome, 'partial');
+    assert.deepEqual(
+      run.results.map((x: any) => [x.type, x.status, x.error ?? null]),
+      [
+        ['push_draft', 'applied', null],
+        ['release', 'failed', 'changes_in_review'],
+      ],
+    );
+    assert.equal(run.results[1].store.kind, 'changes_in_review');
+    assert.equal(t.stores.android.sentForReview, 0, 'the push was held back, never sent for review');
+    assert.equal((await t.audit('pending.published'))[0]?.detail.outcome, 'partial');
+    // The next read of the app keeps the run, so a reload still says what is where.
+    const pending = (await t.call(t.owner, 'GET', `/apps/${app}/pending`)).body.pending;
+    assert.equal(pending.lastPublish.outcome, 'partial');
   },
 );

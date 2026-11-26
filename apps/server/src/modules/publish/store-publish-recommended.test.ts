@@ -31,6 +31,7 @@ const RELEASE = {
   types: ['release'],
   steps: [{ type: 'release', direct: true, track: 'production', versionCodes: ['241'] }],
   needsShare: true,
+  replacesReview: false,
 };
 
 dbTest(
@@ -108,6 +109,7 @@ dbTest(
       steps: [{ type: 'push_and_submit' }],
       why: 'draft_refused',
       needsShare: false,
+      replacesReview: false,
     });
     assert.equal(plan.combined.defaulted, true);
     assert.deepEqual(
@@ -132,6 +134,7 @@ dbTest(
       steps: [{ type: 'push_draft' }],
       why: 'draft',
       needsShare: false,
+      replacesReview: false,
     });
     assert.equal(plan.promotion, null);
   },
@@ -174,6 +177,28 @@ dbTest('recommendationOf: the rules, one by one', async () => {
   const texts = { texts: 2, assets: 0, fields: 2 };
   assert.equal(rec({ staged: texts })?.why, 'draft');
   assert.equal(rec({ staged: texts, draftRefused: true })?.why, 'draft_refused');
+  // Texts AND a staged build, and the push and the release can run: ONE commit (never a draft that waits for a second one).
+  assert.deepEqual(rec({ staged: texts, canOneCommit: true }), {
+    types: ['push_and_submit', 'release'],
+    steps: [
+      { type: 'push_and_submit' },
+      { type: 'release', track: 'production', versionCodes: ['90'] },
+    ],
+    why: 'one_commit',
+    needsShare: true,
+    replacesReview: false,
+  });
+  assert.equal(rec({ staged: texts, canOneCommit: true, draftRefused: true })?.why, 'one_commit');
+  assert.equal(rec({ staged: texts, canOneCommit: false })?.why, 'draft');
+  assert.equal(rec({ staged: texts, canOneCommit: true, unavailable: { release: true } })?.why, 'draft');
+  // After a refusal for changes in review the recommendation names the replacing variant, for a release alone as well. It is a
+  // recommendation: the plan still asks for the confirmation of an irreversible step.
+  const replacing = rec({ staged: texts, canOneCommit: true, changesInReview: true });
+  assert.deepEqual(replacing?.steps[0], { type: 'push_and_submit', replaceReview: true });
+  assert.equal(replacing?.replacesReview, true);
+  assert.equal(rec({ canOneCommit: true, changesInReview: true })?.why, 'one_commit');
+  assert.equal(rec({ canOneCommit: true, changesInReview: true })?.replacesReview, true);
+  assert.equal(rec({ canOneCommit: false, changesInReview: true })?.why, 'promotion');
   assert.deepEqual(rec({ staged: texts, draftRefused: true })?.types, ['push_and_submit']);
   assert.equal(
     rec({ staged: texts, draftRefused: true, unavailable: { push_and_submit: true } })?.why,
@@ -187,6 +212,7 @@ dbTest('recommendationOf: the rules, one by one', async () => {
     steps: [{ type: 'push_draft' }, { type: 'submit' }],
     why: 'default',
     needsShare: false,
+    replacesReview: false,
   });
   assert.equal(rec({ google: false, staged: null }), null);
 });

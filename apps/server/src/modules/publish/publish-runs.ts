@@ -247,3 +247,21 @@ export async function draftRefusedBefore(
   }
   return false;
 }
+
+/**
+ * Google Play: whether the last run of this app was refused because changes were already in review (`changes_in_review`), as the runs
+ * say. Newest run first: a run with a step that failed that way says yes; a run that completed says no (a later review is not known
+ * to be the old one); anything else says nothing, so the older runs decide. It is only a hint for the recommended plan, never a read
+ * of Google Play: the Edits API shows no review state, so nothing here can know whether the review is still in progress.
+ */
+export async function changesInReviewBefore(
+  sql: Sql,
+  input: { workspaceId: string; appId: string; platform: Platform },
+): Promise<boolean> {
+  for (const run of await listRuns(sql, input)) {
+    if (run.platform !== input.platform) continue;
+    if (run.results.some((r) => r.status === 'failed' && r.error === 'changes_in_review')) return true;
+    if (run.outcome === 'completed') return false;
+  }
+  return false;
+}
