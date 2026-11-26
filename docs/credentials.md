@@ -115,7 +115,8 @@ The same credential is used; it must be allowed to edit the app's listing.
 - **Google Play:** the service account must be allowed to edit the store listing and release management
   of the app (UNVERIFIED which exact permission `edits.listings`, `edits.images` and `edits.commit` need).
   The commit is made with `changesNotSentForReview`; if Google refuses that for the app the push answers
-  `draft_not_allowed` and nothing is committed. https://developers.google.com/android-publisher/api-ref/rest/v3/edits/commit
+  `draft_not_allowed` and nothing is committed (the batch publish then offers the explicit step `push_and_submit`, which commits without it so
+  that Google sends the changes for review). https://developers.google.com/android-publisher/api-ref/rest/v3/edits/commit
 - **App Store Connect:** the key needs a role that may edit the metadata of a version (App Manager or
   Admin is assumed; UNVERIFIED). The app must have been synced once and have a version that can be edited
   (`no_editable_version` otherwise).

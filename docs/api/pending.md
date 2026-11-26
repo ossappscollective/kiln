@@ -280,6 +280,34 @@ after the rights check; no store is reached.
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | `store.publish`                                                         | **admin and up** (owner, admin). **Explicit-only on API tokens.**                                                   |
 | `store.push_draft`, `store.submit`, `store.release`, `releases.rollout` | the step's own right, unchanged. A token needs each one it includes **in its actions**, as well as `store.publish`. |
+| `push_and_submit` (Google Play, see [the combined step](#push-and-submit-in-one-step-google-play))   | **both** `store.push_draft` AND `store.submit`, and both switches (`KILN_STORE_DRAFT_WRITE_ENABLED`, `KILN_STORE_SUBMIT_ENABLED`). |
+
+### Push and submit in one step (Google Play)
+
+Step type `push_and_submit` (`order` 2; the steps are `push_draft`, `push_and_submit`, `submit`, `release`, `rollout`, numbered 1 to 5).
+Google decides per app whether changes can be kept as a draft: for some apps the commit with `changesNotSentForReview=true` is refused
+(`400`, "Changes are sent for review automatically. The query parameter changesNotSentForReview must not be set."), and the draft push
+fails as `409 draft_not_allowed` (nothing committed). A person who wanted the changes reviewed anyway is offered the push and the submit as
+ONE explicit step: the same edit (texts, graphics, the draft release of the track, in one edit) committed **without** the hold-back, so Google
+sends it for review as part of the commit. A draft release stays a draft (no track or rollout is started).
+
+- It is **never a fallback**: a refused draft push stays a failed step, and the combined step runs only when the plan names it
+  (`steps: [{ "type": "push_and_submit" }]`), the person confirmed that plan (the typed `phrase`, or the step-up grant for `store.publish`
+  bound to the plan hash: it is irreversible like `submit`, `irreversibleSteps` lists it) and every right and switch holds. It cannot share
+  a plan with `push_draft` or `submit` (`combined_with_pair`, not confirmable), and it is Google Play only (`blocked` when asked for on
+  the App Store, `nothing_to_do` otherwise).
+- Its `preview` and `confirmHash` are the push's own (`staged/push/preview`): what the person saw is what is written, and the store is read
+  again right before the commit (`state_changed` when it changed; `blocked` for a blocking check). Anything else pending for the app in Play
+  Console goes to review with it (a plan warning, `sends_everything_pending`).
+- The plan says whether drafts are possible: `plan.combined = { offered, draftRefused, defaulted }`. `draftRefused` is learned from the
+  kept runs (`store_publish_runs`): the newest run whose `push_draft` step failed with `draft_not_allowed` (and no later run in which a draft
+  push went through). With no `steps` and `draftRefused`, the plan is made with `push_and_submit` instead of `push_draft` + `submit`
+  (`defaulted: true`); the pair stays selectable by naming it. `POST .../publish` never defaults: it runs the steps it is given.
+- Result and records: the step answers like a push with `commit: "sent_for_review"`, `submitted: true`, `draft: false`. It writes the audit
+  entries `listing.draft_pushed` (`commit`, `combined: true`, `submitted: true`) and `listing.submitted` (`via: edit_commit`, `combined:
+  true`), the events `listing.draft_pushed` and `listing.submitted`, and `pending.published` lists the step type. A refusal is audited as
+  `listing.draft_push_failed` with `combined: true`. No draft record is kept (there is no draft left to submit). A lost answer is
+  `outcome_unknown` (Google Play shows no review state): look in Play Console; nothing is sent again until a new plan is confirmed.
 
 ### `POST /apps/{id}/publish/preview`
 
@@ -356,6 +384,7 @@ needs input, so it is only included when named).
 - `confirmable` is true when at least one step is included and every requested step is available. `planHash` is null while it is
   not. `confirmation.phrase` is the ONE phrase to type, present when any included step is irreversible (submit, release, rollout) and the caller has to type it. It is absent (`confirmationRequired: false`, `irreversible` still true) when the workspace's step-up policy covers `store.publish` and the caller is a person with a way to confirm: the step-up grant bound to `planHash` stands in for it (ADR 0019, amended 2026-11-20); the apply route then needs the grant and no `phrase`. Tokens always type it.
 - `warnings` carry combinations that are likely to fail (Google Play: submit then release).
+- `combined` (Google Play): `{ offered, draftRefused, defaulted }`, see [push and submit in one step](#push-and-submit-in-one-step-google-play).
 
 ### `POST /apps/{id}/publish`
 
@@ -494,6 +523,7 @@ Google's own words beside it: `draftApp` (only a draft release can be created on
 `versionCodeLow`, `notesTooLong` (more than 500 characters per language), `listingIncomplete` (graphics, descriptions, content rating,
 data safety), `editConflict`, `releasePermission` (the service account lacks the permission to release to production),
 `sendForReview` ("Cannot send for review because ..."). Changes already in review (`CHANGES_ALREADY_IN_REVIEW`) and the commit
-refused without `changesNotSentForReview` keep their own codes (`changes_in_review`, `draft_not_allowed`). **UNVERIFIED**: Google
+refused without `changesNotSentForReview` keep their own codes (`changes_in_review`, `draft_not_allowed`; the latter carries the catalogue code
+`store.google.draftNotAllowed`, Google's own sentence in `store.details[0].detail`, and the plan then offers the combined step above). **UNVERIFIED**: Google
 documents reasons, not sentences, so the patterns are loose, tested on invented bodies, and an unknown body keeps Google's sentence with
 the HTTP status and reason; extend `packages/connectors/src/google/play-causes.ts` when a real body is seen.
