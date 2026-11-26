@@ -4,7 +4,7 @@
   Everything on it is read from the stores or from our own plan; it has no control that changes a store.
   One status pill (the release status; a planned version says "Planned"), then the "N pending" badge of the app when something waits for
   review. The deadline and the rollout plan are quiet text, not extra pills, unless something is late or due.
-  Props: card (from buildBoard), now (epoch ms, so relative times update), pending? (the app's pending line, from lineFor).
+  Props: card (from buildBoard), now (epoch ms, so relative times update), pending? (the app's pending line, from the app-state store's lineOf).
 -->
 <script lang="ts">
   import T from '../ui/T.svelte';
@@ -23,7 +23,7 @@
   import Icon from '../ui/Icon.svelte';
   import PendingChip from '../publish/PendingChip.svelte';
 
-  let { card, now, pending = null }: { card: BoardCard; now: number; pending?: PendingLine | null | undefined } = $props();
+  let { card, now, pending = null }: { card: BoardCard; now: number; pending?: (PendingLine & { failed?: boolean }) | null | undefined } = $props();
 
   const uid = $props.id();
   const due = $derived(card.due ? dueText(card.due) : null);

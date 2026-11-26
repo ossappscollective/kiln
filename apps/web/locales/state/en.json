@@ -1,8 +1,6 @@
 {
   "action.publishAgain": "Publish again",
   "action.review": "Review and publish",
-  "action.showPending": "Show pending changes",
-  "chip.failed": "the last publish failed",
   "elsewhere.failed": "The last publish for {{platforms}} failed.",
   "elsewhere.pending_one": "{{count}} change waiting on {{platforms}}.",
   "elsewhere.pending_other": "{{count}} changes waiting on {{platforms}}.",

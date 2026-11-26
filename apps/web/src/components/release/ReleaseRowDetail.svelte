@@ -17,8 +17,8 @@
   import { t } from '../../lib/i18n/t.ts';
   import { describeError, storeName } from '../../lib/portfolio.ts';
   import { dueText, formatTargetDate, rolloutHeadline } from '../../lib/release.ts';
-  import { type PromoteOption, promoteHref } from '../../lib/play-promote.ts';
-  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
+  import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import type { Promotion } from '../../lib/app-state/types.ts';
   import { type ReleaseRow, buildsForRelease } from '../../lib/releases-table.ts';
   import { PLANS_ENABLED } from '../../lib/features.ts';
   import type { AppBuild, AppSummary, PlanDetail } from '../../lib/types.ts';
@@ -50,9 +50,10 @@
     now: number;
     scope: PlatformScope | null;
     /** Google Play: this release is in a track that is not production and can be promoted. */
-    promote?: PromoteOption | null | undefined;
+    promote?: Promotion | null | undefined;
   } = $props();
 
+  const promoteVerdict = $derived(appStateStore.verdict(workspaceId, role, app, 'promote'));
   const canReadPlans = $derived(PLANS_ENABLED && can(role, 'plans.read'));
   const canWrite = $derived(can(role, 'plans.write'));
   const plan = $derived(PLANS_ENABLED && row.plan.kind === 'plan' ? row.plan.plan : null);
@@ -126,15 +127,15 @@
       <RolloutObserved release={row.release} />
       {#if promote}
         <p class="promote-line">
-          {#if publishingStore.isPublishing(workspaceId, app.id)}
-            <!-- a publish of this app is running: promoting now would race it -->
-            <Button size="sm" variant="primary" icon="arrow-right" disabled title={publishingStore.reason(workspaceId, app.id)}>{promote.label}</Button>
+          {#if promote.offer.enabled && promote.offer.href}
+            <Button size="sm" variant="primary" icon="arrow-right" href={promote.offer.href}>{promote.offer.label}</Button>
           {:else}
-            <Button size="sm" variant="primary" icon="arrow-right" href={promoteHref(promote)}>{promote.label}</Button>
+            <!-- the app state holds it back (a publish of the app runs, or its last publish failed): the reason is shown below -->
+            <Button size="sm" variant="primary" icon="arrow-right" disabled title={promote.offer.disabledReason ?? undefined}>{promote.offer.label}</Button>
           {/if}
-          <span class="muted note">{t('release:row.promoteNote', { count: promote.codes.length, codes: formatList(promote.codes.map(String)), from: promote.fromLabel })}</span>
+          <span class="muted note">{t('release:row.promoteNote', { count: promote.option.codes.length, codes: formatList(promote.option.codes.map(String)), from: promote.option.fromLabel })}</span>
         </p>
-        <PublishingNote {workspaceId} appId={app.id} platform={scope} />
+        <PublishingNote verdict={promoteVerdict} appId={app.id} platform={scope} />
       {/if}
     </section>
 

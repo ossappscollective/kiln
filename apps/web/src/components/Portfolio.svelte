@@ -8,8 +8,7 @@
   import { buildOverviewRows, overviewStats } from '../lib/app-overview.ts';
   import { attentionCount, unansweredCount } from '../lib/nav-badges.ts';
   import { navSignals } from '../lib/nav-signals.svelte.ts';
-  import { pendingStore } from '../lib/pending-store.svelte.ts';
-  import { pipelineStore } from '../lib/pipeline-store.svelte.ts';
+  import { appStateStore } from '../lib/app-state/app-state-store.svelte.ts';
   import { type ViewMode, readViewMode, saveViewMode } from '../lib/dashboard.ts';
   import {
     type BatchResult,
@@ -84,8 +83,8 @@
 
   const sorted = $derived(apps ? sortApps(apps) : []);
   const groups = $derived(groupApps(apps ?? []));
-  const pipelineApps = $derived(pipelineStore.summary(workspaceId)?.apps ?? null);
-  const rows = $derived(buildOverviewRows(groups, releases, reviewSummary?.apps ?? null, pipelineApps, pendingStore.summary(workspaceId)));
+  const pipelineApps = $derived(appStateStore.pipelineSummary(workspaceId)?.apps ?? null);
+  const rows = $derived(buildOverviewRows(groups, releases, reviewSummary?.apps ?? null, pipelineApps, (appIds) => appStateStore.lineOf(workspaceId, appIds)));
   const stats = $derived(overviewStats(rows));
   const batchRunning = $derived(batch?.running === true);
   const busy = $derived(batchRunning || Object.values(syncing).some(Boolean));
@@ -163,8 +162,8 @@
       apps = list;
       navSignals.setApps(workspaceId, list);
       void loadReviewSummary(mine);
-      if (canRead) void pipelineStore.loadSummary(api, workspaceId);
-      if (can(role, 'listing.read')) void pendingStore.loadSummary(api, workspaceId);
+      if (canRead) appStateStore.loadPipelineSummary(api, workspaceId);
+      if (can(role, 'listing.read')) appStateStore.ensure(api, workspaceId);
       await loadReleases(list, mine);
     } catch (e) {
       if (mine !== generation) return;

@@ -9,29 +9,30 @@ import { test } from 'node:test';
  */
 const read = (path: string): string => readFileSync(new URL(path, import.meta.url), 'utf8');
 
-test('the top bar button shows a running publish: a spinner, "Publishing…", aria-busy, a polite live region, and opens the panel on it', () => {
+test('the top bar button shows what the state model says: a running publish (spinner, "Publishing…", aria-busy, polite live region), a failed one, and opens the panel on it', () => {
   const btn = read('../components/app/PendingCartButton.svelte');
-  assert.match(btn, /publishingStore\.ids\(workspaceId\)/);
+  assert.match(btn, /appStateStore\.topBar\(workspaceId\)/);
+  assert.doesNotMatch(btn, /publishingStore/, 'the button reads the model, not the claims store');
   assert.match(btn, /aria-busy=\{busy\}/);
   assert.match(btn, /aria-live="polite"/);
   assert.match(btn, /<Spinner size=\{16\} label="" \/>/);
   assert.match(btn, /publish:publishing\.chip/);
-  assert.match(btn, /openPublishingPanel\(id\)/);
-  assert.match(btn, /const shown = \$derived\(cartButton\.visible \|\| busy\)/);
+  assert.match(btn, /openPendingPanel\('publishing', badge\.appId\)/);
+  assert.match(btn, /openPendingPanel\('failed', badge\.appId\)/);
+  assert.match(btn, /state:topBar\.failed/);
   const shell = read('../components/Shell.svelte');
   assert.match(shell, /<PendingCartButton tintStyle=\{appTintStyle\} \{workspaceId\} \/>/);
 });
 
-test('the Next step card has the status banner with "Show pending changes" and turns its buttons off while its app publishes', () => {
+test('the Next step card draws the headline, the reason and the offers of the state model, and turns its buttons off with the model\'s reason', () => {
   const card = read('../components/app/NextStep.svelte');
-  assert.match(card, /<PublishingStatus/);
-  assert.match(card, /publish:publishing\.showPending/);
-  assert.match(card, /openPublishingPanel\(p\.appId, scope\)/);
-  // The primary button, the row buttons and the Review and publish link are each guarded.
-  assert.match(card, /off\(primaryAppId\)/);
-  assert.match(card, /off\(r\.appId\)/);
-  assert.match(card, /publish:publishing\.pendingOff/);
-  assert.doesNotMatch(card, /PublishingNote/, 'the small grey sentence is replaced by the banner');
+  assert.match(card, /appStateStore\.of\(/);
+  assert.match(card, /appState\.headline/);
+  assert.match(card, /appState\.reason/);
+  assert.match(card, /disabled=\{!offer\.enabled\}/);
+  assert.match(card, /offer\.disabledReason/);
+  assert.match(card, /openPendingPanel\(kind, offer\.appId/);
+  assert.doesNotMatch(card, /publishingStore|chooseNextStep|nextStepTrains/, 'the card decides nothing by itself');
 });
 
 test('the status row takes the request to be shown: it scrolls into view and takes focus once', () => {
@@ -55,7 +56,8 @@ test('the reason of a failed publish shows in the panel, the drawer, the Pending
   ]) {
     const source = read(file);
     assert.match(source, /<PublishFailure /, file);
-    assert.match(source, /publishingStore\.dismissFailure\(api, workspaceId, /, file);
+    assert.match(source, /appStateStore\.dismissFailure\(api, workspaceId, /, file);
+    assert.match(source, /<FailureAnchor /, `${file}: the failure takes the request to be shown`);
   }
   const dialog = read('../components/publish/PublishDialog.svelte');
   assert.match(dialog, /<PublishFailureDetail run=\{result\.lastPublish\}/);

@@ -1,8 +1,6 @@
 {
   "action.publishAgain": "Erneut veröffentlichen",
   "action.review": "Prüfen und veröffentlichen",
-  "action.showPending": "Ausstehende Änderungen anzeigen",
-  "chip.failed": "die letzte Veröffentlichung ist fehlgeschlagen",
   "elsewhere.failed": "Die letzte Veröffentlichung für {{platforms}} ist fehlgeschlagen.",
   "elsewhere.pending_one": "{{count}} Änderung wartet auf {{platforms}}.",
   "elsewhere.pending_other": "{{count}} Änderungen warten auf {{platforms}}.",

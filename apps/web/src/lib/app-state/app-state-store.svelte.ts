@@ -4,7 +4,7 @@ import type { AttentionItem } from '../app-attention.ts';
 import type { PlatformScope } from '../app-scope.ts';
 import { cartSummaryStore } from '../cart-summary.svelte.ts';
 import { pendingRows, type PendingRow, pendingTotals } from '../cart-summary.ts';
-import type { LastPublish, PendingLine } from '../pending.ts';
+import { type LastPublish, type PendingLine, staleViewIds } from '../pending.ts';
 import type { Publishing } from '../publishing.ts';
 import type { PipelineSummary, PipelineSummaryApp } from '../release-pipeline.ts';
 import { pendingStore } from '../pending-store.svelte.ts';
@@ -43,6 +43,23 @@ export type StateInput = {
   attention?: readonly AttentionItem[] | undefined;
   now?: number | undefined;
 };
+
+/** A record as small screens know it (a button only has the id, the name and the platform). */
+export type RecordRef = Pick<AppSummary, 'id' | 'name' | 'platform'> & Partial<AppSummary>;
+
+function asRecord(app: RecordRef): AppSummary {
+  return {
+    identifier: '',
+    storeAppId: null,
+    credentialId: '',
+    repositoryId: null,
+    createdAt: 0,
+    lastSyncedAt: null,
+    lastSyncAttemptAt: null,
+    lastSyncError: null,
+    ...app,
+  };
+}
 
 /** The app that is open (AppShell registers it): the top bar button reads its state, scoped like the page. */
 type OpenApp = {
@@ -83,8 +100,9 @@ export const appStateStore = {
    * The verdict of one action for ONE record (a button of a release step, the submit control, the rollout buttons asks this and nothing
    * else). The siblings of the record come from the open app, so a publish on another platform of the app holds the button back too.
    */
-  verdict(workspaceId: string, role: Role, app: AppSummary, action: GuardedAction): Verdict {
-    const siblings = open !== null && open.workspaceId === workspaceId && open.records.some((r) => r.id === app.id) ? open.records : [app];
+  verdict(workspaceId: string, role: Role, app: RecordRef, action: GuardedAction): Verdict {
+    const siblings =
+      open !== null && open.workspaceId === workspaceId && open.records.some((r) => r.id === app.id) ? open.records : [asRecord(app)];
     return appStateStore.of({ workspaceId, role, records: siblings, scope: app.platform }).canDo(action, app.platform);
   },
 
@@ -239,6 +257,17 @@ export const appStateStore = {
   },
 
   // ---- Writing the one thing screens may tell the store ------------------------------------
+
+  /**
+   * The records whose detail read is older than the summary and says something else (the Pending page reads them again, so it never says
+   * "Nothing pending" while the count says changes). `key` changes with each summary, so a page reads once per change.
+   */
+  staleViews(workspaceId: string, appIds: readonly string[]): { key: string; ids: string[] } | null {
+    const summary = pendingStore.summary(workspaceId);
+    const ids = staleViewIds(summary, appIds, pendingStore.viewsOf(appIds));
+    if (ids.length === 0 || summary === null) return null;
+    return { key: `${summary.generatedAt}/${ids.join(',')}`, ids };
+  },
 
   /** A person hides the failure of this app (the server keeps the mark): the model returns to changes_pending at once. */
   dismissFailure(api: Api, workspaceId: string, appId: string): void {

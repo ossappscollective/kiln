@@ -415,13 +415,13 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
   if (phase === 'publishing') {
     const lead = publishing[0] as (typeof publishing)[number];
     headline = headlineText(lead.platform);
-    reason = detailText(lead.entry, facts.now);
-    primaryAction = showPending(t('state:action.showPending'), lead.appId);
+    reason = `${detailText(lead.entry, facts.now)} ${t('publish:publishing.pendingOff')}`;
+    primaryAction = showPending(t('publish:publishing.showPending'), lead.appId);
   } else if (phase === 'publish_failed') {
     const lead = failures[0] as (typeof failures)[number];
     headline = t('state:failed.headline');
     reason = failureReason(failures, pendingCount);
-    primaryAction = showPending(t('state:action.showPending'), lead.appId);
+    primaryAction = showPending(t('publish:publishing.showPending'), lead.appId);
     secondaryActions = [offerOf('publish_again', t('state:action.publishAgain'), verdicts.publish, { appId: lead.appId })];
   } else if (phase === 'changes_pending') {
     headline = t('state:pending.headline', { count: pendingCount });

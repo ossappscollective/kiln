@@ -41,7 +41,7 @@
   } from '../../../lib/store-release.ts';
   import { EVERYONE, releaseInputsFor } from '../../../lib/release-settings.ts';
   import { releaseSettingsStore } from '../../../lib/release-settings-store.svelte.ts';
-  import { publishingStore } from '../../../lib/publishing-store.svelte.ts';
+  import { appStateStore } from '../../../lib/app-state/app-state-store.svelte.ts';
   import { releaseStore } from '../../../lib/store-release-store.svelte.ts';
   import { toast } from '../../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../../lib/types.ts';
@@ -155,11 +155,11 @@ import { supports } from '@kiln/core';
     void releaseStore.loadConfig(api, workspaceId, true);
   }
 
-  /** A batch publish of this app runs on the server: releasing now would race it. */
-  const publishingNow = $derived(publishingStore.isPublishing(workspaceId, app.id));
+  /** Whether the app state allows a release now (not while a publish of the app runs, nor while its last publish failed). */
+  const verdict = $derived(appStateStore.verdict(workspaceId, role, app, 'release'));
 
   async function startPreview() {
-    if (busy || line.kind !== 'ready' || line.disabled || needsTrack || publishingNow) return;
+    if (busy || line.kind !== 'ready' || line.disabled || needsTrack || !verdict.enabled) return;
     const mine = ++seq;
     previewing = true;
     notice = null;
@@ -311,11 +311,11 @@ import { supports } from '@kiln/core';
           variant="primary"
           icon="upload"
           loading={previewing}
-          disabled={busy || line.disabled || needsTrack || publishingNow}
-          title={publishingNow ? publishingStore.reason(workspaceId, app.id) : needsTrack ? t('release-stepper:sr.chooseTrack') : (line.reason ?? undefined)}
+          disabled={busy || line.disabled || needsTrack || !verdict.enabled}
+          title={!verdict.enabled ? (verdict.reason ?? undefined) : needsTrack ? t('release-stepper:sr.chooseTrack') : (line.reason ?? undefined)}
           onclick={startPreview}
         >{line.button}</Button>
-        <PublishingNote {workspaceId} appId={app.id} />
+        <PublishingNote {verdict} appId={app.id} />
         {#if line.disabled && line.reason}<span class="muted small">{line.reason}</span>{:else if needsTrack}<span class="muted small">{t('release-stepper:sr.chooseTrack')}</span>{/if}
       {:else if line.kind === 'off'}
         <span class="text">{line.text}</span>

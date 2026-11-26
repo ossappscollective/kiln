@@ -2,7 +2,7 @@ import { type Platform, platformLabel, type ReleaseState } from '@kiln/core';
 import type { AppGroup } from './app-groups.ts';
 import { appAddress } from './app-scope.ts';
 import { t } from './i18n/t.ts';
-import { chipFor, lineFor, type PendingLine, type PendingSummary } from './pending.ts';
+import { chipFor, type PendingLine } from './pending.ts';
 import { latestRelease, type ReleaseLoad } from './portfolio.ts';
 import {
   type PipelineSummaryApp,
@@ -41,7 +41,7 @@ export type OverviewRow = {
   /** Records whose release is left unfinished (not stale), from the pipeline summary; empty when it is not loaded. */
   unfinished: PipelineSummaryApp[];
   /** What is pending for the app (all its records), from the pending summary; null when it is not known or nothing is pending. */
-  pending?: PendingLine | null;
+  pending?: OverviewPending | null;
 };
 
 /** Most urgent first. */
@@ -101,12 +101,15 @@ const cell = (
   return { state: 'ready', latest: latestRelease(load.releases, app.platform) };
 };
 
+/** The pending line of an app as the overview shows it: the count (from the app-state store's `lineOf`) and whether its last publish failed. */
+export type OverviewPending = PendingLine & { failed?: boolean };
+
 export function buildOverviewRows(
   groups: readonly AppGroup[],
   releases: Record<string, ReleaseLoad | undefined>,
   reviewApps: readonly SummaryApp[] | null,
   pipelineApps: readonly PipelineSummaryApp[] | null = null,
-  pendingSummary: PendingSummary | null = null,
+  pendingOf: (appIds: string[]) => OverviewPending | null = () => null,
 ): OverviewRow[] {
   return groups.map((group) => {
     const ios = cell(group.ios, releases);
@@ -142,10 +145,7 @@ export function buildOverviewRows(
         (p) =>
           p.stalled !== null && !p.stalled.stale && group.members.some((m) => m.id === p.app.id),
       ),
-      pending: lineFor(
-        pendingSummary,
-        group.members.map((m) => m.id),
-      ),
+      pending: pendingOf(group.members.map((m) => m.id)),
     };
   });
 }
@@ -209,8 +209,8 @@ export type RowStatus = {
     title: string;
     href: string | null;
   } | null;
-  /** What is pending for the app (the "N pending" badge). */
-  pending: PendingLine | null;
+  /** What is pending for the app (the "N pending" badge), and whether its last publish failed. */
+  pending: OverviewPending | null;
 };
 
 /**
@@ -325,6 +325,14 @@ export function rowNextAction(row: OverviewRow, status: RowStatus): RowNextActio
     };
   if (status.primary.kind === 'sync-failed')
     return { label: t('app:overview.checkSyncError'), href: appAddress(key), tone: 'bad' };
+  // A publish that failed comes before what the release could do next: the model holds those back until it is resolved.
+  if (status.pending?.failed === true)
+    return {
+      label: t('publish:publishing.showPending'),
+      href: appAddress(key, 'pending'),
+      tone: 'warn',
+      title: t('state:topBar.failedTitle'),
+    };
   if (status.unfinished)
     return {
       label: status.unfinished.action,

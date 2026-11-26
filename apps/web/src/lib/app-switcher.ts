@@ -31,7 +31,7 @@ export type SwitcherItem = {
   /** 1 to 9 for the first nine apps, else null. */
   number: number | null;
   /** What is pending for the app (the chip in the list); absent or null draws nothing. Set by the shell from the pending summary. */
-  pending?: PendingLine | null;
+  pending?: (PendingLine & { failed?: boolean }) | null;
 };
 
 export const SWITCHER_NUMBERS = 9;

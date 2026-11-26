@@ -10,10 +10,10 @@
 -->
 <script lang="ts">
   import { playLiveUnconfirmed } from '../../lib/play-live.ts';
-  import { can, type Role, supports } from '@kiln/core';
+  import { type Role, supports } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { type PlatformScope, appAddress } from '../../lib/app-scope.ts';
-  import { promoteHref, promoteOption } from '../../lib/play-promote.ts';
+  import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
   import { formatDate, formatDateTime, formatList, formatRelativeTime } from '../../lib/i18n/format.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
@@ -51,7 +51,6 @@
   const uid = $props.id();
   const columns = PLANS_ENABLED ? 9 : 8;
 
-  const canPrepare = $derived(can(role, 'listing.read'));
   let open = $state<Set<string>>(new Set());
 
   function toggle(key: string) {
@@ -105,7 +104,7 @@
         {#each group.rows as row (row.key)}
           {@const isOpen = open.has(row.key)}
           {@const app = apps[row.appId]}
-          {@const promote = canPrepare ? promoteOption(row.release, group.rows.map((r) => r.release)) : null}
+          {@const promote = app ? appStateStore.promoteFor(workspaceId, role, app, row.release, group.rows.map((r) => r.release)) : null}
           <tr class="item" class:open={isOpen}>
             <td class="expander">
               <button
@@ -124,7 +123,13 @@
               <span class="plat">
                 <PlatformBadge platform={row.platform} />
                 {#if row.track !== null}<span class="muted track">{row.trackText}</span>{/if}
-                {#if promote}<a class="promote" href={promoteHref(promote)} title={t('release:rt.promoteTitle', { to: promote.to })}>{promote.label}</a>{/if}
+                {#if promote}
+                  {#if promote.offer.enabled && promote.offer.href}
+                    <a class="promote" href={promote.offer.href} title={t('release:rt.promoteTitle', { to: promote.option.to })}>{promote.offer.label}</a>
+                  {:else}
+                    <span class="promote off" aria-disabled="true" title={promote.offer.disabledReason ?? undefined}>{promote.offer.label}</span>
+                  {/if}
+                {/if}
               </span>
             </td>
             <td class="tabular">{row.buildText}</td>
@@ -253,6 +258,11 @@
   .promote {
     font-size: var(--text-xs);
     font-weight: var(--weight-semibold);
+  }
+
+  .promote.off {
+    color: var(--text-muted);
+    cursor: not-allowed;
   }
 
   tr.open > td,

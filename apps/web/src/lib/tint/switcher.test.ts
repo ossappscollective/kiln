@@ -75,7 +75,8 @@ test('the switcher list scopes each row, and the popup resets the surrounding ti
 
 test('the pending cart button carries the tint marker itself, and the top bar does not', () => {
   const btn = read('../../components/app/PendingCartButton.svelte');
-  assert.match(btn, /data-app-tint=\{tintStyle \? '' : undefined\}/);
+  // A failed publish is drawn in the warning colours, never in the app's tint.
+  assert.match(btn, /data-app-tint=\{tintStyle && !failed \? '' : undefined\}/);
   const shell = read('../../components/Shell.svelte');
   assert.match(shell, /<PendingCartButton tintStyle=\{appTintStyle\} \{workspaceId\} \/>/);
   assert.match(shell, /data-app-tint-glow/);

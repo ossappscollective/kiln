@@ -173,6 +173,8 @@ export const textPairs: ReadonlyArray<readonly [TokenName, TokenName, number]> =
   ['accent-ink', 'accent-hover', 4.5],
   ['accent-ink', 'primary-from', 4.5],
   ['accent-ink', 'primary-to', 4.5],
+  // The top bar button when the last publish failed: the label on the warning colour.
+  ['accent-ink', 'warn', 4.5],
   ['chip-ink', 'accent-bg', 4.5],
   ['chip-ink', 'surface', 4.5],
   ['title-end', 'ground', 4.5],

@@ -9,6 +9,7 @@
 -->
 <script lang="ts">
   import { untrack } from 'svelte';
+  import type { Role } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { formatNumber, formatTime } from '../../lib/i18n/format.ts';
   import { k, t } from '../../lib/i18n/t.ts';
@@ -31,7 +32,7 @@
     rolloutTargets,
     stateQuery,
   } from '../../lib/store-rollout.ts';
-  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
+  import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
   import { irreversibleLine, rolloutNowLine } from '../../lib/release-detail.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -43,12 +44,14 @@
   let {
     api,
     workspaceId,
+    role,
     app,
     releases,
     config,
   }: {
     api: Api;
     workspaceId: string;
+    role: Role;
     app: AppSummary;
     releases: ReleaseSummary[];
     config: RolloutConfig;
@@ -136,11 +139,11 @@
     }
   }
 
-  /** A batch publish of this app runs on the server: changing the rollout now would race it. */
-  const publishingNow = $derived(publishingStore.isPublishing(workspaceId, app.id));
+  /** Whether the app state allows a rollout change now (a publish of the app running would be raced by it). */
+  const verdict = $derived(appStateStore.verdict(workspaceId, role, app, 'rollout'));
 
   function begin(action: string) {
-    if (publishingNow) return;
+    if (!verdict.enabled) return;
     if (action === 'set_fraction') {
       sharing = !sharing;
       percentProblem = null;
@@ -297,8 +300,8 @@
       {#each buttons as b (b.action)}
         <Button
           variant={b.irreversible ? 'danger' : 'secondary'}
-          disabled={b.disabled || publishingNow}
-          title={publishingNow ? publishingStore.reason(workspaceId, app.id) : (b.reason ?? undefined)}
+          disabled={b.disabled || !verdict.enabled}
+          title={!verdict.enabled ? (verdict.reason ?? undefined) : (b.reason ?? undefined)}
           loading={previewing === b.action}
           onclick={() => begin(b.action)}
         >
@@ -306,7 +309,7 @@
         </Button>
       {/each}
     </div>
-    <PublishingNote {workspaceId} appId={app.id} />
+    <PublishingNote {verdict} appId={app.id} />
     {#if warning}<p class="irreversible" data-testid="rollout-irreversible">{warning}</p>{/if}
 
     {#if sharing && view}

@@ -178,7 +178,7 @@
     <!-- what is going on in the platforms this page does not show: said once, with a link, never as the card's own state -->
     <p class="elsewhere muted" data-testid="next-step-elsewhere">
       {#if appState.elsewhere.publishing}{t('state:elsewhere.publishing', { platforms: elsewhereNames })}{:else if appState.elsewhere.failed}{t('state:elsewhere.failed', { platforms: elsewhereNames })}{:else}{t('state:elsewhere.pending', { count: appState.elsewhere.pendingCount, platforms: elsewhereNames })}{/if}
-      <a href={elsewhereHref}>{t('state:action.showPending')}</a>
+      <a href={elsewhereHref}>{t('publish:publishing.showPending')}</a>
     </p>
   {/if}
 

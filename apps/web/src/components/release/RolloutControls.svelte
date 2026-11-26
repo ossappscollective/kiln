@@ -101,7 +101,7 @@
       </p>
       <div class="stack">
         {#each members as app (app.id)}
-          <RolloutAppControl {api} {workspaceId} {app} releases={releases[app.id] ?? []} {config} />
+          <RolloutAppControl {api} {workspaceId} {role} {app} releases={releases[app.id] ?? []} {config} />
         {/each}
       </div>
     {/if}

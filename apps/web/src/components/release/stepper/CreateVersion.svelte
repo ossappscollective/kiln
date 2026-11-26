@@ -25,7 +25,7 @@
     suggestedVersion,
   } from '../../../lib/store-version.ts';
   import { t } from '../../../lib/i18n/t.ts';
-  import { publishingStore } from '../../../lib/publishing-store.svelte.ts';
+  import { appStateStore } from '../../../lib/app-state/app-state-store.svelte.ts';
   import { toast } from '../../../lib/toast.svelte.ts';
   import T from '../../ui/T.svelte';
   import type { AppSummary } from '../../../lib/types.ts';
@@ -73,12 +73,12 @@
       .catch(() => undefined);
   });
 
-  /** A batch publish of this app runs on the server: creating a version now would race it. */
-  const publishingNow = $derived(publishingStore.isPublishing(workspaceId, app.id));
+  /** Whether the app state allows creating a version now (not while a publish of the app runs, nor while its last publish failed). */
+  const verdict = $derived(appStateStore.verdict(workspaceId, role, app, 'create_version'));
 
   async function create() {
     const wanted = versionText.trim();
-    if (wanted === '' || busy || publishingNow) return;
+    if (wanted === '' || busy || !verdict.enabled) return;
     busy = true;
     problem = '';
     announcement = '';
@@ -135,11 +135,11 @@
       inputmode="decimal"
       maxlength={40}
     />
-    <Button type="submit" variant="primary" loading={busy} disabled={versionText.trim() === '' || publishingNow} title={publishingNow ? publishingStore.reason(workspaceId, app.id) : undefined}>
+    <Button type="submit" variant="primary" loading={busy} disabled={versionText.trim() === '' || !verdict.enabled} title={!verdict.enabled ? (verdict.reason ?? undefined) : undefined}>
       {t('release-stepper:cv.create', { version: versionText.trim() })}
     </Button>
   </form>
-  <PublishingNote {workspaceId} appId={app.id} />
+  <PublishingNote {verdict} appId={app.id} />
   <p class="small muted">{t(VERSION_NOTE)}</p>
   {#if problem !== ''}<p class="small bad" role="alert">{problem}</p>{/if}
   <p class="visually-hidden" role="status">{announcement}</p>

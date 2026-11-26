@@ -1,8 +1,6 @@
 {
   "action.publishAgain": "Publicar de nuevo",
   "action.review": "Revisar y publicar",
-  "action.showPending": "Mostrar los cambios pendientes",
-  "chip.failed": "la última publicación falló",
   "elsewhere.failed": "La última publicación para {{platforms}} falló.",
   "elsewhere.pending_one": "{{count}} cambio pendiente en {{platforms}}.",
   "elsewhere.pending_other": "{{count}} cambios pendientes en {{platforms}}.",

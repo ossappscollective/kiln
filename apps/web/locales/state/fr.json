@@ -1,8 +1,6 @@
 {
   "action.publishAgain": "Publier à nouveau",
   "action.review": "Vérifier et publier",
-  "action.showPending": "Afficher les changements en attente",
-  "chip.failed": "la dernière publication a échoué",
   "elsewhere.failed": "La dernière publication pour {{platforms}} a échoué.",
   "elsewhere.pending_one": "{{count}} changement en attente sur {{platforms}}.",
   "elsewhere.pending_other": "{{count}} changements en attente sur {{platforms}}.",

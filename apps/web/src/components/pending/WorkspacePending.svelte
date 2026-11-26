@@ -12,12 +12,12 @@
   import { onMount } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { appAddress } from '../../lib/app-scope.ts';
-  import { KIND_LABEL, pendingAcrossText, pendingRows, pendingTotals } from '../../lib/cart-summary.ts';
-  import { cartSummaryStore } from '../../lib/cart-summary.svelte.ts';
+  import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import { KIND_LABEL, pendingAcrossText } from '../../lib/cart-summary.ts';
   import { k, t } from '../../lib/i18n/t.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { queueCartOpen } from '../../lib/pending-cart.ts';
-  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
+  import FailureAnchor from '../app-state/FailureAnchor.svelte';
   import PendingGroupChanges from './PendingGroupChanges.svelte';
   import PublishFailure from '../publish/PublishFailure.svelte';
   import PublishingStatus from '../publish/PublishingStatus.svelte';
@@ -31,27 +31,14 @@
 
   let { api, workspaceId }: { api: Api; workspaceId: string; role: Role } = $props();
 
-  const summary = $derived(cartSummaryStore.summaryOf(workspaceId));
-  const rows = $derived(pendingRows(summary, navSignals.appsOf(workspaceId)));
-  const totals = $derived(pendingTotals(rows, summary));
+  // Everything on this page comes from the app-state store: the same count as the top bar and the sidebar, the same failures.
+  const known = $derived(appStateStore.pendingKnown(workspaceId));
+  const rows = $derived(appStateStore.workspaceRows(workspaceId, navSignals.appsOf(workspaceId)));
+  const totals = $derived(appStateStore.workspaceTotals(workspaceId, navSignals.appsOf(workspaceId)));
   /** The apps that publish right now, whatever is left in their carts (a publish can empty the cart before it ends). */
-  const publishingApps = $derived.by(() => {
-    const apps = navSignals.appsOf(workspaceId) ?? [];
-    return publishingStore.ids(workspaceId).flatMap((id) => {
-      const app = apps.find((a) => a.id === id);
-      const entry = publishingStore.of(workspaceId, id);
-      return app && entry ? [{ app, entry }] : [];
-    });
-  });
+  const publishingApps = $derived(appStateStore.workspacePublishing(workspaceId, navSignals.appsOf(workspaceId)));
   /** Apps whose latest publish did not go through (and nobody hid it), with the reason; an app that publishes again shows its progress instead. */
-  const failedApps = $derived.by(() => {
-    const apps = navSignals.appsOf(workspaceId) ?? [];
-    return publishingStore.failedIds(workspaceId).flatMap((id) => {
-      const app = apps.find((a) => a.id === id);
-      const run = publishingStore.failureOf(workspaceId, id);
-      return app && run && publishingStore.of(workspaceId, id) === null ? [{ app, run }] : [];
-    });
-  });
+  const failedApps = $derived(appStateStore.workspaceFailures(workspaceId, navSignals.appsOf(workspaceId)));
   const publishingKeys = $derived(new Set(publishingApps.map((p) => p.app.id)));
   let failed = $state(false);
   /** Products whose changes are listed (read lazily when first opened); collapsed by default. */
@@ -66,8 +53,8 @@
 
   async function read() {
     failed = false;
-    await cartSummaryStore.refresh(api, workspaceId);
-    failed = cartSummaryStore.summaryOf(workspaceId) === null;
+    await appStateStore.refresh(api, workspaceId);
+    failed = !appStateStore.pendingKnown(workspaceId);
   }
 
   onMount(() => {
@@ -82,9 +69,9 @@
 
 <PageHeader title={t('app:workspacePending.title')} description={t('app:workspacePending.lead')} />
 
-{#if summary === null && !failed}
+{#if !known && !failed}
   <div role="status" aria-label={t('app:workspacePending.loading')}><Skeleton width="100%" height="72px" /></div>
-{:else if summary === null}
+{:else if !known}
   <EmptyState icon="alert-triangle" title={t('app:workspacePending.loadFailed')}>
     {#snippet actions()}<Button onclick={() => void read()}>{t('common:action.retry')}</Button>{/snippet}
   </EmptyState>
@@ -100,7 +87,9 @@
   {#each failedApps as f (f.app.id)}
     <div class="publishing-now" data-testid="workspace-publish-failed">
       <strong>{f.app.name}</strong>
-      <PublishFailure run={f.run} appName={f.app.name} platform={f.app.platform} ondismiss={() => publishingStore.dismissFailure(api, workspaceId, f.app.id)} />
+      <FailureAnchor appId={f.app.id}>
+        <PublishFailure run={f.run} appName={f.app.name} platform={f.app.platform} ondismiss={() => appStateStore.dismissFailure(api, workspaceId, f.app.id)} />
+      </FailureAnchor>
     </div>
   {/each}
   {#if totals}<p class="total" role="status">{pendingAcrossText(totals)}</p>{/if}
