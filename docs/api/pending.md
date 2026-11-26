@@ -317,6 +317,22 @@ intended share; the other steps are `not_requested`); the share is still never i
 [{ "type": "push_draft" }]` to save only as a draft. When the push held only release fields, the `submit` step is `nothing_to_do`:
 Google Play has nothing to submit for them, the release step sends them to Google.
 
+Every plan carries `recommended` (the step or steps to start from, never an empty plan while a valid step exists) and, on Google Play,
+`promotion` (`from`: another track of the app that holds all the staged codes as the last sync saw it, `version`: the version name of a
+synced build; both null when the sync does not say). `recommended` is `{ types, steps, why, needsShare }`; `steps` are the requests to send
+back (a release in them still needs the person's `userFraction`, which is never implied). The rules, in order:
+
+| Facts (Google Play) | `why` | `types` |
+| --- | --- | --- |
+| a build staged for a track, no listing text or graphics, release switch on and right held | `promotion` (the sync shows the codes in another track) or `direct_release` | `release` (direct: one edit, committed without the hold-back, so Google reviews it) |
+| texts or graphics staged, a draft was refused by Google last time | `draft_refused` | `push_and_submit` |
+| texts or graphics, or release fields, staged otherwise | `draft` | `push_draft` |
+| another platform | `default` | the steps the plan included |
+
+A step whose switch is off, whose right is missing or that the plan found unavailable is never recommended; none left: `recommended: null`.
+A `release` step asked for WITHOUT `direct`, with no draft release to start and a build staged, is `blocked` with that reason (it used to be
+`nothing_to_do`, which hid it); the direct release is what to ask for.
+
 Body (optional): `{ "steps": [ { "type": "push_draft" }, { "type": "submit" }, { "type": "release", "track": "production", "userFraction": 0.1 },
 { "type": "rollout", "action": "set_fraction", "track": "production", "versionCodes": ["240"], "userFraction": 0.5 } ] }`.
 `release` takes `version` (App Store), or `track`, `userFraction`, optional `versionCodes` and `direct` (Google Play; `direct: true` releases

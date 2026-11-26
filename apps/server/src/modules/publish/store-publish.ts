@@ -319,7 +319,39 @@ export type PublishPlan = {
    * `draftRefused` holds, so the plan was made with this step in place of the pair; the pair stays selectable.
    */
   combined: { offered: boolean; draftRefused: boolean; defaulted: boolean };
+  /**
+   * Google Play, a build that is released (`direct` is not null): where the build comes from, as the last store sync saw it. `from`
+   * is another track of the app that holds ALL the version codes (a promotion: "from internal to production"); `version` is the
+   * version name of the build when a synced store build has one. Both null when the sync does not say. Null: no such build is staged.
+   */
+  promotion: { from: string | null; version: string | null } | null;
+  /**
+   * The ONE step (or pair) this plan recommends, so a person never meets an empty plan while a valid step exists (see
+   * `recommendationOf`). `steps` are the requests to send back to the preview: a release has no share in it (the share is the
+   * person's, never implied: `needsShare`). Null: nothing valid to recommend (nothing staged, a step blocked by errors, switches off).
+   */
+  recommended: PlanRecommendation | null;
   readAt: number;
+};
+
+export type RecommendedWhy =
+  /** A build is released to a track with nothing else staged: ONE direct release, sent to Google for review, no draft. */
+  | 'promotion'
+  /** Same, but the sync does not show the build in another track. */
+  | 'direct_release'
+  /** Google refused to keep a draft for this app the last time: push and send for review in one step. */
+  | 'draft_refused'
+  /** Staged texts or graphics: the push (a draft), as before. */
+  | 'draft'
+  /** Any other platform: the steps the plan itself included. */
+  | 'default';
+
+export type PlanRecommendation = {
+  types: PublishStep[];
+  steps: StepRequest[];
+  why: RecommendedWhy;
+  /** The release in `steps` still needs the share of users from the person (the server never implies one). */
+  needsShare: boolean;
 };
 
 const sha = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex');
@@ -462,6 +494,116 @@ async function stagedForDirect(
     }
   }
   return out;
+}
+
+/**
+ * Google Play: where the staged build comes from, as the last store sync saw it (`app_releases`, `app_builds`): another track that
+ * holds ALL its version codes (the build is promoted from there), and the version name a synced build gives. Reads our own database
+ * only; never a guess: a track the sync did not show, or a build with no version name, gives null.
+ */
+export async function promotionOf(
+  sql: Sql,
+  app: Pick<ManagedApp, 'id' | 'platform'>,
+  hint: { track: string; versionCodes: readonly string[] },
+): Promise<{ from: string | null; version: string | null }> {
+  const wanted = hint.versionCodes.map(String);
+  let from: string | null = null;
+  const rows = await sql.query(
+    'SELECT track, details_json FROM app_releases WHERE app_id = ? AND platform = ? ORDER BY track',
+    [app.id, app.platform],
+  );
+  for (const r of rows) {
+    const track = String(r.track ?? '');
+    if (track === '' || track === hint.track) continue;
+    let codes: string[] = [];
+    try {
+      const d = JSON.parse(String(r.details_json ?? '{}')) as { versionCodes?: unknown };
+      codes = Array.isArray(d.versionCodes) ? d.versionCodes.map(String) : [];
+    } catch {
+      codes = [];
+    }
+    if (wanted.length > 0 && wanted.every((c) => codes.includes(c))) {
+      from = track;
+      break;
+    }
+  }
+  let version: string | null = null;
+  for (const code of wanted) {
+    const builds = await sql.query(
+      'SELECT version FROM app_builds WHERE app_id = ? AND platform = ? AND build_number = ?',
+      [app.id, app.platform, code],
+    );
+    const v = String(builds[0]?.version ?? '').trim();
+    if (v !== '') {
+      version = v;
+      break;
+    }
+  }
+  return { from, version };
+}
+
+/**
+ * What to recommend, from the facts alone (pure: the unit tests drive it). The person's intent decides, never a leftover of how the
+ * dialog was opened:
+ * - a build staged for a track and NOTHING else (no listing text, no graphics): they want it released. The one step that does that
+ *   is the direct release: one Play edit that makes the release (status `completed`, or `inProgress` with the share) and commits it
+ *   without the hold-back, so Google reviews it. A draft would only park it. `promotion` when the sync shows the build in another track.
+ * - staged texts or graphics, and Google refused a draft for this app last time: the push and the submit as one step.
+ * - staged texts or graphics otherwise: the push (a draft), as before.
+ * A step whose switch is off, whose right is missing or that the plan found unavailable is never recommended; none left: null.
+ */
+export function recommendationOf(input: {
+  google: boolean;
+  /** What is staged: null when the platform has no staged release fields (nothing to know). */
+  staged: { texts: number; assets: number; fields: number } | null;
+  direct: { track: string; versionCodes: string[] } | null;
+  from: string | null;
+  draftRefused: boolean;
+  /** Can the step run: its switch is on and the caller has the right. */
+  can: Record<PublishStep, boolean>;
+  /** The plan found the step unavailable (only for a step that was evaluated). */
+  unavailable: Partial<Record<PublishStep, boolean>>;
+  /** The plan's own choice when nothing special applies (non-Google): the included steps. */
+  included: PublishStep[];
+}): PlanRecommendation | null {
+  const { staged, direct } = input;
+  if (!input.google || staged === null) {
+    return input.included.length === 0
+      ? null
+      : {
+          types: input.included,
+          steps: input.included.map((type) => ({ type })),
+          why: 'default',
+          needsShare: false,
+        };
+  }
+  const listing = staged.texts + staged.assets;
+  if (direct !== null && listing === 0 && input.can.release && !input.unavailable.release) {
+    return {
+      types: ['release'],
+      steps: [
+        { type: 'release', direct: true, track: direct.track, versionCodes: direct.versionCodes },
+      ],
+      why: input.from !== null ? 'promotion' : 'direct_release',
+      needsShare: true,
+    };
+  }
+  if (listing + staged.fields === 0) return null;
+  if (
+    input.draftRefused &&
+    listing > 0 &&
+    input.can.push_and_submit &&
+    !input.unavailable.push_and_submit
+  )
+    return {
+      types: ['push_and_submit'],
+      steps: [{ type: 'push_and_submit' }],
+      why: 'draft_refused',
+      needsShare: false,
+    };
+  if (input.can.push_draft && !input.unavailable.push_draft)
+    return { types: ['push_draft'], steps: [{ type: 'push_draft' }], why: 'draft', needsShare: false };
+  return null;
 }
 
 const RELEASE_DEFERRABLE = ['no_draft_release', 'version_codes_not_uploaded'];
@@ -748,6 +890,14 @@ export async function buildPlan(
         const nothing =
           blockingCodes.length > 0 &&
           blockingCodes.every((c) => c === 'not_releasable' || c === 'no_draft_release');
+        if (nothing && request !== undefined && request.direct !== true && staged?.track) {
+          // The person asked for this release and a build is staged, but there is no draft to start: never a silent "nothing to do".
+          // The way forward is the direct release (the staged build, made and sent in one step), or the draft first.
+          const message = `The ${asked.request.track ?? staged.track} track has no draft release to start. Release the staged build in one step instead (it is sent to Google for review), or push the draft first.`;
+          return unavailable('blocked', message, [
+            { code: 'no_draft_release', severity: 'error', message },
+          ]);
+        }
         return unavailable(
           nothing ? 'nothing_to_do' : 'blocked',
           nothing
@@ -940,6 +1090,39 @@ export async function buildPlan(
       'Google Play refuses to start a release while changes are in review (changes_in_review). Submitting first sends changes to review, so the release step may be refused; the batch stops there and reports it.',
     );
   }
+  const promotion =
+    directHint === null
+      ? null
+      : await promotionOf(ctx.db, app, {
+          track: directHint.track,
+          versionCodes: directHint.versionCodes,
+        });
+  const evaluated = (type: PublishStep): boolean =>
+    done[type] !== undefined && done[type]?.availability !== 'not_requested';
+  // A step that only waits for input (the share) is not unavailable: the person gives it.
+  const dead = (type: PublishStep): boolean =>
+    evaluated(type) && done[type]?.included !== true && done[type]?.availability !== 'needs_input';
+  const recommended = recommendationOf({
+    google,
+    staged: staged === null ? null : { texts: staged.texts, assets: staged.assets, fields: staged.fields },
+    direct: directHint === null ? null : { track: directHint.track, versionCodes: directHint.versionCodes },
+    from: promotion?.from ?? null,
+    draftRefused,
+    can: {
+      push_draft: enabled.push_draft && rights.push_draft,
+      push_and_submit: enabled.push_and_submit && rights.push_and_submit,
+      submit: enabled.submit && rights.submit,
+      release: enabled.release && rights.release,
+      rollout: enabled.rollout && rights.rollout,
+    },
+    unavailable: {
+      push_draft: dead('push_draft'),
+      push_and_submit: dead('push_and_submit'),
+      // A release the person asked for another way (not direct) says nothing about the direct one.
+      release: requests.get('release')?.direct === true && dead('release'),
+    },
+    included: included.map((s) => s.type),
+  });
   const blockedRequested = explicit && steps.some((s) => s.requested && !s.included);
   const confirmable = included.length > 0 && !blockedRequested;
   const irreversibleBatch = needsPhrase(included.map((s) => s.type));
@@ -987,6 +1170,8 @@ export async function buildPlan(
       draftRefused,
       defaulted: defaultedToCombined,
     },
+    promotion,
+    recommended,
     readAt: ctx.now(),
   };
 }

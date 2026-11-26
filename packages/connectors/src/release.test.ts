@@ -538,6 +538,47 @@ test('Google Play, direct: 100% is a completed release with no share, and it rep
   });
 });
 
+test('Google Play, a promotion from internal: one update of the production track only, started at the share (or completed), sent with the commit, internal untouched', async () => {
+  const inInternal = (api: FakePlayDraftApi) => {
+    api.tracks = [
+      { track: 'internal', releases: [{ name: '2.1', status: 'completed', versionCodes: ['241'] }] },
+      { track: 'production', releases: [{ name: '2.0', status: 'completed', versionCodes: ['200'] }] },
+    ];
+  };
+  const staged = play(inInternal);
+  const state = await staged.connector.readReleaseState(direct(0.25));
+  if (state.store !== 'googleplay') throw new Error('store');
+  assert.equal(state.creates, true, 'a build only in internal is not a draft of production');
+  assert.deepEqual(state.missingCodes, []);
+  await staged.connector.release({ request: direct(0.25), guard: accept });
+  assert.equal(staged.api.commits.length, 1);
+  assert.doesNotMatch(staged.api.commits[0]?.query ?? '', /changesNotSentForReview/);
+  const puts = staged.api.seen.filter((x) => x.method === 'PUT');
+  assert.equal(puts.length, 1, 'one track update');
+  assert.match(puts[0]?.path ?? '', /\/tracks\/production$/);
+  const production = staged.api.tracks.find((t) => t.track === 'production')?.releases ?? [];
+  assert.deepEqual(
+    production.map((r) => [r.status, r.userFraction ?? null, r.versionCodes.join(',')]),
+    [
+      ['completed', null, '200'],
+      ['inProgress', 0.25, '241'],
+    ],
+    'the share is honoured; the live release keeps serving the rest',
+  );
+  assert.deepEqual(staged.api.tracks.find((t) => t.track === 'internal')?.releases, [
+    { name: '2.1', status: 'completed', versionCodes: ['241'] },
+  ]);
+
+  const everyone = play(inInternal);
+  await everyone.connector.release({ request: direct(1), guard: accept });
+  const done = everyone.api.tracks.find((t) => t.track === 'production')?.releases ?? [];
+  assert.deepEqual(
+    done.map((r) => [r.status, 'userFraction' in r, r.versionCodes.join(',')]),
+    [['completed', false, '241']],
+    'no share: completed, and never left as a draft',
+  );
+});
+
 test('Google Play, direct: a draft with these codes that exists is released as it is, and the staged notes are not used', async () => {
   const { api, connector } = play((a) => draftTrack(a));
   const state = await connector.readReleaseState(direct(0.2));
