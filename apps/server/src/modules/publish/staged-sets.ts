@@ -15,7 +15,6 @@ import {
   STAGED_LIMITS,
   type StagedChangesView,
   slotKey,
-  slotMaxFiles,
   sniffImageFormat,
   validateAssets,
 } from '@kiln/core';
@@ -37,6 +36,7 @@ import {
   loadStagedRows,
   type StagedContext,
   type StagedRow,
+  setTooLargeFailure,
 } from './staged-changes.ts';
 
 /**
@@ -388,12 +388,8 @@ export async function replaceAssetSet(
       coded('staged.setEmpty'),
     );
   }
-  const max = slotMaxFiles(app.platform, input.slot);
-  if (entries.length > max)
-    return invalid('set_too_large', `A set holds at most ${max} file${max === 1 ? '' : 's'}.`, {
-      limit: max,
-      actual: entries.length,
-    });
+  const tooMany = setTooLargeFailure(app.platform, input.slot, entries.length);
+  if (tooMany) return tooMany;
   const key = slotKey(input.slot);
   const at = ctx.now();
   const refused = await ctx.db.transaction(async (tx) => {

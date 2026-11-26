@@ -34,6 +34,7 @@ import {
   type StagedSource,
   type StagedTextView,
   slotKey,
+  slotLimitProblem,
   slotMaxFiles,
   supports,
   validateAssets,
@@ -259,7 +260,7 @@ function pushProblems(platform: Platform, set: AssetSet): StagedProblem[] {
     out.push({
       severity: 'error',
       code: 'set_too_large',
-      message: `A set holds at most ${max} file${max === 1 ? '' : 's'}; ${set.rows.length} are staged. A push replaces the whole set.`,
+      message: `${slotLimitProblem(platform, set.slot, set.rows.length)?.message.replace('would be staged', 'are staged') ?? `A set holds at most ${max}.`} A push replaces the whole set.`,
       limit: max,
       actual: set.rows.length,
     });
@@ -548,6 +549,30 @@ export async function getStagedChanges(
 const invalid = (code: string, message: string, extra: Record<string, unknown> = {}): Failure =>
   failure(422, code, message, extra);
 
+/**
+ * `422 set_too_large` when staging `count` files would go over what the store takes for this set: the documented limit, in the words of the
+ * submit's own rule (`At most 10 screenshots per device size. iPad 13" / 12.9": 11 would be staged.`), said when the file is added and
+ * not after a push. Null when it fits.
+ */
+export function setTooLargeFailure(
+  platform: Platform,
+  slot: AssetSlot,
+  count: number,
+): Failure | null {
+  const over = slotLimitProblem(platform, slot, count);
+  if (over === null) return null;
+  return invalid('set_too_large', over.message, {
+    limit: over.max,
+    actual: over.count,
+    ...(over.rule !== null ? { rule: over.rule } : {}),
+    ...coded(over.rule !== null ? 'staged.setTooLarge' : 'staged.setTooLargeOne', {
+      max: over.max,
+      count: over.count,
+      set: over.label,
+    }),
+  });
+}
+
 export type StageTextInput = {
   workspaceId: string;
   appId: string;
@@ -821,6 +846,8 @@ export async function stageAssets(
       'The asset index of the repository lists no file for this locale and slot.',
       coded('staged.noAssets'),
     );
+  const tooMany = setTooLargeFailure(app.platform, slot, chosen.length);
+  if (tooMany) return tooMany;
   for (const a of chosen) {
     const name = a.path.split('/').pop() ?? a.path;
     if (a.oid === null || a.read !== 'read')

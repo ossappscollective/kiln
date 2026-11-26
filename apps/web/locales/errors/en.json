@@ -514,6 +514,8 @@
   "staged.positionAfterEnd": "The position is after the end of the set.",
   "staged.setEmpty": "A set cannot be emptied here: a push replaces a store set with the files it holds and cannot clear it. Stage at least one file, or remove the images in the store console.",
   "staged.setNoName": "A staged set has no store name.",
+  "staged.setTooLarge": "At most {{max}} screenshots per device size. {{set}}: {{count}} would be staged.",
+  "staged.setTooLargeOne": "This graphic takes one file. {{set}}: {{count}} would be staged.",
   "staged.specs": "This file does not meet the store specs, so it was not staged. Fix it first (see the options) or export a correct file.",
   "staged.storeImageFormat": "Image {{position}} of this set is stored as a format that cannot be pushed (only PNG and JPEG can), so the set cannot be edited here.",
   "staged.storeImageMismatch": "Image {{position}} of this set does not match the checksum the store gave, so it was not taken. Read the store again.",

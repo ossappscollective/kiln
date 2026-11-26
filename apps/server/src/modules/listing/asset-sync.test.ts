@@ -921,3 +921,34 @@ dbTest(
     assert.equal((await t.audit('staged.asset_moved')).length, 1);
   },
 );
+
+dbTest(
+  'an 11th screenshot for a size that takes 10 is refused when it is uploaded, with the documented sentence and a code',
+  async (db) => {
+    const t = await bootStaged(db);
+    const app = await t.addApp('ios');
+    const upload = (n: number) =>
+      raw(
+        t,
+        'PUT',
+        `/apps/${app}/staged/assets/upload?${slot}&name=s${n}.png`,
+        rgbPng(1242, 2688, () => [n, 20, 30]),
+      );
+    // The repository set holds 2 files: 8 uploads make 10.
+    for (let n = 1; n <= 8; n++) assert.equal((await upload(n)).status, 200, `upload ${n}`);
+    const refused = await upload(9);
+    assert.equal(refused.status, 422, refused.text);
+    assert.equal(refused.body.error, 'set_too_large');
+    assert.equal(refused.body.limit, 10);
+    assert.equal(refused.body.actual, 11);
+    assert.match(
+      refused.body.message,
+      /^At most 10 screenshots per device size\. iPhone .*: 11 would be staged\.$/,
+    );
+    assert.equal(refused.body.code, 'staged.setTooLarge');
+    assert.equal(refused.body.params.count, 11);
+    // Nothing of the refused file was kept: the set is still the 10 files.
+    const view = await t.view(app);
+    assert.equal(view.assets[0]?.files.length, 10);
+  },
+);

@@ -539,6 +539,8 @@
   "staged.positionAfterEnd": "La position est après la fin de l’ensemble.",
   "staged.setEmpty": "Un ensemble ne peut pas être vidé ici : un envoi remplace un ensemble du store par les fichiers qu’il contient et ne peut pas le vider. Mettez au moins un fichier en attente, ou retirez les images dans la console du store.",
   "staged.setNoName": "Un ensemble en attente n’a pas de nom de store.",
+  "staged.setTooLarge": "{{max}} captures au maximum par taille d’appareil. {{set}} : {{count}} seraient mises en attente.",
+  "staged.setTooLargeOne": "Ce visuel ne prend qu’un seul fichier. {{set}} : {{count}} seraient mis en attente.",
   "staged.specs": "Ce fichier ne respecte pas les spécifications du store, il n’a donc pas été mis en attente. Corrigez-le d’abord (voir les options) ou exportez un fichier correct.",
   "staged.storeImageFormat": "L’image {{position}} de cet ensemble est dans un format qui ne peut pas être envoyé (seuls PNG et JPEG le peuvent) : l’ensemble ne peut pas être modifié ici.",
   "staged.storeImageMismatch": "L’image {{position}} de cet ensemble ne correspond pas à la somme de contrôle donnée par le store : elle n’a pas été prise. Relisez le store.",

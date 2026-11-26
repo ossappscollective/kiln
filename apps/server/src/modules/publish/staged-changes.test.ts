@@ -594,22 +594,38 @@ dbTest(
       JSON.stringify(set.problems),
     );
     assert.equal(mixed.body.staged.valid, false);
+    // An 11th screenshot for a size that takes 10 is refused when it is staged, with the documented sentence (not found out after a push).
     const big = await t.stageAssets(app, {
       locale: 'en-US',
       kind: 'screenshot',
       device: 'iphone_6_5',
     });
-    const bigSet = big.body.staged.assets.find(
-      (a: { slotKey: string }) => a.slotKey === 'screenshot:iphone_6_5',
+    assert.equal(big.status, 422, big.text);
+    assert.equal(big.body.error, 'set_too_large');
+    assert.equal(big.body.limit, 10);
+    assert.equal(big.body.actual, 11);
+    assert.equal(big.body.rule, 'apple.screenshot.count');
+    assert.match(
+      big.body.message,
+      /^At most 10 screenshots per device size\. iPhone .*: 11 would be staged\.$/,
     );
-    assert.equal(bigSet.files.length, 11);
-    assert.ok(
-      bigSet.problems.some(
-        (p: { code: string; limit?: number; actual?: number }) =>
-          p.code === 'set_too_large' && p.limit === 10 && p.actual === 11,
-      ),
-      JSON.stringify(bigSet.problems),
+    assert.equal(big.body.code, 'staged.setTooLarge');
+    assert.deepEqual(
+      [big.body.params.max, big.body.params.count],
+      [10, 11],
+      JSON.stringify(big.body.params),
     );
+    const tenPaths = Array.from(
+      { length: 10 },
+      (_, i) => `fastlane/metadata/ios/screenshots/en-US/${String(i + 10)}_iphone65.png`,
+    );
+    const ten = await t.stageAssets(app, {
+      locale: 'en-US',
+      kind: 'screenshot',
+      device: 'iphone_6_5',
+      paths: tenPaths,
+    });
+    assert.equal(ten.status, 200, ten.text);
     // Only the single size of the first set stays valid once it is fixed.
     const fixed = await t.stageAssets(app, {
       locale: 'en-US',

@@ -66,12 +66,12 @@ import {
   type RolloutContext,
   type RolloutRequest,
 } from './store-rollout.ts';
+import { type PlanReadiness, submitReadinessOf } from './submit-readiness.ts';
 import {
   applySubmit,
-  BUILD_CODES,
   confirmationPhrase,
   previewSubmit,
-  previewSubmitReadiness,
+  readStateForPlan,
   SUBMIT_ENV,
   type SubmitContext,
 } from './store-submit.ts';
@@ -366,6 +366,13 @@ export type PublishPlan = {
    * person's, never implied: `needsShare`). Null: nothing valid to recommend (nothing staged, a step blocked by errors, switches off).
    */
   recommended: PlanRecommendation | null;
+  /**
+   * Whether the draft could be SUBMITTED once the staged push is made, known before anything is sent: the blockers that are certain (each
+   * with its sentence, its numbers, the locale and item, and where it is fixed) and the codes only the store can tell after the push.
+   * Computed with `predictDraft` from one read of the store (docs/api/pending.md "Readiness"). Null: the submit switch is off, nothing in this plan
+   * concerns a submit, or the store could not be read (the plan says nothing then, as before).
+   */
+  readiness: PlanReadiness | null;
   readAt: number;
 };
 
@@ -784,6 +791,43 @@ export async function buildPlan(
   const done: Done = {};
   /** What the push promises later steps (set when it is included). */
   let pushPreview: DraftPreview | undefined;
+  /** The latest push preview this plan could push (kept for the readiness even when the combined step made it). */
+  let readinessPush: DraftPreview | undefined;
+  /** ONE read of the store for the whole plan: the draft the readiness is predicted from. */
+  let storeRead: Promise<Awaited<ReturnType<typeof readStateForPlan>> | null> | undefined;
+  const readiness = async (): Promise<PlanReadiness | null> => {
+    if (!ctx.submit.submitEnabled) return null;
+    storeRead ??= readStateForPlan(ctx.submit, { workspaceId, appId: app.id, actor }).catch(
+      (): null => null,
+    );
+    const read = await storeRead;
+    if (read === null || !read.ok) return null;
+    return submitReadinessOf({
+      app,
+      state: read.state,
+      push: readinessPush,
+      now: ctx.now(),
+    });
+  };
+  /** The step cannot be ticked while a blocker is certain: the sentence says so, and the blockers are the step's errors. */
+  const blockedBySubmit = (ready: PlanReadiness | null): Evaluation | null => {
+    const blockers = ready?.submit.blockers ?? [];
+    if (blockers.length === 0) return null;
+    const shown = blockers.slice(0, 3).map((b) => b.message.replace(/[.]$/, ''));
+    const more = blockers.length - shown.length;
+    return unavailable(
+      'blocked',
+      `Blocked: it would not run yet. ${shown.join('; ')}${more > 0 ? `; and ${more} more` : ''}.`,
+      blockers.slice(0, 20).map(
+        (b): PlanProblem => ({
+          code: `submit_blocked_${b.code}`,
+          severity: 'error',
+          message: b.message,
+          ...(b.item !== undefined ? { item: b.item } : {}),
+        }),
+      ),
+    );
+  };
 
   const evalPush = async (keep = true, startsRelease = false): Promise<Evaluation> => {
     const p = await previewDraftPush(ctx.draft, { workspaceId, appId: app.id, actor });
@@ -808,6 +852,7 @@ export async function buildPlan(
         problemsFromChecks(pre.checks),
         pre,
       );
+    readinessPush = pre;
     if (keep) pushPreview = pre;
     return {
       availability: 'available',
@@ -895,6 +940,8 @@ export async function buildPlan(
       }
       const base = await evalPush(false, true);
       if (base.availability !== 'available') return base;
+      const refused = blockedBySubmit(await readiness());
+      if (refused) return refused;
       const fraction = asked.request.userFraction ?? 1;
       return {
         ...base,
@@ -927,6 +974,8 @@ export async function buildPlan(
     const pre = base.preview as DraftPreview;
     if (pre.summary.textChanged + pre.summary.assetSetsChanged === 0)
       return unavailable('nothing_to_do', ONLY_RELEASE_FIELDS, [], pre);
+    const refused = blockedBySubmit(await readiness());
+    if (refused) return refused;
     return {
       ...base,
       summary: {
@@ -960,18 +1009,12 @@ export async function buildPlan(
       const after = await recordAfterPush(ctx.db, app, pushPreview);
       if (supports(app.platform, 'releaseTracks') && after.texts + after.assetSets === 0)
         return unavailable('nothing_to_do', ONLY_RELEASE_FIELDS);
-      // What is already known to stand in the way of the submit (a version that cannot be submitted, a build that is missing, expired or
-      // not processed) is said NOW, not after a push that can take minutes. A push of the staged build field attaches the build, so the
-      // build checks are left out then. Never a reason to refuse the plan: the push is still worth making. A failed read says nothing.
-      const early = await previewSubmitReadiness(ctx.submit, {
-        workspaceId,
-        appId: app.id,
-        actor,
-      }).catch(() => null);
-      const pushesBuild = pushPreview.release.some((r) => r.field === 'build');
-      const willBlock = (early?.ok ? early.blocking : []).filter(
-        (c) => !(pushesBuild && BUILD_CODES.includes(c.code)),
-      );
+      // What is known NOW to stand in the way of the submit, from one read of the store and what the push would leave (`predictDraft`): a
+      // version that cannot be submitted, a build that is missing (unless the push attaches one), a locale without a required text, too many
+      // screenshots for a device size... The person is not let walk into a push that can never be followed by a submit: the submit step is
+      // blocked with the reasons, and the push alone stays allowed. A failed read says nothing (the submit checks the store itself).
+      const refused = blockedBySubmit(await readiness());
+      if (refused) return refused;
       return {
         availability: 'available',
         reason: null,
@@ -991,14 +1034,6 @@ export async function buildPlan(
             message:
               'The submit is previewed again after the draft was pushed, and runs only if it matches this summary.',
           },
-          ...willBlock.slice(0, 10).map(
-            (c): PlanProblem => ({
-              code: `submit_will_block_${c.code}`,
-              severity: 'warning',
-              message: `The submit will not run after the push: ${c.message}`,
-              ...(c.item !== undefined ? { item: c.item } : {}),
-            }),
-          ),
         ],
       };
     }
@@ -1429,6 +1464,14 @@ export async function buildPlan(
     },
     promotion,
     recommended,
+    // Read when the plan can push or submit (a plan that is forbidden or switched off reaches no store, as before).
+    readiness:
+      storeRead !== undefined ||
+      done.push_draft?.included === true ||
+      done.submit?.included === true ||
+      done.push_and_submit?.included === true
+        ? await readiness()
+        : null,
     readAt: ctx.now(),
   };
 }

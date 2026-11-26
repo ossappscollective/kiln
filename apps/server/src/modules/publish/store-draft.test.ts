@@ -464,6 +464,7 @@ dbTest(
   'push (Google Play): one edit committed held back from review; nothing is sent for review',
   async (db) => {
     const t = await bootStaged(db);
+    t.stores.android.sets.clear(); // a store listing with no graphics yet (the default fixture holds two screenshots)
     const app = await stagedAndroid(t);
     const res = await t.previewAndPush(app);
     assert.equal(res.push.status, 200, res.push.text.slice(0, 400));

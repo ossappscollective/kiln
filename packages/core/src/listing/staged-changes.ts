@@ -8,8 +8,11 @@ import {
 } from '../platform.ts';
 import type { ReleaseFieldId, StagedReleaseFieldView } from '../release/release-fields.ts';
 import {
+  ASSET_KIND_LABELS,
+  ASSET_RULES,
   type AssetKind,
   type AssetStore,
+  describeDevice,
   deviceFitsPlatform,
   PLAY_DEVICES,
 } from './store-asset-specs.ts';
@@ -253,6 +256,52 @@ export function slotMaxFiles(platform: Platform, slot: AssetSlot): number {
 }
 
 export const assetStoreOf = (platform: Platform): AssetStore => listingStoreOf(platform);
+
+export type SlotLimitProblem = {
+  /** The most files the set holds. */
+  max: number;
+  /** How many would be staged. */
+  count: number;
+  /** The set in words (`iPad 13" / 12.9"`, `Feature graphic`). */
+  label: string;
+  /** The documented rule, then what would be staged: `At most 10 screenshots per device size. iPad 13" / 12.9": 11 would be staged.` */
+  message: string;
+  /** The rule of `store-asset-specs` (`apple.screenshot.count`), for the screenshot limits; null for a set of one file. */
+  rule: string | null;
+};
+
+/**
+ * Whether staging `count` files into this set would go over what the store takes (10 screenshots per App Store display, 8 per Google
+ * Play device type, one file for every other graphic). The same limit and the same words as the submit's content rules
+ * (`evaluateDraftContent`), said when the file is added, not after a push. Null when it fits.
+ */
+export function slotLimitProblem(
+  platform: Platform,
+  slot: AssetSlot,
+  count: number,
+): SlotLimitProblem | null {
+  const max = slotMaxFiles(platform, slot);
+  if (count <= max) return null;
+  const store = assetStoreOf(platform);
+  const screenshots = slot.kind === 'screenshot';
+  const label = screenshots
+    ? describeDevice(store, slot.kind, slot.device)
+    : ASSET_KIND_LABELS[slot.kind];
+  const rule = screenshots
+    ? `${byFamily(platform, { apple: 'apple', google: 'play' })}.screenshot.count`
+    : null;
+  const text = rule !== null ? (ASSET_RULES[rule]?.text ?? '') : `${label} takes one file.`;
+  return {
+    max,
+    count,
+    label,
+    rule,
+    message:
+      rule !== null
+        ? `${text} ${label}: ${count} would be staged.`
+        : `${text} ${count} would be staged.`,
+  };
+}
 
 // ---------------------------------------------------------------------------------------------
 // What the API shows

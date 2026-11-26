@@ -400,6 +400,53 @@ const planStepSchema = z.object({
   problems: z.array(pendingProblemSchema),
 });
 
+const submitBlockerSchema = z.object({
+  code: z
+    .string()
+    .describe(
+      'A check of the submit: `missing_text`, `asset_spec`, `no_screenshots`, `no_locales`, `release_notes_too_long`, `no_build`, `build_expired`, `build_not_valid`, `already_submitted`, `no_version`, `release_not_manual`.',
+    ),
+  message: z.string().describe('The sentence the submit itself would give (English).'),
+  params: z
+    .record(z.union([z.string(), z.number()]))
+    .optional()
+    .describe('The names and numbers of the sentence (`field`, `label`, `locale`, `count`, `max`).'),
+  locale: z.string().optional(),
+  item: z.string().optional().describe('The field, the set or the file the blocker is about.'),
+  fix: z.object({
+    kind: z
+      .enum(['listing', 'screenshots', 'notes', 'build', 'store', 'push'])
+      .describe(
+        'Where it is fixed: the listing text, the graphics, the release notes, the build, the store’s own console, or by pushing the draft again.',
+      ),
+    href: z
+      .string()
+      .nullable()
+      .describe('The web address of that place (`#/portfolio/<app>/listing?platform=ios&view=text&locale=fr-FR`); null for the store’s console and for a push.'),
+  }),
+});
+
+const planReadinessSchema = z
+  .object({
+    submit: z.object({
+      ready: z.boolean().describe('No blocker is certain. Says nothing about `unknown`.'),
+      blockers: z.array(submitBlockerSchema),
+      unknown: z
+        .array(z.string())
+        .describe(
+          'Checks only the store can make after the push: `image_not_ready` (uploaded screenshots still being processed), `play_review_state_unknown` (Google Play shows no review state).',
+        ),
+      predicted: z
+        .boolean()
+        .describe('The staged push was merged into the store’s draft (`predictDraft`).'),
+      checkedAt: timestamp,
+    }),
+  })
+  .nullable()
+  .describe(
+    'Whether the draft could be submitted once the staged push is made, from one read of the store and the staged changes. Null: the submit switch is off, the plan has nothing to do with a submit, or the store could not be read.',
+  );
+
 const publishPlanSchema = z.object({
   app: stagedAppSchema,
   steps: z.array(planStepSchema),
@@ -463,6 +510,7 @@ const publishPlanSchema = z.object({
     .describe(
       'Google Play: the push and the submit as ONE step (`push_and_submit`: one commit without the hold-back, so Google sends the changes for review). Never a fallback: it runs only when a plan names it and the person confirmed it.',
     ),
+  readiness: planReadinessSchema,
   readAt: timestamp,
 });
 

@@ -1079,6 +1079,12 @@ export async function bootStaged(db: Database, options: StagedBootOptions = {}) 
   forgetRunningListingReads();
   const repo = new BlobRepo(files);
   const stores = { ios: new FakeDraftStore('ios'), android: new FakeDraftStore('android') };
+  // A Google Play listing the store would accept for review: two phone screenshots (the plan judges the draft a push leaves, and a draft
+  // with no screenshot at all cannot be submitted). A test about a bare listing empties it (`stores.android.sets.clear()`).
+  stores.android.seedSet('en-US', 'phoneScreenshots', [
+    { name: 'a.png', bytes: new Uint8Array([1, 2, 3]) },
+    { name: 'b.png', bytes: new Uint8Array([4, 5, 6]) },
+  ]);
   const submitStores = {
     ios: new FakeSubmitStore(stores.ios),
     android: new FakeSubmitStore(stores.android),

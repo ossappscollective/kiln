@@ -133,21 +133,30 @@ dbTest('blockers are cut, sanitised and never carry a token-shaped string', asyn
 });
 
 dbTest(
-  'the plan says before the push that the submit will not run: a warning on the submit step, the plan still confirmable',
+  'the plan says before the push that the submit cannot run: the submit step is blocked with the reason, the push alone stays confirmable',
   async (db) => {
     const t = await boot(db);
     const app = await stageIos(t);
     t.submitStores.ios.build = null;
-    const res = await t.plan(app);
+    const res = await t.plan(app, [{ type: 'push_draft' }, { type: 'submit' }]);
     assert.equal(res.status, 200, res.text.slice(0, 300));
     const submit = res.body.plan.steps.find((s: any) => s.type === 'submit');
-    assert.equal(submit.included, true);
-    assert.equal(submit.deferred, true);
-    const warn = submit.problems.find((x: any) => x.code === 'submit_will_block_no_build');
-    assert.ok(warn, JSON.stringify(submit.problems));
-    assert.equal(warn.severity, 'warning');
-    assert.match(warn.message, /will not run after the push: No build is attached/);
-    assert.equal(res.body.plan.confirmable, true, 'the push alone is still worth making');
+    assert.equal(submit.included, false);
+    assert.equal(submit.availability, 'blocked');
+    const error = submit.problems.find((x: any) => x.code === 'submit_blocked_no_build');
+    assert.ok(error, JSON.stringify(submit.problems));
+    assert.equal(error.severity, 'error');
+    assert.match(error.message, /No build is attached to the version/);
+    assert.match(submit.reason, /^Blocked: /);
+    assert.equal(res.body.plan.confirmable, false, 'a push and a submit are not let through');
+    assert.equal(res.body.plan.readiness.submit.blockers[0].code, 'no_build');
+    // The default plan and the push alone are still worth making.
+    const standard = await t.plan(app);
+    assert.equal(standard.body.plan.confirmable, true);
+    assert.deepEqual(
+      standard.body.plan.publishSteps.map((s: any) => s.type),
+      ['push_draft'],
+    );
   },
 );
 

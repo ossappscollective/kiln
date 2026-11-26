@@ -13,14 +13,12 @@ import {
   submitKey,
 } from '@kiln/connectors';
 import {
-  APP_STORE_FIELD_SPECS,
-  type AssetFacts,
   byFamily,
+  type DraftContent,
+  evaluateDraftContent,
   needsStoreAppId,
-  PLAY_FIELD_SPECS,
   type Platform,
   supports,
-  validateAssets,
 } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
 import { coded } from '../../i18n/problem.ts';
@@ -501,51 +499,14 @@ export function evaluateChecks(input: {
       });
   }
 
-  // The listing as the store holds it.
-  if (state.locales.length === 0)
-    add({ code: 'no_locales', severity: 'blocking', message: 'The store listing has no locale.' });
-  let screenshots = 0;
-  for (const locale of state.locales) {
-    const shots = locale.assets
-      .filter((a) => a.kind === 'screenshot')
-      .reduce((n, a) => n + a.images.length, 0);
-    screenshots += shots;
-    if (shots === 0)
-      add({
-        code: 'locale_without_screenshots',
-        severity: 'warning',
-        message: `${locale.locale} has no screenshots.`,
-        locale: locale.locale,
-      });
-    for (const [field, value] of Object.entries(locale.text)) {
-      if (!isBlank(value)) continue;
-      const spec = ios
-        ? (
-            APP_STORE_FIELD_SPECS as Record<
-              string,
-              { required: boolean; label: string; unverified: string[]; source: string }
-            >
-          )[field]
-        : (
-            PLAY_FIELD_SPECS as Record<
-              string,
-              { required: boolean; label: string; unverified: string[]; source: string }
-            >
-          )[field];
-      if (!spec?.required) continue;
-      const verified = !spec.unverified.includes('required');
-      add({
-        code: 'missing_text',
-        severity: verified ? 'blocking' : 'warning',
-        message: `${spec.label} is empty in ${locale.locale}.${verified ? '' : ' UNVERIFIED: no official page confirms it is required.'}`,
-        locale: locale.locale,
-        item: field,
-        source: spec.source,
-        verified,
-      });
-    }
-    for (const set of locale.assets) {
-      for (const image of set.images) {
+  // The listing as the store holds it: the content rules are the pure ones of `@kiln/core` (`evaluateDraftContent`), the same that
+  // judge the draft a push WOULD leave before anything is sent (`predictDraft`, the plan's `readiness`). Only what the store alone
+  // knows (an image still being processed) is checked here.
+  for (const finding of evaluateDraftContent(draftContentOf(ios, state.locales)))
+    add(finding as SubmitCheck);
+  for (const locale of state.locales)
+    for (const set of locale.assets)
+      for (const image of set.images)
         if (image.state !== null && !DRAFT_IMAGE_READY_STATES.includes(image.state)) {
           add({
             code: 'image_not_ready',
@@ -555,53 +516,27 @@ export function evaluateChecks(input: {
             item: set.target,
           });
         }
-      }
-    }
-  }
-  if (state.locales.length > 0 && screenshots === 0)
-    add({
-      code: 'no_screenshots',
-      severity: 'blocking',
-      message: 'The listing has no screenshots in any locale.',
-    });
-
-  // The documented specs, held against what the store lists (sizes and counts; the bytes are not read).
-  const facts: AssetFacts[] = [];
-  for (const locale of state.locales) {
-    for (const set of locale.assets) {
-      set.images.forEach((image, index) => {
-        facts.push({
-          path: `${locale.locale}/${set.target}/${index + 1}`,
-          store: ios ? 'app_store' : 'google_play',
-          locale: locale.locale,
-          kind: set.kind,
-          device: set.device,
-          order: index + 1,
-          bytes: null,
-          width: image.width,
-          height: image.height,
-          format: null,
-          extension: 'png',
-          hasAlpha: null,
-          read: image.width !== null && image.height !== null ? 'read' : 'not_read',
-        });
-      });
-    }
-  }
-  for (const p of validateAssets(ios ? 'app_store' : 'google_play', facts)) {
-    if (p.severity === 'info') continue;
-    add({
-      code: 'asset_spec',
-      severity: p.severity === 'error' && p.verified ? 'blocking' : 'warning',
-      message: p.message,
-      ...(p.locale !== undefined ? { locale: p.locale } : {}),
-      item: p.path ?? p.rule,
-      rule: p.rule,
-      source: p.source,
-      verified: p.verified,
-    });
-  }
   return out;
+}
+
+/** The locales a store reports, in the plain shape the content rules read (sizes and counts, never bytes). */
+export function draftContentOf(
+  ios: boolean,
+  locales: readonly SubmitState['locales'][number][],
+): DraftContent {
+  return {
+    store: ios ? 'app_store' : 'google_play',
+    locales: locales.map((l) => ({
+      locale: l.locale,
+      text: l.text,
+      assets: l.assets.map((set) => ({
+        kind: set.kind,
+        device: set.device,
+        target: set.target,
+        images: set.images.map((i) => ({ width: i.width, height: i.height })),
+      })),
+    })),
+  };
 }
 
 const split = (items: SubmitCheck[]): SubmitChecks => {
@@ -886,7 +821,7 @@ export async function previewSubmit(
 }
 
 /** The checks that need no draft push to be known: the state of the version and of the build it carries now. */
-const EARLY_CODES: readonly string[] = [
+export const EARLY_CODES: readonly string[] = [
   'already_submitted',
   'no_version',
   'release_not_manual',
@@ -897,34 +832,13 @@ const EARLY_CODES: readonly string[] = [
 /** Of those, the ones a push of the staged release fields can fix (it attaches the build). */
 export const BUILD_CODES: readonly string[] = ['no_build', 'build_expired', 'build_not_valid'];
 
-/**
- * App Store: what already stands in the way of a submit, before any draft is pushed (a version that cannot be submitted, a build that is
- * missing, expired or not processed), from one read of the store. The checks that depend on the push (the draft, the texts, the
- * screenshots) cannot be known yet and are not listed. Writes nothing; a failed read is just "nothing known" (the plan says so itself).
- */
-export async function previewSubmitReadiness(
-  ctx: SubmitContext,
-  input: { workspaceId: string; appId: string; actor: Actor },
-): Promise<{ ok: true; blocking: SubmitCheck[] } | Failure> {
-  if (!ctx.submitEnabled) return submitDisabledFailure();
-  const app = await getApp(ctx.db, input.workspaceId, input.appId);
-  if (!app) return failure(404, 'not_found');
-  if (supports(app.platform, 'transactionalEdits')) return { ok: true, blocking: [] };
-  const connected = await connect(ctx, input.workspaceId, app, input.actor);
-  if (!connected.ok) return connected;
-  const { connection } = connected;
-  let state: SubmitState;
-  try {
-    state = await withConnector(ctx, connection.input, (connector) =>
-      connector.readSubmitState(requestOfManifest(emptyManifest())),
-    );
-  } catch (error) {
-    if (error instanceof SubmitTimeout)
-      return failure(504, 'timeout', 'The store did not answer in time. Nothing was changed.');
-    return mapStoreError(error, connection.secret).failure;
-  }
+/** The checks that need no draft push (a version that cannot be submitted, a build that is missing, expired or not processed) from the state read. Pure. */
+export const earlyChecksOf = (
+  app: Pick<ManagedApp, 'platform'>,
+  state: SubmitState,
+): SubmitCheck[] => {
   const record: PushRecord = {
-    appId: app.id,
+    appId: '',
     platform: app.platform,
     versionId: null,
     versionString: null,
@@ -934,10 +848,36 @@ export async function previewSubmitReadiness(
     pushedAt: 0,
     updatedAt: 0,
   };
-  const blocking = split(
+  return split(
     evaluateChecks({ app, record, state, inFlight: { submit: null, push: null } }),
   ).blocking.filter((c) => EARLY_CODES.includes(c.code));
-  return { ok: true, blocking };
+};
+
+/**
+ * What the store holds now, read once for the plan: the version, the build and EVERY locale of the draft with its texts and its sets of
+ * graphics (counts and pixel sizes). The plan judges what a push would leave from it (`submit-readiness.ts`); the checks that depend on
+ * the push itself are not known here. Writes nothing; a failed read is a failure the plan turns into "nothing known" (it says so itself).
+ */
+export async function readStateForPlan(
+  ctx: SubmitContext,
+  input: { workspaceId: string; appId: string; actor: Actor },
+): Promise<{ ok: true; state: SubmitState } | Failure> {
+  if (!ctx.submitEnabled) return submitDisabledFailure();
+  const app = await getApp(ctx.db, input.workspaceId, input.appId);
+  if (!app) return failure(404, 'not_found');
+  const connected = await connect(ctx, input.workspaceId, app, input.actor);
+  if (!connected.ok) return connected;
+  const { connection } = connected;
+  try {
+    const state = await withConnector(ctx, connection.input, (connector) =>
+      connector.readSubmitState(requestOfManifest(emptyManifest())),
+    );
+    return { ok: true, state };
+  } catch (error) {
+    if (error instanceof SubmitTimeout)
+      return failure(504, 'timeout', 'The store did not answer in time. Nothing was changed.');
+    return mapStoreError(error, connection.secret).failure;
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
