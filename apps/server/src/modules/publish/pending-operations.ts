@@ -380,6 +380,16 @@ const publishPlanSchema = z.object({
     .describe(
       'Google Play: no `steps` were sent and only release fields are staged, so the plan is ONE direct release step (the share still needs input) instead of push, submit and release. Send `steps: [{ "type": "push_draft" }]` to save only as a draft.',
     ),
+  oneCommit: z
+    .boolean()
+    .describe(
+      'Google Play: `push_and_submit` and `release` named together are ONE step: the texts, the graphics and the release go in one edit and one commit (never two commits that each send for review). The `push_and_submit` step carries the whole content (`summary.release`); the `release` step runs nothing of its own.',
+    ),
+  replacesReview: z
+    .boolean()
+    .describe(
+      'The commit replaces the review that Google Play has in progress with everything together (`CANCEL_IN_REVIEW_AND_SUBMIT`). Only when the step asked for `replaceReview`; never implied.',
+    ),
   combined: z
     .object({
       offered: z.boolean().describe('The plan lists the combined step beside the push and the submit.'),
@@ -823,7 +833,7 @@ export const pendingOperations: Draft[] = [
     tags: ['pending'],
     summary: 'PUBLISH several steps at once with one confirmation (can be irreversible)',
     description:
-      'A STORE WRITE, possibly several that cannot be taken back. Needs `store.publish` AND, for every step in `steps`, that step’s right (`store.push_draft`, `store.submit`, `store.release`, `releases.rollout`; the combined step `push_and_submit` needs both `store.push_draft` and `store.submit`): an owner or admin, or a token whose actions name the batch and every step (`403 forbidden`, listing the missing steps). Needs `KILN_STORE_PUBLISH_BATCH_ENABLED=true` (`409 publish_batch_disabled`) and each step’s own switch (`409 step_disabled`). `phrase` must be the `confirmation.phrase` of the plan when a step is irreversible (`422 confirmation_mismatch`, nothing read or written). The plan is rebuilt and must have the `planHash` previewed (`409 plan_changed`, with the new `plan`; `409 plan_blocked` when a step is no longer available). The steps then run IN ORDER through their own services, each with its own claim, its own re-read of the store and its own refusal on drift (`state_changed` is a failed step, not a retry). The batch STOPS at the first step that is not applied: the rest are `skipped` (`previous_step_not_applied`). Nothing is ever retried; an unknown outcome is read back by the step and reported (`outcome: unknown`: look at the store). A deferred step that no longer matches its promise is skipped as `plan_drifted`. One publish per app at a time (`409 publish_in_progress`). The answer is `200` with the result of every step even when a step failed: look at `completed`, `stoppedAt` and `steps`. Audited as `pending.published` (ids, hashes, per step outcomes; never a text or a credential) and emitted as the event `pending.published` when something was applied.',
+      'A STORE WRITE, possibly several that cannot be taken back. Needs `store.publish` AND, for every step in `steps`, that step’s right (`store.push_draft`, `store.submit`, `store.release`, `releases.rollout`; the combined step `push_and_submit` needs both `store.push_draft` and `store.submit`; named together with a `release` on Google Play it is ONE edit and ONE commit that makes the release too, and needs `store.push_draft` and `store.release`; `replaceReview` on it replaces the review in progress): an owner or admin, or a token whose actions name the batch and every step (`403 forbidden`, listing the missing steps). Needs `KILN_STORE_PUBLISH_BATCH_ENABLED=true` (`409 publish_batch_disabled`) and each step’s own switch (`409 step_disabled`). `phrase` must be the `confirmation.phrase` of the plan when a step is irreversible (`422 confirmation_mismatch`, nothing read or written). The plan is rebuilt and must have the `planHash` previewed (`409 plan_changed`, with the new `plan`; `409 plan_blocked` when a step is no longer available). The steps then run IN ORDER through their own services, each with its own claim, its own re-read of the store and its own refusal on drift (`state_changed` is a failed step, not a retry). The batch STOPS at the first step that is not applied: the rest are `skipped` (`previous_step_not_applied`). Nothing is ever retried; an unknown outcome is read back by the step and reported (`outcome: unknown`: look at the store). A deferred step that no longer matches its promise is skipped as `plan_drifted`. One publish per app at a time (`409 publish_in_progress`). The answer is `200` with the result of every step even when a step failed: look at `completed`, `stoppedAt` and `steps`. Audited as `pending.published` (ids, hashes, per step outcomes; never a text or a credential) and emitted as the event `pending.published` when something was applied.',
     risk: 'destructive',
     access: { action: 'store.publish' },
     appScope: { kind: 'param', name: 'id' },

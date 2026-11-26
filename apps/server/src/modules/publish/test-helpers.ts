@@ -477,6 +477,12 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, St
   /** How many times `pushAndSubmit` was called, and how many of them sent changes for review. */
   pushAndSubmitCalls = 0;
   sentForReview = 0;
+  /** Google Play has changes in review: a commit that sends for review is refused (`changes_in_review`) unless it replaces the review. */
+  inReview = false;
+  /** How many commits cancelled a review in progress (`CANCEL_IN_REVIEW_AND_SUBMIT`). */
+  reviewsReplaced = 0;
+  /** The releases the combined step made in its own commit (track, codes, share). */
+  releasesMade: { track: string; versionCodes: string[]; userFraction: number }[] = [];
 
   async applyDraft(input: DraftApplyInput): Promise<DraftApplyResult> {
     return this.#apply(input, false);
@@ -515,6 +521,17 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, St
     const b = this.behavior;
     const steps: DraftStep[] = [];
     let applied = 0;
+    if (review && this.inReview && input.replaceReview !== true) {
+      // Google refuses the ONE commit while changes are in review, and nothing of the edit is applied.
+      this.writes.pop();
+      throw new StoreError(
+        'googleplay',
+        'changes_in_review',
+        'Google Play has changes in review for this app, and this server does not cancel a review. Wait for the review to finish (or cancel it in Play Console) and try again. Nothing was changed.',
+        400,
+        [{ code: 'CHANGES_ALREADY_IN_REVIEW', detail: 'You already have changes in review. Cancel this review or wait for it to complete before you try again.' }],
+      );
+    }
     if (this.draftRefused && !review) {
       this.writes.pop();
       throw new StoreError(
@@ -596,9 +613,22 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, St
         { type: 'asset', locale: a.locale, target: a.target },
       );
     }
+    if (input.start !== undefined) {
+      const track = input.fields?.find((f) => f.field === 'track')?.value ?? '';
+      const codes = (input.fields?.find((f) => f.field === 'version_codes')?.value ?? '').split(',').filter(Boolean);
+      apply(
+        { type: 'field', locale: '', target: 'release_start', outcome: 'applied' },
+        () => this.releasesMade.push({ track, versionCodes: codes, userFraction: input.start?.userFraction ?? 1 }),
+        { type: 'field', locale: '', target: 'release_start' },
+      );
+    }
     if (b.kind === 'unknown') {
       if (this.readFailsAfterWrite) this.readError = new Error('down');
       throw new DraftOutcomeUnknownError(this.store, 'timed out', [...steps]);
+    }
+    if (review && input.replaceReview === true && this.inReview) {
+      this.reviewsReplaced++;
+      this.inReview = false;
     }
     if (review && applied > 0) this.sentForReview++;
     return {

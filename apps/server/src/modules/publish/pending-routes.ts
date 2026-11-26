@@ -126,7 +126,13 @@ const releaseFields = {
 /** One step of a batch. Which fields apply is checked per step; a field a step does not take is `422 invalid_steps`. */
 export const stepSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('push_draft') }).strict(),
-  z.object({ type: z.literal('push_and_submit') }).strict(),
+  z
+    .object({
+      type: z.literal('push_and_submit'),
+      /** Replace the review in progress with everything together (`CANCEL_IN_REVIEW_AND_SUBMIT`): a person's explicit choice. */
+      replaceReview: z.boolean().optional(),
+    })
+    .strict(),
   z.object({ type: z.literal('submit') }).strict(),
   z.object({ type: z.literal('release'), ...releaseFields }).strict(),
   z

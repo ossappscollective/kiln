@@ -251,3 +251,44 @@ export function manifestMismatches(m: PushedManifest, draft: DraftState): Mismat
   }
   return out;
 }
+
+/**
+ * Google Play: the draft release that was just released is no longer pending. Forgets it in the push record and moves the stored
+ * row (as of the last sync) to what the commit made it, so the pending view does not keep a ghost until the next sync. The next
+ * sync is still the truth: it overwrites the row.
+ */
+export async function markReleasedHere(
+  sql: Sql,
+  app: { id: string; platform: Platform },
+  track: string,
+  codes: readonly string[],
+  completed: boolean,
+  at: number,
+): Promise<void> {
+  await clearPushedRelease(sql, app.id, app.platform, track, codes);
+  // The staged release fields (track, version codes, notes, name, share) were used by this release, so they are no longer waiting:
+  // a direct release does not go through a draft push, which is what marks them pushed otherwise.
+  await sql.execute(
+    "UPDATE staged_changes SET pushed_at = ?, pushed_hash = value_hash WHERE app_id = ? AND kind = 'release_field' AND (pushed_hash IS NULL OR pushed_hash <> value_hash)",
+    [at, app.id],
+  );
+  const wanted = [...codes].sort().join(',');
+  for (const r of await sql.query(
+    "SELECT id, details_json FROM app_releases WHERE app_id = ? AND platform = 'android' AND track = ? AND status = 'draft'",
+    [app.id, track],
+  )) {
+    let have: string[] = [];
+    try {
+      const d = JSON.parse(String(r.details_json ?? '{}')) as { versionCodes?: unknown };
+      if (Array.isArray(d.versionCodes)) have = d.versionCodes.map((c) => String(c));
+    } catch {
+      continue;
+    }
+    if ([...have].sort().join(',') !== wanted) continue;
+    await sql.execute('UPDATE app_releases SET status = ?, raw_state = ? WHERE id = ?', [
+      completed ? 'live' : 'rolling_out',
+      completed ? 'completed' : 'inProgress',
+      String(r.id),
+    ]);
+  }
+}
