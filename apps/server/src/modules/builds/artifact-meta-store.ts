@@ -55,7 +55,8 @@ const COLUMNS = `artifact_id, status, build_number, version, package_id, format,
 
 const num = (v: unknown): number | null =>
   v === null || v === undefined || Number.isNaN(Number(v)) ? null : Number(v);
-const str = (v: unknown): string | null => (v === null || v === undefined || v === '' ? null : String(v));
+const str = (v: unknown): string | null =>
+  v === null || v === undefined || v === '' ? null : String(v);
 
 /**
  * Rows older than this are dropped when a new one is written (GitHub keeps an artifact 90 days at
@@ -206,7 +207,12 @@ export async function saveArtifactMeta(
  */
 export async function rememberArtifactOrigin(
   db: Sql,
-  input: { workspaceId: string; appId: string; artifactId: string; origin: Partial<ArtifactOrigin> },
+  input: {
+    workspaceId: string;
+    appId: string;
+    artifactId: string;
+    origin: Partial<ArtifactOrigin>;
+  },
 ): Promise<boolean> {
   const o = { ...NO_ARTIFACT_ORIGIN, ...input.origin };
   const before = await loadOneArtifactMeta(db, input.workspaceId, input.appId, input.artifactId);

@@ -264,9 +264,17 @@ const releaseCandidatesSchema = z.union([
             url: z.string().nullable(),
           })
           .optional()
-          .describe('The CI run that made the file, when a CI file with this version code was read.'),
+          .describe(
+            'The CI run that made the file, when a CI file with this version code was read.',
+          ),
         builtGap: z
-          .enum(['not_read', 'file_gone', 'github_unreachable', 'github_no_access', 'no_repository'])
+          .enum([
+            'not_read',
+            'file_gone',
+            'github_unreachable',
+            'github_no_access',
+            'no_repository',
+          ])
           .nullable()
           .describe(
             'Why `builtAt` is null (null when it is known): `not_read` (Kiln has not read a CI file with this code), `file_gone` (read, but GitHub no longer has the file and no date was kept), `github_unreachable` / `github_no_access` (the artifact list could not be read), `no_repository` (no CI repository is linked). Google Play itself never gives a build date.',
@@ -275,19 +283,21 @@ const releaseCandidatesSchema = z.union([
           .number()
           .int()
           .nullable()
-          .describe('When `builtGap` is `file_gone`: epoch milliseconds GitHub deletes (or deleted) the file, when known.'),
+          .describe(
+            'When `builtGap` is `file_gone`: epoch milliseconds GitHub deletes (or deleted) the file, when known.',
+          ),
         matchedBy: z
           .enum(['package', 'build_number_only'])
           .nullable()
           .describe(
-            'How a CI file was matched to the code: `package` (the file is this app\'s package) or `build_number_only` (only the build number matched, the package differs); null: no file.',
+            "How a CI file was matched to the code: `package` (the file is this app's package) or `build_number_only` (only the build number matched, the package differs); null: no file.",
           ),
         firstSeenAt: z
           .number()
           .int()
           .nullable()
           .describe(
-            'Epoch milliseconds Kiln\'s store sync first saw this code. NOT a build date (Google Play gives none); null: never synced.',
+            "Epoch milliseconds Kiln's store sync first saw this code. NOT a build date (Google Play gives none); null: never synced.",
           ),
       }),
     ),

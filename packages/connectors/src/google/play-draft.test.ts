@@ -284,7 +284,7 @@ test('when Google will not hold changes back, the answer is draft_not_allowed an
   assert.equal(api.listings.get('en-US')?.title, 'Old title');
 });
 
-test('draft_not_allowed keeps Google\'s own sentence, a catalogue code and no secret', async () => {
+test("draft_not_allowed keeps Google's own sentence, a catalogue code and no secret", async () => {
   const { connector } = setup((a) => {
     a.commitAnswer = 'not_sent_refused';
   });
@@ -392,7 +392,8 @@ test('pushAndSubmit: a 5xx or a cut connection is an unknown outcome and the com
     });
     await assert.rejects(
       connector.pushAndSubmit(input({ text: [{ locale: 'en-US', field: 'title', value: 'New' }] })),
-      (e: unknown) => e instanceof DraftOutcomeUnknownError && /sending them for review/.test(e.message),
+      (e: unknown) =>
+        e instanceof DraftOutcomeUnknownError && /sending them for review/.test(e.message),
       mode,
     );
     assert.equal(api.commits.length, 1, mode);
@@ -519,7 +520,11 @@ test('pushAndSubmit with start: texts, graphics and the release are ONE edit and
   );
   assert.equal(result.commit, 'sent_for_review');
   assert.equal(api.commits.length, 1, 'one commit for everything');
-  assert.equal(api.seen.filter((s) => s.method === 'POST' && s.path.endsWith('/edits')).length, 1, 'one edit');
+  assert.equal(
+    api.seen.filter((s) => s.method === 'POST' && s.path.endsWith('/edits')).length,
+    1,
+    'one edit',
+  );
   const q = new URLSearchParams(api.commits[0]?.query ?? '');
   assert.equal(q.has('changesNotSentForReview'), false);
   assert.equal(q.get('changesInReviewBehavior'), 'ERROR_IF_IN_REVIEW');
@@ -530,26 +535,37 @@ test('pushAndSubmit with start: texts, graphics and the release are ONE edit and
   assert.equal(made?.userFraction, undefined);
   assert.deepEqual(made?.releaseNotes, [{ language: 'en-US', text: 'Fixes' }]);
   // The older completed release is replaced (one completed release only), the listing and the images are written.
-  assert.equal(production?.releases.some((r) => r.versionCodes.join() === '200'), false);
+  assert.equal(
+    production?.releases.some((r) => r.versionCodes.join() === '200'),
+    false,
+  );
   assert.equal(api.listings.get('en-US')?.title, 'New title');
-  assert.deepEqual(api.images.get('en-US/phoneScreenshots')?.map((i) => i.sha256), [a.sha256]);
+  assert.deepEqual(
+    api.images.get('en-US/phoneScreenshots')?.map((i) => i.sha256),
+    [a.sha256],
+  );
   assert.ok(result.steps.some((s) => s.target === 'release_start' && s.outcome === 'applied'));
   const writes = api.writes();
   assert.equal(writes.filter((w) => w.includes(':commit')).length, 1);
-  assert.equal(writes[writes.length - 1]?.includes(':commit'), true, 'the commit is the last write');
+  assert.equal(
+    writes[writes.length - 1]?.includes(':commit'),
+    true,
+    'the commit is the last write',
+  );
   assert.ok(writes.some((w) => w.startsWith('POST /edits/') && w.includes(':validate')));
 });
 
 test('pushAndSubmit with start and a share: the release is inProgress with that share', async () => {
   const { api, connector } = setup();
-  await connector.pushAndSubmit(
-    input({ fields: RELEASE_FIELDS, start: { userFraction: 0.2 } }),
-  );
+  await connector.pushAndSubmit(input({ fields: RELEASE_FIELDS, start: { userFraction: 0.2 } }));
   const production = api.tracks.find((t) => t.track === 'production');
   const made = production?.releases.find((r) => r.versionCodes.join() === '240');
   assert.equal(made?.status, 'inProgress');
   assert.equal(made?.userFraction, 0.2);
-  assert.ok(production?.releases.some((r) => r.versionCodes.join() === '200'), 'the live release keeps serving the rest');
+  assert.ok(
+    production?.releases.some((r) => r.versionCodes.join() === '200'),
+    'the live release keeps serving the rest',
+  );
   assert.equal(api.commits.length, 1);
 });
 
@@ -580,11 +596,17 @@ test('pushAndSubmit with start: changes in review refuse the one commit and NOTH
     (e: unknown) => e instanceof StoreError && e.kind === 'changes_in_review',
   );
   assert.equal(api.commits.length, 1, 'never a second commit');
-  assert.equal(new URLSearchParams(api.commits[0]?.query ?? '').get('changesInReviewBehavior'), 'ERROR_IF_IN_REVIEW');
+  assert.equal(
+    new URLSearchParams(api.commits[0]?.query ?? '').get('changesInReviewBehavior'),
+    'ERROR_IF_IN_REVIEW',
+  );
   assert.equal(api.openEdit, false, 'the edit was deleted, so no half-written change lingers');
   assert.equal(api.listings.get('en-US')?.title, 'Old title');
   assert.deepEqual(api.images.get('en-US/phoneScreenshots') ?? [], []);
-  assert.deepEqual(api.tracks[0]?.releases.map((r) => r.versionCodes.join()), ['200']);
+  assert.deepEqual(
+    api.tracks[0]?.releases.map((r) => r.versionCodes.join()),
+    ['200'],
+  );
 });
 
 test('replaceReview is the ONLY way to CANCEL_IN_REVIEW_AND_SUBMIT: it cancels the review and sends everything together', async () => {
@@ -607,14 +629,22 @@ test('replaceReview is the ONLY way to CANCEL_IN_REVIEW_AND_SUBMIT: it cancels t
   );
   assert.equal(api.reviewsCancelled, 1);
   assert.equal(api.listings.get('en-US')?.title, 'New title');
-  assert.equal(api.tracks[0]?.releases.some((r) => r.versionCodes.join() === '240' && r.status === 'completed'), true);
+  assert.equal(
+    api.tracks[0]?.releases.some(
+      (r) => r.versionCodes.join() === '240' && r.status === 'completed',
+    ),
+    true,
+  );
 });
 
 test('every commit without replaceReview carries ERROR_IF_IN_REVIEW (draft push, combined push, combined push with a release)', async () => {
   for (const run of [
-    (c: PlayDraftConnector) => c.applyDraft(input({ text: [{ locale: 'en-US', field: 'title', value: 'A' }] })),
-    (c: PlayDraftConnector) => c.pushAndSubmit(input({ text: [{ locale: 'en-US', field: 'title', value: 'B' }] })),
-    (c: PlayDraftConnector) => c.pushAndSubmit(input({ fields: RELEASE_FIELDS, start: { userFraction: 1 } })),
+    (c: PlayDraftConnector) =>
+      c.applyDraft(input({ text: [{ locale: 'en-US', field: 'title', value: 'A' }] })),
+    (c: PlayDraftConnector) =>
+      c.pushAndSubmit(input({ text: [{ locale: 'en-US', field: 'title', value: 'B' }] })),
+    (c: PlayDraftConnector) =>
+      c.pushAndSubmit(input({ fields: RELEASE_FIELDS, start: { userFraction: 1 } })),
   ]) {
     const { api, connector } = setup();
     await run(connector);
@@ -633,7 +663,10 @@ test('a draft push never starts a release and never replaces a review: refused b
       connector.applyDraft(input({ fields: RELEASE_FIELDS, ...extra })),
       (e: unknown) => e instanceof StoreError && e.kind === 'invalid_input',
     );
-    assert.equal(api.seen.filter((s) => s.method !== 'GET' && !s.path.endsWith('/token')).length, 0);
+    assert.equal(
+      api.seen.filter((s) => s.method !== 'GET' && !s.path.endsWith('/token')).length,
+      0,
+    );
   }
 });
 

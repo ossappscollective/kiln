@@ -201,7 +201,9 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
     release,
     rollout,
     ...(ctx.publish?.claimTtlMs !== undefined ? { claimTtlMs: ctx.publish.claimTtlMs } : {}),
-    ...(ctx.publish?.stepTimeoutMs !== undefined ? { stepTimeoutMs: ctx.publish.stepTimeoutMs } : {}),
+    ...(ctx.publish?.stepTimeoutMs !== undefined
+      ? { stepTimeoutMs: ctx.publish.stepTimeoutMs }
+      : {}),
     ...(ctx.publish?.log ? { log: ctx.publish.log } : {}),
   };
 

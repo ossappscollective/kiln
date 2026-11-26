@@ -884,7 +884,9 @@ export function oneCommitTypes(
     has('submit')
   )
     return [...types];
-  return PUBLISH_STEPS.filter((t) => (t === 'push_and_submit' ? true : t === 'push_draft' ? false : has(t)));
+  return PUBLISH_STEPS.filter((t) =>
+    t === 'push_and_submit' ? true : t === 'push_draft' ? false : has(t),
+  );
 }
 
 /** The types the person has in the plan: the included ones, and a step asked for that only waits for its input (the release's share). */
@@ -897,7 +899,8 @@ export const planTypes = (plan: PublishPlan): PublishStepType[] =>
 export const withWaiting = (
   plan: PublishPlan,
   types: readonly PublishStepType[],
-): PublishStepType[] => PUBLISH_STEPS.filter((t) => types.indexOf(t) >= 0 || planTypes(plan).indexOf(t) >= 0);
+): PublishStepType[] =>
+  PUBLISH_STEPS.filter((t) => types.indexOf(t) >= 0 || planTypes(plan).indexOf(t) >= 0);
 
 /** The requests with `replaceReview` set (or taken off) on the push that sends for review. Nothing else changes. */
 export function withReplaceReview(requests: readonly StepRequest[], on: boolean): StepRequest[] {
@@ -1081,7 +1084,8 @@ export const toggled = (
       return keep(t);
     });
   return PUBLISH_STEPS.filter((t) => {
-    if (t === 'push_and_submit') return !(on && (type === 'push_draft' || type === 'submit')) && keep(t);
+    if (t === 'push_and_submit')
+      return !(on && (type === 'push_draft' || type === 'submit')) && keep(t);
     return keep(t);
   });
 };

@@ -538,7 +538,12 @@ dbTest(
                 version: '2.4.1',
                 packageId: 'com.acme.app',
                 createdAt: 1_900_000_000_000,
-                run: { runNumber: 41, branch: 'main', commit: 'abc1234', url: 'https://github.test/run/41' },
+                run: {
+                  runNumber: 41,
+                  branch: 'main',
+                  commit: 'abc1234',
+                  url: 'https://github.test/run/41',
+                },
               },
             ],
             store: [],
@@ -556,7 +561,12 @@ dbTest(
         source: 'bundle' as const,
         sha256: null,
         inTrack: versionCode === '242' ? [{ name: '2.4.2', status: 'completed' }] : [],
-        eligibility: { eligible: true, severity: 'ok' as const, code: 'ok' as const, message: 'ok' },
+        eligibility: {
+          eligible: true,
+          severity: 'ok' as const,
+          code: 'ok' as const,
+          message: 'ok',
+        },
       })),
     };
     const res = await t.call(t.owner, 'GET', `/apps/${droid}/release/candidates?track=production`);

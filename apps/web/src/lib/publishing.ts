@@ -72,9 +72,7 @@ export function detailText(p: Publishing, now: number): string {
   const parts = [t('publish:publishing.started', { ago: timeAgo(p.startedAt, now) })];
   const at = stepProgress(p);
   if (at.name !== null && at.index !== null)
-    parts.push(
-      t('publish:publishing.step', { index: at.index, total: at.total, name: at.name }),
-    );
+    parts.push(t('publish:publishing.step', { index: at.index, total: at.total, name: at.name }));
   else if (at.name !== null) parts.push(at.name);
   else if (at.total > 0) parts.push(t('publish:publishing.steps', { count: at.total }));
   return parts.join(' · ');
@@ -144,10 +142,8 @@ export function pollDelay(input: {
 }
 
 /** The apps that were publishing and no longer are: their claim is gone, so the screens read what the publish left. */
-export const finishedApps = (
-  before: readonly string[],
-  after: readonly string[],
-): string[] => before.filter((id) => !after.includes(id));
+export const finishedApps = (before: readonly string[], after: readonly string[]): string[] =>
+  before.filter((id) => !after.includes(id));
 
 // ---------------------------------------------------------------------------------------------
 // The loader

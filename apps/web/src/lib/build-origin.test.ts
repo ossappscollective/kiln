@@ -10,7 +10,12 @@ import {
   versionInName,
   versionMismatch,
 } from './build-origin.ts';
-import { type CodeCandidate, chosenBuildLine, chosenCodeLines, codeRows } from './release-candidates.ts';
+import {
+  type CodeCandidate,
+  chosenBuildLine,
+  chosenCodeLines,
+  codeRows,
+} from './release-candidates.ts';
 
 // 24 Nov 2026, 23:38 in the clock of the machine; the age is against a fixed "now" one day later.
 const BUILT = Date.UTC(2026, 10, 24, 23, 38);
@@ -18,7 +23,10 @@ const NOW = BUILT + 24 * 60 * 60_000 + 60_000;
 const RUN = { runNumber: 41, branch: 'main', commit: 'abc1234', url: 'https://github.test/run/41' };
 
 test('a CI hit reads "Version", "Built <date> · <age>" and links the run', () => {
-  const v = originView({ version: '2.00.1', builtAt: BUILT, origin: 'ci', builtFrom: 'ci', ci: RUN }, NOW);
+  const v = originView(
+    { version: '2.00.1', builtAt: BUILT, origin: 'ci', builtFrom: 'ci', ci: RUN },
+    NOW,
+  );
   assert.equal(v.versionText, 'Version 2.00.1');
   assert.equal(v.version, '2.00.1');
   assert.equal(v.versionUnknown, false);
@@ -30,10 +38,16 @@ test('a CI hit reads "Version", "Built <date> · <age>" and links the run', () =
 });
 
 test('a store build says "Uploaded", a release name is a name, never a read version or a date', () => {
-  const store = originView({ version: '2.00.0', builtAt: BUILT, origin: 'store', builtFrom: 'store' }, NOW);
+  const store = originView(
+    { version: '2.00.0', builtAt: BUILT, origin: 'store', builtFrom: 'store' },
+    NOW,
+  );
   assert.match(store.builtText, /^Uploaded /);
   assert.equal(store.version, '2.00.0');
-  const named = originView({ version: '1.15.2', builtAt: null, origin: 'release', builtFrom: null }, NOW);
+  const named = originView(
+    { version: '1.15.2', builtAt: null, origin: 'release', builtFrom: null },
+    NOW,
+  );
   assert.equal(named.versionText, 'Release name 1.15.2');
   assert.equal(named.version, null, 'a release name is not a version read from the file');
   assert.equal(named.versionUnknown, false);
@@ -69,10 +83,21 @@ test('Latest: the newest known build date, unless an undated code above it could
   const b = { id: '89', number: 89, builtAt: BUILT - 1000 };
   assert.equal(latestOf([b, a]), '90');
   assert.equal(latestOf([{ id: '88', number: 88, builtAt: null }, a, b]), '90');
-  assert.equal(latestOf([{ id: '91', number: 91, builtAt: null }, a, b]), null, 'an undated higher code may be newer');
+  assert.equal(
+    latestOf([{ id: '91', number: 91, builtAt: null }, a, b]),
+    null,
+    'an undated higher code may be newer',
+  );
   assert.equal(latestOf([{ id: '91', number: 91, builtAt: null }]), null, 'no date known');
   assert.equal(latestOf([]), null);
-  assert.equal(latestOf([{ id: '7', number: 7, builtAt: 5 }, { id: '8', number: 8, builtAt: 5 }]), '8', 'a tie goes to the higher number');
+  assert.equal(
+    latestOf([
+      { id: '7', number: 7, builtAt: 5 },
+      { id: '8', number: 8, builtAt: 5 },
+    ]),
+    '8',
+    'a tie goes to the higher number',
+  );
 });
 
 test('versions: what a release name says, and when two writings are the same version', () => {
@@ -108,15 +133,25 @@ const code = (versionCode: string, extra: Partial<CodeCandidate> = {}): CodeCand
 test('code rows carry the origin and the Latest mark, sorted as before (newest code first)', () => {
   const rows = codeRows(
     [
-      code('88', { inTrack: [{ name: '1.15.2', status: 'completed' }], version: '1.15.2', origin: 'release' }),
+      code('88', {
+        inTrack: [{ name: '1.15.2', status: 'completed' }],
+        version: '1.15.2',
+        origin: 'release',
+      }),
       code('90', { version: '2.00.1', builtAt: BUILT, origin: 'ci', builtFrom: 'ci', ci: RUN }),
       code('89', { version: '2.00.0', builtAt: BUILT - 86_400_000, origin: 'ci', builtFrom: 'ci' }),
     ],
     [],
     NOW,
   );
-  assert.deepEqual(rows.map((r) => r.versionCode), ['90', '89', '88']);
-  assert.deepEqual(rows.map((r) => r.latest), [true, false, false]);
+  assert.deepEqual(
+    rows.map((r) => r.versionCode),
+    ['90', '89', '88'],
+  );
+  assert.deepEqual(
+    rows.map((r) => r.latest),
+    [true, false, false],
+  );
   assert.equal(rows[0]?.version, '2.00.1');
   assert.equal(rows[2]?.version, null, 'a release name is not a read version');
   assert.equal(rows[2]?.origin.versionText, 'Release name 1.15.2');
@@ -141,7 +176,17 @@ test('the chosen builds for Confirm: version, date and the mismatch warning', ()
   assert.equal(chosenCodeLines(['90'], known, null, NOW)[0]?.mismatch, null);
   // App Store: the store's version and upload time; a missing one is not blamed on a file.
   const apple = chosenBuildLine(
-    { id: 'b1', buildNumber: '412', version: '2.4.0', uploadedDate: '2026-11-19T10:30:12Z', processingState: 'VALID', expired: false, selectable: true, reason: null, attached: false },
+    {
+      id: 'b1',
+      buildNumber: '412',
+      version: '2.4.0',
+      uploadedDate: '2026-11-19T10:30:12Z',
+      processingState: 'VALID',
+      expired: false,
+      selectable: true,
+      reason: null,
+      attached: false,
+    },
     '2.5.0',
     NOW,
   );
@@ -171,7 +216,12 @@ test('a missing build date says why, one sentence per reason the server gives', 
   }
   // Only a code Kiln has not read can be helped by reading the CI builds.
   assert.equal(builtReason({ builtGap: 'not_read' })?.readable, true);
-  for (const gap of ['file_gone', 'github_unreachable', 'github_no_access', 'no_repository'] as const)
+  for (const gap of [
+    'file_gone',
+    'github_unreachable',
+    'github_no_access',
+    'no_repository',
+  ] as const)
     assert.equal(builtReason({ builtGap: gap })?.readable, false, gap);
   assert.equal(builtReason({ builtAt: BUILT, builtGap: null }), null, 'a known date has no reason');
 });
@@ -195,7 +245,14 @@ test('Google Play gives no date: said plainly when the server says nothing else 
 
 test('matched by build number only is said on the row; first seen is not a build date', () => {
   const v = originView(
-    { version: '2.00.1', builtAt: BUILT, origin: 'ci', builtFrom: 'ci', matchedBy: 'build_number_only', ci: RUN },
+    {
+      version: '2.00.1',
+      builtAt: BUILT,
+      origin: 'ci',
+      builtFrom: 'ci',
+      matchedBy: 'build_number_only',
+      ci: RUN,
+    },
     NOW,
   );
   assert.equal(v.matchNote, 'Matched by build number only');
@@ -207,14 +264,36 @@ test('matched by build number only is said on the row; first seen is not a build
   assert.equal(seen.builtKnown, false, 'first seen never becomes the build date');
   assert.match(seen.builtText, /^Build date not known/);
   // With a real build date the first-seen line is not shown.
-  assert.equal(originView({ builtAt: BUILT, builtFrom: 'ci', firstSeenAt: BUILT }, NOW).firstSeenText, null);
+  assert.equal(
+    originView({ builtAt: BUILT, builtFrom: 'ci', firstSeenAt: BUILT }, NOW).firstSeenText,
+    null,
+  );
 });
 
 test('the Latest badge ignores first seen', () => {
   const rows = codeRows(
     [
-      { versionCode: '90', source: 'bundle', sha256: null, inTrack: [], eligibility: { eligible: true, code: 'ok', severity: 'info', message: '' }, builtAt: null, builtGap: 'not_read', firstSeenAt: BUILT },
-      { versionCode: '89', source: 'bundle', sha256: null, inTrack: [], eligibility: { eligible: true, code: 'ok', severity: 'info', message: '' }, builtAt: BUILT, builtFrom: 'ci', origin: 'ci', version: '2.00.0' },
+      {
+        versionCode: '90',
+        source: 'bundle',
+        sha256: null,
+        inTrack: [],
+        eligibility: { eligible: true, code: 'ok', severity: 'info', message: '' },
+        builtAt: null,
+        builtGap: 'not_read',
+        firstSeenAt: BUILT,
+      },
+      {
+        versionCode: '89',
+        source: 'bundle',
+        sha256: null,
+        inTrack: [],
+        eligibility: { eligible: true, code: 'ok', severity: 'info', message: '' },
+        builtAt: BUILT,
+        builtFrom: 'ci',
+        origin: 'ci',
+        version: '2.00.0',
+      },
     ] as unknown as CodeCandidate[],
     [],
     NOW,

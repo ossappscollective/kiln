@@ -336,9 +336,7 @@ test('inspect: nothing recognised is null: no build file, no manifest, no build 
 });
 
 test('inspect: a bomb inside the artifact is refused, and nothing throws', async () => {
-  const bomb = zipOf([
-    { name: 'app.apk', data: Buffer.alloc(8 * 1024 * 1024), method: 'deflate' },
-  ]);
+  const bomb = zipOf([{ name: 'app.apk', data: Buffer.alloc(8 * 1024 * 1024), method: 'deflate' }]);
   assert.equal(await inspectBuildArtifact(bomb), null);
   const lying = patchCentral(
     zipOf([{ name: 'app.apk', data: apkZip(), method: 'deflate' }]),

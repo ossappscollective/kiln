@@ -233,7 +233,10 @@ test('build rows carry the age of the upload and mark the newest build Latest', 
     [],
     now,
   );
-  assert.deepEqual(rows.map((r) => r.latest), [true, false, false]);
+  assert.deepEqual(
+    rows.map((r) => r.latest),
+    [true, false, false],
+  );
   assert.equal(rows[0]?.uploadedAge, 'yesterday');
   assert.equal(rows[1]?.uploadedAge, '2 days ago');
   assert.equal(rows[2]?.uploadedAge, null);

@@ -58,7 +58,10 @@ test('the elapsed time reads as minutes and seconds', () => {
 });
 
 test('the failure detail is the status and the code of the server, nothing else', () => {
-  assert.equal(failureDetail(new ApiError(502, 'draft_partial', 'Some text from a store')), 'HTTP 502 draft_partial');
+  assert.equal(
+    failureDetail(new ApiError(502, 'draft_partial', 'Some text from a store')),
+    'HTTP 502 draft_partial',
+  );
   assert.equal(failureDetail(new ApiError(500, 'weird code with spaces!', 'm')), 'HTTP 500');
   assert.equal(failureDetail(new Error('boom')), null);
 });

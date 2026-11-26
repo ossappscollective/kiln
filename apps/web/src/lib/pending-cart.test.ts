@@ -19,11 +19,11 @@ import {
   pricePhrases,
   prune,
   publishRequests,
-  reviewScope,
   reasonKey,
   reasonText,
   resultKey,
   resultText,
+  reviewScope,
   rowKey,
   rowsForLocale,
   selectAll,
@@ -329,7 +329,9 @@ test('review scope: nothing selected is everything, a partial selection is the d
     item('graphics:1', { risk: 'store_draft' }),
   ]);
   const b = toRows('a2', [item('listing:2', { risk: 'store_draft' })]);
-  const reply = toRows('a1', [item('review_reply:9', { kind: 'review_reply', risk: 'public_reply' })]);
+  const reply = toRows('a1', [
+    item('review_reply:9', { kind: 'review_reply', risk: 'public_reply' }),
+  ]);
   const rows = [...a, ...b, ...reply];
   const none = reviewScope(rows, noSelection);
   assert.deepEqual([none.appIds.sort(), none.steps, none.none], [['a1', 'a2'], null, false]);

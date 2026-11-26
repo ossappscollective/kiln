@@ -1,9 +1,9 @@
 import {
   type AssetKind,
-  type Platform,
-  deviceLabel as storeDeviceLabel,
   kindHasDevice,
+  type Platform,
   platformMeta,
+  deviceLabel as storeDeviceLabel,
   supports,
 } from '@kiln/core';
 import { kindLabel } from './assets/assets.ts';
@@ -100,7 +100,15 @@ export type TextItem = {
 
 export type TextDetail = { items: TextItem[]; more: number; total: number };
 
-export type GraphicsFile = { key: string; name: string; oid: string; path: string; width: number | null; height: number | null; bytes: number };
+export type GraphicsFile = {
+  key: string;
+  name: string;
+  oid: string;
+  path: string;
+  width: number | null;
+  height: number | null;
+  bytes: number;
+};
 
 /** One changed graphics set: a language, a kind and a device, with its files (as many as `GRAPHICS_FILES_SHOWN`). */
 export type GraphicsItem = {
@@ -312,7 +320,8 @@ export function notesDetail(
   if (entries.length === 0) return null;
   const wanted = defaultLocale === undefined || defaultLocale === null ? '' : defaultLocale.trim();
   const filled = entries.filter((n) => n.text.trim() !== '');
-  const ofDefault = wanted === '' ? undefined : filled.filter((n) => sameLocale(n.locale, wanted))[0];
+  const ofDefault =
+    wanted === '' ? undefined : filled.filter((n) => sameLocale(n.locale, wanted))[0];
   const picked = ofDefault ?? filled[0];
   let hint: string | null = null;
   if (picked !== undefined && ofDefault === undefined) {
@@ -338,7 +347,10 @@ export function notesDetail(
 }
 
 /** A text cut at `max` characters (on a word when it can), with "..." when something was cut. */
-export function cutText(text: string, max: number = TEXT_EXCERPT_CHARS): { excerpt: string; cut: boolean } {
+export function cutText(
+  text: string,
+  max: number = TEXT_EXCERPT_CHARS,
+): { excerpt: string; cut: boolean } {
   const clean = text.trim();
   if (clean.length <= max) return { excerpt: clean, cut: false };
   const head = clean.slice(0, max);
@@ -351,7 +363,10 @@ export function cutText(text: string, max: number = TEXT_EXCERPT_CHARS): { excer
  * The listing texts the push changes, one item per field and language (never the release notes, which have their own row, and never a
  * text that is the same as in the store), at most `limit` of them; the rest is counted in `more`. null when there is no push.
  */
-export function textDetail(push: DraftPreview | null, limit: number = DETAIL_ITEMS): TextDetail | null {
+export function textDetail(
+  push: DraftPreview | null,
+  limit: number = DETAIL_ITEMS,
+): TextDetail | null {
   if (push === null) return null;
   const all: TextItem[] = [];
   for (const x of push.text) {
@@ -403,7 +418,10 @@ export function graphicsDetail(
       id: set.id,
       locale: set.locale,
       kind,
-      title: device === '' ? kindLabel(kind) : t('publish:summary.graphics.setTitle', { kind: kindLabel(kind), device }),
+      title:
+        device === ''
+          ? kindLabel(kind)
+          : t('publish:summary.graphics.setTitle', { kind: kindLabel(kind), device }),
       files: files.slice(0, GRAPHICS_FILES_SHOWN),
       fileCount: files.length,
       moreFiles: Math.max(0, files.length - GRAPHICS_FILES_SHOWN),
@@ -473,7 +491,14 @@ export type BuildDate =
  */
 export function buildDate(
   facts: BuildFacts | null,
-  stored: readonly { platform: Platform; buildNumber: string; version?: string | undefined; uploadedAt: number | null }[] | null,
+  stored:
+    | readonly {
+        platform: Platform;
+        buildNumber: string;
+        version?: string | undefined;
+        uploadedAt: number | null;
+      }[]
+    | null,
 ): BuildDate | null {
   if (facts === null) return null;
   if (facts.kind === 'play') return { state: 'notProvided' };
@@ -481,10 +506,14 @@ export function buildDate(
   const mine = stored.filter(
     (b) => b.platform === facts.platform && facts.numbers.indexOf(b.buildNumber) >= 0,
   );
-  const same = mine.filter((b) => facts.version === null || b.version === undefined || b.version === facts.version);
+  const same = mine.filter(
+    (b) => facts.version === null || b.version === undefined || b.version === facts.version,
+  );
   const dated = (same.length > 0 ? same : mine).filter((b) => b.uploadedAt !== null);
   const newest = dated.sort((a, b) => (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0))[0];
-  return newest?.uploadedAt != null ? { state: 'known', at: newest.uploadedAt } : { state: 'notRead' };
+  return newest?.uploadedAt != null
+    ? { state: 'known', at: newest.uploadedAt }
+    : { state: 'notRead' };
 }
 
 /**
@@ -519,9 +548,7 @@ export function shownErrors(
 ): PlanProblem[] {
   return errorsOf(step).filter(
     (p) =>
-      inputTouched ||
-      step.availability !== 'needs_input' ||
-      INPUT_PROMPT_CODES.indexOf(p.code) < 0,
+      inputTouched || step.availability !== 'needs_input' || INPUT_PROMPT_CODES.indexOf(p.code) < 0,
   );
 }
 
@@ -644,12 +671,29 @@ export function publishSummary(input: SummaryInput): PublishSummary {
     let value: string;
     const from = str(plan.promotion?.from);
     const promotedVersion = str(plan.promotion?.version);
-    if (releaseOn && (direct || plan.oneCommit === true) && from !== null && track !== null && codes.length > 0)
+    if (
+      releaseOn &&
+      (direct || plan.oneCommit === true) &&
+      from !== null &&
+      track !== null &&
+      codes.length > 0
+    )
       // A build that is in another track and is released here: said as a promotion, with its version when the plan carries it.
       value =
         promotedVersion !== null
-          ? t('publish:summary.release.promote', { count: codes.length, codes: codes.join(', '), version: promotedVersion, from, to: track })
-          : t('publish:summary.release.promoteNoVersion', { count: codes.length, codes: codes.join(', '), from, to: track });
+          ? t('publish:summary.release.promote', {
+              count: codes.length,
+              codes: codes.join(', '),
+              version: promotedVersion,
+              from,
+              to: track,
+            })
+          : t('publish:summary.release.promoteNoVersion', {
+              count: codes.length,
+              codes: codes.join(', '),
+              from,
+              to: track,
+            });
     else if (name !== null && codes.length > 0)
       value = t('publish:summary.release.nameCodes', { name, codes: codes.join(', ') });
     else if (codes.length > 0)
@@ -668,7 +712,12 @@ export function publishSummary(input: SummaryInput): PublishSummary {
     const number = str(submit?.build?.version) ?? str(release?.build?.buildNumber);
     const loadedWithoutBuild =
       (submit !== null && submit.build === null) || (release !== null && release.build === null);
-    build = { kind: 'apple', platform, version: appleVersion, numbers: number === null ? [] : [number] };
+    build = {
+      kind: 'apple',
+      platform,
+      version: appleVersion,
+      numbers: number === null ? [] : [number],
+    };
     rows.push({
       id: 'build',
       label: t('publish:summary.row.build'),

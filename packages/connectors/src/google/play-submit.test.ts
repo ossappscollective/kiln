@@ -184,7 +184,12 @@ test('readSubmitState reads the image sets a few at a time, not one after the ot
   const languages = ['en-US', 'de-DE', 'fr-FR', 'es-ES', 'it-IT', 'ja-JP'];
   const { api } = setup((a) => {
     for (const language of languages)
-      a.listings.set(language, { language, title: language, shortDescription: 's', fullDescription: 'f' });
+      a.listings.set(language, {
+        language,
+        title: language,
+        shortDescription: 's',
+        fullDescription: 'f',
+      });
     a.setImages('fr-FR', 'phoneScreenshots', [new Uint8Array([9, 9])]);
   });
   let running = 0;
@@ -193,7 +198,10 @@ test('readSubmitState reads the image sets a few at a time, not one after the ot
   const inner = api.fetch;
   const slow = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input instanceof Request ? input.url : input);
-    if (!imageRead.test(url.split('?')[0] ?? '') || init?.method !== undefined && init.method !== 'GET')
+    if (
+      !imageRead.test(url.split('?')[0] ?? '') ||
+      (init?.method !== undefined && init.method !== 'GET')
+    )
       return inner(input, init);
     running += 1;
     most = Math.max(most, running);
@@ -220,5 +228,10 @@ test('readSubmitState reads the image sets a few at a time, not one after the ot
   );
   const fr = state.locales.find((l) => l.locale === 'fr-FR');
   assert.equal(fr?.assets.find((a) => a.target === 'phoneScreenshots')?.images.length, 1);
-  assert.equal(state.locales.find((l) => l.locale === 'de-DE')?.assets.find((a) => a.target === 'phoneScreenshots')?.images.length, 0);
+  assert.equal(
+    state.locales
+      .find((l) => l.locale === 'de-DE')
+      ?.assets.find((a) => a.target === 'phoneScreenshots')?.images.length,
+    0,
+  );
 });

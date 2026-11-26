@@ -84,13 +84,19 @@ test('the Confirm list is in the order the steps run, with the badge on the step
 });
 
 test('Google Play, only the chosen build staged: the Confirm list says it is released and sent for review, not pushed as a draft', () => {
-  const build = [item('release_field', 'push_draft', 'Track', {}), item('release_field', 'push_draft', 'Version codes', {})];
+  const build = [
+    item('release_field', 'push_draft', 'Track', {}),
+    item('release_field', 'push_draft', 'Version codes', {}),
+  ];
   const [only] = confirmSteps(build, 'android');
   assert.equal(only?.title, 'Release the chosen build (sent to Google for review)');
   assert.equal(only?.irreversible, true);
   assert.equal(only?.note, 'Cannot be undone from here');
   // With a text staged too the draft is the way, as before; the App Store is unchanged.
-  const [mixed] = confirmSteps([...build, item('listing_text', 'push_draft', 'Texts', { changes: 1 })], 'android');
+  const [mixed] = confirmSteps(
+    [...build, item('listing_text', 'push_draft', 'Texts', { changes: 1 })],
+    'android',
+  );
   assert.equal(mixed?.title, 'Push the staged changes to the store draft');
   assert.equal(mixed?.irreversible, false);
   assert.equal(confirmSteps(build, 'ios')[0]?.title, 'Push the staged changes to the store draft');

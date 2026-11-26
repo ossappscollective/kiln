@@ -276,11 +276,11 @@ own switch (`KILN_STORE_DRAFT_WRITE_ENABLED`, `KILN_STORE_SUBMIT_ENABLED`, `KILN
 `KILN_STORE_ROLLOUT_ENABLED`) and its own role right. While the batch is off, preview and publish answer `409 publish_batch_disabled`
 after the rights check; no store is reached.
 
-| Right                                                                   | Who                                                                                                                 |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `store.publish`                                                         | **admin and up** (owner, admin). **Explicit-only on API tokens.**                                                   |
-| `store.push_draft`, `store.submit`, `store.release`, `releases.rollout` | the step's own right, unchanged. A token needs each one it includes **in its actions**, as well as `store.publish`. |
-| `push_and_submit` (Google Play, see [the combined step](#push-and-submit-in-one-step-google-play))   | **both** `store.push_draft` AND `store.submit`, and both switches (`KILN_STORE_DRAFT_WRITE_ENABLED`, `KILN_STORE_SUBMIT_ENABLED`). |
+| Right                                                                                              | Who                                                                                                                                |
+| -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `store.publish`                                                                                    | **admin and up** (owner, admin). **Explicit-only on API tokens.**                                                                  |
+| `store.push_draft`, `store.submit`, `store.release`, `releases.rollout`                            | the step's own right, unchanged. A token needs each one it includes **in its actions**, as well as `store.publish`.                |
+| `push_and_submit` (Google Play, see [the combined step](#push-and-submit-in-one-step-google-play)) | **both** `store.push_draft` AND `store.submit`, and both switches (`KILN_STORE_DRAFT_WRITE_ENABLED`, `KILN_STORE_SUBMIT_ENABLED`). |
 
 ### Push and submit in one step (Google Play)
 
@@ -337,12 +337,12 @@ Every plan carries `recommended` (the step or steps to start from, never an empt
 synced build; both null when the sync does not say). `recommended` is `{ types, steps, why, needsShare }`; `steps` are the requests to send
 back (a release in them still needs the person's `userFraction`, which is never implied). The rules, in order:
 
-| Facts (Google Play) | `why` | `types` |
-| --- | --- | --- |
+| Facts (Google Play)                                                                       | `why`                                                                       | `types`                                                                             |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | a build staged for a track, no listing text or graphics, release switch on and right held | `promotion` (the sync shows the codes in another track) or `direct_release` | `release` (direct: one edit, committed without the hold-back, so Google reviews it) |
-| texts or graphics staged, a draft was refused by Google last time | `draft_refused` | `push_and_submit` |
-| texts or graphics, or release fields, staged otherwise | `draft` | `push_draft` |
-| another platform | `default` | the steps the plan included |
+| texts or graphics staged, a draft was refused by Google last time                         | `draft_refused`                                                             | `push_and_submit`                                                                   |
+| texts or graphics, or release fields, staged otherwise                                    | `draft`                                                                     | `push_draft`                                                                        |
+| another platform                                                                          | `default`                                                                   | the steps the plan included                                                         |
 
 A step whose switch is off, whose right is missing or that the plan found unavailable is never recommended; none left: `recommended: null`.
 A `release` step asked for WITHOUT `direct`, with no draft release to start and a build staged, is `blocked` with that reason (it used to be

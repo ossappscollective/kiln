@@ -8,9 +8,9 @@ import {
   supports,
 } from '@kiln/core';
 import { appAddress, type PlatformScope, parseViewPath } from './app-scope.ts';
+import { readVersionOf } from './build-origin.ts';
 import { formatList } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
-import { readVersionOf } from './build-origin.ts';
 import type { BuildCandidate, CodeCandidate, EditableRelease } from './release-candidates.ts';
 
 /**

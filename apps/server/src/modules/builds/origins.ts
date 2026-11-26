@@ -6,12 +6,7 @@ import {
   loadArtifactMeta,
   rememberArtifactOrigin,
 } from './artifact-meta-store.ts';
-import {
-  artifactOriginOf,
-  type BuildsContext,
-  listRawArtifacts,
-  storeBuilds,
-} from './service.ts';
+import { artifactOriginOf, type BuildsContext, listRawArtifacts, storeBuilds } from './service.ts';
 
 /**
  * What Kiln already knows about the builds of an app, for the "which version and when" of a version code in Prepare release

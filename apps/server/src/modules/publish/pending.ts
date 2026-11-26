@@ -590,9 +590,8 @@ export async function getPending(
     ttlMs: input.claimTtlMs,
   });
   const lastPublish =
-    (await readLastPublish(db, { workspaceId: input.workspaceId, appIds: [app.id] })).get(
-      app.id,
-    ) ?? null;
+    (await readLastPublish(db, { workspaceId: input.workspaceId, appIds: [app.id] })).get(app.id) ??
+    null;
   const items = await pendingItemsOf(db, { workspaceId: input.workspaceId, app, now: input.now });
   const totals = totalsOf(items);
   return {

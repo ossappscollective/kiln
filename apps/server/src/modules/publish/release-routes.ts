@@ -79,7 +79,7 @@ export type ReleaseRoutesContext = {
 
 /** The origins are a help, never a reason to wait: past this the codes are shown without them. */
 const ORIGINS_TIMEOUT_MS = 8000;
-const withinMs = <T,>(work: Promise<T>, ms: number): Promise<T> =>
+const withinMs = <T>(work: Promise<T>, ms: number): Promise<T> =>
   new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('timeout')), ms);
     work.then(

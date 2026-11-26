@@ -541,8 +541,14 @@ test('Google Play, direct: 100% is a completed release with no share, and it rep
 test('Google Play, a promotion from internal: one update of the production track only, started at the share (or completed), sent with the commit, internal untouched', async () => {
   const inInternal = (api: FakePlayDraftApi) => {
     api.tracks = [
-      { track: 'internal', releases: [{ name: '2.1', status: 'completed', versionCodes: ['241'] }] },
-      { track: 'production', releases: [{ name: '2.0', status: 'completed', versionCodes: ['200'] }] },
+      {
+        track: 'internal',
+        releases: [{ name: '2.1', status: 'completed', versionCodes: ['241'] }],
+      },
+      {
+        track: 'production',
+        releases: [{ name: '2.0', status: 'completed', versionCodes: ['200'] }],
+      },
     ];
   };
   const staged = play(inInternal);

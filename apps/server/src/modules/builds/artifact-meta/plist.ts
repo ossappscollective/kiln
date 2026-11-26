@@ -110,7 +110,9 @@ function parseBinaryPlist(buf: Buffer): PlistValue {
       case 0x6: {
         const { length, start } = lengthAt(at, info);
         if (start + length * 2 > trailer) throw new PlistError('string');
-        return Buffer.from(buf.subarray(start, start + length * 2)).swap16().toString('utf16le');
+        return Buffer.from(buf.subarray(start, start + length * 2))
+          .swap16()
+          .toString('utf16le');
       }
       case 0x8:
         return uintAt(buf, at + 1, info + 1);

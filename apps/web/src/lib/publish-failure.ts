@@ -2,7 +2,6 @@ import { type Platform, platformMeta, supports } from '@kiln/core';
 import { codedText, paramsOf } from './error-text.ts';
 import { formatList } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
-import { PLAY_CONSOLE_URL } from './store-links.ts';
 import {
   failedSentence,
   isDraftRefused,
@@ -13,6 +12,7 @@ import {
   STEP_NAME,
   skippedSentence,
 } from './pending.ts';
+import { PLAY_CONSOLE_URL } from './store-links.ts';
 
 /**
  * Why a publish failed, as a person reads it (docs/api/pending.md "Why a publish failed"). Pure: from the run the server kept
@@ -229,7 +229,10 @@ export type FailureActions = {
   playConsoleUrl: string | null;
 };
 
-export function failureActions(run: Pick<LastPublish, 'results'>, platform: Platform): FailureActions {
+export function failureActions(
+  run: Pick<LastPublish, 'results'>,
+  platform: Platform,
+): FailureActions {
   const refused = run.results.some((r) => r.status === 'failed' && isDraftRefused(r));
   const google = supports(platform, 'releaseTracks');
   return {

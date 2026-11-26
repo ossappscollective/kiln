@@ -15,7 +15,11 @@ export function requestPublishAgain(
   target: Pick<EventTarget, 'dispatchEvent'> | null = typeof window === 'undefined' ? null : window,
 ): boolean {
   if (target === null) return false;
-  return target.dispatchEvent(new CustomEvent(PUBLISH_AGAIN_EVENT, { detail: { appId }, cancelable: true })) === false;
+  return (
+    target.dispatchEvent(
+      new CustomEvent(PUBLISH_AGAIN_EVENT, { detail: { appId }, cancelable: true }),
+    ) === false
+  );
 }
 
 /** The steps that take no input of their own: a run that was only one of them can be repeated as exactly that. */
@@ -30,5 +34,7 @@ export function stepsToRepeat(run: Pick<LastPublish, 'steps'> | null): StepReque
   if (run === null) return null;
   const known = run.steps.filter((s) => PUBLISH_STEPS.indexOf(s) >= 0);
   const only = known[0];
-  return known.length === 1 && only !== undefined && NO_INPUT.indexOf(only) >= 0 ? [{ type: only }] : null;
+  return known.length === 1 && only !== undefined && NO_INPUT.indexOf(only) >= 0
+    ? [{ type: only }]
+    : null;
 }

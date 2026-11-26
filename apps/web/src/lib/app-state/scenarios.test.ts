@@ -7,8 +7,8 @@ import {
   facts,
   failedRun,
   failingAndroid,
-  internalTesting,
   IOS,
+  internalTesting,
   partlyRun,
   pipelineOf,
   running,
@@ -28,7 +28,10 @@ test('the failing scenario: Android, 29 pending, the last publish refused (draft
   assert.equal(s.primaryAction.action, 'show_pending');
   assert.equal(s.primaryAction.label, 'Show pending changes');
   assert.equal(s.primaryAction.enabled, true);
-  assert.deepEqual(s.secondaryActions.map((a) => [a.action, a.label, a.enabled]), [['publish_again', 'Publish again', true]]);
+  assert.deepEqual(
+    s.secondaryActions.map((a) => [a.action, a.label, a.enabled]),
+    [['publish_again', 'Publish again', true]],
+  );
   // The top bar: failed, count kept.
   assert.deepEqual(s.badge, { kind: 'failed', count: 29, appId: ANDROID.id });
   // The card never says it.
@@ -38,20 +41,34 @@ test('the failing scenario: Android, 29 pending, the last publish refused (draft
   assert.equal(s.promotion.option.codes[0], '167');
   assert.equal(s.promotion.offer.enabled, false);
   assert.equal(s.promotion.offer.disabledReason, 'Resolve the failed publish first.');
-  for (const a of ['promote', 'release', 'submit', 'create_version', 'prepare_release', 'start_release'] as const)
+  for (const a of [
+    'promote',
+    'release',
+    'submit',
+    'create_version',
+    'prepare_release',
+    'start_release',
+  ] as const)
     assert.equal(s.canDo(a, 'android').enabled, false, a);
   // The ways out stay.
-  for (const a of ['publish', 'push', 'discard', 'rollout'] as const) assert.equal(s.canDo(a, 'android').enabled, true, a);
+  for (const a of ['publish', 'push', 'discard', 'rollout'] as const)
+    assert.equal(s.canDo(a, 'android').enabled, true, a);
 });
 
 test('dismissing the failure returns the model to changes_pending (and a later success clears it too)', () => {
-  const dismissed = deriveAppState(failingAndroid({ lastRun: { [ANDROID.id]: dismissedRun('android') } }), 'android');
+  const dismissed = deriveAppState(
+    failingAndroid({ lastRun: { [ANDROID.id]: dismissedRun('android') } }),
+    'android',
+  );
   assert.equal(dismissed.phase, 'changes_pending');
   assert.equal(dismissed.headline, '29 changes waiting');
   assert.deepEqual(dismissed.badge, { kind: 'pending', count: 29, blocking: false });
   assert.equal(dismissed.primaryAction.action, 'show_pending');
   assert.equal(dismissed.promotion?.offer.enabled, true);
-  const later = deriveAppState(failingAndroid({ lastRun: { [ANDROID.id]: succeededRun('android') } }), 'android');
+  const later = deriveAppState(
+    failingAndroid({ lastRun: { [ANDROID.id]: succeededRun('android') } }),
+    'android',
+  );
   assert.equal(later.phase, 'changes_pending');
   const cleared = deriveAppState(failingAndroid({ lastRun: { [ANDROID.id]: null } }), 'android');
   assert.equal(cleared.phase, 'changes_pending');
@@ -67,7 +84,14 @@ test('a publish that runs again hides the older failure: it is publishing, nothi
 });
 
 test('pending count kept after publishing is the server count, not a remembered one (0 after a successful publish)', () => {
-  const s = deriveAppState(facts({ records: [ANDROID], pending: { [ANDROID.id]: { count: 0, blocking: 0 } }, lastRun: { [ANDROID.id]: null } }), 'android');
+  const s = deriveAppState(
+    facts({
+      records: [ANDROID],
+      pending: { [ANDROID.id]: { count: 0, blocking: 0 } },
+      lastRun: { [ANDROID.id]: null },
+    }),
+    'android',
+  );
   assert.equal(s.pendingCount, 0);
   assert.deepEqual(s.badge, { kind: 'idle' });
   assert.equal(s.phase, 'ready_to_release');
@@ -82,7 +106,10 @@ test('"Nothing is waiting for you" and Start release only when nothing is pendin
   assert.equal(unread.phase, 'unknown');
   assert.doesNotMatch(unread.headline, /nothing is waiting/i);
   assert.equal(unread.primaryAction.action, 'none');
-  const pending = deriveAppState(facts({ records: [ANDROID], pending: { [ANDROID.id]: { count: 29, blocking: 0 } } }), 'android');
+  const pending = deriveAppState(
+    facts({ records: [ANDROID], pending: { [ANDROID.id]: { count: 29, blocking: 0 } } }),
+    'android',
+  );
   assert.equal(pending.phase, 'changes_pending');
   assert.notEqual(pending.primaryAction.action, 'start_release');
 });
@@ -95,11 +122,16 @@ test('"next step" showing iOS when Android is selected: the card is about the pl
   const ios = deriveAppState(f, 'ios');
   assert.equal(ios.phase, 'release_needs_you');
   assert.match(ios.headline, /3\.1\.1/);
-  assert.deepEqual(ios.platforms.map((p) => p.platform), ['ios']);
+  assert.deepEqual(
+    ios.platforms.map((p) => p.platform),
+    ['ios'],
+  );
 });
 
 test('the scope filters the count and says where the rest is', () => {
-  const f = facts({ pending: { [IOS.id]: { count: 3, blocking: 0 }, [ANDROID.id]: { count: 29, blocking: 0 } } });
+  const f = facts({
+    pending: { [IOS.id]: { count: 3, blocking: 0 }, [ANDROID.id]: { count: 29, blocking: 0 } },
+  });
   assert.equal(deriveAppState(f, 'android').pendingCount, 29);
   assert.equal(deriveAppState(f, 'ios').pendingCount, 3);
   assert.equal(deriveAppState(f, 'both').pendingCount, 32);
@@ -107,13 +139,19 @@ test('the scope filters the count and says where the rest is', () => {
   assert.equal(android.elsewhere.pendingCount, 3);
   assert.deepEqual(android.elsewhere.platforms, ['ios']);
   // Pending only on the other platform: this scope is not "pending", but says where.
-  const quiet = deriveAppState(facts({ pending: { [IOS.id]: { count: 3, blocking: 0 } } }), 'android');
+  const quiet = deriveAppState(
+    facts({ pending: { [IOS.id]: { count: 3, blocking: 0 } } }),
+    'android',
+  );
   assert.equal(quiet.phase, 'ready_to_release');
   assert.equal(quiet.elsewhere.pendingCount, 3);
 });
 
 test('a publish on the OTHER platform of the app still holds every write back (one batch writes the app), and the card says where', () => {
-  const f = facts({ releases: { [ANDROID.id]: [internalTesting()] }, publishing: { [IOS.id]: running() } });
+  const f = facts({
+    releases: { [ANDROID.id]: [internalTesting()] },
+    publishing: { [IOS.id]: running() },
+  });
   const s = deriveAppState(f, 'android');
   assert.equal(s.phase, 'ready_to_release', 'the scope is Android: its card is not "publishing"');
   assert.equal(s.elsewhere.publishing, true);
@@ -130,23 +168,50 @@ test('promote while a publish runs is off, with the reason; with no run it is on
 });
 
 test('a role that cannot release never gets promote, and a viewer gets nothing that writes', () => {
-  const f = facts({ records: [ANDROID], role: 'viewer', releases: { [ANDROID.id]: [internalTesting()] }, pending: { [ANDROID.id]: { count: 4, blocking: 0 } } });
+  const f = facts({
+    records: [ANDROID],
+    role: 'viewer',
+    releases: { [ANDROID.id]: [internalTesting()] },
+    pending: { [ANDROID.id]: { count: 4, blocking: 0 } },
+  });
   const s = deriveAppState(f, 'android');
   assert.equal(s.promotion, null);
-  for (const a of ['publish', 'push', 'discard', 'submit', 'release', 'promote', 'rollout', 'prepare_release', 'start_release'] as const)
+  for (const a of [
+    'publish',
+    'push',
+    'discard',
+    'submit',
+    'release',
+    'promote',
+    'rollout',
+    'prepare_release',
+    'start_release',
+  ] as const)
     assert.equal(s.canDo(a, 'android').enabled, false, a);
   assert.equal(s.phase, 'changes_pending');
 });
 
-test('the top bar follows a publish of another app and keeps the open app\'s count', () => {
-  const open = deriveAppState(facts({ records: [ANDROID], pending: { [ANDROID.id]: { count: 4, blocking: 0 } } }), 'android');
-  assert.deepEqual(deriveTopBar(open, 'other-app'), { kind: 'publishing', count: 4, appId: 'other-app', elsewhere: true });
+test("the top bar follows a publish of another app and keeps the open app's count", () => {
+  const open = deriveAppState(
+    facts({ records: [ANDROID], pending: { [ANDROID.id]: { count: 4, blocking: 0 } } }),
+    'android',
+  );
+  assert.deepEqual(deriveTopBar(open, 'other-app'), {
+    kind: 'publishing',
+    count: 4,
+    appId: 'other-app',
+    elsewhere: true,
+  });
   assert.deepEqual(deriveTopBar(open, null), { kind: 'pending', count: 4, blocking: false });
   assert.deepEqual(deriveTopBar(null, null), { kind: 'idle' });
 });
 
 test('a release in review with changes pending: pending leads, the review stays reachable as the secondary action', () => {
-  const f = facts({ records: [IOS], pending: { [IOS.id]: { count: 2, blocking: 0 } }, pipelines: { [IOS.id]: pipelineOf(IOS, 'in_review') } });
+  const f = facts({
+    records: [IOS],
+    pending: { [IOS.id]: { count: 2, blocking: 0 } },
+    pipelines: { [IOS.id]: pipelineOf(IOS, 'in_review') },
+  });
   const s = deriveAppState(f, 'ios');
   assert.equal(s.phase, 'changes_pending');
   assert.equal(s.secondaryActions[0]?.action, 'follow_review');
@@ -154,7 +219,17 @@ test('a release in review with changes pending: pending leads, the review stays 
 });
 
 test('an unknown outcome says to look at the store before publishing again', () => {
-  const s = deriveAppState(failingAndroid({ lastRun: { [ANDROID.id]: failedRun('android', { outcome: 'partial', results: [{ ...failedRun().results[0]!, outcome: 'unknown', error: 'outcome_unknown' }] }) } }), 'android');
+  const s = deriveAppState(
+    failingAndroid({
+      lastRun: {
+        [ANDROID.id]: failedRun('android', {
+          outcome: 'partial',
+          results: [{ ...failedRun().results[0]!, outcome: 'unknown', error: 'outcome_unknown' }],
+        }),
+      },
+    }),
+    'android',
+  );
   assert.match(s.reason, /Look at the store before you publish again/);
 });
 
@@ -165,16 +240,25 @@ test('scopeFor names the scope of the records a page shows', () => {
 });
 
 test('texts and graphics in review, the release in draft (the partly published incident): said plainly, nothing is "failed and nothing changed"', () => {
-  const s = deriveAppState(failingAndroid({ lastRun: { [ANDROID.id]: partlyRun('android') } }), 'android');
+  const s = deriveAppState(
+    failingAndroid({ lastRun: { [ANDROID.id]: partlyRun('android') } }),
+    'android',
+  );
   // Still the failed phase (the person must act), but the words are those of a PARTLY published app.
   assert.equal(s.phase, 'publish_failed');
   assert.equal(s.headline, 'Partly published');
-  assert.match(s.reason, /Partly published: the texts and graphics were sent to Google Play for review; the release was not\./);
+  assert.match(
+    s.reason,
+    /Partly published: the texts and graphics were sent to Google Play for review; the release was not\./,
+  );
   assert.match(s.reason, /The release is still a draft in Google Play\./);
   assert.match(s.reason, /already has changes of this app in review/);
   assert.doesNotMatch(`${s.headline} ${s.reason}`, /nothing is waiting/i);
   assert.equal(s.primaryAction.action, 'show_pending');
-  assert.deepEqual(s.secondaryActions.map((a) => [a.action, a.enabled]), [['publish_again', true]]);
+  assert.deepEqual(
+    s.secondaryActions.map((a) => [a.action, a.enabled]),
+    [['publish_again', true]],
+  );
   assert.deepEqual(s.badge, { kind: 'failed', count: 29, appId: ANDROID.id });
   assert.equal(s.failures.length, 1);
   // The same holds as for any failure: promote and the release actions wait for the person to resolve it.

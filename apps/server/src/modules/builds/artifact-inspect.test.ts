@@ -147,71 +147,81 @@ dbTest('inspect: reads the build number once, keeps it, and the list carries it'
   }
 });
 
-dbTest('inspect: keeps when and by which run the artifact was made, and fills a row that lacks them', async (db) => {
-  const t = await boot(db);
-  try {
-    // A real-looking AAB: versionName 2.00.1, versionCode 90; the version is the manifest's, not the artifact's name.
-    t.serve(
-      '1',
-      zipOf([
-        {
-          name: 'base/manifest/AndroidManifest.xml',
-          data: protoManifest({ versionCode: 90, versionName: '2.00.1', packageName: 'com.acme.android' }),
-        },
-      ]),
-    );
-    const res = await t.inspect('1');
-    assert.equal(res.status, 200, JSON.stringify(res.body));
-    assert.equal(res.body.artifact.build.version, '2.00.1');
-    assert.notEqual(res.body.artifact.build.version, res.body.artifact.name);
-    const read = () =>
-      db.query(
-        'SELECT artifact_name, artifact_created_at, artifact_expires_at, run_id, run_number, branch, head_sha, run_url FROM ci_artifact_meta WHERE app_id = ? AND artifact_id = ?',
-        [t.appId, '1'],
+dbTest(
+  'inspect: keeps when and by which run the artifact was made, and fills a row that lacks them',
+  async (db) => {
+    const t = await boot(db);
+    try {
+      // A real-looking AAB: versionName 2.00.1, versionCode 90; the version is the manifest's, not the artifact's name.
+      t.serve(
+        '1',
+        zipOf([
+          {
+            name: 'base/manifest/AndroidManifest.xml',
+            data: protoManifest({
+              versionCode: 90,
+              versionName: '2.00.1',
+              packageName: 'com.acme.android',
+            }),
+          },
+        ]),
       );
-    const [row] = await read();
-    assert.equal(row?.artifact_name, 'android-release');
-    assert.equal(Number(row?.artifact_created_at), T0 - 1);
-    assert.equal(Number(row?.artifact_expires_at), T0 + 30 * DAY);
-    assert.equal(row?.run_id, '102');
-    assert.equal(row?.branch, 'main');
-    assert.equal(row?.head_sha, '1111111');
-    assert.ok(String(row?.run_url).includes('/102'));
-    // A row kept before migration 73 has none of it: the next inspect of the listed artifact fills it, without a new download.
-    await db.execute(
-      'UPDATE ci_artifact_meta SET artifact_created_at = NULL, run_number = NULL, branch = NULL, artifact_expires_at = NULL, artifact_name = NULL, run_url = NULL WHERE app_id = ?',
-      [t.appId],
-    );
-    clearBuildCaches();
-    const again = await t.inspect('1');
-    assert.equal(again.status, 200);
-    assert.equal(t.fake.count('openArtifactDownload'), 1);
-    const [filled] = await read();
-    assert.equal(Number(filled?.artifact_created_at), T0 - 1);
-    assert.equal(filled?.branch, 'main');
-  } finally {
-    await t.done();
-  }
-});
+      const res = await t.inspect('1');
+      assert.equal(res.status, 200, JSON.stringify(res.body));
+      assert.equal(res.body.artifact.build.version, '2.00.1');
+      assert.notEqual(res.body.artifact.build.version, res.body.artifact.name);
+      const read = () =>
+        db.query(
+          'SELECT artifact_name, artifact_created_at, artifact_expires_at, run_id, run_number, branch, head_sha, run_url FROM ci_artifact_meta WHERE app_id = ? AND artifact_id = ?',
+          [t.appId, '1'],
+        );
+      const [row] = await read();
+      assert.equal(row?.artifact_name, 'android-release');
+      assert.equal(Number(row?.artifact_created_at), T0 - 1);
+      assert.equal(Number(row?.artifact_expires_at), T0 + 30 * DAY);
+      assert.equal(row?.run_id, '102');
+      assert.equal(row?.branch, 'main');
+      assert.equal(row?.head_sha, '1111111');
+      assert.ok(String(row?.run_url).includes('/102'));
+      // A row kept before migration 73 has none of it: the next inspect of the listed artifact fills it, without a new download.
+      await db.execute(
+        'UPDATE ci_artifact_meta SET artifact_created_at = NULL, run_number = NULL, branch = NULL, artifact_expires_at = NULL, artifact_name = NULL, run_url = NULL WHERE app_id = ?',
+        [t.appId],
+      );
+      clearBuildCaches();
+      const again = await t.inspect('1');
+      assert.equal(again.status, 200);
+      assert.equal(t.fake.count('openArtifactDownload'), 1);
+      const [filled] = await read();
+      assert.equal(Number(filled?.artifact_created_at), T0 - 1);
+      assert.equal(filled?.branch, 'main');
+    } finally {
+      await t.done();
+    }
+  },
+);
 
-dbTest('inspect: a file with no build number is kept as unreadable and not downloaded again', async (db) => {
-  const t = await boot(db);
-  try {
-    t.serve('1', zipOf([{ name: 'report.txt', data: 'nothing here' }]));
-    const first = await t.inspect('1');
-    assert.equal(first.status, 200);
-    assert.equal(first.body.artifact.build, null);
-    assert.equal(first.body.artifact.buildRead, 'unreadable');
-    await t.inspect('1');
-    assert.equal(t.fake.count('openArtifactDownload'), 1);
-    assert.equal((await t.list()).body.artifacts[0].buildRead, 'unreadable');
-    t.serve('2', Buffer.from('this is not a zip file at all'));
-    assert.equal((await t.inspect('2')).body.artifact.buildRead, 'unreadable');
-    assert.deepEqual(await t.leftovers(), []);
-  } finally {
-    await t.done();
-  }
-});
+dbTest(
+  'inspect: a file with no build number is kept as unreadable and not downloaded again',
+  async (db) => {
+    const t = await boot(db);
+    try {
+      t.serve('1', zipOf([{ name: 'report.txt', data: 'nothing here' }]));
+      const first = await t.inspect('1');
+      assert.equal(first.status, 200);
+      assert.equal(first.body.artifact.build, null);
+      assert.equal(first.body.artifact.buildRead, 'unreadable');
+      await t.inspect('1');
+      assert.equal(t.fake.count('openArtifactDownload'), 1);
+      assert.equal((await t.list()).body.artifacts[0].buildRead, 'unreadable');
+      t.serve('2', Buffer.from('this is not a zip file at all'));
+      assert.equal((await t.inspect('2')).body.artifact.buildRead, 'unreadable');
+      assert.deepEqual(await t.leftovers(), []);
+    } finally {
+      await t.done();
+    }
+  },
+);
 
 dbTest('inspect: an AAB and an IPA are read too (an iOS app)', async (db) => {
   const t = await boot(db);
@@ -301,118 +311,133 @@ dbTest('inspect: roles and refusals', async (db) => {
   }
 });
 
-dbTest('inspect: a failed or oversized download is not kept, so it can be tried again', async (db) => {
-  const t = await boot(db, { maxDownloadBytes: 4000 });
-  try {
-    t.serve('1', apk(7));
-    const bytes = apk(7);
-    // The storage streams more than it declared: the limit stops it while streaming.
-    t.fake.storage.set('1', () => ({
-      status: 'ok',
-      body: stream(Buffer.alloc(5000)),
-      contentLength: null,
-    }));
-    const tooBig = await t.inspect('1');
-    assert.equal(tooBig.status, 413);
-    t.fake.storage.set('1', () => ({
-      status: 'ok',
-      body: new ReadableStream<Uint8Array>({
-        pull(c) {
-          c.error(new Error('connection reset'));
-        },
-      }),
-      contentLength: null,
-    }));
-    const broken = await t.inspect('1');
-    assert.equal(broken.status, 502);
-    assert.equal(broken.body.error, 'download_failed');
-    assert.deepEqual(await t.leftovers(), []);
-    assert.equal((await t.list()).body.artifacts[0].buildRead, null, 'nothing was kept');
-    t.fake.storage.set('1', () => ({
-      status: 'ok',
-      body: stream(bytes),
-      contentLength: bytes.length,
-    }));
-    assert.equal((await t.inspect('1')).body.artifact.build.number, '7');
-    t.fake.storage.set('1', () => ({ status: 'gone' }));
-    t.serve('5', apk(5));
-    t.fake.storage.set('5', () => ({ status: 'gone' }));
-    assert.equal((await t.inspect('5')).status, 410, 'the storage says it is gone');
-  } finally {
-    await t.done();
-  }
-});
-
-dbTest('inspect: one at a time per app, and the same artifact asked twice at once is downloaded once', async (db) => {
-  const t = await boot(db);
-  try {
-    t.serve('1', apk(11));
-    t.serve('2', apk(12));
-    let running = 0;
-    let most = 0;
-    for (const [id, code] of [['1', 11], ['2', 12]] as const) {
-      const bytes = apk(code);
-      t.fake.storage.set(id, () => {
-        running += 1;
-        most = Math.max(most, running);
-        return {
-          status: 'ok',
-          contentLength: bytes.length,
-          body: new ReadableStream<Uint8Array>({
-            async pull(c) {
-              await new Promise((r) => setTimeout(r, 20));
-              c.enqueue(bytes);
-              c.close();
-              running -= 1;
-            },
-          }),
-        };
-      });
+dbTest(
+  'inspect: a failed or oversized download is not kept, so it can be tried again',
+  async (db) => {
+    const t = await boot(db, { maxDownloadBytes: 4000 });
+    try {
+      t.serve('1', apk(7));
+      const bytes = apk(7);
+      // The storage streams more than it declared: the limit stops it while streaming.
+      t.fake.storage.set('1', () => ({
+        status: 'ok',
+        body: stream(Buffer.alloc(5000)),
+        contentLength: null,
+      }));
+      const tooBig = await t.inspect('1');
+      assert.equal(tooBig.status, 413);
+      t.fake.storage.set('1', () => ({
+        status: 'ok',
+        body: new ReadableStream<Uint8Array>({
+          pull(c) {
+            c.error(new Error('connection reset'));
+          },
+        }),
+        contentLength: null,
+      }));
+      const broken = await t.inspect('1');
+      assert.equal(broken.status, 502);
+      assert.equal(broken.body.error, 'download_failed');
+      assert.deepEqual(await t.leftovers(), []);
+      assert.equal((await t.list()).body.artifacts[0].buildRead, null, 'nothing was kept');
+      t.fake.storage.set('1', () => ({
+        status: 'ok',
+        body: stream(bytes),
+        contentLength: bytes.length,
+      }));
+      assert.equal((await t.inspect('1')).body.artifact.build.number, '7');
+      t.fake.storage.set('1', () => ({ status: 'gone' }));
+      t.serve('5', apk(5));
+      t.fake.storage.set('5', () => ({ status: 'gone' }));
+      assert.equal((await t.inspect('5')).status, 410, 'the storage says it is gone');
+    } finally {
+      await t.done();
     }
-    const answers = await Promise.all([t.inspect('1'), t.inspect('2'), t.inspect('1')]);
-    assert.deepEqual(
-      answers.map((a) => a.body.artifact.build.number),
-      ['11', '12', '11'],
-    );
-    assert.equal(most, 1, 'never two downloads of one app at once');
-    const downloads = t.fake.count('openArtifactDownload');
-    assert.equal(downloads, 2, 'the repeat waited and then found the stored answer');
-  } finally {
-    await t.done();
-  }
-});
+  },
+);
 
-dbTest('inspect: shares the download rate limit; deleting the app deletes what was read', async (db) => {
-  const t = await boot(db, { downloadLimiter: createTestLimiter({ limit: 1, now: () => 1 }) });
-  try {
-    t.serve('1', apk(21));
-    t.serve('2', apk(22));
-    assert.equal((await t.inspect('1')).status, 200);
-    const limited = await t.inspect('2');
-    assert.equal(limited.status, 429);
-    assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM ci_artifact_meta'))[0]?.n), 1);
-    const del = await t.call(t.owner, 'DELETE', `/apps/${t.appId}`);
-    assert.ok(del.status === 200 || del.status === 204, String(del.status));
-    assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM ci_artifact_meta'))[0]?.n), 0);
-  } finally {
-    await t.done();
-  }
-});
+dbTest(
+  'inspect: one at a time per app, and the same artifact asked twice at once is downloaded once',
+  async (db) => {
+    const t = await boot(db);
+    try {
+      t.serve('1', apk(11));
+      t.serve('2', apk(12));
+      let running = 0;
+      let most = 0;
+      for (const [id, code] of [
+        ['1', 11],
+        ['2', 12],
+      ] as const) {
+        const bytes = apk(code);
+        t.fake.storage.set(id, () => {
+          running += 1;
+          most = Math.max(most, running);
+          return {
+            status: 'ok',
+            contentLength: bytes.length,
+            body: new ReadableStream<Uint8Array>({
+              async pull(c) {
+                await new Promise((r) => setTimeout(r, 20));
+                c.enqueue(bytes);
+                c.close();
+                running -= 1;
+              },
+            }),
+          };
+        });
+      }
+      const answers = await Promise.all([t.inspect('1'), t.inspect('2'), t.inspect('1')]);
+      assert.deepEqual(
+        answers.map((a) => a.body.artifact.build.number),
+        ['11', '12', '11'],
+      );
+      assert.equal(most, 1, 'never two downloads of one app at once');
+      const downloads = t.fake.count('openArtifactDownload');
+      assert.equal(downloads, 2, 'the repeat waited and then found the stored answer');
+    } finally {
+      await t.done();
+    }
+  },
+);
 
-dbTest('inspect: an old temporary file of a crashed read is swept at the first read', async (db) => {
-  const t = await boot(db);
-  try {
-    const stale = join(t.scratch, 'kiln-inspect-old.zip');
-    const fresh = join(t.scratch, 'kiln-inspect-new.zip');
-    const other = join(t.scratch, 'keep-me.txt');
-    for (const f of [stale, fresh, other]) await writeFile(f, 'x');
-    const old = new Date(Date.now() - 3 * 60 * 60_000);
-    await utimes(stale, old, old);
-    await utimes(other, old, old);
-    t.serve('1', apk(31));
-    assert.equal((await t.inspect('1')).status, 200);
-    assert.deepEqual((await t.leftovers()).sort(), ['keep-me.txt', 'kiln-inspect-new.zip']);
-  } finally {
-    await t.done();
-  }
-});
+dbTest(
+  'inspect: shares the download rate limit; deleting the app deletes what was read',
+  async (db) => {
+    const t = await boot(db, { downloadLimiter: createTestLimiter({ limit: 1, now: () => 1 }) });
+    try {
+      t.serve('1', apk(21));
+      t.serve('2', apk(22));
+      assert.equal((await t.inspect('1')).status, 200);
+      const limited = await t.inspect('2');
+      assert.equal(limited.status, 429);
+      assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM ci_artifact_meta'))[0]?.n), 1);
+      const del = await t.call(t.owner, 'DELETE', `/apps/${t.appId}`);
+      assert.ok(del.status === 200 || del.status === 204, String(del.status));
+      assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM ci_artifact_meta'))[0]?.n), 0);
+    } finally {
+      await t.done();
+    }
+  },
+);
+
+dbTest(
+  'inspect: an old temporary file of a crashed read is swept at the first read',
+  async (db) => {
+    const t = await boot(db);
+    try {
+      const stale = join(t.scratch, 'kiln-inspect-old.zip');
+      const fresh = join(t.scratch, 'kiln-inspect-new.zip');
+      const other = join(t.scratch, 'keep-me.txt');
+      for (const f of [stale, fresh, other]) await writeFile(f, 'x');
+      const old = new Date(Date.now() - 3 * 60 * 60_000);
+      await utimes(stale, old, old);
+      await utimes(other, old, old);
+      t.serve('1', apk(31));
+      assert.equal((await t.inspect('1')).status, 200);
+      assert.deepEqual((await t.leftovers()).sort(), ['keep-me.txt', 'kiln-inspect-new.zip']);
+    } finally {
+      await t.done();
+    }
+  },
+);

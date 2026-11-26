@@ -1,13 +1,13 @@
-import { can, platformLabel, type Platform, type Role, supports } from '@kiln/core';
+import { can, type Platform, platformLabel, type Role, supports } from '@kiln/core';
 import type { AttentionItem } from '../app-attention.ts';
 import { appAddress, type PlatformScope } from '../app-scope.ts';
 import { t } from '../i18n/t.ts';
 import { chooseNextStep, type NextStep, nextStepTrains, orderTrains } from '../next-step.ts';
-import { headlineReason, partlyPublished } from '../publish-failure.ts';
-import { type PromoteOption, promoteHref, promoteOption, promoteOptions } from '../play-promote.ts';
-import { detailText, disabledReason as publishingReason, headlineText } from '../publishing.ts';
-import type { Publishing } from '../publishing.ts';
 import type { LastPublish } from '../pending.ts';
+import { type PromoteOption, promoteHref, promoteOption, promoteOptions } from '../play-promote.ts';
+import { headlineReason, partlyPublished } from '../publish-failure.ts';
+import type { Publishing } from '../publishing.ts';
+import { detailText, headlineText, disabledReason as publishingReason } from '../publishing.ts';
 import type { Train } from '../release-trains.ts';
 import { reviewUrl } from '../store-links.ts';
 import type { AppSummary } from '../types.ts';
@@ -21,8 +21,8 @@ import {
   type FlowRow,
   GUARDED_ACTIONS,
   type GuardedAction,
-  type Phase,
   type PendingFacts,
+  type Phase,
   type PlatformState,
   type PrimaryAction,
   type Promotion,
@@ -71,7 +71,18 @@ export function scopeFor(
 // Verdicts, per record
 
 /** The right each guarded action needs. `start_release` also needs a linked repository (see `verdictOf`). */
-const RIGHT: Readonly<Record<GuardedAction, 'store.publish' | 'store.push_draft' | 'changesets.write' | 'store.submit' | 'store.release' | 'releases.rollout' | 'ci.dispatch'>> = {
+const RIGHT: Readonly<
+  Record<
+    GuardedAction,
+    | 'store.publish'
+    | 'store.push_draft'
+    | 'changesets.write'
+    | 'store.submit'
+    | 'store.release'
+    | 'releases.rollout'
+    | 'ci.dispatch'
+  >
+> = {
   publish: 'store.publish',
   push: 'store.push_draft',
   discard: 'changesets.write',
@@ -224,10 +235,17 @@ const whole = (n: unknown): number =>
   typeof n === 'number' && Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
 
 /** The failure to show: not completed, not dismissed, and not while a newer publish of the record runs. */
-export const activeFailure = (run: LastPublish | null | undefined, publishing: Publishing | null): LastPublish | null =>
+export const activeFailure = (
+  run: LastPublish | null | undefined,
+  publishing: Publishing | null,
+): LastPublish | null =>
   run != null && !run.completed && !run.dismissed && publishing === null ? run : null;
 
-function recordContext(facts: AppFacts, record: AppSummary, appPublishing: Publishing | null = null): RecordContext {
+function recordContext(
+  facts: AppFacts,
+  record: AppSummary,
+  appPublishing: Publishing | null = null,
+): RecordContext {
   const publishing = facts.publishing[record.id] ?? null;
   const p = facts.pending[record.id] ?? noPending;
   return {
@@ -244,7 +262,8 @@ function recordContext(facts: AppFacts, record: AppSummary, appPublishing: Publi
 
 /** The phase of one release flow step (what the trains and the attention list say), once nothing above it applies. */
 function flowPhase(step: NextStep, known: boolean): Phase {
-  if (step.kind === 'start' || step.kind === 'prepare') return known ? 'ready_to_release' : 'unknown';
+  if (step.kind === 'start' || step.kind === 'prepare')
+    return known ? 'ready_to_release' : 'unknown';
   if (step.kind === 'idle') return known ? 'idle' : 'unknown';
   if (step.kind === 'attention') return 'release_needs_you';
   if (step.rows.length > 0) {
@@ -256,7 +275,10 @@ function flowPhase(step: NextStep, known: boolean): Phase {
   return 'release_running';
 }
 
-const toneOf = (phase: Phase, step: { tone: 'bad' | 'warn' | 'info' | 'neutral' } | null): AppState['tone'] => {
+const toneOf = (
+  phase: Phase,
+  step: { tone: 'bad' | 'warn' | 'info' | 'neutral' } | null,
+): AppState['tone'] => {
   if (phase === 'publish_failed') return 'bad';
   if (phase === 'changes_pending') return 'warn';
   if (phase === 'publishing') return 'info';
@@ -266,17 +288,30 @@ const toneOf = (phase: Phase, step: { tone: 'bad' | 'warn' | 'info' | 'neutral' 
 export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState {
   const scoped = scopeRecords(facts.records, scope);
   const outside = facts.records.filter((r) => scoped.indexOf(r) < 0);
-  const appPublishing = facts.records.reduce<Publishing | null>((found, r) => found ?? facts.publishing[r.id] ?? null, null);
+  const appPublishing = facts.records.reduce<Publishing | null>(
+    (found, r) => found ?? facts.publishing[r.id] ?? null,
+    null,
+  );
   const contexts = scoped.map((r) => recordContext(facts, r, appPublishing));
   const byApp: Record<string, RecordContext> = {};
   for (const c of contexts) byApp[c.record.id] = c;
 
   const publishing = contexts
     .filter((c) => c.publishing !== null)
-    .map((c) => ({ appId: c.record.id, platform: c.record.platform, name: c.record.name, entry: c.publishing as Publishing }));
+    .map((c) => ({
+      appId: c.record.id,
+      platform: c.record.platform,
+      name: c.record.name,
+      entry: c.publishing as Publishing,
+    }));
   const failures = contexts
     .filter((c) => c.failure !== null)
-    .map((c) => ({ appId: c.record.id, platform: c.record.platform, name: c.record.name, run: c.failure as LastPublish }));
+    .map((c) => ({
+      appId: c.record.id,
+      platform: c.record.platform,
+      name: c.record.name,
+      run: c.failure as LastPublish,
+    }));
   const pendingCount = contexts.reduce((n, c) => n + c.pending.count, 0);
   const blockingCount = contexts.reduce((n, c) => n + c.pending.blocking, 0);
   const pendingKnown = facts.pendingKnown;
@@ -295,11 +330,16 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
   for (const c of contexts) perRecord[c.record.id] = verdictsOf(c);
   const verdicts = {} as Record<GuardedAction, Verdict>;
   for (const action of GUARDED_ACTIONS)
-    verdicts[action] = combine(action, contexts.map((c) => (perRecord[c.record.id] as Record<GuardedAction, Verdict>)[action]));
+    verdicts[action] = combine(
+      action,
+      contexts.map((c) => (perRecord[c.record.id] as Record<GuardedAction, Verdict>)[action]),
+    );
   const verdictFor = (action: GuardedAction, platform?: Platform): Verdict => {
     if (platform === undefined) return verdicts[action];
     const c = contexts.find((x) => x.record.platform === platform);
-    return c === undefined ? no('no_platform', t('state:verdict.noPlatform')) : (perRecord[c.record.id] as Record<GuardedAction, Verdict>)[action];
+    return c === undefined
+      ? no('no_platform', t('state:verdict.noPlatform'))
+      : (perRecord[c.record.id] as Record<GuardedAction, Verdict>)[action];
   };
   const verdictOfRecord = (action: GuardedAction, appId: string | null): Verdict => {
     const own = appId === null ? undefined : perRecord[appId];
@@ -307,7 +347,10 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
   };
 
   // The release flow: from the pipelines of the records in scope (never another platform's: Android never shows iOS's build).
-  const pipelines: { app: NonNullable<AppFacts['pipelines'][string]>['app']; pipeline: NonNullable<AppFacts['pipelines'][string]>['pipeline'] }[] = [];
+  const pipelines: {
+    app: NonNullable<AppFacts['pipelines'][string]>['app'];
+    pipeline: NonNullable<AppFacts['pipelines'][string]>['pipeline'];
+  }[] = [];
   for (const r of facts.records) {
     const p = facts.pipelines[r.id];
     if (p != null) pipelines.push(p);
@@ -320,7 +363,10 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
   const attention = facts.attention.filter(
     (item) => scopedIds.some((id) => item.id.indexOf(`${id}:`) === 0) && !heldAttention(item),
   );
-  const canStart = can(facts.role, 'ci.dispatch') && can(facts.role, 'repositories.read') && scoped.some((m) => m.repositoryId !== null);
+  const canStart =
+    can(facts.role, 'ci.dispatch') &&
+    can(facts.role, 'repositories.read') &&
+    scoped.some((m) => m.repositoryId !== null);
   const canPrepare = can(facts.role, 'changesets.write') && scoped.length > 0;
   const recordById = (id: string) => facts.records.find((r) => r.id === id);
   const step = chooseNextStep({
@@ -346,30 +392,48 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
 
   // ---- The flow as the card draws it (only when it has something of its own to say)
   let flow: Flow | null = null;
-  if (phase !== 'publishing' && phase !== 'publish_failed' && (step.kind === 'train' || step.kind === 'attention')) {
+  if (
+    phase !== 'publishing' &&
+    phase !== 'publish_failed' &&
+    (step.kind === 'train' || step.kind === 'attention')
+  ) {
     const rows: FlowRow[] = step.rows.map((row) => {
       const train = trains.find((x) => x.key === row.key);
-      const kind = train ? trainAction(train, row.external) : { action: 'open_release' as PrimaryAction, guard: null };
+      const kind = train
+        ? trainAction(train, row.external)
+        : { action: 'open_release' as PrimaryAction, guard: null };
       return {
         ...row,
-        offer: offerOf(kind.action, row.label, kind.guard === null ? null : verdictOfRecord(kind.guard, row.appId), {
-          appId: row.appId,
-          href: row.href,
-          external: row.external,
-        }),
+        offer: offerOf(
+          kind.action,
+          row.label,
+          kind.guard === null ? null : verdictOfRecord(kind.guard, row.appId),
+          {
+            appId: row.appId,
+            href: row.href,
+            external: row.external,
+          },
+        ),
       };
     });
     const others: FlowOther[] = step.otherTrains.map((o, i) => {
       const train = trains[i + 1];
-      const kind = train ? trainAction(train, o.external) : { action: 'open_release' as PrimaryAction, guard: null };
+      const kind = train
+        ? trainAction(train, o.external)
+        : { action: 'open_release' as PrimaryAction, guard: null };
       return {
         title: o.title,
         text: o.text,
-        offer: offerOf(kind.action, o.label, kind.guard === null ? null : verdictOfRecord(kind.guard, train?.button.appId ?? null), {
-          appId: train?.button.appId ?? null,
-          href: o.href,
-          external: o.external,
-        }),
+        offer: offerOf(
+          kind.action,
+          o.label,
+          kind.guard === null ? null : verdictOfRecord(kind.guard, train?.button.appId ?? null),
+          {
+            appId: train?.button.appId ?? null,
+            href: o.href,
+            external: o.external,
+          },
+        ),
       };
     });
     flow = { step, rows, others };
@@ -386,9 +450,22 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
     }
     const lead = trains[0];
     const external = p.external === true;
-    const kind = step.kind === 'train' && lead ? trainAction(lead, external) : { action: external ? ('follow_review' as PrimaryAction) : ('open_release' as PrimaryAction), guard: null };
+    const kind =
+      step.kind === 'train' && lead
+        ? trainAction(lead, external)
+        : {
+            action: external
+              ? ('follow_review' as PrimaryAction)
+              : ('open_release' as PrimaryAction),
+            guard: null,
+          };
     const appId = step.kind === 'train' && lead ? lead.button.appId : null;
-    return offerOf(kind.action, p.label, kind.guard === null ? null : verdictOfRecord(kind.guard, appId), { appId, href: p.href, external });
+    return offerOf(
+      kind.action,
+      p.label,
+      kind.guard === null ? null : verdictOfRecord(kind.guard, appId),
+      { appId, href: p.href, external },
+    );
   };
 
   // ---- Promote (Google Play: a release in a testing track)
@@ -404,9 +481,12 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
   }
 
   // ---- The words, the primary action and the others
-  const first = (list: { appId: string }[]): string => (list[0] ? list[0].appId : (scoped[0]?.id ?? ''));
-  const pendingHref = (appId: string) => appAddress(appId, 'pending', scope === 'both' ? null : scope);
-  const showPending = (label: string, appId: string): ActionOffer => offerOf('show_pending', label, null, { appId, href: pendingHref(appId) });
+  const first = (list: { appId: string }[]): string =>
+    list[0] ? list[0].appId : (scoped[0]?.id ?? '');
+  const pendingHref = (appId: string) =>
+    appAddress(appId, 'pending', scope === 'both' ? null : scope);
+  const showPending = (label: string, appId: string): ActionOffer =>
+    offerOf('show_pending', label, null, { appId, href: pendingHref(appId) });
   let headline: string;
   let reason: string;
   let primaryAction: ActionOffer;
@@ -425,12 +505,22 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
       : t('state:failed.headline');
     reason = failureReason(failures, pendingCount);
     primaryAction = showPending(t('publish:publishing.showPending'), lead.appId);
-    secondaryActions = [offerOf('publish_again', t('state:action.publishAgain'), verdicts.publish, { appId: lead.appId })];
+    secondaryActions = [
+      offerOf('publish_again', t('state:action.publishAgain'), verdicts.publish, {
+        appId: lead.appId,
+      }),
+    ];
   } else if (phase === 'changes_pending') {
     headline = t('state:pending.headline', { count: pendingCount });
-    reason = blockingCount > 0 ? t('state:pending.blocking', { count: blockingCount }) : t('state:pending.reason');
+    reason =
+      blockingCount > 0
+        ? t('state:pending.blocking', { count: blockingCount })
+        : t('state:pending.reason');
     const withChanges = contexts.find((c) => c.pending.count > 0);
-    primaryAction = showPending(t('state:action.review'), withChanges ? withChanges.record.id : first([]));
+    primaryAction = showPending(
+      t('state:action.review'),
+      withChanges ? withChanges.record.id : first([]),
+    );
     const lead = flowPrimary();
     if (lead.action !== 'none') secondaryActions = [lead];
   } else if (phase === 'unknown') {
@@ -449,7 +539,11 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
     if (c.publishing !== null) p = 'publishing';
     else if (c.failure !== null) p = 'publish_failed';
     else if (c.pending.count > 0) p = 'changes_pending';
-    else p = phase === 'publishing' || phase === 'publish_failed' || phase === 'changes_pending' ? 'idle' : phase;
+    else
+      p =
+        phase === 'publishing' || phase === 'publish_failed' || phase === 'changes_pending'
+          ? 'idle'
+          : phase;
     return {
       platform: c.record.platform,
       appId: c.record.id,
@@ -464,16 +558,37 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
 
   // ---- The badge of the top bar
   let badge: TopBarBadge;
-  if (publishing.length > 0) badge = { kind: 'publishing', count: pendingCount, appId: (publishing[0] as (typeof publishing)[number]).appId, elsewhere: false };
-  else if (failures.length > 0) badge = { kind: 'failed', count: pendingCount, appId: (failures[0] as (typeof failures)[number]).appId };
-  else if (pendingCount > 0) badge = { kind: 'pending', count: pendingCount, blocking: blockingCount > 0 };
+  if (publishing.length > 0)
+    badge = {
+      kind: 'publishing',
+      count: pendingCount,
+      appId: (publishing[0] as (typeof publishing)[number]).appId,
+      elsewhere: false,
+    };
+  else if (failures.length > 0)
+    badge = {
+      kind: 'failed',
+      count: pendingCount,
+      appId: (failures[0] as (typeof failures)[number]).appId,
+    };
+  else if (pendingCount > 0)
+    badge = { kind: 'pending', count: pendingCount, blocking: blockingCount > 0 };
   else badge = { kind: 'idle' };
 
   return {
     scope,
     platforms: platformStates,
     phase,
-    tone: toneOf(phase, phase === 'release_needs_you' || phase === 'in_review' || phase === 'release_running' || phase === 'ready_to_release' || phase === 'idle' ? step : null),
+    tone: toneOf(
+      phase,
+      phase === 'release_needs_you' ||
+        phase === 'in_review' ||
+        phase === 'release_running' ||
+        phase === 'ready_to_release' ||
+        phase === 'idle'
+        ? step
+        : null,
+    ),
     headline,
     reason,
     primaryAction,
@@ -508,7 +623,10 @@ export function promoteOfferFor(
   if (!can(role, RIGHT.promote)) return null;
   const option = promoteOption(release, siblings);
   if (option === null) return null;
-  return { option, offer: promoteOffer(option, state.canDo('promote', release.platform), release.appId) };
+  return {
+    option,
+    offer: promoteOffer(option, state.canDo('promote', release.platform), release.appId),
+  };
 }
 
 function failureReason(
@@ -536,8 +654,18 @@ function failureReason(
  * The badge of the top bar. A publish anywhere in the workspace outranks everything (the button follows it, with the open app's count
  * kept); then the open app's own badge (failed, pending). `other` is the first record of ANOTHER app that publishes, or null.
  */
-export function deriveTopBar(state: AppState | null, other: string | null, workspaceCount = 0): TopBarBadge {
+export function deriveTopBar(
+  state: AppState | null,
+  other: string | null,
+  workspaceCount = 0,
+): TopBarBadge {
   if (state !== null && state.badge.kind === 'publishing') return state.badge;
-  if (other !== null) return { kind: 'publishing', count: state === null ? workspaceCount : state.pendingCount, appId: other, elsewhere: true };
+  if (other !== null)
+    return {
+      kind: 'publishing',
+      count: state === null ? workspaceCount : state.pendingCount,
+      appId: other,
+      elsewhere: true,
+    };
   return state === null ? { kind: 'idle' } : state.badge;
 }

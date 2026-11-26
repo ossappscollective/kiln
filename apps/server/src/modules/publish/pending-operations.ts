@@ -42,12 +42,22 @@ const publishingSchema = z
 
 const storeFactsSchema = z
   .object({
-    kind: z.string().describe('The connector\u2019s kind of error (`unexpected`, `forbidden`, ...).'),
+    kind: z
+      .string()
+      .describe('The connector\u2019s kind of error (`unexpected`, `forbidden`, ...).'),
     httpStatus: z.number().int().optional(),
     details: z
-      .array(z.object({ code: z.string().optional(), title: z.string().optional(), detail: z.string().optional() }))
+      .array(
+        z.object({
+          code: z.string().optional(),
+          title: z.string().optional(),
+          detail: z.string().optional(),
+        }),
+      )
       .optional()
-      .describe('The store\u2019s own words (its reason code, status word and sentence), sanitised: no credential or token.'),
+      .describe(
+        'The store\u2019s own words (its reason code, status word and sentence), sanitised: no credential or token.',
+      ),
   })
   .describe('What the store answered. Sanitised.');
 
@@ -56,12 +66,23 @@ const runStepSchema = z.object({
   status: z.enum(['applied', 'skipped', 'failed']),
   startedAt: timestamp,
   finishedAt: timestamp,
-  error: z.string().optional().describe('Failed: the error code (`store_rejected`, `state_changed`, ...).'),
+  error: z
+    .string()
+    .optional()
+    .describe('Failed: the error code (`store_rejected`, `state_changed`, ...).'),
   httpStatus: z.number().int().optional(),
   outcome: z.enum(['refused', 'not_applied', 'unknown', 'partial']).optional(),
   reason: z.string().optional().describe('Skipped: why.'),
-  message: z.string().optional().describe('The server\u2019s sentence, sanitised and cut to 500 characters.'),
-  code: z.string().optional().describe('The catalogue code of that sentence or of the store\u2019s cause (`store.google.draftApp`).'),
+  message: z
+    .string()
+    .optional()
+    .describe('The server\u2019s sentence, sanitised and cut to 500 characters.'),
+  code: z
+    .string()
+    .optional()
+    .describe(
+      'The catalogue code of that sentence or of the store\u2019s cause (`store.google.draftApp`).',
+    ),
   params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
   store: storeFactsSchema.optional(),
 });
@@ -392,7 +413,9 @@ const publishPlanSchema = z.object({
     ),
   combined: z
     .object({
-      offered: z.boolean().describe('The plan lists the combined step beside the push and the submit.'),
+      offered: z
+        .boolean()
+        .describe('The plan lists the combined step beside the push and the submit.'),
       draftRefused: z
         .boolean()
         .describe(
@@ -471,7 +494,9 @@ const publishResultSchema = z.object({
   publishedAt: timestamp,
   lastPublish: lastPublishSchema
     .nullable()
-    .describe('This run as the server keeps it, with the reason each failed step gave; null when it could not be kept.'),
+    .describe(
+      'This run as the server keeps it, with the reason each failed step gave; null when it could not be kept.',
+    ),
 });
 
 export const pendingOperations: Draft[] = [
@@ -721,7 +746,9 @@ export const pendingOperations: Draft[] = [
           apps: z.array(z.object({ appId: z.string(), publishing: publishingSchema.unwrap() })),
           lastPublish: z
             .array(z.object({ appId: z.string(), lastPublish: lastPublishSchema }))
-            .describe('Apps whose latest publish did not complete and was not dismissed, with the reason.'),
+            .describe(
+              'Apps whose latest publish did not complete and was not dismissed, with the reason.',
+            ),
           generatedAt: timestamp,
         }),
       },
@@ -732,7 +759,8 @@ export const pendingOperations: Draft[] = [
     method: 'get',
     path: `${W}/apps/{id}/publish/runs`,
     tags: ['pending'],
-    summary: 'The latest batch publishes of an app (newest first, at most five), with why a step failed',
+    summary:
+      'The latest batch publishes of an app (newest first, at most five), with why a step failed',
     description:
       'What `publishStoreBatch` did, kept on the server so a failure survives a reload and shows in another browser: per step the error code, the HTTP status, the outcome, the server\u2019s sentence and what the store said (its reason code and sentence), sanitised and cut. The newest five runs of an app are kept; they are deleted with the app.',
     risk: 'read',

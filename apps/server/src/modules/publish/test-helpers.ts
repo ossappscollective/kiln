@@ -529,7 +529,13 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, St
         'changes_in_review',
         'Google Play has changes in review for this app, and this server does not cancel a review. Wait for the review to finish (or cancel it in Play Console) and try again. Nothing was changed.',
         400,
-        [{ code: 'CHANGES_ALREADY_IN_REVIEW', detail: 'You already have changes in review. Cancel this review or wait for it to complete before you try again.' }],
+        [
+          {
+            code: 'CHANGES_ALREADY_IN_REVIEW',
+            detail:
+              'You already have changes in review. Cancel this review or wait for it to complete before you try again.',
+          },
+        ],
       );
     }
     if (this.draftRefused && !review) {
@@ -539,7 +545,12 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, St
         'draft_not_allowed',
         'Google Play sends the changes of this app for review automatically, so it cannot keep them as a draft, and nothing was committed.',
         400,
-        [{ detail: 'Changes are sent for review automatically. The query parameter changesNotSentForReview must not be set.' }],
+        [
+          {
+            detail:
+              'Changes are sent for review automatically. The query parameter changesNotSentForReview must not be set.',
+          },
+        ],
         { code: 'store.google.draftNotAllowed' },
       );
     }
@@ -615,10 +626,17 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, St
     }
     if (input.start !== undefined) {
       const track = input.fields?.find((f) => f.field === 'track')?.value ?? '';
-      const codes = (input.fields?.find((f) => f.field === 'version_codes')?.value ?? '').split(',').filter(Boolean);
+      const codes = (input.fields?.find((f) => f.field === 'version_codes')?.value ?? '')
+        .split(',')
+        .filter(Boolean);
       apply(
         { type: 'field', locale: '', target: 'release_start', outcome: 'applied' },
-        () => this.releasesMade.push({ track, versionCodes: codes, userFraction: input.start?.userFraction ?? 1 }),
+        () =>
+          this.releasesMade.push({
+            track,
+            versionCodes: codes,
+            userFraction: input.start?.userFraction ?? 1,
+          }),
         { type: 'field', locale: '', target: 'release_start' },
       );
     }

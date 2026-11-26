@@ -16,14 +16,6 @@ import {
   totalsOf,
 } from './pending.ts';
 import {
-  type ClaimKey,
-  DEFAULT_PUBLISH_CLAIM_TTL_MS,
-  isLiveClaim,
-  publishInProgress,
-  recordStep,
-  recordSteps,
-} from './publishing.ts';
-import {
   changesInReviewBefore,
   draftRefusedBefore,
   type LastPublish,
@@ -31,6 +23,14 @@ import {
   type RunStep,
   recordRun,
 } from './publish-runs.ts';
+import {
+  type ClaimKey,
+  DEFAULT_PUBLISH_CLAIM_TTL_MS,
+  isLiveClaim,
+  publishInProgress,
+  recordStep,
+  recordSteps,
+} from './publishing.ts';
 import {
   applyDraftPush,
   DRAFT_ENV,
@@ -705,7 +705,8 @@ export async function buildPlan(
   const enabled: Record<PublishStep, boolean> = {
     push_draft: ctx.draft.draftEnabled,
     // Both switches: the push's and the submit's (or, with the release in the same commit, the push's and the release's).
-    push_and_submit: ctx.draft.draftEnabled && (oneCommit ? ctx.release.releaseEnabled : ctx.submit.submitEnabled),
+    push_and_submit:
+      ctx.draft.draftEnabled && (oneCommit ? ctx.release.releaseEnabled : ctx.submit.submitEnabled),
     submit: ctx.submit.submitEnabled,
     release: ctx.release.releaseEnabled,
     rollout: ctx.rollout.rolloutEnabled,
@@ -870,7 +871,9 @@ export async function buildPlan(
         const code = asked.body.error;
         const text = messageOf(asked);
         return unavailable(
-          code === 'track_required' || code === 'user_fraction_required' ? 'needs_input' : 'blocked',
+          code === 'track_required' || code === 'user_fraction_required'
+            ? 'needs_input'
+            : 'blocked',
           text,
           [{ code, severity: 'error', message: text }],
         );
@@ -1310,12 +1313,17 @@ export async function buildPlan(
     evaluated(type) && done[type]?.included !== true && done[type]?.availability !== 'needs_input';
   const recommended = recommendationOf({
     google,
-    staged: staged === null ? null : { texts: staged.texts, assets: staged.assets, fields: staged.fields },
-    direct: directHint === null ? null : { track: directHint.track, versionCodes: directHint.versionCodes },
+    staged:
+      staged === null
+        ? null
+        : { texts: staged.texts, assets: staged.assets, fields: staged.fields },
+    direct:
+      directHint === null
+        ? null
+        : { track: directHint.track, versionCodes: directHint.versionCodes },
     from: promotion?.from ?? null,
     draftRefused,
-    canOneCommit:
-      enabled.push_draft && enabled.release && rights.push_draft && rights.release,
+    canOneCommit: enabled.push_draft && enabled.release && rights.push_draft && rights.release,
     changesInReview,
     can: {
       push_draft: enabled.push_draft && rights.push_draft,
@@ -1372,7 +1380,8 @@ export async function buildPlan(
     defaultedToDirect,
     oneCommit: oneCommit && done.push_and_submit?.included === true,
     replacesReview:
-      done.push_and_submit?.included === true && requests.get('push_and_submit')?.replaceReview === true,
+      done.push_and_submit?.included === true &&
+      requests.get('push_and_submit')?.replaceReview === true,
     changesInReview,
     combined: {
       offered:
@@ -2095,7 +2104,12 @@ export async function applyPublish(
                 result: { madeBy: 'push_and_submit', sameCommit: true },
               }
             : await withStepDeadline(
-                runStep(ctx, { workspaceId: input.workspaceId, app, actor: input.actor }, step, plan),
+                runStep(
+                  ctx,
+                  { workspaceId: input.workspaceId, app, actor: input.actor },
+                  step,
+                  plan,
+                ),
                 stepTimeoutMs,
               );
       } catch (error) {
@@ -2124,7 +2138,9 @@ export async function applyPublish(
       );
       if (result.status !== 'applied') stopped = step.type;
     }
-    log(`app ${app.id} finished after ${ctx.now() - batchStarted}ms, stopped at ${stopped ?? 'nothing'}`);
+    log(
+      `app ${app.id} finished after ${ctx.now() - batchStarted}ms, stopped at ${stopped ?? 'nothing'}`,
+    );
 
     const at = ctx.now();
     const count = (s: StepResult['status']) => results.filter((r) => r.status === s).length;

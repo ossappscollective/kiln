@@ -36,7 +36,12 @@ export type OriginFields = {
 };
 
 /** Why a build date is not known, as the server says it. */
-export type BuiltGap = 'not_read' | 'file_gone' | 'github_unreachable' | 'github_no_access' | 'no_repository';
+export type BuiltGap =
+  | 'not_read'
+  | 'file_gone'
+  | 'github_unreachable'
+  | 'github_no_access'
+  | 'no_repository';
 
 /** The reason model of a missing build date: which sentence, and whether reading the CI files could still help. */
 export type BuiltReasonKey =
@@ -145,7 +150,8 @@ export function builtReason(o: OriginFields, options: OriginOptions = {}): Built
             readable: true,
           };
     case 'file_gone': {
-      const on = typeof o.ciExpiredAt === 'number' && Number.isFinite(o.ciExpiredAt) ? o.ciExpiredAt : null;
+      const on =
+        typeof o.ciExpiredAt === 'number' && Number.isFinite(o.ciExpiredAt) ? o.ciExpiredAt : null;
       return {
         key: 'file_gone',
         text:
@@ -232,7 +238,10 @@ export function originView(
     builtTitle = why ? why.title : t('release-stepper:og.builtUnknownTitle');
   }
   const seen =
-    o.firstSeenAt !== null && o.firstSeenAt !== undefined && Number.isFinite(o.firstSeenAt) && at === null
+    o.firstSeenAt !== null &&
+    o.firstSeenAt !== undefined &&
+    Number.isFinite(o.firstSeenAt) &&
+    at === null
       ? o.firstSeenAt
       : null;
   return {
@@ -246,7 +255,8 @@ export function originView(
     reason: at !== null && Number.isFinite(at) ? null : builtReason(o, options),
     matchNote: o.matchedBy === 'build_number_only' ? t('release-stepper:og.matchedByNumber') : null,
     matchTitle: t('release-stepper:og.matchedByNumberTitle'),
-    firstSeenText: seen !== null ? t('release-stepper:og.firstSeen', { when: formatDateTime(seen) }) : null,
+    firstSeenText:
+      seen !== null ? t('release-stepper:og.firstSeen', { when: formatDateTime(seen) }) : null,
     firstSeenTitle: t('release-stepper:og.firstSeenTitle'),
     run,
   };
@@ -263,7 +273,11 @@ export function latestOf(
   let best: { id: string; number: number; builtAt: number } | null = null;
   for (const i of items) {
     if (i.builtAt === null) continue;
-    if (best === null || i.builtAt > best.builtAt || (i.builtAt === best.builtAt && i.number > best.number))
+    if (
+      best === null ||
+      i.builtAt > best.builtAt ||
+      (i.builtAt === best.builtAt && i.number > best.number)
+    )
       best = { id: i.id, number: i.number, builtAt: i.builtAt };
   }
   if (best === null) return null;

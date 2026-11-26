@@ -1,4 +1,4 @@
-import { redactSecrets, secretStrings, StoreError } from '@kiln/connectors';
+import { redactSecrets, StoreError, secretStrings } from '@kiln/connectors';
 
 /**
  * What a store said when it refused a write, in a form that is safe to show, to log and to keep (docs/api/pending.md "Why a publish

@@ -26,7 +26,10 @@ const code = (versionCode: string, names: (string | null)[] = []) => ({
   versionCode,
   inTrack: names.map((name) => ({ name, status: 'completed' })),
 });
-const sources = (over: Partial<OriginSources>): OriginSources => ({ ...NO_ORIGIN_SOURCES, ...over });
+const sources = (over: Partial<OriginSources>): OriginSources => ({
+  ...NO_ORIGIN_SOURCES,
+  ...over,
+});
 
 test('a cache hit gives the version, the artifact date and the run', () => {
   const o = originOfCode(code('90'), sources({ artifacts: [art('90')] }), PKG);
@@ -93,7 +96,11 @@ test('sources in conflict: ci wins the version, ci createdAt wins the date, then
   assert.equal(g.builtFrom, 'store');
   assert.equal(g.ci, undefined);
   // A file with no versionName falls back to the store version.
-  const bare = originOfCode(code('90'), sources({ artifacts: [art('90', { version: null })], store }), PKG);
+  const bare = originOfCode(
+    code('90'),
+    sources({ artifacts: [art('90', { version: null })], store }),
+    PKG,
+  );
   assert.equal(bare.version, '2.00.0');
   assert.equal(bare.origin, 'store');
   assert.equal(bare.builtFrom, 'ci');
@@ -111,7 +118,10 @@ test('several artifacts with one code: the earliest one; another package never m
   ];
   assert.equal(originOfCode(code('90'), sources({ artifacts: others }), PKG).version, null);
   const unknownPkg = art('90', { packageId: null });
-  assert.equal(originOfCode(code('90'), sources({ artifacts: [unknownPkg] }), PKG).version, '2.00.1');
+  assert.equal(
+    originOfCode(code('90'), sources({ artifacts: [unknownPkg] }), PKG).version,
+    '2.00.1',
+  );
   // another build number never matches
   assert.equal(originOfCode(code('91'), sources({ artifacts: [art('90')] }), PKG).version, null);
 });
@@ -122,8 +132,20 @@ test('withOrigins adds the fields to every Google Play code and leaves an App St
     platform: 'android',
     track: 'production',
     codes: [
-      { versionCode: '90', source: 'bundle', sha256: null, inTrack: [], eligibility: { eligible: true } },
-      { versionCode: '89', source: 'apk', sha256: null, inTrack: [], eligibility: { eligible: true } },
+      {
+        versionCode: '90',
+        source: 'bundle',
+        sha256: null,
+        inTrack: [],
+        eligibility: { eligible: true },
+      },
+      {
+        versionCode: '89',
+        source: 'apk',
+        sha256: null,
+        inTrack: [],
+        eligibility: { eligible: true },
+      },
     ],
   } as unknown as ReleaseCandidates;
   const out = withOrigins(read, sources({ artifacts: [art('90')] }), PKG);
@@ -135,7 +157,11 @@ test('withOrigins adds the fields to every Google Play code and leaves an App St
   assert.deepEqual(a?.ci, RUN);
   assert.equal(b?.version, null);
   assert.equal(b?.ci, undefined);
-  const apple = { store: 'appstoreconnect', platform: 'ios', builds: [] } as unknown as ReleaseCandidates;
+  const apple = {
+    store: 'appstoreconnect',
+    platform: 'ios',
+    builds: [],
+  } as unknown as ReleaseCandidates;
   assert.equal(withOrigins(apple, NO_ORIGIN_SOURCES, PKG), apple);
 });
 
@@ -149,7 +175,11 @@ test('a package that differs only by case still matches; a flavor suffix falls b
   assert.equal(b.version, '2.00.1');
   assert.equal(b.builtAt, T0);
   // A strict match wins over a mismatching file with the same code.
-  const both = originOfCode(code('90'), sources({ artifacts: [beta, art('90', { artifactId: 'x', version: '3.0.0' })] }), PKG);
+  const both = originOfCode(
+    code('90'),
+    sources({ artifacts: [beta, art('90', { artifactId: 'x', version: '3.0.0' })] }),
+    PKG,
+  );
   assert.equal(both.matchedBy, 'package');
   assert.equal(both.version, '3.0.0');
 });
@@ -165,9 +195,18 @@ test('why a date is missing: not read, file gone, GitHub unreachable or without 
     ['no_access', 'github_no_access'],
     ['no_repository', 'no_repository'],
   ] as const)
-    assert.equal(originOfCode(code('90'), sources({ artifacts: [noDate], listing }), PKG).builtGap, gap);
-  assert.equal(originOfCode(code('88'), sources({ artifacts: [noDate] }), PKG).builtGap, 'not_read');
-  assert.equal(originOfCode(code('88'), sources({ ciLinked: false }), PKG).builtGap, 'no_repository');
+    assert.equal(
+      originOfCode(code('90'), sources({ artifacts: [noDate], listing }), PKG).builtGap,
+      gap,
+    );
+  assert.equal(
+    originOfCode(code('88'), sources({ artifacts: [noDate] }), PKG).builtGap,
+    'not_read',
+  );
+  assert.equal(
+    originOfCode(code('88'), sources({ ciLinked: false }), PKG).builtGap,
+    'no_repository',
+  );
   // A known date has no gap.
   assert.equal(originOfCode(code('90'), sources({ artifacts: [art('90')] }), PKG).builtGap, null);
 });

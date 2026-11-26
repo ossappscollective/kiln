@@ -187,11 +187,15 @@ export class PlaySubmitConnector implements StoreSubmitConnector {
     const locales: SubmitLocale[] = [];
     // One read per language and image type. They used to run one after the other (languages x types requests in a row, several times
     // per publish), which is what made a Play submit slow for an app with many languages: a few at a time now, results in order.
-    const slots = [...listings.keys()].flatMap((language) => types.map((type) => ({ language, type })));
+    const slots = [...listings.keys()].flatMap((language) =>
+      types.map((type) => ({ language, type })),
+    );
     const lists = await mapLimit(slots, READ_CONCURRENCY, ({ language, type }) =>
       this.#images(http, editId, language, type),
     );
-    slots.forEach(({ language, type }, at) => images.set(`${language}\u0000${type}`, lists[at] ?? []));
+    slots.forEach(({ language, type }, at) =>
+      images.set(`${language}\u0000${type}`, lists[at] ?? []),
+    );
     for (const [language, listing] of listings) {
       const textOf: Record<string, string | null> = {};
       for (const [field, member] of Object.entries(PLAY_LISTING_MEMBERS))

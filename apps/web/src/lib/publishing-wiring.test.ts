@@ -24,7 +24,7 @@ test('the top bar button shows what the state model says: a running publish (spi
   assert.match(shell, /<PendingCartButton tintStyle=\{appTintStyle\} \{workspaceId\} \/>/);
 });
 
-test('the Next step card draws the headline, the reason and the offers of the state model, and turns its buttons off with the model\'s reason', () => {
+test("the Next step card draws the headline, the reason and the offers of the state model, and turns its buttons off with the model's reason", () => {
   const card = read('../components/app/NextStep.svelte');
   assert.match(card, /appStateStore\.of\(/);
   assert.match(card, /appState\.headline/);
@@ -32,7 +32,11 @@ test('the Next step card draws the headline, the reason and the offers of the st
   assert.match(card, /disabled=\{!offer\.enabled\}/);
   assert.match(card, /offer\.disabledReason/);
   assert.match(card, /openPendingPanel\(kind, offer\.appId/);
-  assert.doesNotMatch(card, /publishingStore|chooseNextStep|nextStepTrains/, 'the card decides nothing by itself');
+  assert.doesNotMatch(
+    card,
+    /publishingStore|chooseNextStep|nextStepTrains/,
+    'the card decides nothing by itself',
+  );
 });
 
 test('the status row takes the request to be shown: it scrolls into view and takes focus once', () => {

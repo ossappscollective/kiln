@@ -16,7 +16,11 @@ import type { GuardedAction, PrimaryAction, TopBarBadge } from './types.ts';
  */
 
 /** The offers of the model (`primaryAction`, `secondaryActions`, the promotion, the flow rows) are drawn by these files. */
-export const OFFER_SURFACES: readonly { id: string; file: string; handlers: Readonly<Record<PrimaryAction, RegExp | 'not_drawn'>> }[] = [
+export const OFFER_SURFACES: readonly {
+  id: string;
+  file: string;
+  handlers: Readonly<Record<PrimaryAction, RegExp | 'not_drawn'>>;
+}[] = [
   {
     id: 'next-step-card',
     file: 'components/app/NextStep.svelte',
@@ -54,20 +58,68 @@ export type VerdictSurface = { file: string; action: GuardedAction; evidence: Re
 
 export const VERDICT_SURFACES: readonly VerdictSurface[] = [
   { file: 'components/app/PendingCartDrawer.svelte', action: 'push', evidence: /can\('push'\)/ },
-  { file: 'components/app/PendingCartDrawer.svelte', action: 'publish', evidence: /can\('publish'\)/ },
-  { file: 'components/app/PendingCartDrawer.svelte', action: 'discard', evidence: /can\('discard'\)/ },
-  { file: 'components/publish/PendingChanges.svelte', action: 'publish', evidence: /canDo\('publish'\)/ },
-  { file: 'components/publish/PendingChanges.svelte', action: 'discard', evidence: /canDo\('discard'/ },
-  { file: 'components/listing/StagedTrayApp.svelte', action: 'push', evidence: /appStateStore\.verdict\(workspaceId, role, app, 'push'\)/ },
-  { file: 'components/listing/SubmitReady.svelte', action: 'submit', evidence: /appStateStore\.verdict\(workspaceId, role, app, 'submit'\)/ },
-  { file: 'components/release/stepper/StoreRelease.svelte', action: 'release', evidence: /appStateStore\.verdict\(workspaceId, role, app, 'release'\)/ },
-  { file: 'components/release/stepper/CreateVersion.svelte', action: 'create_version', evidence: /appStateStore\.verdict\(workspaceId, role, app, 'create_version'\)/ },
-  { file: 'components/release/RolloutAppControl.svelte', action: 'rollout', evidence: /appStateStore\.verdict\(workspaceId, role, app, 'rollout'\)/ },
-  { file: 'components/release/ReleaseRowDetail.svelte', action: 'promote', evidence: /appStateStore\.verdict\(workspaceId, role, app, 'promote'\)/ },
-  { file: 'components/release/ReleaseTable.svelte', action: 'promote', evidence: /appStateStore\.promoteFor\(/ },
+  {
+    file: 'components/app/PendingCartDrawer.svelte',
+    action: 'publish',
+    evidence: /can\('publish'\)/,
+  },
+  {
+    file: 'components/app/PendingCartDrawer.svelte',
+    action: 'discard',
+    evidence: /can\('discard'\)/,
+  },
+  {
+    file: 'components/publish/PendingChanges.svelte',
+    action: 'publish',
+    evidence: /canDo\('publish'\)/,
+  },
+  {
+    file: 'components/publish/PendingChanges.svelte',
+    action: 'discard',
+    evidence: /canDo\('discard'/,
+  },
+  {
+    file: 'components/listing/StagedTrayApp.svelte',
+    action: 'push',
+    evidence: /appStateStore\.verdict\(workspaceId, role, app, 'push'\)/,
+  },
+  {
+    file: 'components/listing/SubmitReady.svelte',
+    action: 'submit',
+    evidence: /appStateStore\.verdict\(workspaceId, role, app, 'submit'\)/,
+  },
+  {
+    file: 'components/release/stepper/StoreRelease.svelte',
+    action: 'release',
+    evidence: /appStateStore\.verdict\(workspaceId, role, app, 'release'\)/,
+  },
+  {
+    file: 'components/release/stepper/CreateVersion.svelte',
+    action: 'create_version',
+    evidence: /appStateStore\.verdict\(workspaceId, role, app, 'create_version'\)/,
+  },
+  {
+    file: 'components/release/RolloutAppControl.svelte',
+    action: 'rollout',
+    evidence: /appStateStore\.verdict\(workspaceId, role, app, 'rollout'\)/,
+  },
+  {
+    file: 'components/release/ReleaseRowDetail.svelte',
+    action: 'promote',
+    evidence: /appStateStore\.verdict\(workspaceId, role, app, 'promote'\)/,
+  },
+  {
+    file: 'components/release/ReleaseTable.svelte',
+    action: 'promote',
+    evidence: /appStateStore\.promoteFor\(/,
+  },
   { file: 'components/app/NextStep.svelte', action: 'promote', evidence: /appState\.promotion/ },
   // The card draws these two through the model's offers (see OFFER_SURFACES); the release flow's own buttons take the verdict as a reason.
-  { file: 'components/app/NextStep.svelte', action: 'prepare_release', evidence: /data-action=\{offer\.action\}/ },
+  {
+    file: 'components/app/NextStep.svelte',
+    action: 'prepare_release',
+    evidence: /data-action=\{offer\.action\}/,
+  },
   { file: 'components/app/NextStep.svelte', action: 'start_release', evidence: /blockedReason/ },
 ];
 

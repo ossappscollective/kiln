@@ -513,6 +513,8 @@ export function reviewScope(
   const chosen = selection.size === 0 ? rows.filter(selectable) : selectedRows(rows, selection);
   const staged = chosen.filter(planned);
   const appIds = [...new Set(staged.map((r) => r.appId))];
-  const everything = rows.filter(selectable).every((r) => selection.size === 0 || selection.has(r.key));
+  const everything = rows
+    .filter(selectable)
+    .every((r) => selection.size === 0 || selection.has(r.key));
   return { appIds, steps: everything ? null : [{ type: 'push_draft' }], none: staged.length === 0 };
 }

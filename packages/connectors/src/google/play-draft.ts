@@ -650,7 +650,8 @@ export class PlayDraftConnector
       let all =
         index === -1 ? [...releases, next] : releases.map((r, i) => (i === index ? next : r));
       if (start !== undefined) {
-        const codesOf = (r: Json) => (Array.isArray(r.versionCodes) ? r.versionCodes.map(String) : []);
+        const codesOf = (r: Json) =>
+          Array.isArray(r.versionCodes) ? r.versionCodes.map(String) : [];
         const made = codesOf(next).slice().sort().join(',');
         if (
           made === '' ||

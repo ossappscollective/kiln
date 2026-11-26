@@ -3,8 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { StoreError } from '@kiln/connectors';
 import type { Database } from '@kiln/db';
 import { dbTest } from '@kiln/db/testing';
+import { type StepUpAction, setPolicy } from '../../services/step-up.ts';
 import { FakeReplyStore, storeReview } from '../reviews/test-helpers.ts';
-import { setPolicy, type StepUpAction } from '../../services/step-up.ts';
 import { bootStaged } from './test-helpers.ts';
 
 const TEXT = 'A freshly written description that nobody else would ever write';

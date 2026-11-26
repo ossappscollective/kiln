@@ -293,10 +293,13 @@ async function withConnector<T>(
     });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      controller.abort();
-      reject(new DraftTimeout('timeout'));
-    }, timeoutMs ?? ctx.draftTimeoutMs ?? DEFAULT_DRAFT_TIMEOUT_MS);
+    timer = setTimeout(
+      () => {
+        controller.abort();
+        reject(new DraftTimeout('timeout'));
+      },
+      timeoutMs ?? ctx.draftTimeoutMs ?? DEFAULT_DRAFT_TIMEOUT_MS,
+    );
   });
   try {
     const work = job(ctx.draftConnectorFactory({ ...input, fetch: guardedFetch }));
@@ -1719,7 +1722,7 @@ export async function applyDraftPush(
     if (review && done?.commit !== 'sent_for_review') {
       // Nothing differed any more (the guard accepted a store that already holds everything): nothing was committed, so nothing was sent.
       await audit(ctx, input, app, accepted, {
-      ...tag,
+        ...tag,
         code: 'nothing_sent',
         outcome: 'refused',
       });
@@ -1735,7 +1738,7 @@ export async function applyDraftPush(
     if (error instanceof DraftDriftError) {
       if (blocked) {
         await audit(ctx, input, app, error.current, {
-      ...tag,
+          ...tag,
           code: 'blocked',
           outcome: 'refused',
           blocking: blocked.blocking.map((b) => b.code).slice(0, 20),
@@ -1749,7 +1752,10 @@ export async function applyDraftPush(
         );
       }
       await audit(ctx, input, app, error.current, {
-      ...tag, code: 'state_changed', outcome: 'refused' });
+        ...tag,
+        code: 'state_changed',
+        outcome: 'refused',
+      });
       await releaseClaim(db, claim);
       return failure(
         409,
@@ -1766,7 +1772,7 @@ export async function applyDraftPush(
       await markPushed(db, input.workspaceId, app.id, p, error.completed, at);
       const mapped = mapStoreError(error.cause, connection.secret);
       await audit(ctx, input, app, accepted, {
-      ...tag,
+        ...tag,
         code: 'partial',
         outcome: 'partial',
         storeCode: mapped.code,
@@ -1795,7 +1801,10 @@ export async function applyDraftPush(
     } else {
       const mapped = mapStoreError(error, connection.secret);
       await audit(ctx, input, app, accepted, {
-      ...tag, code: mapped.code, outcome: 'failed' });
+        ...tag,
+        code: mapped.code,
+        outcome: 'failed',
+      });
       await releaseClaim(db, claim);
       return mapped.failure;
     }
@@ -1851,7 +1860,12 @@ export async function applyDraftPush(
     // The release was made in the same commit: a draft read back cannot show it (the draft is gone once it is released), so a lost
     // answer is never guessed from it. Nothing is sent again until the person confirms a new plan.
     await markUnknown(db, claim);
-    await audit(ctx, input, app, before, { ...tag, code: 'not_visible', outcome: 'unknown', cause });
+    await audit(ctx, input, app, before, {
+      ...tag,
+      code: 'not_visible',
+      outcome: 'unknown',
+      cause,
+    });
     return failure(
       409,
       'outcome_unknown',
@@ -1879,7 +1893,11 @@ export async function applyDraftPush(
   if (sameDraftState(current, before)) {
     if (!supports(app.platform, 'transactionalEdits')) {
       await audit(ctx, input, app, before, {
-      ...tag, code: 'not_applied', outcome: 'failed', cause });
+        ...tag,
+        code: 'not_applied',
+        outcome: 'failed',
+        cause,
+      });
       await releaseClaim(db, claim);
       return failure(
         502,
@@ -1891,7 +1909,11 @@ export async function applyDraftPush(
     // Google Play can be slow to show a committed edit: the old draft is not proof.
     await markUnknown(db, claim);
     await audit(ctx, input, app, before, {
-      ...tag, code: 'not_visible', outcome: 'unknown', cause });
+      ...tag,
+      code: 'not_visible',
+      outcome: 'unknown',
+      cause,
+    });
     return failure(
       409,
       'outcome_unknown',
@@ -1920,7 +1942,7 @@ export async function applyDraftPush(
     })),
   };
   await audit(ctx, input, app, before, {
-      ...tag,
+    ...tag,
     code: 'partial',
     outcome: 'partial',
     cause,

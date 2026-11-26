@@ -3,18 +3,25 @@ import type { Api } from '../api.ts';
 import type { AttentionItem } from '../app-attention.ts';
 import type { PlatformScope } from '../app-scope.ts';
 import { cartSummaryStore } from '../cart-summary.svelte.ts';
-import { pendingRows, type PendingRow, pendingTotals } from '../cart-summary.ts';
+import { type PendingRow, pendingRows, pendingTotals } from '../cart-summary.ts';
 import { type LastPublish, type PendingLine, staleViewIds } from '../pending.ts';
-import type { Publishing } from '../publishing.ts';
-import type { PipelineSummary, PipelineSummaryApp } from '../release-pipeline.ts';
 import { pendingStore } from '../pending-store.svelte.ts';
 import { pipelineStore } from '../pipeline-store.svelte.ts';
+import type { Publishing } from '../publishing.ts';
 import { publishingStore } from '../publishing-store.svelte.ts';
+import type { PipelineSummary, PipelineSummaryApp } from '../release-pipeline.ts';
 import { onStagedChanged } from '../staged-sync.ts';
 import type { AppSummary, ReleaseSummary } from '../types.ts';
 import { activeFailure, deriveAppState, deriveTopBar, promoteOfferFor } from './derive.ts';
 import { assembleFacts, type FactSources, lineOfRecords } from './facts.ts';
-import type { AppFacts, AppState, GuardedAction, Promotion, TopBarBadge, Verdict } from './types.ts';
+import type {
+  AppFacts,
+  AppState,
+  GuardedAction,
+  Promotion,
+  TopBarBadge,
+  Verdict,
+} from './types.ts';
 
 /**
  * The ONE store of what is true about an app (docs/state-model.md). It reads the facts once per workspace (the cart summary for the count,
@@ -85,7 +92,13 @@ function sourcesOf(workspaceId: string): FactSources {
 
 function factsOf(input: StateInput): AppFacts {
   return assembleFacts(
-    { role: input.role, records: input.records, releases: input.releases, attention: input.attention, now: input.now ?? Date.now() },
+    {
+      role: input.role,
+      records: input.records,
+      releases: input.releases,
+      attention: input.attention,
+      now: input.now ?? Date.now(),
+    },
     sourcesOf(input.workspaceId),
   );
 }
@@ -102,8 +115,12 @@ export const appStateStore = {
    */
   verdict(workspaceId: string, role: Role, app: RecordRef, action: GuardedAction): Verdict {
     const siblings =
-      open !== null && open.workspaceId === workspaceId && open.records.some((r) => r.id === app.id) ? open.records : [asRecord(app)];
-    return appStateStore.of({ workspaceId, role, records: siblings, scope: app.platform }).canDo(action, app.platform);
+      open !== null && open.workspaceId === workspaceId && open.records.some((r) => r.id === app.id)
+        ? open.records
+        : [asRecord(app)];
+    return appStateStore
+      .of({ workspaceId, role, records: siblings, scope: app.platform })
+      .canDo(action, app.platform);
   },
 
   /** What a release of a table row offers: "Promote to production" with its verdict, or null (not promotable, or no right). */
@@ -114,8 +131,16 @@ export const appStateStore = {
     release: ReleaseSummary,
     siblings: readonly ReleaseSummary[],
   ): Promotion | null {
-    const records = open !== null && open.workspaceId === workspaceId && open.records.some((r) => r.id === app.id) ? open.records : [app];
-    return promoteOfferFor(appStateStore.of({ workspaceId, role, records, scope: app.platform }), role, release, siblings);
+    const records =
+      open !== null && open.workspaceId === workspaceId && open.records.some((r) => r.id === app.id)
+        ? open.records
+        : [app];
+    return promoteOfferFor(
+      appStateStore.of({ workspaceId, role, records, scope: app.platform }),
+      role,
+      release,
+      siblings,
+    );
   },
 
   /**
@@ -124,9 +149,20 @@ export const appStateStore = {
    */
   lineOf(workspaceId: string, appIds: readonly string[]): AppLine | null {
     const line = lineOfRecords(sourcesOf(workspaceId), appIds);
-    const failed = appIds.some((id) => activeFailure(publishingStore.failureOf(workspaceId, id), publishingStore.of(workspaceId, id)) !== null);
+    const failed = appIds.some(
+      (id) =>
+        activeFailure(
+          publishingStore.failureOf(workspaceId, id),
+          publishingStore.of(workspaceId, id),
+        ) !== null,
+    );
     if (line === null && !failed) return null;
-    return { count: line?.count ?? 0, blocking: line?.blocking ?? 0, waiting: line?.waiting ?? 0, failed };
+    return {
+      count: line?.count ?? 0,
+      blocking: line?.blocking ?? 0,
+      waiting: line?.waiting ?? 0,
+      failed,
+    };
   },
 
   /** Whether the pending count of the workspace was read (a screen that says "nothing" asks first). */
@@ -135,7 +171,10 @@ export const appStateStore = {
   },
 
   /** The "Pending" entry of the navigation and the Pending overview: the changes and the apps that hold them; null while not read. */
-  workspaceTotals(workspaceId: string, apps: readonly AppSummary[] | null): { changes: number; apps: number } | null {
+  workspaceTotals(
+    workspaceId: string,
+    apps: readonly AppSummary[] | null,
+  ): { changes: number; apps: number } | null {
     const cart = cartSummaryStore.summaryOf(workspaceId);
     return pendingTotals(pendingRows(cart, apps), cart);
   },
@@ -146,7 +185,10 @@ export const appStateStore = {
   },
 
   /** The apps of the workspace that publish right now (the claims), with the app they belong to. */
-  workspacePublishing(workspaceId: string, apps: readonly AppSummary[] | null): { app: AppSummary; entry: Publishing }[] {
+  workspacePublishing(
+    workspaceId: string,
+    apps: readonly AppSummary[] | null,
+  ): { app: AppSummary; entry: Publishing }[] {
     const out: { app: AppSummary; entry: Publishing }[] = [];
     for (const id of publishingStore.ids(workspaceId)) {
       const app = (apps ?? []).find((a) => a.id === id);
@@ -157,11 +199,17 @@ export const appStateStore = {
   },
 
   /** The apps of the workspace whose last publish failed and nobody hid it (an app that publishes again shows its progress instead). */
-  workspaceFailures(workspaceId: string, apps: readonly AppSummary[] | null): { app: AppSummary; run: LastPublish }[] {
+  workspaceFailures(
+    workspaceId: string,
+    apps: readonly AppSummary[] | null,
+  ): { app: AppSummary; run: LastPublish }[] {
     const out: { app: AppSummary; run: LastPublish }[] = [];
     for (const id of publishingStore.failedIds(workspaceId)) {
       const app = (apps ?? []).find((a) => a.id === id);
-      const run = activeFailure(publishingStore.failureOf(workspaceId, id), publishingStore.of(workspaceId, id));
+      const run = activeFailure(
+        publishingStore.failureOf(workspaceId, id),
+        publishingStore.of(workspaceId, id),
+      );
       if (app && run) out.push({ app, run });
     }
     return out;
@@ -177,7 +225,15 @@ export const appStateStore = {
   /** What the top bar shows: the open app's state (in the page's scope), or a publish that runs anywhere in the workspace. */
   topBar(workspaceId: string): TopBarBadge {
     const here = open !== null && open.workspaceId === workspaceId ? open : null;
-    const state = here === null ? null : appStateStore.of({ workspaceId, role: here.role, records: here.records, scope: here.scope });
+    const state =
+      here === null
+        ? null
+        : appStateStore.of({
+            workspaceId,
+            role: here.role,
+            records: here.records,
+            scope: here.scope,
+          });
     const mine = here === null ? [] : here.records.map((r) => r.id);
     const other = publishingStore.ids(workspaceId).find((id) => mine.indexOf(id) < 0) ?? null;
     const badge = deriveTopBar(state, other);
@@ -262,7 +318,10 @@ export const appStateStore = {
    * The records whose detail read is older than the summary and says something else (the Pending page reads them again, so it never says
    * "Nothing pending" while the count says changes). `key` changes with each summary, so a page reads once per change.
    */
-  staleViews(workspaceId: string, appIds: readonly string[]): { key: string; ids: string[] } | null {
+  staleViews(
+    workspaceId: string,
+    appIds: readonly string[],
+  ): { key: string; ids: string[] } | null {
     const summary = pendingStore.summary(workspaceId);
     const ids = staleViewIds(summary, appIds, pendingStore.viewsOf(appIds));
     if (ids.length === 0 || summary === null) return null;

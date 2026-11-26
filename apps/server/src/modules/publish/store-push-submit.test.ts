@@ -55,7 +55,8 @@ async function boot(db: Parameters<typeof bootStaged>[0], options: { submit?: bo
 const stageGoogle = async (t: StagedBoot, name = 'Weather', title = 'Acme') => {
   const app = await t.addApp('android', name);
   assert.equal(
-    (await t.stageText(app, { locale: 'en-US', field: 'title', from: 'local', value: title })).status,
+    (await t.stageText(app, { locale: 'en-US', field: 'title', from: 'local', value: title }))
+      .status,
     200,
   );
   return app;
@@ -79,7 +80,11 @@ dbTest(
     );
     assert.equal(stepOf(p.body, 'push_draft').included, true);
     assert.equal(stepOf(p.body, 'submit').included, true);
-    assert.deepEqual(p.body.plan.combined, { offered: true, draftRefused: false, defaulted: false });
+    assert.deepEqual(p.body.plan.combined, {
+      offered: true,
+      draftRefused: false,
+      defaulted: false,
+    });
     assert.deepEqual(
       p.body.plan.publishSteps.map((s: { type: string }) => s.type),
       ['push_draft', 'submit'],
@@ -148,7 +153,10 @@ dbTest(
       0,
     );
     // What was pushed is marked as pushed: nothing is waiting any more.
-    const staged = await db.query('SELECT pushed_hash, value_hash FROM staged_changes WHERE app_id = ?', [app]);
+    const staged = await db.query(
+      'SELECT pushed_hash, value_hash FROM staged_changes WHERE app_id = ?',
+      [app],
+    );
     assert.ok(staged.every((r) => r.pushed_hash === r.value_hash));
     // The audit and the events say what happened: a push, a submit, and the batch with the step name.
     const pushed = (await t.audit('listing.draft_pushed'))[0];
@@ -240,7 +248,11 @@ dbTest(
     assert.equal(stepOf(next, 'push_draft').included, false);
     assert.equal(stepOf(next, 'submit').included, false);
     assert.equal(stepOf(next, 'push_and_submit').included, true);
-    assert.equal(next.plan.confirmationRequired, true, 'still the confirmation of an irreversible step');
+    assert.equal(
+      next.plan.confirmationRequired,
+      true,
+      'still the confirmation of an irreversible step',
+    );
     // The pair stays selectable.
     const pair = (await t.plan(app, PAIR)).body;
     assert.deepEqual(pair.plan.combined, { offered: true, draftRefused: true, defaulted: false });
@@ -250,12 +262,16 @@ dbTest(
     // Confirmed, it sends for review.
     const second = await t.planAndPublish(app);
     assert.equal(second.publish.status, 200, second.publish.text.slice(0, 400));
-    assert.deepEqual([second.publish.body.result.completed, second.publish.body.result.applied], [true, 1]);
+    assert.deepEqual(
+      [second.publish.body.result.completed, second.publish.body.result.applied],
+      [true, 1],
+    );
     assert.equal(t.stores.android.sentForReview, 1);
 
     // A combined run that went through does not make Google keep drafts: the default stays the combined step.
     assert.equal(
-      (await t.stageText(app, { locale: 'en-US', field: 'title', from: 'local', value: 'Acme 2' })).status,
+      (await t.stageText(app, { locale: 'en-US', field: 'title', from: 'local', value: 'Acme 2' }))
+        .status,
       200,
     );
     assert.equal((await t.plan(app)).body.plan.combined.defaulted, true);
@@ -263,9 +279,13 @@ dbTest(
     // A later draft push that Google accepted ends it.
     t.stores.android.draftRefused = false;
     const draft = await t.planAndPublish(app, [{ type: 'push_draft' }]);
-    assert.deepEqual([draft.publish.body.result.completed, draft.publish.body.result.applied], [true, 1]);
+    assert.deepEqual(
+      [draft.publish.body.result.completed, draft.publish.body.result.applied],
+      [true, 1],
+    );
     assert.equal(
-      (await t.stageText(app, { locale: 'en-US', field: 'title', from: 'local', value: 'Acme 3' })).status,
+      (await t.stageText(app, { locale: 'en-US', field: 'title', from: 'local', value: 'Acme 3' }))
+        .status,
       200,
     );
     assert.deepEqual((await t.plan(app)).body.plan.combined, {
@@ -312,8 +332,14 @@ dbTest(
     const t = await boot(db);
     const app = await t.addApp('ios', 'Weather');
     assert.equal(
-      (await t.stageText(app, { locale: 'en-US', field: 'description', from: 'local', value: 'Hello there' }))
-        .status,
+      (
+        await t.stageText(app, {
+          locale: 'en-US',
+          field: 'description',
+          from: 'local',
+          value: 'Hello there',
+        })
+      ).status,
       200,
     );
     const def = (await t.plan(app)).body;
@@ -353,7 +379,9 @@ dbTest(
         { step: 'push_and_submit', action: 'store.push_draft and store.submit' },
       ]);
     }
-    const both = await t.mint({ actions: ['store.publish', 'store.push_draft', 'store.submit', 'apps.read'] });
+    const both = await t.mint({
+      actions: ['store.publish', 'store.push_draft', 'store.submit', 'apps.read'],
+    });
     const ok = await t.bearer(both, 'POST', t.path(app, '/preview'), { steps });
     assert.equal(ok.body.plan.confirmable, true, JSON.stringify(ok.body.plan.steps));
     // A token still types the phrase: step-up is for people.
@@ -377,7 +405,9 @@ dbTest('the combined step is off when the submit switch is off', async (db) => {
   });
   assert.equal(res.status, 409);
   assert.equal(res.body.error, 'step_disabled');
-  assert.deepEqual(res.body.disabled, [{ step: 'push_and_submit', envName: 'KILN_STORE_SUBMIT_ENABLED' }]);
+  assert.deepEqual(res.body.disabled, [
+    { step: 'push_and_submit', envName: 'KILN_STORE_SUBMIT_ENABLED' },
+  ]);
   assert.equal(t.stores.android.pushAndSubmitCalls, 0);
 });
 
@@ -411,7 +441,10 @@ dbTest(
     const out = await t.planAndPublish(app, [{ type: 'push_and_submit' }]);
     assert.equal(out.publish.status, 200, out.publish.text.slice(0, 300));
     const step = resultOf(out.publish, 'push_and_submit');
-    assert.deepEqual([step.status, step.error, step.outcome], ['failed', 'outcome_unknown', 'unknown']);
+    assert.deepEqual(
+      [step.status, step.error, step.outcome],
+      ['failed', 'outcome_unknown', 'unknown'],
+    );
     assert.match(step.message, /sent for review|review/);
     assert.equal(t.stores.android.pushAndSubmitCalls, 1, 'never repeated');
     assert.equal(t.stores.android.sentForReview, 0);

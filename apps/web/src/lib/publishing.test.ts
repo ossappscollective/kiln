@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { type CartItem, markBeingPublished, reasonText, toRows } from './pending-cart.ts';
 import type { LastPublish } from './pending.ts';
+import { type CartItem, markBeingPublished, reasonText, toRows } from './pending-cart.ts';
 import {
+  appToShow,
   byText,
   createPublishingLoader,
   detailText,
@@ -10,7 +11,6 @@ import {
   elapsedOf,
   finishedApps,
   HIDDEN_POLL_MS,
-  appToShow,
   headlineText,
   MAX_POLL_MS,
   OPTIMISTIC_GRACE_MS,
@@ -65,10 +65,7 @@ test('the status row words: store, when it started, step n of m, who, elapsed ti
   assert.equal(headlineText('android'), 'Publishing to Google Play…');
   assert.equal(headlineText('ios'), 'Publishing to App Store…');
   const now = 1_000_000 + 3 * MIN + 12_000;
-  assert.equal(
-    detailText(running(), now),
-    'started 3 minutes ago · step 1 of 2: Push the draft',
-  );
+  assert.equal(detailText(running(), now), 'started 3 minutes ago · step 1 of 2: Push the draft');
   assert.equal(
     detailText(running({ currentStep: 'submit' }), 1_000_000 + 20_000),
     'started just now · step 2 of 2: Submit for review',
@@ -126,7 +123,7 @@ const failedRun = (over: Partial<LastPublish> = {}): LastPublish => ({
   ...over,
 });
 
-test('the pending panel opens in the drawer of the open app when it covers the running app, else on the app\'s pending page', () => {
+test("the pending panel opens in the drawer of the open app when it covers the running app, else on the app's pending page", () => {
   assert.deepEqual(panelTarget({ appId: 'a', drawerAppIds: ['a', 'b'], drawerReady: true }), {
     kind: 'drawer',
   });
@@ -138,7 +135,11 @@ test('the pending panel opens in the drawer of the open app when it covers the r
     panelTarget({ appId: 'a', drawerAppIds: ['a'], drawerReady: false, scope: 'android' }),
     { kind: 'page', href: '#/portfolio/a/pending?platform=android' },
   );
-  assert.equal(appToShow(['x', 'b'], ['a', 'b']), 'b', 'the one the open drawer covers comes first');
+  assert.equal(
+    appToShow(['x', 'b'], ['a', 'b']),
+    'b',
+    'the one the open drawer covers comes first',
+  );
   assert.equal(appToShow(['x', 'y'], ['a']), 'x');
   assert.equal(appToShow([], ['a']), null);
 });
@@ -166,7 +167,10 @@ test('the rows of an app that publishes are marked: not selectable, not removabl
     problems: [],
     ref: {},
   });
-  const rows = [...toRows('a', [cart('listing:1'), cart('listing:2')]), ...toRows('b', [cart('listing:3')])];
+  const rows = [
+    ...toRows('a', [cart('listing:1'), cart('listing:2')]),
+    ...toRows('b', [cart('listing:3')]),
+  ];
   const marked = markBeingPublished(rows, new Set(['a']));
   assert.deepEqual(
     marked.map((r) => [r.appId, r.publishable, r.canDiscard, r.reason?.code ?? null]),
@@ -176,7 +180,10 @@ test('the rows of an app that publishes are marked: not selectable, not removabl
       ['b', true, true, null],
     ],
   );
-  assert.equal(markBeingPublished(rows, new Set()).every((r) => r.publishable), true);
+  assert.equal(
+    markBeingPublished(rows, new Set()).every((r) => r.publishable),
+    true,
+  );
   assert.equal(rows[0]?.publishable, true, 'the input is not changed');
   assert.match(reasonText('publishing'), /Being published right now/);
 });
@@ -236,7 +243,10 @@ test('loader: reads on start, polls every 5 s while a publish runs, reports the 
   assert.equal(h.calls(), 1);
   assert.equal(h.loader.of('w', 'a')?.currentStep, 'push_draft');
   assert.deepEqual(h.loader.ids('w'), ['a']);
-  assert.deepEqual(h.timers.map((t) => t.ms), [POLL_MS]);
+  assert.deepEqual(
+    h.timers.map((t) => t.ms),
+    [POLL_MS],
+  );
   h.timers[0]?.fn();
   await settle();
   assert.equal(h.calls(), 2);
@@ -274,7 +284,11 @@ test('loader: a hidden tab polls slowly; failures back off and keep what was sho
   fail = true;
   h.timers[0]?.fn();
   await settle();
-  assert.equal(h.loader.of('w', 'a')?.currentStep, 'push_draft', 'a failed read keeps what was shown');
+  assert.equal(
+    h.loader.of('w', 'a')?.currentStep,
+    'push_draft',
+    'a failed read keeps what was shown',
+  );
   assert.equal(h.timers[0]?.ms, 10_000, 'backed off');
   h.timers[0]?.fn();
   await settle();
@@ -347,14 +361,20 @@ test('loader: the failure of the last publish comes from the server, is replaced
     lastPublish: run === null ? [] : [{ appId: 'a', lastPublish: run }],
     generatedAt: 1,
   });
-  const h = harness((n) => (n === 0 ? withFailure(failedRun()) : n === 1 ? withFailure(null) : list()));
+  const h = harness((n) =>
+    n === 0 ? withFailure(failedRun()) : n === 1 ? withFailure(null) : list(),
+  );
   h.loader.start('w');
   await settle();
   assert.equal(h.loader.failedOf('w', 'a')?.id, 'run-1', 'read after a reload, from the server');
   assert.equal(h.loader.failedOf('w', 'other'), null);
   assert.equal(h.loader.failedOf('v', 'a'), null, 'another workspace');
   await h.loader.refresh('w');
-  assert.equal(h.loader.failedOf('w', 'a'), null, 'a later success (or a dismissal elsewhere) clears it');
+  assert.equal(
+    h.loader.failedOf('w', 'a'),
+    null,
+    'a later success (or a dismissal elsewhere) clears it',
+  );
   // The answer of this browser's own publish is shown at once; a successful run clears it; an older server leaves it alone.
   h.loader.noteResult('w', 'a', failedRun({ id: 'run-2' }));
   assert.equal(h.loader.failedOf('w', 'a')?.id, 'run-2');

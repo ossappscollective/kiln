@@ -100,7 +100,13 @@ test('looksLikeExpo: only an app.json or dynamic config of Expo counts', () => {
   assert.equal(looksLikeExpo({ detected: { projectId: 'x' }, reason: null }), true);
   assert.equal(looksLikeExpo({ detected: null, reason: 'dynamic_config' }), true);
   assert.equal(looksLikeExpo({ detected: null, reason: 'no_project_id' }), true);
-  for (const reason of ['no_repository', 'repository_unavailable', 'no_app_json', 'unreadable', 'read_failed']) {
+  for (const reason of [
+    'no_repository',
+    'repository_unavailable',
+    'no_app_json',
+    'unreadable',
+    'read_failed',
+  ]) {
     assert.equal(looksLikeExpo({ detected: null, reason }), false, reason);
   }
 });

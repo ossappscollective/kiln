@@ -15,9 +15,9 @@ import {
   groupItems,
   includedTypes,
   isCombinedPlan,
-  isDraftRefused,
   isDirectPlan,
   isDiscardable,
+  isDraftRefused,
   itemAnchor,
   lineFor,
   lineOfView,
@@ -26,6 +26,7 @@ import {
   type PendingItem,
   type PendingSummary,
   type PlanStep,
+  PUBLISH_STEPS,
   type PublishConfig,
   type PublishPlan,
   type PublishResult,
@@ -35,7 +36,6 @@ import {
   platformTotals,
   previewBody,
   promiseText,
-  PUBLISH_STEPS,
   publishAvailability,
   publishBody,
   pushAndSubmitSteps,
@@ -44,8 +44,8 @@ import {
   requestsFor,
   resultRow,
   resultSummary,
-  staleViewIds,
   STEP_NAME,
+  staleViewIds,
   stateBadge,
   stepRows,
   toggled,
@@ -964,19 +964,35 @@ const googlePair = (): PlanStep[] => [
 ];
 
 test('the step types include the combined step, named in words, ordered between the push and the submit', () => {
-  assert.deepEqual(PUBLISH_STEPS, ['push_draft', 'push_and_submit', 'submit', 'release', 'rollout']);
+  assert.deepEqual(PUBLISH_STEPS, [
+    'push_draft',
+    'push_and_submit',
+    'submit',
+    'release',
+    'rollout',
+  ]);
   assert.equal(STEP_NAME.push_and_submit, 'Push and submit for review in one step');
   assert.deepEqual(pushAndSubmitSteps(), [{ type: 'push_and_submit' }]);
 });
 
 test('ticking the combined step unticks the pair it replaces; unticking it goes back to the pair; ticking either half unticks it', () => {
   assert.deepEqual(toggled(['push_draft', 'submit'], 'push_and_submit', true), ['push_and_submit']);
-  assert.deepEqual(toggled(['push_and_submit'], 'push_and_submit', false), ['push_draft', 'submit']);
+  assert.deepEqual(toggled(['push_and_submit'], 'push_and_submit', false), [
+    'push_draft',
+    'submit',
+  ]);
   assert.deepEqual(toggled(['push_and_submit'], 'submit', true), ['submit']);
   assert.deepEqual(toggled(['push_and_submit'], 'push_draft', true), ['push_draft']);
   // The release and the rollout are left as they were.
-  assert.deepEqual(toggled(['push_draft', 'submit', 'release'], 'push_and_submit', true), ['push_and_submit', 'release']);
-  assert.deepEqual(toggled(['push_draft', 'submit'], 'release', true), ['push_draft', 'submit', 'release']);
+  assert.deepEqual(toggled(['push_draft', 'submit', 'release'], 'push_and_submit', true), [
+    'push_and_submit',
+    'release',
+  ]);
+  assert.deepEqual(toggled(['push_draft', 'submit'], 'release', true), [
+    'push_draft',
+    'submit',
+    'release',
+  ]);
 });
 
 test('the combined step is a row only when a review is wanted: beside the pair as an option, or when it is the plan', () => {
@@ -988,18 +1004,45 @@ test('the combined step is a row only when a review is wanted: beside the pair a
   assert.equal(combined?.checked, false);
   assert.equal(combined?.irreversible, true);
   assert.equal(combined?.label, 'Push and submit for review in one step');
-  assert.deepEqual(visibleRows(rows).shown.map((r) => r.type), ['push_draft', 'push_and_submit', 'submit']);
+  assert.deepEqual(
+    visibleRows(rows).shown.map((r) => r.type),
+    ['push_draft', 'push_and_submit', 'submit'],
+  );
 
   // A draft only (no submit in the plan): the option is not offered.
-  const draftOnly = plan([googlePair()[0] as PlanStep, { ...(googlePair()[1] as PlanStep) }, { ...(googlePair()[2] as PlanStep), included: false, availability: 'not_requested', request: null }], { app: PLAY_APP });
+  const draftOnly = plan(
+    [
+      googlePair()[0] as PlanStep,
+      { ...(googlePair()[1] as PlanStep) },
+      {
+        ...(googlePair()[2] as PlanStep),
+        included: false,
+        availability: 'not_requested',
+        request: null,
+      },
+    ],
+    { app: PLAY_APP },
+  );
   assert.equal(stepRows(draftOnly).find((r) => r.type === 'push_and_submit')?.idle, true);
 
   // The plan made with it: it is the row, ticked, and the pair is not offered.
   const only = plan(
     [
-      step('push_draft', { platform: 'android', order: 1, included: false, availability: 'not_requested', request: null }),
+      step('push_draft', {
+        platform: 'android',
+        order: 1,
+        included: false,
+        availability: 'not_requested',
+        request: null,
+      }),
       step('push_and_submit', { platform: 'android', order: 2, irreversible: true }),
-      step('submit', { platform: 'android', order: 3, included: false, availability: 'not_requested', request: null }),
+      step('submit', {
+        platform: 'android',
+        order: 3,
+        included: false,
+        availability: 'not_requested',
+        request: null,
+      }),
     ],
     { app: PLAY_APP, combined: { offered: true, draftRefused: true, defaulted: true } },
   );
@@ -1014,7 +1057,14 @@ test('the combined step is a row only when a review is wanted: beside the pair a
 
 test('the combined step is sent as itself, with the phrase of an irreversible plan; the numbers of the push are its summary', () => {
   const only = plan(
-    [step('push_and_submit', { platform: 'android', order: 2, irreversible: true, summary: { textChanged: 1, assetSetsChanged: 7, fieldsChanged: 21 } })],
+    [
+      step('push_and_submit', {
+        platform: 'android',
+        order: 2,
+        irreversible: true,
+        summary: { textChanged: 1, assetSetsChanged: 7, fieldsChanged: 21 },
+      }),
+    ],
     { app: PLAY_APP },
   );
   assert.deepEqual(publishBody(only, ' publish Weather 1 step '), {
@@ -1025,7 +1075,13 @@ test('the combined step is sent as itself, with the phrase of an irreversible pl
   assert.equal(canPublish(only, ['push_and_submit'], 'publish Weather 1 step', false), true);
   assert.equal(canPublish(only, ['push_and_submit'], '', true), false, 'the box is not the phrase');
   assert.deepEqual(requestsFor(only, ['push_and_submit']), [{ type: 'push_and_submit' }]);
-  assert.match(promiseText({ type: 'push_and_submit', summary: { textChanged: 1, assetSetsChanged: 7, fieldsChanged: 21 } }), /1 text change, 7 graphics sets, 21 release fields/);
+  assert.match(
+    promiseText({
+      type: 'push_and_submit',
+      summary: { textChanged: 1, assetSetsChanged: 7, fieldsChanged: 21 },
+    }),
+    /1 text change, 7 graphics sets, 21 release fields/,
+  );
 });
 
 test('a failed push Google Play would not keep as a draft is known by its code, and has its own sentence in the result', () => {
@@ -1038,7 +1094,8 @@ test('a failed push Google Play would not keep as a draft is known by its code, 
     error: 'draft_not_allowed',
     httpStatus: 409,
     outcome: 'refused',
-    message: 'Google Play sends these changes for review automatically for this app, so it cannot keep them as a draft.',
+    message:
+      'Google Play sends these changes for review automatically for this app, so it cannot keep them as a draft.',
   });
   assert.match(row.text, /^Google Play would not keep these changes as a draft\./);
   assert.match(row.text, /sends these changes for review automatically/);

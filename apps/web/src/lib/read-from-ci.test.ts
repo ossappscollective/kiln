@@ -194,7 +194,8 @@ test('Read build info from CI: a list that cannot be read, a problem, downloads 
   assert.equal(failed.problem, 'list');
   assert.match(readOutcomeText(failed).text, /could not be listed/);
   const trouble = await readRecentCiBuilds({
-    list: async () => list([artifact('1')], { problem: { reason: 'no_access', needs: 'actions: read' } }),
+    list: async () =>
+      list([artifact('1')], { problem: { reason: 'no_access', needs: 'actions: read' } }),
     inspect: async () => assert.fail('a problem'),
   });
   assert.equal(trouble.problem, 'list');

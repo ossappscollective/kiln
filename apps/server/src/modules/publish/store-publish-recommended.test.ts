@@ -74,13 +74,17 @@ dbTest(
     const plan = (await t.plan(app)).body.plan;
     assert.equal(plan.recommended.why, 'direct_release');
     assert.equal(plan.promotion.from, null);
-    const plain = (await t.plan(app, [{ type: 'release', track: 'production', userFraction: 1 }])).body
-      .plan;
+    const plain = (await t.plan(app, [{ type: 'release', track: 'production', userFraction: 1 }]))
+      .body.plan;
     const step = plain.steps.find((s: any) => s.type === 'release');
     assert.equal(step.availability, 'blocked', 'not "nothing to do"');
     assert.match(step.reason, /no draft release to start/);
     assert.equal(plain.confirmable, false);
-    assert.equal(plain.recommended.types[0], 'release', 'and the direct release is what is recommended');
+    assert.equal(
+      plain.recommended.types[0],
+      'release',
+      'and the direct release is what is recommended',
+    );
   },
 );
 
@@ -90,7 +94,8 @@ dbTest(
     const t = await boot(db);
     const app = await t.addApp('android', 'Weather');
     assert.equal(
-      (await t.stageText(app, { locale: 'en-US', field: 'title', from: 'local', value: 'Acme' })).status,
+      (await t.stageText(app, { locale: 'en-US', field: 'title', from: 'local', value: 'Acme' }))
+        .status,
       200,
     );
     assert.equal((await t.plan(app)).body.plan.recommended.why, 'draft');
@@ -119,26 +124,24 @@ dbTest(
   },
 );
 
-dbTest(
-  'a plain staged text change only: recommended is the draft push',
-  async (db) => {
-    const t = await boot(db);
-    const app = await t.addApp('android', 'Weather');
-    assert.equal(
-      (await t.stageText(app, { locale: 'en-US', field: 'title', from: 'local', value: 'Acme' })).status,
-      200,
-    );
-    const plan = (await t.plan(app)).body.plan;
-    assert.deepEqual(plan.recommended, {
-      types: ['push_draft'],
-      steps: [{ type: 'push_draft' }],
-      why: 'draft',
-      needsShare: false,
-      replacesReview: false,
-    });
-    assert.equal(plan.promotion, null);
-  },
-);
+dbTest('a plain staged text change only: recommended is the draft push', async (db) => {
+  const t = await boot(db);
+  const app = await t.addApp('android', 'Weather');
+  assert.equal(
+    (await t.stageText(app, { locale: 'en-US', field: 'title', from: 'local', value: 'Acme' }))
+      .status,
+    200,
+  );
+  const plan = (await t.plan(app)).body.plan;
+  assert.deepEqual(plan.recommended, {
+    types: ['push_draft'],
+    steps: [{ type: 'push_draft' }],
+    why: 'draft',
+    needsShare: false,
+    replacesReview: false,
+  });
+  assert.equal(plan.promotion, null);
+});
 
 dbTest(
   'the release switch is off: a build is never recommended as a release, the draft is',
@@ -169,7 +172,11 @@ const rec = (patch: Partial<Facts>) => recommendationOf({ ...FACTS, ...patch });
 dbTest('recommendationOf: the rules, one by one', async () => {
   assert.equal(rec({})?.why, 'promotion');
   assert.equal(rec({ from: null })?.why, 'direct_release');
-  assert.equal(rec({ draftRefused: true })?.why, 'promotion', 'refused drafts never push a build to a draft');
+  assert.equal(
+    rec({ draftRefused: true })?.why,
+    'promotion',
+    'refused drafts never push a build to a draft',
+  );
   // The release cannot run: the build alone is a draft push; with drafts refused there is nothing to push as a draft with no text.
   assert.equal(rec({ can: { ...FACTS.can, release: false } })?.why, 'draft');
   assert.equal(rec({ unavailable: { release: true } })?.why, 'draft');
@@ -190,7 +197,10 @@ dbTest('recommendationOf: the rules, one by one', async () => {
   });
   assert.equal(rec({ staged: texts, canOneCommit: true, draftRefused: true })?.why, 'one_commit');
   assert.equal(rec({ staged: texts, canOneCommit: false })?.why, 'draft');
-  assert.equal(rec({ staged: texts, canOneCommit: true, unavailable: { release: true } })?.why, 'draft');
+  assert.equal(
+    rec({ staged: texts, canOneCommit: true, unavailable: { release: true } })?.why,
+    'draft',
+  );
   // After a refusal for changes in review the recommendation names the replacing variant, for a release alone as well. It is a
   // recommendation: the plan still asks for the confirmation of an irreversible step.
   const replacing = rec({ staged: texts, canOneCommit: true, changesInReview: true });
@@ -204,7 +214,10 @@ dbTest('recommendationOf: the rules, one by one', async () => {
     rec({ staged: texts, draftRefused: true, unavailable: { push_and_submit: true } })?.why,
     'draft',
   );
-  assert.equal(rec({ staged: texts, direct: null, can: { ...FACTS.can, push_draft: false } }), null);
+  assert.equal(
+    rec({ staged: texts, direct: null, can: { ...FACTS.can, push_draft: false } }),
+    null,
+  );
   // Nothing staged: nothing to recommend. Another platform: the plan's own steps.
   assert.equal(rec({ staged: { texts: 0, assets: 0, fields: 0 }, direct: null }), null);
   assert.deepEqual(rec({ google: false, staged: null, included: ['push_draft', 'submit'] }), {

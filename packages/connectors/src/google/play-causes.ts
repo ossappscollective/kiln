@@ -46,7 +46,8 @@ export function googleFacts(reply: { status: number; json?: unknown }): GoogleFa
   const reasons: string[] = [];
   for (const list of [error.errors, error.details])
     if (Array.isArray(list))
-      for (const entry of list) if (isObject(entry) && str(entry.reason) !== '') reasons.push(str(entry.reason));
+      for (const entry of list)
+        if (isObject(entry) && str(entry.reason) !== '') reasons.push(str(entry.reason));
   return {
     status: reply.status,
     message: str(error.message).replace(/\s+/g, ' ').trim(),
@@ -55,7 +56,8 @@ export function googleFacts(reply: { status: number; json?: unknown }): GoogleFa
   };
 }
 
-const cut = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 3)}...` : text);
+const cut = (text: string, max: number) =>
+  text.length > max ? `${text.slice(0, max - 3)}...` : text;
 
 /** The part after "because", the reason Google gives for a refusal to send for review. */
 const becauseOf = (message: string): string => {
@@ -69,7 +71,8 @@ const becauseOf = (message: string): string => {
  */
 export function playCauseOf(facts: GoogleFacts): PlayCauseMatch | null {
   const { status, message, reasons } = facts;
-  if (status < 400 || status === 401 || status === 404 || status === 429 || status >= 500) return null;
+  if (status < 400 || status === 401 || status === 404 || status === 429 || status >= 500)
+    return null;
   const text = `${message} ${reasons}`;
 
   if (/only releases with status draft may be created on draft app|draft app/i.test(message)) {
@@ -124,7 +127,9 @@ export function playCauseOf(facts: GoogleFacts): PlayCauseMatch | null {
       ...(language ? { params: { language } } : {}),
     };
   }
-  if (/\b(cannot|can'?t|could not|unable to)\b.*\b(send|submit|sent)\b.*\breview\b/i.test(message)) {
+  if (
+    /\b(cannot|can'?t|could not|unable to)\b.*\b(send|submit|sent)\b.*\breview\b/i.test(message)
+  ) {
     const because = becauseOf(message);
     return {
       cause: 'sendForReview',
@@ -138,7 +143,9 @@ export function playCauseOf(facts: GoogleFacts): PlayCauseMatch | null {
     /(feature graphic|screenshots?|hi-?res(olution)? icon|high-?res(olution)? icon|short description|full description|app icon|privacy policy|content rating|data safety|target audience|app category|contact (details|email))/i.test(
       message,
     ) &&
-    /(required|must|missing|need|provide|incomplete|not (yet )?(been )?(set|filled|complete))/i.test(message)
+    /(required|must|missing|need|provide|incomplete|not (yet )?(been )?(set|filled|complete))/i.test(
+      message,
+    )
   ) {
     const item =
       /(feature graphic|screenshots?|hi-?res(?:olution)? icon|high-?res(?:olution)? icon|short description|full description|app icon|privacy policy|content rating|data safety|target audience|app category|contact (?:details|email))/i.exec(
@@ -166,7 +173,9 @@ export function playCauseOf(facts: GoogleFacts): PlayCauseMatch | null {
   }
   if (
     status === 403 &&
-    /(permission|not authori[sz]ed|forbidden|not allowed|PERMISSION_DENIED)/i.test(`${text} ${facts.googleStatus}`) &&
+    /(permission|not authori[sz]ed|forbidden|not allowed|PERMISSION_DENIED)/i.test(
+      `${text} ${facts.googleStatus}`,
+    ) &&
     /(release|production|track|publish|manage|rollout)/i.test(message)
   ) {
     return {

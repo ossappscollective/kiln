@@ -7,12 +7,12 @@ import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { coded } from '../../i18n/problem.ts';
 import type { Failure } from '../../services/repositories.ts';
+import { inspectBuildArtifact } from './artifact-meta/inspect.ts';
 import {
   loadOneArtifactMeta,
   rememberArtifactOrigin,
   saveArtifactMeta,
 } from './artifact-meta-store.ts';
-import { inspectBuildArtifact } from './artifact-meta/inspect.ts';
 import {
   type ArtifactItem,
   artifactItem,

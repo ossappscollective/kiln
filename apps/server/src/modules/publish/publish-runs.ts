@@ -260,7 +260,8 @@ export async function changesInReviewBefore(
 ): Promise<boolean> {
   for (const run of await listRuns(sql, input)) {
     if (run.platform !== input.platform) continue;
-    if (run.results.some((r) => r.status === 'failed' && r.error === 'changes_in_review')) return true;
+    if (run.results.some((r) => r.status === 'failed' && r.error === 'changes_in_review'))
+      return true;
     if (run.outcome === 'completed') return false;
   }
   return false;

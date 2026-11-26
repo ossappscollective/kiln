@@ -17,12 +17,12 @@ Releases are cut from the commit history, so write messages as
 `fix(vault): reject an empty master key`. The release workflow reads them to choose the next version
 and to write the changelog.
 
-| Type                                                    | Effect on the next release                             |
-| ------------------------------------------------------- | ------------------------------------------------------ |
-| `feat`                                                  | minor version                                          |
-| `fix`, `perf`, `revert`                                 | patch version                                          |
+| Type                                                        | Effect on the next release                           |
+| ----------------------------------------------------------- | ---------------------------------------------------- |
+| `feat`                                                      | minor version                                        |
+| `fix`, `perf`, `revert`                                     | patch version                                        |
 | `docs`, `style`, `refactor`, `test`, `build`, `ci`, `chore` | patch, but only when nothing above is in the release |
-| `type!:` or a `BREAKING CHANGE:` footer                 | major version (minor while the version is 0.x)         |
+| `type!:` or a `BREAKING CHANGE:` footer                     | major version (minor while the version is 0.x)       |
 
 The scope is optional (a package or area such as `api`, `ui`, `db`) and shows in the changelog. With
 squash merges, the pull request title is the commit message, so give it that shape. Details and the

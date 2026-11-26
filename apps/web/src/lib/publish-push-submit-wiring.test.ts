@@ -29,8 +29,14 @@ test('the Pending panel reopens the plan with the combined step alone; the dialo
   assert.match(panel, /if \(availability\.state !== 'ready'\) return;/);
   const dialog = read('../components/publish/PublishDialog.svelte');
   // It only asks for a plan: the publish call is still `publish()`, which needs the confirmation of the plan (phrase or step-up).
-  assert.match(dialog, /void review\(pushAndSubmitSteps\(\), t\('publish:dialog\.notice\.replanPushSubmit'\)\)/);
-  assert.match(dialog, /onpushsubmit=\{plan\?\.combined\?\.offered === false \? undefined : pushAndSubmit\}/);
+  assert.match(
+    dialog,
+    /void review\(pushAndSubmitSteps\(\), t\('publish:dialog\.notice\.replanPushSubmit'\)\)/,
+  );
+  assert.match(
+    dialog,
+    /onpushsubmit=\{plan\?\.combined\?\.offered === false \? undefined : pushAndSubmit\}/,
+  );
   assert.match(dialog, /plan\.combined\?\.defaulted && isCombinedPlan\(plan\)/);
   assert.match(dialog, /publish:dialog\.combinedDefaulted/);
   assert.match(dialog, /publish:dialog\.combinedHint/);

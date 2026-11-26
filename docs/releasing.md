@@ -6,12 +6,12 @@ out the version from your commit messages, builds everything, and only then comm
 tags it, pushes the Docker image and drafts the GitHub Release. Running it with the default
 `mode = build-only` is a dry run that publishes nothing. Pushing a `vX.Y.Z` tag yourself still works.
 
-| Trigger                                                  | What happens                                                                                                                                                                                                                     |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Run workflow, `mode = release`, on a **branch**          | Computes the next version and the changelog from the commits, builds every platform, then commits `chore(release): X.Y.Z`, tags `vX.Y.Z`, pushes the image to GHCR and creates a draft GitHub Release with `SHA256SUMS` and attestations. |
-| Run workflow, `mode = build-only` (default)              | The same builds. Output is Actions artifacts that expire after 7 days. No release, no Docker push, no commit, no tag.                                                                                                            |
-| Push a tag `v*.*.*` by hand                              | Version check (every version file must equal the tag), builds, Docker push, draft release with GitHub's generated notes. There is no `tag` job: the tag is the input.                                                           |
-| Run workflow, `mode = release`, on a `vX.Y.Z` **tag**    | Same as a tag push. Used to re-run a release whose tag already exists.                                                                                                                                                           |
+| Trigger                                               | What happens                                                                                                                                                                                                                              |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Run workflow, `mode = release`, on a **branch**       | Computes the next version and the changelog from the commits, builds every platform, then commits `chore(release): X.Y.Z`, tags `vX.Y.Z`, pushes the image to GHCR and creates a draft GitHub Release with `SHA256SUMS` and attestations. |
+| Run workflow, `mode = build-only` (default)           | The same builds. Output is Actions artifacts that expire after 7 days. No release, no Docker push, no commit, no tag.                                                                                                                     |
+| Push a tag `v*.*.*` by hand                           | Version check (every version file must equal the tag), builds, Docker push, draft release with GitHub's generated notes. There is no `tag` job: the tag is the input.                                                                     |
+| Run workflow, `mode = release`, on a `vX.Y.Z` **tag** | Same as a tag push. Used to re-run a release whose tag already exists.                                                                                                                                                                    |
 
 Run inputs: `mode`; `bump` (release on a branch: `auto`, `patch`, `minor` or `major`, default `auto`);
 `prerelease` (release on a branch: an identifier such as `rc`, empty for a stable release);
@@ -54,14 +54,14 @@ The base is the newest **stable** `v*` tag (compared as versions, so `v1.10.0` i
 `chore(release): ...` commits and without merge commits. With no tag yet the base is the version in
 the files and every commit counts.
 
-| Commit message                                         | Bump                                       | Changelog section |
-| ------------------------------------------------------ | ------------------------------------------ | ----------------- |
-| `type!: ...` or a `BREAKING CHANGE:` footer            | major, but **minor while the major is 0**  | Breaking changes  |
-| `feat: ...`                                            | minor (also while the major is 0)          | Features          |
-| `fix: ...`                                             | patch                                      | Fixes             |
-| `perf: ...`                                            | patch                                      | Performance       |
-| `revert: ...` or git's `Revert "..."`                  | patch                                      | Reverts           |
-| `docs`, `style`, `refactor`, `test`, `build`, `ci`, `chore`, anything else | patch, only when nothing above is there and there is at least one commit | Other |
+| Commit message                                                             | Bump                                                                     | Changelog section |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------- |
+| `type!: ...` or a `BREAKING CHANGE:` footer                                | major, but **minor while the major is 0**                                | Breaking changes  |
+| `feat: ...`                                                                | minor (also while the major is 0)                                        | Features          |
+| `fix: ...`                                                                 | patch                                                                    | Fixes             |
+| `perf: ...`                                                                | patch                                                                    | Performance       |
+| `revert: ...` or git's `Revert "..."`                                      | patch                                                                    | Reverts           |
+| `docs`, `style`, `refactor`, `test`, `build`, `ci`, `chore`, anything else | patch, only when nothing above is there and there is at least one commit | Other             |
 
 The highest level wins. A message that is not `type: subject` (older history, merge-style text)
 counts as "other". No commits since the tag fails the run with "Nothing to release"; so does a
@@ -84,14 +84,14 @@ Windows build only the NSIS installer (WiX MSI accepts numeric pre-release parts
 
 ### When a run fails
 
-| Where it fails                                  | State                                  | What to do                                                                                                         |
-| ----------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `plan`                                          | Nothing built or pushed                | Read the error: nothing to release, bad input, tag exists, version files inconsistent or ahead.                    |
-| A desktop build or a Docker smoke test          | Nothing committed, tagged or pushed    | Fix it, merge, run again. Re-running the failed jobs is fine too (same commit, same version).                      |
-| `tag`: push refused, "moved"                    | Nothing tagged                         | The branch got a new commit during the run. Run the release again (it will include that commit).                   |
-| `tag`: push refused, protected branch           | Nothing tagged                         | See "Protected branches".                                                                                          |
-| `tag`: commit pushed, tag creation failed       | Commit on the branch, no tag           | The error prints the commands: `git tag vX.Y.Z <sha> && git push origin vX.Y.Z` (starts the tag-push release).     |
-| `docker-publish` or the draft release           | Commit and tag exist                   | **Re-run the failed jobs** of the same run (the `tag` job is not repeated). A fresh run would say "Nothing to release". Or run the workflow on the tag `vX.Y.Z`, `mode = release`. A re-run replaces its own earlier draft. |
+| Where it fails                            | State                               | What to do                                                                                                                                                                                                                  |
+| ----------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `plan`                                    | Nothing built or pushed             | Read the error: nothing to release, bad input, tag exists, version files inconsistent or ahead.                                                                                                                             |
+| A desktop build or a Docker smoke test    | Nothing committed, tagged or pushed | Fix it, merge, run again. Re-running the failed jobs is fine too (same commit, same version).                                                                                                                               |
+| `tag`: push refused, "moved"              | Nothing tagged                      | The branch got a new commit during the run. Run the release again (it will include that commit).                                                                                                                            |
+| `tag`: push refused, protected branch     | Nothing tagged                      | See "Protected branches".                                                                                                                                                                                                   |
+| `tag`: commit pushed, tag creation failed | Commit on the branch, no tag        | The error prints the commands: `git tag vX.Y.Z <sha> && git push origin vX.Y.Z` (starts the tag-push release).                                                                                                              |
+| `docker-publish` or the draft release     | Commit and tag exist                | **Re-run the failed jobs** of the same run (the `tag` job is not repeated). A fresh run would say "Nothing to release". Or run the workflow on the tag `vX.Y.Z`, `mode = release`. A re-run replaces its own earlier draft. |
 
 ### Protected branches
 

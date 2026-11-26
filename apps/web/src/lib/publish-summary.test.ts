@@ -33,7 +33,13 @@ const field = (f: Fields, i: number) => ({
 const playPush = (fields: Fields[], assets: string[] = [], texts: string[] = []) => ({
   app: { id: 'a', name: 'Kiln', platform: 'android', store: 'googleplay' },
   version: null,
-  text: texts.map((x, i) => ({ id: `t${i}`, locale: 'en-US', field: x, after: 'x', status: 'changed' })),
+  text: texts.map((x, i) => ({
+    id: `t${i}`,
+    locale: 'en-US',
+    field: x,
+    after: 'x',
+    status: 'changed',
+  })),
   assets: assets.map((kind, i) => ({
     id: `s${i}`,
     locale: 'en-US',
@@ -41,7 +47,11 @@ const playPush = (fields: Fields[], assets: string[] = [], texts: string[] = [])
     status: 'changed',
   })),
   release: fields.map(field),
-  summary: { fieldsChanged: fields.length, assetSetsChanged: assets.length, textChanged: texts.length },
+  summary: {
+    fieldsChanged: fields.length,
+    assetSetsChanged: assets.length,
+    textChanged: texts.length,
+  },
 });
 
 const step = (type: PublishStepType, over: Partial<PlanStep> = {}): PlanStep =>
@@ -80,7 +90,11 @@ const PUSH = playPush(
     { field: 'track', after: 'production' },
     { field: 'version_codes', after: '165' },
     { field: 'release_name', after: '1.26.2' },
-    { field: 'release_notes', locale: 'en-US', after: 'Faster sync\nBug fixes\nNew icon\nMore\nEven more' },
+    {
+      field: 'release_notes',
+      locale: 'en-US',
+      after: 'Faster sync\nBug fixes\nNew icon\nMore\nEven more',
+    },
     { field: 'release_notes', locale: 'de-DE', after: 'Schneller' },
   ],
   ['screenshot', 'screenshot', 'icon', 'feature_graphic'],
@@ -262,7 +276,13 @@ const applePlan = (over: { submit?: object | null; release?: Partial<PlanStep> }
           summary: { versionString: '2.9.0' },
           preview: submit,
         }),
-        step('release', { platform: 'ios', order: 3, included: false, request: null, ...over.release }),
+        step('release', {
+          platform: 'ios',
+          order: 3,
+          included: false,
+          request: null,
+          ...over.release,
+        }),
       ],
       { app: { id: 'a', name: 'Kiln', platform: 'ios', store: 'appstoreconnect' } },
     ),
@@ -305,7 +325,10 @@ test('French wording follows the same rules', () => {
       wanted: ['push_draft'],
       identifier: '',
     });
-    assert.equal(s.outcome, 'En appuyant sur Publier, cela envoie ces éléments à Google Play comme brouillon. Rien n’est soumis ni publié.');
+    assert.equal(
+      s.outcome,
+      'En appuyant sur Publier, cela envoie ces éléments à Google Play comme brouillon. Rien n’est soumis ni publié.',
+    );
     assert.equal(row(s, 'notes')?.value, '2 langues');
   } finally {
     useLocale('en');
@@ -316,8 +339,14 @@ test('the prompt for a track or a share waits until the fields were touched', ()
   const prompt = { code: 'track_required', severity: 'error', message: 'Name the track.' };
   const other = { code: 'blocked', severity: 'error', message: 'Blocked.' };
   const waiting = { availability: 'needs_input', problems: [prompt, other] } as PlanStep;
-  assert.deepEqual(shownErrors(waiting, false).map((p) => p.code), ['blocked']);
-  assert.deepEqual(shownErrors(waiting, true).map((p) => p.code), ['track_required', 'blocked']);
+  assert.deepEqual(
+    shownErrors(waiting, false).map((p) => p.code),
+    ['blocked'],
+  );
+  assert.deepEqual(
+    shownErrors(waiting, true).map((p) => p.code),
+    ['track_required', 'blocked'],
+  );
   const blocked = { availability: 'blocked', problems: [prompt] } as PlanStep;
   assert.equal(shownErrors(blocked, false).length, 1);
 });
@@ -337,7 +366,10 @@ test('the release notes preview is the default language when the push has a text
   assert.equal(d?.shownIsDefault, true);
   assert.equal(d?.title, 'Release notes (en-US, default)');
   assert.equal(d?.hint, null);
-  assert.deepEqual(d?.others.map((o) => o.locale), ['de-DE', 'fr-FR']);
+  assert.deepEqual(
+    d?.others.map((o) => o.locale),
+    ['de-DE', 'fr-FR'],
+  );
   // en_us and a different case are the same language.
   assert.equal(notesDetail(NOTES, 'EN_us')?.shown?.locale, 'en-US');
 });
@@ -369,14 +401,21 @@ test('a single language needs no hint, with or without a default language', () =
 });
 
 test('the summary takes the default language from its input, and keeps every note for a later choice', () => {
-  const input = { plan: plan(playSteps()), wanted: ['push_draft'] as PublishStepType[], identifier: '' };
+  const input = {
+    plan: plan(playSteps()),
+    wanted: ['push_draft'] as PublishStepType[],
+    identifier: '',
+  };
   const without = publishSummary(input);
   assert.equal(without.notes?.shown?.locale, 'en-US');
   assert.match(without.notes?.hint ?? '', /not known here/);
   const withDefault = publishSummary({ ...input, defaultLocale: 'de-DE' });
   assert.equal(withDefault.notes?.shown?.locale, 'de-DE');
   assert.equal(withDefault.notes?.title, 'Release notes (de-DE, default)');
-  assert.deepEqual(without.noteEntries.map((n) => n.locale), ['en-US', 'de-DE']);
+  assert.deepEqual(
+    without.noteEntries.map((n) => n.locale),
+    ['en-US', 'de-DE'],
+  );
   assert.equal(notesDetail(without.noteEntries, 'de-DE')?.shown?.locale, 'de-DE');
 });
 
@@ -385,7 +424,12 @@ test('the summary takes the default language from its input, and keeps every not
 
 test('the build facts: version codes on Google Play, the build number on the App Store', () => {
   const play = publishSummary({ plan: plan(playSteps()), wanted: ['push_draft'], identifier: '' });
-  assert.deepEqual(play.build, { kind: 'play', platform: 'android', version: '1.26.2', numbers: ['165'] });
+  assert.deepEqual(play.build, {
+    kind: 'play',
+    platform: 'android',
+    version: '1.26.2',
+    numbers: ['165'],
+  });
   assert.equal(play.appId, 'a');
   const { plan: p, wanted } = applePlan();
   const apple = publishSummary({ plan: p, wanted, identifier: '' });
@@ -395,7 +439,10 @@ test('the build facts: version codes on Google Play, the build number on the App
 });
 
 test('the build link: the Play Console itself, never a page that was not built from known ids', () => {
-  const link = buildLink({ kind: 'play', platform: 'android', version: '1.26.2', numbers: ['165', '166'] }, null);
+  const link = buildLink(
+    { kind: 'play', platform: 'android', version: '1.26.2', numbers: ['165', '166'] },
+    null,
+  );
   assert.equal(link.href, 'https://play.google.com/console/');
   assert.equal(link.label, 'Open Google Play Console (build 165, 166)');
   assert.match(link.title, /does not give Kiln/);
@@ -413,13 +460,18 @@ test('the build link: the TestFlight page of the app when the Apple id is known,
     assert.equal(missing.href, 'https://appstoreconnect.apple.com/apps');
     assert.match(missing.title, /id of the app is not known|app id is not known/);
   }
-  assert.equal(buildLink({ ...facts, numbers: [] }, '1').label, 'Open TestFlight in App Store Connect');
+  assert.equal(
+    buildLink({ ...facts, numbers: [] }, '1').label,
+    'Open TestFlight in App Store Connect',
+  );
 });
 
 test('the build date: Google Play says it gives none, App Store Connect gives it when stored', () => {
   const play = { kind: 'play', platform: 'android', version: null, numbers: ['165'] } as const;
   assert.deepEqual(buildDate(play, null), { state: 'notProvided' });
-  assert.deepEqual(buildDate(play, [{ platform: 'android', buildNumber: '165', uploadedAt: 5 }]), { state: 'notProvided' });
+  assert.deepEqual(buildDate(play, [{ platform: 'android', buildNumber: '165', uploadedAt: 5 }]), {
+    state: 'notProvided',
+  });
   const apple = { kind: 'apple', platform: 'ios', version: '2.9.0', numbers: ['412'] } as const;
   const stored = [
     { platform: 'ios', buildNumber: '411', version: '2.9.0', uploadedAt: 100 },
@@ -427,7 +479,10 @@ test('the build date: Google Play says it gives none, App Store Connect gives it
     { platform: 'android', buildNumber: '412', version: '2.9.0', uploadedAt: 300 },
   ] as const;
   assert.deepEqual(buildDate(apple, stored), { state: 'known', at: 200 });
-  assert.deepEqual(buildDate(apple, [{ platform: 'ios', buildNumber: '412', version: '2.9.0', uploadedAt: null }]), { state: 'notRead' });
+  assert.deepEqual(
+    buildDate(apple, [{ platform: 'ios', buildNumber: '412', version: '2.9.0', uploadedAt: null }]),
+    { state: 'notRead' },
+  );
   assert.deepEqual(buildDate(apple, []), { state: 'notRead' });
   // Not read (or no build named): nothing is said at all.
   assert.equal(buildDate(apple, null), null);
@@ -438,7 +493,15 @@ test('the build date: Google Play says it gives none, App Store Connect gives it
 // ---------------------------------------------------------------------------------------------
 // The texts and graphics, to see them one last time
 
-const file = (n: number) => ({ path: `up/${n}.png`, name: `shot-${n}.png`, oid: `oid${n}`, bytes: 1000 * n, width: 1290, height: 2796, format: 'png' });
+const file = (n: number) => ({
+  path: `up/${n}.png`,
+  name: `shot-${n}.png`,
+  oid: `oid${n}`,
+  bytes: 1000 * n,
+  width: 1290,
+  height: 2796,
+  format: 'png',
+});
 const preview = (text: object[], assets: object[], platform = 'ios'): DraftPreview =>
   ({
     app: { id: 'a', name: 'Kiln', platform, store: 'x' },
@@ -484,7 +547,14 @@ test('the changed texts: field, language, new text, the text now in the store, c
     preview(
       [
         textRow(1),
-        textRow(2, { field: 'subtitle', locale: 'fr-FR', before: null, after: longText, status: 'new_locale', localeExists: false }),
+        textRow(2, {
+          field: 'subtitle',
+          locale: 'fr-FR',
+          before: null,
+          after: longText,
+          status: 'new_locale',
+          localeExists: false,
+        }),
         textRow(3, { status: 'unchanged' }),
         textRow(4, { field: 'release_notes' }),
       ],
@@ -493,10 +563,13 @@ test('the changed texts: field, language, new text, the text now in the store, c
   );
   assert.equal(d?.total, 2);
   assert.equal(d?.more, 0);
-  assert.deepEqual(d?.items.map((i) => [i.field, i.label, i.locale]), [
-    ['description', 'Description', 'en-US'],
-    ['subtitle', 'Subtitle', 'fr-FR'],
-  ]);
+  assert.deepEqual(
+    d?.items.map((i) => [i.field, i.label, i.locale]),
+    [
+      ['description', 'Description', 'en-US'],
+      ['subtitle', 'Subtitle', 'fr-FR'],
+    ],
+  );
   assert.equal(d?.items[0]?.before, 'Old text');
   assert.equal(d?.items[0]?.truncated, false);
   assert.equal(d?.items[1]?.before, null);
@@ -534,7 +607,15 @@ test('the changed graphics: one item per set with its files, counts and a device
   assert.match(first?.title ?? '', /^Screenshots · /);
   assert.equal(first?.fileCount, 3);
   assert.equal(first?.files.length, 3);
-  assert.deepEqual(first?.files[0], { key: `${first?.id}#0`, name: 'shot-1.png', oid: 'oid1', path: 'up/1.png', width: 1290, height: 2796, bytes: 1000 });
+  assert.deepEqual(first?.files[0], {
+    key: `${first?.id}#0`,
+    name: 'shot-1.png',
+    oid: 'oid1',
+    path: 'up/1.png',
+    width: 1290,
+    height: 2796,
+    bytes: 1000,
+  });
   assert.equal(first?.willUpload, 3);
   assert.equal(d?.items[1]?.title, 'Store icon');
   assert.equal(graphicsDetail(null), null);
@@ -550,7 +631,13 @@ test('a graphics set caps its thumbnails and the list caps its sets', () => {
   assert.equal(capped?.items.length, DETAIL_ITEMS);
   assert.equal(capped?.more, 2);
   // A plan that does not carry the files (older server) lists none and does not fail.
-  const bare = graphicsDetail(preview([], [{ id: 's', locale: 'en-US', slot: { kind: 'icon', device: null }, status: 'changed' }], 'android'));
+  const bare = graphicsDetail(
+    preview(
+      [],
+      [{ id: 's', locale: 'en-US', slot: { kind: 'icon', device: null }, status: 'changed' }],
+      'android',
+    ),
+  );
   assert.equal(bare?.items[0]?.fileCount, 0);
   assert.deepEqual(bare?.items[0]?.files, []);
 });
@@ -571,11 +658,19 @@ test('the combined step is described as it is: pushed and sent for review in one
     step('push_and_submit', {
       order: 2,
       irreversible: true,
-      preview: playPush([{ field: 'track', after: 'production' }], ['screenshot', 'icon'], ['title']),
+      preview: playPush(
+        [{ field: 'track', after: 'production' }],
+        ['screenshot', 'icon'],
+        ['title'],
+      ),
       summary: { textChanged: 1, assetSetsChanged: 2, sendsForReview: true },
     }),
   ];
-  const s = publishSummary({ plan: plan(steps), wanted: ['push_and_submit'], identifier: 'com.example.kiln' });
+  const s = publishSummary({
+    plan: plan(steps),
+    wanted: ['push_and_submit'],
+    identifier: 'com.example.kiln',
+  });
   assert.equal(
     s.outcome,
     'Pressing Publish pushes these to Google Play and sends them for review in one step. Review takes the store hours to days; you can follow it in Builds.',
@@ -585,31 +680,59 @@ test('the combined step is described as it is: pushed and sent for review in one
   assert.equal(row(s, 'track')?.value, 'Production');
   assert.equal(row(s, 'text')?.value, '1 text change: Title');
   assert.equal(row(s, 'graphics')?.value, '1 screenshot set, 1 icon set');
-  assert.equal(row(s, 'review')?.value, 'These changes go to Google Play review as part of the push');
+  assert.equal(
+    row(s, 'review')?.value,
+    'These changes go to Google Play review as part of the push',
+  );
   // Not ticked: the outcome never mentions it, and the pair says what it always said.
-  const pair = publishSummary({ plan: plan([...steps, ...playSteps()]), wanted: ['push_draft', 'submit'], identifier: '' });
+  const pair = publishSummary({
+    plan: plan([...steps, ...playSteps()]),
+    wanted: ['push_draft', 'submit'],
+    identifier: '',
+  });
   assert.doesNotMatch(pair.outcome, /in one step/);
   assert.match(pair.outcome, /as a draft, then submits the draft for review/);
 });
 
 test('the combined step with a release after it keeps the order of the sentence', () => {
   const steps = [
-    step('push_and_submit', { order: 2, irreversible: true, preview: PUSH, summary: { textChanged: 0 } }),
-    step('release', { order: 4, deferred: true, summary: { track: 'production', userFraction: 1, audience: 'percent' } }),
+    step('push_and_submit', {
+      order: 2,
+      irreversible: true,
+      preview: PUSH,
+      summary: { textChanged: 0 },
+    }),
+    step('release', {
+      order: 4,
+      deferred: true,
+      summary: { track: 'production', userFraction: 1, audience: 'percent' },
+    }),
   ];
-  const s = publishSummary({ plan: plan(steps), wanted: ['push_and_submit', 'release'], identifier: '' });
-  assert.match(s.outcome, /^Pressing Publish pushes these to Google Play and sends them for review in one step, then rolls out the draft release to Production/);
+  const s = publishSummary({
+    plan: plan(steps),
+    wanted: ['push_and_submit', 'release'],
+    identifier: '',
+  });
+  assert.match(
+    s.outcome,
+    /^Pressing Publish pushes these to Google Play and sends them for review in one step, then rolls out the draft release to Production/,
+  );
 });
 
 test('the combined step, French', () => {
   useLocale('fr');
   try {
     const s = publishSummary({
-      plan: plan([step('push_and_submit', { order: 2, irreversible: true, preview: PUSH, summary: {} })]),
+      plan: plan([
+        step('push_and_submit', { order: 2, irreversible: true, preview: PUSH, summary: {} }),
+      ]),
       wanted: ['push_and_submit'],
       identifier: '',
     });
-    assert.match(s.outcome, /^En appuyant sur Publier, cela envoie ces éléments à Google Play et les soumet à l’examen en une seule étape\./);
+    assert.match(
+      s.outcome,
+      /^En appuyant sur Publier, cela envoie ces éléments à Google Play et les soumet à l’examen en une seule étape\./,
+    );
   } finally {
     useLocale('en');
   }

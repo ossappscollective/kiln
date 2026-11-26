@@ -29,7 +29,8 @@ function sourcesUnder(dir: string): string[] {
   for (const name of readdirSync(join(SRC, dir))) {
     const path = join(dir, name);
     if (statSync(join(SRC, path)).isDirectory()) out.push(...sourcesUnder(path));
-    else if (/\.(svelte|ts)$/.test(name) && !/\.test\.ts$/.test(name)) out.push(path.split(sep).join('/'));
+    else if (/\.(svelte|ts)$/.test(name) && !/\.test\.ts$/.test(name))
+      out.push(path.split(sep).join('/'));
   }
   return out;
 }
@@ -61,36 +62,45 @@ const MODEL = 'lib/app-state/';
 const RULES: Rule[] = [
   {
     what: 'import the publishing claims store or the cart summary store',
-    instead: 'read the app-state store: `appStateStore.of(...)` for the state, `.verdict(...)` for a button, `.lineOf(...)` for a count',
+    instead:
+      'read the app-state store: `appStateStore.of(...)` for the state, `.verdict(...)` for a button, `.lineOf(...)` for a count',
     pattern: /\bfrom\s+'[^']*(?:publishing-store|cart-summary)\.svelte(?:\.ts)?'/,
     files: [...COMPONENTS, ...LIB],
     allow: {
-      'lib/publishing-store.svelte.ts': 'it IS the claims store the app-state store reads (it reads the cart summary to know what a publish emptied)',
+      'lib/publishing-store.svelte.ts':
+        'it IS the claims store the app-state store reads (it reads the cart summary to know what a publish emptied)',
       'components/publish/PublishDialog.svelte':
         'the dialog REPORTS its own publish to the claims store (started / answered / refresh): it writes, it decides nothing. The model reads those claims back',
     },
   },
   {
     what: 'read the pending count, what publishes or what failed from a low-level store',
-    instead: 'read the app-state store (one count, one place): `appStateStore.of(...).pendingCount`, `.publishing`, `.failures`',
-    pattern: /\b(?:publishingStore|cartSummaryStore)\b|\bpendingStore\.(?:summary|loadSummary|viewsOf)\b|\bpipelineStore\.(?:summary|app|loadSummary)\b/,
+    instead:
+      'read the app-state store (one count, one place): `appStateStore.of(...).pendingCount`, `.publishing`, `.failures`',
+    pattern:
+      /\b(?:publishingStore|cartSummaryStore)\b|\bpendingStore\.(?:summary|loadSummary|viewsOf)\b|\bpipelineStore\.(?:summary|app|loadSummary)\b/,
     files: [...COMPONENTS, ...LIB],
     allow: {
       'lib/publishing-store.svelte.ts': 'it IS the claims store the app-state store reads',
       'lib/cart-summary.svelte.ts': 'it IS the cart summary store the app-state store reads',
-      'lib/pending-store.svelte.ts': 'it IS the pending content store (views, summary) the app-state store reads',
-      'components/publish/PublishDialog.svelte': 'it reports its own publish to the claims store; it reads nothing back to decide with',
+      'lib/pending-store.svelte.ts':
+        'it IS the pending content store (views, summary) the app-state store reads',
+      'components/publish/PublishDialog.svelte':
+        'it reports its own publish to the claims store; it reads nothing back to decide with',
     },
   },
   {
     what: 'compute the next step, the promote offer or the pending line with the low-level helpers',
-    instead: 'read `appStateStore.of(...)` (`primaryAction`, `secondaryActions`, `promotion`, `flow`) or `appStateStore.lineOf(...)`',
+    instead:
+      'read `appStateStore.of(...)` (`primaryAction`, `secondaryActions`, `promotion`, `flow`) or `appStateStore.lineOf(...)`',
     pattern: /\b(?:lineFor|chooseNextStep|nextStepTrains|promoteOptions?|promoteHref)\b/,
     files: [...COMPONENTS, ...LIB],
     allow: {
       'lib/play-promote.ts': 'it DEFINES the promote option the model offers',
-      'lib/pending.ts': 'it DEFINES lineFor (the pending line from the summary) that the model builds its count facts with',
-      'lib/next-step.ts': 'it DEFINES the next-step choice that the model derives its release flow from',
+      'lib/pending.ts':
+        'it DEFINES lineFor (the pending line from the summary) that the model builds its count facts with',
+      'lib/next-step.ts':
+        'it DEFINES the next-step choice that the model derives its release flow from',
     },
   },
   {
@@ -102,8 +112,10 @@ const RULES: Rule[] = [
   },
   {
     what: 'compute a state-dependent `disabled` of its own (a running publish, a failed publish, the pending count)',
-    instead: 'take `disabled` from the model: `!verdict.enabled` (with `verdict.reason` as the title) or an offer\'s `enabled` / `disabledReason`',
-    pattern: /\bdisabled\b[^\n]*\b(?:publishingNow|isPublishing|publishing\.length|publishingStore|\.pendingCount|lastPublish|failedIds)\b/,
+    instead:
+      "take `disabled` from the model: `!verdict.enabled` (with `verdict.reason` as the title) or an offer's `enabled` / `disabledReason`",
+    pattern:
+      /\bdisabled\b[^\n]*\b(?:publishingNow|isPublishing|publishing\.length|publishingStore|\.pendingCount|lastPublish|failedIds)\b/,
     files: COMPONENTS,
     allow: {},
   },
@@ -127,7 +139,11 @@ for (const rule of RULES) {
         `Use the app-state store (apps/web/src/lib/app-state/app-state-store.svelte.ts): ${rule.instead}. Do not add the file to the allowlist of this test.`,
     );
     const stale = [...allowed].filter((file) => !matching.has(file));
-    assert.deepEqual(stale, [], `${stale.join(', ')} no longer match "${rule.what}": remove them from the allowlist (it lists exactly what is still allowed, with a reason)`);
+    assert.deepEqual(
+      stale,
+      [],
+      `${stale.join(', ')} no longer match "${rule.what}": remove them from the allowlist (it lists exactly what is still allowed, with a reason)`,
+    );
   });
 }
 
@@ -155,18 +171,30 @@ const ON_THE_MODEL = [
 
 test('the screens that were moved onto the state model still read it', () => {
   for (const file of ON_THE_MODEL)
-    assert.match(codeOf(file), /\bappStateStore\b/, `${file} no longer reads the app-state store (apps/web/src/lib/app-state/app-state-store.svelte.ts): it must not decide the state by itself`);
+    assert.match(
+      codeOf(file),
+      /\bappStateStore\b/,
+      `${file} no longer reads the app-state store (apps/web/src/lib/app-state/app-state-store.svelte.ts): it must not decide the state by itself`,
+    );
 });
 
 test('the small components that show a verdict or a line are given it, they do not look it up', () => {
   const note = codeOf('components/publish/PublishingNote.svelte');
   assert.match(note, /verdict/);
-  assert.doesNotMatch(note, /Store\b/, 'PublishingNote draws the verdict it is given; it reads no store');
+  assert.doesNotMatch(
+    note,
+    /Store\b/,
+    'PublishingNote draws the verdict it is given; it reads no store',
+  );
   const chip = codeOf('components/publish/PendingChip.svelte');
   assert.doesNotMatch(chip, /Store\b/, 'PendingChip draws the line it is given; it reads no store');
 });
 
 test('the allowlists list files that exist', () => {
   for (const rule of RULES)
-    for (const file of Object.keys(rule.allow)) assert.ok(readFileSync(join(SRC, file), 'utf8').length > 0, `${file} is in an allowlist but is missing`);
+    for (const file of Object.keys(rule.allow))
+      assert.ok(
+        readFileSync(join(SRC, file), 'utf8').length > 0,
+        `${file} is in an allowlist but is missing`,
+      );
 });

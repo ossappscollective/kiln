@@ -28,7 +28,11 @@ after(() => {
 });
 
 const commit = (message, hash = 'abcdef0123456789') => parseCommit(message, hash);
-const level = (messages, major = 0) => decideBump(messages.map((m) => commit(m)), { major });
+const level = (messages, major = 0) =>
+  decideBump(
+    messages.map((m) => commit(m)),
+    { major },
+  );
 
 describe('parseCommit', () => {
   test('type, scope and subject', () => {

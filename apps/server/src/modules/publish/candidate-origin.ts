@@ -49,7 +49,12 @@ export type CodeOrigin = {
   firstSeenAt: number | null;
 };
 
-export type BuiltGap = 'not_read' | 'file_gone' | 'github_unreachable' | 'github_no_access' | 'no_repository';
+export type BuiltGap =
+  | 'not_read'
+  | 'file_gone'
+  | 'github_unreachable'
+  | 'github_no_access'
+  | 'no_repository';
 
 /** Why the artifact list could not be read, in the vocabulary of the builds module. */
 export type ListingState = 'ok' | 'not_asked' | 'unreachable' | 'no_access' | 'no_repository';
@@ -130,7 +135,9 @@ export function originOfCode(
   const store = sources.store.filter((b) => b.buildNumber === code.versionCode)[0];
   const named = code.inTrack.map((r) => (r.name ?? '').trim()).filter((n) => n !== '')[0];
 
-  const ciVersion = hits.map((a) => a.version).filter((v): v is string => v !== null && v !== '')[0];
+  const ciVersion = hits
+    .map((a) => a.version)
+    .filter((v): v is string => v !== null && v !== '')[0];
   const builtAt = ci?.createdAt ?? null;
   const out: CodeOrigin = { ...NONE, matchedBy, firstSeenAt: store?.firstSeenAt ?? null };
   if (builtAt !== null) {
@@ -159,7 +166,8 @@ export function originOfCode(
     } else {
       const listing = sources.listing ?? 'ok';
       out.builtGap = listing === 'ok' ? 'file_gone' : GAP_OF_LISTING[listing];
-      out.ciExpiredAt = hits.map((a) => a.expiresAt ?? null).filter((v): v is number => v !== null)[0] ?? null;
+      out.ciExpiredAt =
+        hits.map((a) => a.expiresAt ?? null).filter((v): v is number => v !== null)[0] ?? null;
     }
   }
   return out;

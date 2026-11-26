@@ -320,10 +320,15 @@ test('the card follows the platform switch: Android shows Android only, iOS iOS 
   assert.doesNotMatch(`${android.title} ${android.text}`, /iOS/);
 
   // Both: the same facts as before the switch existed, and the order of the records does not matter.
-  const both = chooseNextStep(input({ trains: nextStepTrains(data, ['ios', 'android']), scope: 'both' }));
+  const both = chooseNextStep(
+    input({ trains: nextStepTrains(data, ['ios', 'android']), scope: 'both' }),
+  );
   assert.equal(both.title, ios.title);
   const reversed = chooseNextStep(
-    input({ trains: nextStepTrains([...data].reverse() as never, ['ios', 'android']), scope: 'both' }),
+    input({
+      trains: nextStepTrains([...data].reverse() as never, ['ios', 'android']),
+      scope: 'both',
+    }),
   );
   assert.equal(reversed.title, both.title);
   assert.equal(reversed.text, both.text);
@@ -331,7 +336,7 @@ test('the card follows the platform switch: Android shows Android only, iOS iOS 
   assert.equal(nextStepTrains(data).length, nextStepTrains(data, ['ios', 'android']).length);
 });
 
-test('with one platform selected only its trains count, so the lead is never another platform\'s release', () => {
+test("with one platform selected only its trains count, so the lead is never another platform's release", () => {
   const data = [
     pipelineOf('ios', 'approved', '1.11.6'),
     pipelineOf('android', 'approved', '1.11.6'),
@@ -348,6 +353,8 @@ test('with one platform selected only its trains count, so the lead is never ano
     assert.ok(s.primary && 'href' in s.primary && s.primary.href.includes(`/${platform}`));
   }
   // Both with two releases waiting: one row each, no row hidden.
-  const s = chooseNextStep(input({ trains: nextStepTrains(data, ['ios', 'android']), scope: 'both' }));
+  const s = chooseNextStep(
+    input({ trains: nextStepTrains(data, ['ios', 'android']), scope: 'both' }),
+  );
   assert.equal(s.rows.length, 2);
 });

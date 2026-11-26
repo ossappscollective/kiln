@@ -1,3 +1,4 @@
+import type { Role } from '@kiln/core';
 import type { AttentionItem } from '../app-attention.ts';
 import type { CartSummary } from '../cart-summary.ts';
 import type { LastPublish, PendingLine, PendingSummary } from '../pending.ts';
@@ -5,7 +6,6 @@ import type { Publishing } from '../publishing.ts';
 import type { AppPipeline } from '../release-pipeline.ts';
 import type { AppSummary, ReleaseSummary } from '../types.ts';
 import type { AppFacts, PendingFacts } from './types.ts';
-import type { Role } from '@kiln/core';
 
 /**
  * From what the stores hold to the plain facts the model derives from. Pure: the rune store passes its readers in, a test passes

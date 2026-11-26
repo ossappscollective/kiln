@@ -48,7 +48,10 @@ export const failedStep = (over: Partial<RunStep> = {}): RunStep => ({
   ...over,
 });
 
-export const failedRun = (platform: Platform = 'android', over: Partial<LastPublish> = {}): LastPublish => ({
+export const failedRun = (
+  platform: Platform = 'android',
+  over: Partial<LastPublish> = {},
+): LastPublish => ({
   id: `run-${platform}`,
   platform,
   startedAt: NOW - 400_000,
@@ -71,7 +74,12 @@ export const partlyRun = (platform: Platform = 'android'): LastPublish =>
     outcome: 'partial',
     steps: ['push_and_submit', 'release'],
     results: [
-      { type: 'push_and_submit', status: 'applied', startedAt: NOW - 400_000, finishedAt: NOW - 395_000 },
+      {
+        type: 'push_and_submit',
+        status: 'applied',
+        startedAt: NOW - 400_000,
+        finishedAt: NOW - 395_000,
+      },
       failedStep({
         type: 'release',
         error: 'changes_in_review',
@@ -80,20 +88,30 @@ export const partlyRun = (platform: Platform = 'android'): LastPublish =>
         store: {
           kind: 'changes_in_review',
           httpStatus: 400,
-          details: [{ code: 'CHANGES_ALREADY_IN_REVIEW', detail: 'You already have changes in review.' }],
+          details: [
+            { code: 'CHANGES_ALREADY_IN_REVIEW', detail: 'You already have changes in review.' },
+          ],
         },
       }),
     ],
   });
 
-export const dismissedRun = (platform: Platform = 'android'): LastPublish => failedRun(platform, { dismissed: true });
+export const dismissedRun = (platform: Platform = 'android'): LastPublish =>
+  failedRun(platform, { dismissed: true });
 export const unknownRun = (platform: Platform = 'android'): LastPublish =>
-  failedRun(platform, { outcome: 'partial', results: [failedStep({ error: 'outcome_unknown', outcome: 'unknown' })] });
+  failedRun(platform, {
+    outcome: 'partial',
+    results: [failedStep({ error: 'outcome_unknown', outcome: 'unknown' })],
+  });
 export const succeededRun = (platform: Platform = 'android'): LastPublish =>
   failedRun(platform, { outcome: 'completed', completed: true, results: [] });
 
 const steps = (statuses: string[]) =>
-  ['ci', 'build', 'prepare', 'review', 'release'].map((id, i) => ({ id, status: statuses[i], detail: null }));
+  ['ci', 'build', 'prepare', 'review', 'release'].map((id, i) => ({
+    id,
+    status: statuses[i],
+    detail: null,
+  }));
 
 /** A release pipeline of a record: in which state the release is. */
 export type FlowKind = 'none' | 'needs_you' | 'in_review' | 'running' | 'rejected';
@@ -112,14 +130,35 @@ export function pipelineOf(rec: AppSummary, kind: FlowKind) {
   const build = { buildNumber: '168', version: '3.1.1', state: 'processed' };
   const pick =
     kind === 'needs_you'
-      ? { state: 'draft', waitingOn: 'you', steps: steps(['done', 'done', 'current', 'todo', 'todo']) }
+      ? {
+          state: 'draft',
+          waitingOn: 'you',
+          steps: steps(['done', 'done', 'current', 'todo', 'todo']),
+        }
       : kind === 'in_review'
-        ? { state: 'in_review', waitingOn: 'store', steps: steps(['done', 'done', 'done', 'current', 'todo']) }
+        ? {
+            state: 'in_review',
+            waitingOn: 'store',
+            steps: steps(['done', 'done', 'done', 'current', 'todo']),
+          }
         : kind === 'running'
-          ? { state: 'building', waitingOn: 'ci', steps: steps(['current', 'todo', 'todo', 'todo', 'todo']) }
-          : { state: 'rejected', waitingOn: 'you', steps: steps(['done', 'done', 'done', 'failed', 'todo']) };
+          ? {
+              state: 'building',
+              waitingOn: 'ci',
+              steps: steps(['current', 'todo', 'todo', 'todo', 'todo']),
+            }
+          : {
+              state: 'rejected',
+              waitingOn: 'you',
+              steps: steps(['done', 'done', 'done', 'failed', 'todo']),
+            };
   return {
-    app: { id: rec.id, name: rec.name, platform: rec.platform, store: rec.platform === 'android' ? 'googleplay' : 'appstoreconnect' },
+    app: {
+      id: rec.id,
+      name: rec.name,
+      platform: rec.platform,
+      store: rec.platform === 'android' ? 'googleplay' : 'appstoreconnect',
+    },
     pipeline: { ...base, ...pick, latest: { run: null, build, version } },
   } as unknown as NonNullable<AppFacts['pipelines'][string]>;
 }

@@ -62,12 +62,19 @@ test('the reason of a failed step: the title of its code, the advice of the name
   assert.match(r.advice, /Google Play treats this app as a draft app/);
   assert.match(r.advice, /Complete the first release in Play Console/);
   assert.equal(r.said, GOOGLE);
-  assert.equal(r.technical, 'store_rejected · HTTP 422 · store HTTP 400 · badRequest · INVALID_ARGUMENT');
+  assert.equal(
+    r.technical,
+    'store_rejected · HTTP 422 · store HTTP 400 · badRequest · INVALID_ARGUMENT',
+  );
   assert.match(r.outcome, /./);
 });
 
-test('a code this app has no sentence for falls back to the server\'s English sentence; a step with no store words says only its title', () => {
-  const newer = reasonOf({ ...failedPush, code: 'store.google.somethingNew', message: 'Brand new problem.' });
+test("a code this app has no sentence for falls back to the server's English sentence; a step with no store words says only its title", () => {
+  const newer = reasonOf({
+    ...failedPush,
+    code: 'store.google.somethingNew',
+    message: 'Brand new problem.',
+  });
   assert.equal(newer.advice, 'Brand new problem.');
   const bare = reasonOf({
     type: 'submit',
@@ -122,7 +129,10 @@ test('what a store said is cleaned and cut: no token, no control characters, 300
   // The reason applies it to what the server sent, too.
   const tainted = reasonOf({
     ...failedPush,
-    store: { kind: 'unexpected', details: [{ detail: 'Failed with ya29.a0AfH6SMBx1234567890abcdef' }] },
+    store: {
+      kind: 'unexpected',
+      details: [{ detail: 'Failed with ya29.a0AfH6SMBx1234567890abcdef' }],
+    },
   });
   assert.doesNotMatch(tainted.said, /ya29/);
 });
@@ -137,7 +147,9 @@ test('the copied report holds the app, the times, the steps, the codes, the HTTP
         store: {
           kind: 'unexpected',
           httpStatus: 400,
-          details: [{ code: 'badRequest', detail: `${GOOGLE} Bearer ya29.a0AfH6SMBx1234567890abcdef` }],
+          details: [
+            { code: 'badRequest', detail: `${GOOGLE} Bearer ya29.a0AfH6SMBx1234567890abcdef` },
+          ],
         },
       },
       skipped('submit'),
@@ -147,18 +159,25 @@ test('the copied report holds the app, the times, the steps, the codes, the HTTP
   assert.match(report, /App: OSS Document Scanner \(Android\)/);
   assert.match(report, /Started: 1970-01-01T00:00:01\.000Z/);
   assert.match(report, /Steps: push_draft, submit/);
-  assert.match(report, /1\. push_draft: failed \(1970-01-01T00:00:01\.000Z to 1970-01-01T00:00:02\.000Z\)/);
+  assert.match(
+    report,
+    /1\. push_draft: failed \(1970-01-01T00:00:01\.000Z to 1970-01-01T00:00:02\.000Z\)/,
+  );
   assert.match(report, /Code: store_rejected/);
   assert.match(report, /HTTP status: 422/);
   assert.match(report, /Cause: store\.google\.draftApp/);
   assert.match(report, /Store: unexpected, HTTP 400/);
-  assert.match(report, /Store said: badRequest: Only releases with status draft may be created on draft app\./);
+  assert.match(
+    report,
+    /Store said: badRequest: Only releases with status draft may be created on draft app\./,
+  );
   assert.match(report, /2\. submit: not run/);
   assert.match(report, /Reason: previous_step_not_applied/);
   assert.doesNotMatch(report, /ya29|Ada|u1/);
 });
 
-const GOOGLE_AUTO = 'Changes are sent for review automatically. The query parameter changesNotSentForReview must not be set.';
+const GOOGLE_AUTO =
+  'Changes are sent for review automatically. The query parameter changesNotSentForReview must not be set.';
 const draftRefused: RunStep = {
   type: 'push_draft',
   status: 'failed',
@@ -167,7 +186,8 @@ const draftRefused: RunStep = {
   error: 'draft_not_allowed',
   httpStatus: 409,
   outcome: 'refused',
-  message: 'Google Play sends these changes for review automatically for this app, so it cannot keep them as a draft.',
+  message:
+    'Google Play sends these changes for review automatically for this app, so it cannot keep them as a draft.',
   code: 'store.google.draftNotAllowed',
   store: { kind: 'draft_not_allowed', httpStatus: 400, details: [{ detail: GOOGLE_AUTO }] },
 };
@@ -175,12 +195,19 @@ const draftRefused: RunStep = {
 test('a draft Google Play would not keep: the cause in plain words, Google\'s own sentence, and no "make the change in Play Console instead"', () => {
   const r = reasonOf(draftRefused);
   assert.equal(r.title, 'Google Play would not keep these changes as a draft.');
-  assert.match(r.advice, /sends these changes for review automatically for this app, so it cannot keep them as a draft/);
+  assert.match(
+    r.advice,
+    /sends these changes for review automatically for this app, so it cannot keep them as a draft/,
+  );
   assert.doesNotMatch(r.advice + r.title, /instead/);
   assert.equal(r.said, GOOGLE_AUTO);
   assert.equal(r.technical, 'draft_not_allowed · HTTP 409 · store HTTP 400');
   // The report a person copies says the same, with the code the server kept.
-  const report = failureReport({ appName: 'OSS PDF Document Scanner, OCR', platform: 'android', run: run([draftRefused, skipped('submit'), skipped('release')]) });
+  const report = failureReport({
+    appName: 'OSS PDF Document Scanner, OCR',
+    platform: 'android',
+    run: run([draftRefused, skipped('submit'), skipped('release')]),
+  });
   assert.match(report, /Code: draft_not_allowed/);
   assert.match(report, /Cause: store\.google\.draftNotAllowed/);
   assert.match(report, /Store said: Changes are sent for review automatically/);
@@ -192,8 +219,14 @@ test('the actions of a refused draft: push and submit in one step, or the Play C
     pushAndSubmit: true,
     playConsoleUrl: 'https://play.google.com/console/',
   });
-  assert.deepEqual(failureActions(lastPublish, 'android'), { pushAndSubmit: false, playConsoleUrl: null });
-  assert.deepEqual(failureActions(refusedRun, 'ios'), { pushAndSubmit: false, playConsoleUrl: null });
+  assert.deepEqual(failureActions(lastPublish, 'android'), {
+    pushAndSubmit: false,
+    playConsoleUrl: null,
+  });
+  assert.deepEqual(failureActions(refusedRun, 'ios'), {
+    pushAndSubmit: false,
+    playConsoleUrl: null,
+  });
   // A refusal in another step (a submit) is not a refused draft.
   const submitRefused = run([{ ...draftRefused, type: 'submit' }]);
   assert.equal(failureActions(submitRefused, 'android').pushAndSubmit, false);
@@ -253,13 +286,22 @@ test('a run that applied a step and then failed says what is where, in plain wor
 
 test('changes in review: the title says it plainly, the technical line keeps the codes, the options are replace, wait, Play Console', () => {
   const lines = stepLines(userRun);
-  assert.deepEqual(lines.map((l) => [l.type, l.status, l.error]), [
-    ['push_and_submit', 'applied', null],
-    ['release', 'failed', 'changes_in_review'],
-  ]);
+  assert.deepEqual(
+    lines.map((l) => [l.type, l.status, l.error]),
+    [
+      ['push_and_submit', 'applied', null],
+      ['release', 'failed', 'changes_in_review'],
+    ],
+  );
   const reason = lines[1]?.reason;
-  assert.equal(reason?.title, 'Google Play already has changes of this app in review, so it cannot take another change now. Nothing was applied by this step.');
-  assert.equal(reason?.technical, 'changes_in_review · HTTP 409 · store HTTP 400 · CHANGES_ALREADY_IN_REVIEW');
+  assert.equal(
+    reason?.title,
+    'Google Play already has changes of this app in review, so it cannot take another change now. Nothing was applied by this step.',
+  );
+  assert.equal(
+    reason?.technical,
+    'changes_in_review · HTTP 409 · store HTTP 400 · CHANGES_ALREADY_IN_REVIEW',
+  );
   assert.match(reason?.said ?? '', /already have changes in review/);
   assert.equal(isInReview(userRun), true);
   assert.deepEqual(inReviewActions(userRun, 'android'), {

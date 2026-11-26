@@ -2,25 +2,41 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { CartSummary } from '../cart-summary.ts';
 import type { PendingSummary } from '../pending.ts';
+import { stepsToRepeat } from './actions.ts';
 import { deriveAppState } from './derive.ts';
 import { assembleFacts, countOf, type FactSources, lineOfRecords } from './facts.ts';
 import { ANDROID, failedRun, IOS, NOW, running } from './fixtures.ts';
-import { stepsToRepeat } from './actions.ts';
 
 const cart = (counts: Record<string, number>): CartSummary => ({
   apps: Object.keys(counts).map((appId) => ({
     appId,
     id: appId,
-    app: { id: appId, name: 'Weather', platform: appId === ANDROID.id ? 'android' : 'ios', store: 'x' },
+    app: {
+      id: appId,
+      name: 'Weather',
+      platform: appId === ANDROID.id ? 'android' : 'ios',
+      store: 'x',
+    },
     count: counts[appId] as number,
     kinds: {},
   })),
-  totals: { apps: Object.keys(counts).length, count: Object.values(counts).reduce((a, b) => a + b, 0) },
+  totals: {
+    apps: Object.keys(counts).length,
+    count: Object.values(counts).reduce((a, b) => a + b, 0),
+  },
   generatedAt: NOW,
 });
 const summary = (lines: Record<string, { blocking: number; waiting: number }>): PendingSummary =>
   ({
-    apps: Object.keys(lines).map((appId) => ({ appId, id: appId, ...(lines[appId] as object), count: 0, kinds: [], nextSteps: [], app: { id: appId, name: 'W', platform: 'ios', store: 'x' } })),
+    apps: Object.keys(lines).map((appId) => ({
+      appId,
+      id: appId,
+      ...(lines[appId] as object),
+      count: 0,
+      kinds: [],
+      nextSteps: [],
+      app: { id: appId, name: 'W', platform: 'ios', store: 'x' },
+    })),
     totals: { apps: 0, count: 0, blocking: 0 },
     generatedAt: NOW,
   }) as unknown as PendingSummary;
@@ -47,7 +63,10 @@ test('facts: the count comes from the cart, what blocks from the pending summary
     input,
     sources({
       cart: cart({ [ANDROID.id]: 29, [IOS.id]: 2 }),
-      pendingSummary: summary({ [ANDROID.id]: { blocking: 40, waiting: 1 }, [IOS.id]: { blocking: 1, waiting: 0 } }),
+      pendingSummary: summary({
+        [ANDROID.id]: { blocking: 40, waiting: 1 },
+        [IOS.id]: { blocking: 1, waiting: 0 },
+      }),
       publishing: (id) => (id === IOS.id ? running() : null),
       failure: (id) => (id === ANDROID.id ? failedRun('android') : null),
     }),
@@ -80,7 +99,12 @@ test('every surface that counts gets the same number: the model, the line of the
 test('the chip line is null while the cart is unread, and when nothing waits at all', () => {
   assert.equal(lineOfRecords(sources({ cart: null }), [IOS.id]), null);
   assert.equal(lineOfRecords(sources(), [IOS.id]), null);
-  assert.deepEqual(lineOfRecords(sources({ pendingSummary: summary({ [IOS.id]: { blocking: 0, waiting: 2 } }) }), [IOS.id]), { count: 0, blocking: 0, waiting: 2 });
+  assert.deepEqual(
+    lineOfRecords(sources({ pendingSummary: summary({ [IOS.id]: { blocking: 0, waiting: 2 } }) }), [
+      IOS.id,
+    ]),
+    { count: 0, blocking: 0, waiting: 2 },
+  );
 });
 
 test('"publish again" repeats a single push as that push, and anything else as the whole plan', () => {
