@@ -1,5 +1,12 @@
 import type { Platform } from '@kiln/core';
-import { formatDateTime, formatList } from './i18n/format.ts';
+import {
+  latestOf,
+  type OriginFields,
+  type OriginView,
+  originView,
+  versionMismatch,
+} from './build-origin.ts';
+import { formatDateTime, formatList, formatRelativeTime } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
 import type { AppBuild } from './types.ts';
 
@@ -48,7 +55,7 @@ export type BuildCandidate = {
   testNotes?: TestNotes;
 };
 
-export type CodeCandidate = {
+export type CodeCandidate = OriginFields & {
   versionCode: string;
   source: 'bundle' | 'apk';
   sha256: string | null;
@@ -270,6 +277,10 @@ export type BuildRow = {
   title: string;
   version: string | null;
   uploaded: string;
+  /** "yesterday", "3 days ago"; null when the date is not known. */
+  uploadedAge: string | null;
+  /** The newest build by upload date (and no undated build above it by number). */
+  latest: boolean;
   run: SourceRun;
   eligibility: EligibilityView;
   attached: boolean;
@@ -277,10 +288,29 @@ export type BuildRow = {
   hasTestNotes: boolean;
 };
 
+const uploadedMs = (iso: string | null): number | null => {
+  if (iso === null) return null;
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? null : ms;
+};
+
+const ageOf = (iso: string | null, now: number): string | null => {
+  const ms = uploadedMs(iso);
+  return ms === null ? null : formatRelativeTime(ms, { now });
+};
+
 export function buildRows(
   builds: readonly BuildCandidate[],
   appBuilds: readonly Pick<AppBuild, 'buildNumber' | 'link' | 'linkState'>[],
+  now: number = Date.now(),
 ): BuildRow[] {
+  const latest = latestOf(
+    builds.map((b) => ({
+      id: b.id,
+      number: Number(b.buildNumber) || 0,
+      builtAt: uploadedMs(b.uploadedDate),
+    })),
+  );
   return builds.map((b) => ({
     id: b.id,
     title:
@@ -289,6 +319,8 @@ export function buildRows(
         : t('release-stepper:cand.build.titleUnknown'),
     version: b.version,
     uploaded: uploadedText(b.uploadedDate),
+    uploadedAge: ageOf(b.uploadedDate, now),
+    latest: latest === b.id,
     run: sourceRunOf(b.buildNumber, appBuilds),
     eligibility: eligibilityView(b),
     attached: b.attached,
@@ -358,6 +390,12 @@ export type CodeRow = {
   where: string;
   /** The code is in a release of the "from" track. */
   inSource: boolean;
+  /** Which version it is and when it was built, as far as Kiln knows (never a guess). */
+  origin: OriginView;
+  /** The version read from a file or the store (not a release name); null when not known. */
+  version: string | null;
+  /** The newest code by build date, when dates are known (see `latestOf`). */
+  latest: boolean;
 };
 
 const sameTrack = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -369,25 +407,39 @@ const sameTrack = (a: string, b: string) => a.trim().toLowerCase() === b.trim().
 export function codeRows(
   codes: readonly CodeCandidate[],
   inFrom: readonly string[] = [],
+  now: number = Date.now(),
 ): CodeRow[] {
-  const rows = codes.map((c) => ({
-    versionCode: c.versionCode,
-    source:
-      c.source === 'bundle'
-        ? t('release-stepper:cand.code.sourceBundle')
-        : t('release-stepper:cand.code.sourceApk'),
-    eligibility: eligibilityView(c),
-    where: formatList(
-      c.inTrack.map((entry) =>
-        t('release-stepper:cand.code.inTrackItem', {
-          name: entry.name ?? t('release-stepper:cand.code.unnamedRelease'),
-          status: entry.status,
-        }),
+  const latest = latestOf(
+    codes.map((c) => ({
+      id: c.versionCode,
+      number: Number(c.versionCode) || 0,
+      builtAt: c.builtAt ?? null,
+    })),
+  );
+  const rows = codes.map((c) => {
+    const origin = originView(c, now);
+    return {
+      versionCode: c.versionCode,
+      source:
+        c.source === 'bundle'
+          ? t('release-stepper:cand.code.sourceBundle')
+          : t('release-stepper:cand.code.sourceApk'),
+      eligibility: eligibilityView(c),
+      where: formatList(
+        c.inTrack.map((entry) =>
+          t('release-stepper:cand.code.inTrackItem', {
+            name: entry.name ?? t('release-stepper:cand.code.unnamedRelease'),
+            status: entry.status,
+          }),
+        ),
+        { type: 'unit' },
       ),
-      { type: 'unit' },
-    ),
-    inSource: inFrom.indexOf(c.versionCode) >= 0,
-  }));
+      inSource: inFrom.indexOf(c.versionCode) >= 0,
+      origin,
+      version: origin.version,
+      latest: latest === c.versionCode,
+    };
+  });
   const num = (r: CodeRow) => Number(r.versionCode) || 0;
   return rows.sort((a, b) => Number(b.inSource) - Number(a.inSource) || num(b) - num(a));
 }
@@ -421,3 +473,70 @@ export const isSameTrack = sameTrack;
 /** A track name Google Play accepts (the same rule as the server): letters, digits and `_ : . -`. */
 export const isTrackName = (value: string): boolean =>
   /^[A-Za-z0-9][A-Za-z0-9_:.-]{0,99}$/.test(value.trim());
+
+// ---------------------------------------------------------------------------------------------
+// The build(s) chosen for this release, for the Confirm step
+
+export type ChosenBuildLine = {
+  id: string;
+  title: string;
+  origin: OriginView;
+  /**
+   * Say the version and the date even when they are not known (Google Play: "Version not known"). Apple always gives both for a processed
+   * build, so there a missing one is left out rather than blamed on a file nobody read.
+   */
+  sayUnknown: boolean;
+  /** "This build is version 2.00.0, but you are releasing 2.00.1": non-blocking; null when there is nothing to warn about. */
+  mismatch: string | null;
+};
+
+/**
+ * The chosen Google Play codes with their version and build date. `releasing` is the name of the release being made (a staged name
+ * or the draft's): only a version it says, set against a version READ from a file or the store, can warn.
+ */
+export function chosenCodeLines(
+  chosen: readonly string[],
+  known: readonly CodeCandidate[],
+  releasing: string | null,
+  now: number = Date.now(),
+): ChosenBuildLine[] {
+  return chosen.map((code) => {
+    const hit = known.filter((c) => c.versionCode === code)[0];
+    const origin = originView(hit ?? {}, now);
+    return {
+      id: code,
+      title: t('release-stepper:sb.versionCode', { code }),
+      origin,
+      sayUnknown: true,
+      mismatch: versionMismatch({ version: origin.version }, releasing),
+    };
+  });
+}
+
+/** The chosen App Store build: its version and upload time come from Apple (`store`). `releasing` is the version of the editable version. */
+export function chosenBuildLine(
+  build: BuildCandidate | undefined,
+  releasing: string | null,
+  now: number = Date.now(),
+): ChosenBuildLine | null {
+  if (build === undefined) return null;
+  const origin = originView(
+    {
+      version: build.version,
+      origin: build.version !== null ? 'store' : null,
+      builtAt: uploadedMs(build.uploadedDate),
+      builtFrom: 'store',
+    },
+    now,
+  );
+  return {
+    id: build.id,
+    title:
+      build.buildNumber !== null
+        ? t('release-stepper:cand.build.title', { number: build.buildNumber })
+        : t('release-stepper:cand.build.titleUnknown'),
+    origin,
+    sayUnknown: false,
+    mismatch: versionMismatch({ version: origin.version }, releasing),
+  };
+}

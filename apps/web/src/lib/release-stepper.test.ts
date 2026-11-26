@@ -336,3 +336,41 @@ test('the version is the one asked for, else the editable one, else the newest',
   assert.equal(pickVersion('9', [{ version: '2.5.0', editable: false }]), '2.5.0');
   assert.equal(pickVersion(null, []), null);
 });
+
+test('chosenOf: the summary says which version the chosen codes are when every one is known to be the same, else stays as it was', () => {
+  const play = view({
+    release: [
+      { field: 'track', locale: '', value: 'production', localOnly: false, pushed: false, problems: [] },
+      { field: 'version_codes', locale: '', value: '90', localOnly: false, pushed: false, problems: [] },
+    ] as never,
+  });
+  const known = (version: string | null, origin: 'ci' | 'release') => [
+    { versionCode: '90', source: 'bundle' as const, sha256: null, inTrack: [], version, origin },
+  ];
+  assert.deepEqual(
+    chosenOf({ platform: 'android', view: play, editable: null, builds: [], codes: known('2.00.1', 'ci') }),
+    { label: 'Version code 90 · 2.00.1 on production', where: 'staged' },
+  );
+  // A release name is not a version read from the file; an unknown code is not claimed.
+  assert.equal(
+    chosenOf({ platform: 'android', view: play, editable: null, builds: [], codes: known('2.00.1', 'release') })?.label,
+    'Version codes 90 on production',
+  );
+  assert.equal(
+    chosenOf({ platform: 'android', view: play, editable: null, builds: [], codes: [] })?.label,
+    'Version codes 90 on production',
+  );
+  const two = view({
+    release: [
+      { field: 'version_codes', locale: '', value: '90,91', localOnly: false, pushed: false, problems: [] },
+    ] as never,
+  });
+  const both = [
+    { versionCode: '90', source: 'bundle' as const, sha256: null, inTrack: [], version: '2.0', origin: 'ci' as const },
+    { versionCode: '91', source: 'apk' as const, sha256: null, inTrack: [], version: '2.0', origin: 'store' as const },
+  ];
+  assert.equal(
+    chosenOf({ platform: 'android', view: two, editable: null, builds: [], codes: both })?.label,
+    'Version codes 90, 91 · 2.0',
+  );
+});

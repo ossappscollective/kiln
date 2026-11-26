@@ -9,13 +9,17 @@
   The heading and the primary button ("Review and publish") are the stepper's: this step draws the numbered list of what will be written, in order
   (`steps`, from lib/stepper-layout.ts), with the "Cannot be undone from here" badge on the step it applies to, and exports `publish()` and
   `publishState()` for the footer button.
-  Props: api, workspaceId, role, app, steps (the numbered list; null while it is read), releases (store releases by app id, for the rollout controls), apple, version (App Store
+  The build(s) chosen are shown first with their version and build date (BuildOriginLine) and, when a version read from a file or the
+  store is not the version being released, a visible warning that does not block anything.
+  Props: api, workspaceId, role, app, chosenLines (the chosen builds with version and date), steps (the numbered list; null while it is read), releases (store releases by app id, for the rollout controls), apple, version (App Store
   marketing version or null), track (Google Play), codes (staged version codes), stagedShare (staged intended share or ''),
   onreleased (called after a successful release).
 -->
 <script lang="ts">
-  import type { Role } from '@kiln/core';
+  import { can, type Role } from '@kiln/core';
   import type { Api } from '../../../lib/api.ts';
+  import { testBuildsHref } from '../../../lib/builds.ts';
+  import type { ChosenBuildLine } from '../../../lib/release-candidates.ts';
   import { t } from '../../../lib/i18n/t.ts';
   import { fractionOf } from '../../../lib/play-check.ts';
   import { canRelease, percentFromFraction } from '../../../lib/store-release.ts';
@@ -25,9 +29,11 @@
   import StagedTrayApp from '../../listing/StagedTrayApp.svelte';
   import SubmitReady from '../../listing/SubmitReady.svelte';
   import PendingChanges from '../../publish/PendingChanges.svelte';
+  import Alert from '../../ui/Alert.svelte';
   import Badge from '../../ui/Badge.svelte';
   import Disclosure from '../../ui/Disclosure.svelte';
   import RolloutControls from '../RolloutControls.svelte';
+  import BuildOriginLine from './BuildOriginLine.svelte';
   import PlayCheck from './PlayCheck.svelte';
   import StoreRelease from './StoreRelease.svelte';
 
@@ -37,6 +43,7 @@
     role,
     app,
     steps,
+    chosenLines = [],
     releases,
     apple,
     version,
@@ -51,6 +58,7 @@
     role: Role;
     app: AppSummary;
     steps: readonly ConfirmStep[] | null;
+    chosenLines?: readonly ChosenBuildLine[] | undefined;
     releases: Record<string, ReleaseSummary[]>;
     apple: boolean;
     version: string | null;
@@ -62,6 +70,7 @@
     onreleased: () => void;
   } = $props();
 
+  const canTest = $derived(can(role, 'builds.read'));
   const waitingOnStore = $derived(inReview && (steps === null || steps.length === 0));
 
   let pending = $state<ReturnType<typeof PendingChanges> | undefined>();
@@ -80,6 +89,19 @@
 <div class="stack loose">
   {#if !apple && !waitingOnStore}
     <PlayCheck {api} {workspaceId} {app} {track} {codes} fraction={fractionOf(stagedShare)} source="staged" />
+  {/if}
+
+  {#if chosenLines.length > 0}
+    <section class="chosen" aria-label={t('release-stepper:og.confirmTitle')} data-testid="confirm-build">
+      <h4>{t('release-stepper:og.confirmTitle')}</h4>
+      {#each chosenLines as line (line.id)}
+        <div class="build-line">
+          <span class="build-title">{line.title}</span>
+          <BuildOriginLine origin={line.origin} sayUnknown={line.sayUnknown} findHref={canTest && !apple ? testBuildsHref(app.id, app.platform, line.id) : null} />
+        </div>
+        {#if line.mismatch}<Alert tone="warn"><span data-testid="build-mismatch">{line.mismatch}</span></Alert>{/if}
+      {/each}
+    </section>
   {/if}
 
   {#if steps !== null && steps.length > 0}
@@ -193,6 +215,27 @@
     font-size: var(--text-sm);
     color: var(--muted);
     white-space: nowrap;
+  }
+
+  .chosen {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-5);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-xl);
+  }
+
+  .build-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-4);
+    align-items: baseline;
+  }
+
+  .build-title {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
   }
 
   .part {

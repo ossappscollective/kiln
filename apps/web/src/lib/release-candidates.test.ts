@@ -221,3 +221,20 @@ test('track names follow the server rule', () => {
   assert.equal(isTrackName(''), false);
   assert.equal(isTrackName('-x'), false);
 });
+
+test('build rows carry the age of the upload and mark the newest build Latest', () => {
+  const now = Date.parse('2026-11-21T10:30:12Z');
+  const rows = buildRows(
+    [
+      build('413', elig('ok', true, 'ok', 'ok'), { uploadedDate: '2026-11-20T10:30:12Z' }),
+      build('412', elig('ok', true, 'ok', 'ok'), { uploadedDate: '2026-11-19T10:30:12Z' }),
+      build('411', elig('ok', true, 'ok', 'ok'), { uploadedDate: null }),
+    ],
+    [],
+    now,
+  );
+  assert.deepEqual(rows.map((r) => r.latest), [true, false, false]);
+  assert.equal(rows[0]?.uploadedAge, 'yesterday');
+  assert.equal(rows[1]?.uploadedAge, '2 days ago');
+  assert.equal(rows[2]?.uploadedAge, null);
+});

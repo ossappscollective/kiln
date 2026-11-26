@@ -22,7 +22,7 @@
   import { t } from '../../../lib/i18n/t.ts';
   import type { PlatformScope } from '../../../lib/app-scope.ts';
   import { platformLabel } from '../../../lib/portfolio.ts';
-  import { type EditableRelease, type ReleaseCandidates, type PlayCandidates, type BuildCandidate } from '../../../lib/release-candidates.ts';
+  import { type EditableRelease, type ReleaseCandidates, type PlayCandidates, type BuildCandidate, type ChosenBuildLine, chosenBuildLine, chosenCodeLines } from '../../../lib/release-candidates.ts';
   import { type Promote } from '../../../lib/play-promote.ts';
   import { type PromoteNotesState, noteRows, promoteNotesFill, unsavedLocales } from '../../../lib/release-notes.ts';
   import type { PendingItem } from '../../../lib/pending.ts';
@@ -114,6 +114,7 @@
   const current = $derived(resolveStep(step, visible));
   const hidden = $derived(confirmHiddenReason(role, switches));
 
+  const playCodes = $derived(candidates !== null && candidates.store === 'googleplay' ? candidates.codes : []);
   const buildList = $derived<BuildCandidate[]>(candidates !== null && candidates.store === 'appstoreconnect' ? candidates.builds : []);
   const locales = $derived(
     Array.from(
@@ -126,7 +127,7 @@
     ).sort(),
   );
   const rows = $derived(noteRows({ platform: app.platform, locales, drafts, store: storeNotes(editable), staged: stagedNotes(view, app.platform) }));
-  const chosen = $derived(chosenOf({ platform: app.platform, view, editable, builds: buildList }));
+  const chosen = $derived(chosenOf({ platform: app.platform, view, editable, builds: buildList, codes: playCodes }));
   const choices = $derived.by((): number | null => {
     if (candidates === null) return null;
     if (candidates.store === 'appstoreconnect') return candidates.builds.filter((b) => b.eligibility ? b.eligibility.eligible : b.selectable).length;
@@ -155,6 +156,17 @@
   const stagedCodes = $derived(stagedField(view, 'version_codes'));
   const stagedShare = $derived(stagedField(view, 'user_fraction'));
   const releaseVersion = $derived(editable && editable.store === 'appstoreconnect' ? editable.version.versionString : null);
+  /** Google Play: the name of the release being made (staged, else the store draft's); only a version it says is set against the version of a chosen build. */
+  const releasingName = $derived(stagedField(view, 'release_name')?.value ?? (editable && editable.store === 'googleplay' ? (editable.draft?.name ?? null) : null));
+  /** The chosen build(s) with their version and date, for the Confirm step (and the warning when the version is not the one being released). */
+  const chosenLines = $derived.by((): ChosenBuildLine[] => {
+    if (apple) {
+      const line = chosenBuildLine(buildList.filter((b) => b.id === chosenBuildId)[0], releaseVersion);
+      return line === null ? [] : [line];
+    }
+    const wanted = stagedCodes !== null ? stagedCodes.value.split(',').filter((c) => c !== '') : editable && editable.store === 'googleplay' && editable.draft ? editable.draft.versionCodes.map(String) : [];
+    return chosenCodeLines(wanted, playCodes, releasingName);
+  });
   /** The build number chosen for this release (App Store): its commit is the source of the release for the asset proposal. */
   const releaseBuildNumber = $derived.by((): string | null => {
     if (supports(app.platform, 'releaseTracks')) return null;
@@ -444,6 +456,7 @@
             version={releaseVersion}
             track={releaseTrack}
             codes={stagedCodes === null ? [] : stagedCodes.value.split(',').filter((c) => c !== '')}
+            {chosenLines}
             stagedShare={stagedShare ? stagedShare.value : ''}
             inReview={pipeline?.pipeline.state === 'in_review'}
             onreleased={() => void loadPipeline()}

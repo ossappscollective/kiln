@@ -10,7 +10,8 @@ import {
 import { appAddress, type PlatformScope, parseViewPath } from './app-scope.ts';
 import { formatList } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
-import type { BuildCandidate, EditableRelease } from './release-candidates.ts';
+import { readVersionOf } from './build-origin.ts';
+import type { BuildCandidate, CodeCandidate, EditableRelease } from './release-candidates.ts';
 
 /**
  * The "Prepare release" stepper of an app (Releases tab): Build, Notes, Assets, Review, Confirm. Pure logic: which steps a
@@ -207,12 +208,48 @@ export function storeNotes(editable: EditableRelease | null): Record<string, str
 
 export type Chosen = { label: string; where: 'staged' | 'store' };
 
+/**
+ * "Version codes 90, 89 on production", and "Version code 90 · 2.00.1 on production" when every chosen code is known to be the same
+ * version (read from a CI file or the store: a release name is not enough). A code the read does not list counts as not known.
+ */
+function codesLabel(
+  codes: readonly string[],
+  track: string | null,
+  known: readonly CodeCandidate[],
+): string {
+  const versions = codes.map((c) => {
+    const hit = known.filter((k) => k.versionCode === c)[0];
+    return hit ? readVersionOf(hit) : null;
+  });
+  const first = versions[0];
+  const same = first !== null && first !== undefined && versions.every((v) => v === first);
+  const list = codes.join(', ');
+  if (same && track)
+    return t('release-stepper:chosen.codesVersionOn', {
+      count: codes.length,
+      codes: list,
+      version: first,
+      track,
+    });
+  if (same)
+    return t('release-stepper:chosen.codesVersion', {
+      count: codes.length,
+      codes: list,
+      version: first,
+    });
+  return track
+    ? t('release-stepper:chosen.codesOn', { codes: list, track })
+    : t('release-stepper:chosen.codes', { codes: list });
+}
+
 /** The build (App Store) or the version codes and track (Google Play) of this release: staged first, else what the store draft has. */
 export function chosenOf(input: {
   platform: Platform;
   view: StagedChangesView | null;
   editable: EditableRelease | null;
   builds: readonly BuildCandidate[];
+  /** The version codes of the read (Google Play): when they say which version the chosen codes are, the label says it too. */
+  codes?: readonly CodeCandidate[] | undefined;
 }): Chosen | null {
   if (!supports(input.platform, 'releaseTracks')) {
     const staged = stagedField(input.view, 'build');
@@ -246,12 +283,11 @@ export function chosenOf(input: {
   const track = stagedField(input.view, 'track');
   if (codes !== null)
     return {
-      label: track
-        ? t('release-stepper:chosen.codesOn', {
-            codes: codes.value.split(',').join(', '),
-            track: track.value,
-          })
-        : t('release-stepper:chosen.codes', { codes: codes.value.split(',').join(', ') }),
+      label: codesLabel(
+        codes.value.split(',').filter((c) => c !== ''),
+        track ? track.value : null,
+        input.codes ?? [],
+      ),
       where: 'staged',
     };
   if (
@@ -261,10 +297,11 @@ export function chosenOf(input: {
     input.editable.draft.versionCodes.length > 0
   ) {
     return {
-      label: t('release-stepper:chosen.codesOn', {
-        codes: input.editable.draft.versionCodes.join(', '),
-        track: input.editable.track,
-      }),
+      label: codesLabel(
+        input.editable.draft.versionCodes.map(String),
+        input.editable.track,
+        input.codes ?? [],
+      ),
       where: 'store',
     };
   }

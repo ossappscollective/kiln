@@ -29,6 +29,7 @@
     type ReleaseCandidates,
     SUGGESTED_TRACKS,
     buildRows,
+    chosenCodeLines,
     codeRows,
     codesInTrack,
     isTrackName,
@@ -49,6 +50,7 @@
   import Button from '../../ui/Button.svelte';
   import Disclosure from '../../ui/Disclosure.svelte';
   import InfoTip from '../../ui/InfoTip.svelte';
+  import BuildOriginLine from './BuildOriginLine.svelte';
   import CreateVersion from './CreateVersion.svelte';
   import Skeleton from '../../ui/Skeleton.svelte';
 
@@ -126,6 +128,10 @@
   const inputs = $derived(releaseInputsFor({ view: releaseSettingsStore.get(app.id), track, stagedPercent: stagedShare ? percentFromFraction(stagedShare.value) : '' }));
   const offered = $derived(inputs.offer.offered);
   const fraction = $derived(offered ? parsePercent(shareText) : null);
+  // The version being released, as far as the release says it: the staged release name, else the name of the draft in the store.
+  const releasingName = $derived(stagedField(view, 'release_name')?.value ?? draft?.name ?? null);
+  // A chosen code whose version was READ from a file or the store and is not the version being released: a visible, non-blocking warning.
+  const mismatches = $derived(chosenCodeLines(pickedCodes, playPart ? playPart.codes : [], releasingName).filter((l) => l.mismatch !== null));
   const shownCodes = $derived(showAllCodes ? codes : codes.slice(0, 3));
   const trackOk = $derived(isTrackName(track));
   const sourceOk = $derived(source.trim() === '' || isTrackName(source));
@@ -227,7 +233,8 @@
               <input type="radio" name="{uid}-build" value={row.id} bind:group={picked} disabled={!row.eligibility.selectable} />
               <span class="num">{row.title}</span>
               <span class="ver">{#if row.version}{t('release-stepper:sb.version', { version: row.version })}{/if}</span>
-              <span class="when">{t('release-stepper:sb.uploaded', { when: row.uploaded })}</span>
+              <span class="when">{row.uploadedAge !== null ? t('release-stepper:og.uploadedAge', { when: row.uploaded, age: row.uploadedAge }) : t('release-stepper:sb.uploaded', { when: row.uploaded })}</span>
+              {#if row.latest}<span title={t('release-stepper:og.latestTitle')}><Badge tone="info">{t('release-stepper:og.latest')}</Badge></span>{/if}
               <Badge tone={chip.tone} icon={chip.tone === 'ok' ? 'check' : undefined}>{chip.text}</Badge>
             </label>
           {/each}
@@ -309,13 +316,18 @@
                 onchange={(e) => toggleCode(row.versionCode, e.currentTarget.checked)}
               />
               <span class="num">{t('release-stepper:sb.versionCode', { code: row.versionCode })}</span>
+              {#if row.latest}<span title={t('release-stepper:og.latestTitle')}><Badge tone="info">{t('release-stepper:og.latest')}</Badge></span>{/if}
               <span class="ver">{row.inSource ? t('release-stepper:sb.sourceIn', { source: row.source, track: source }) : row.source}</span>
               <span class="when">{#if row.where}{t('release-stepper:sb.heldBy', { where: row.where })}{/if}{#if canTest}{row.where ? ' ' : ''}<a href={testBuildsHref(app.id, app.platform, row.versionCode)}>{t('release-stepper:sb.installToTest')}</a>{/if}</span>
               <Badge tone={row.eligibility.tone === 'warn' ? 'warn' : row.eligibility.tone === 'bad' ? 'bad' : row.eligibility.tone === 'ok' ? 'ok' : 'neutral'}>{row.eligibility.label}</Badge>
+              <BuildOriginLine origin={row.origin} findHref={canTest ? testBuildsHref(app.id, app.platform, row.versionCode) : null} />
             </label>
             {#if row.eligibility.tone !== 'ok' || !row.eligibility.selectable}<p class="sentence code-sentence" class:bad={row.eligibility.tone === 'bad'}>{row.eligibility.sentence}</p>{/if}
           {/each}
         </fieldset>
+        {#each mismatches as m (m.id)}
+          <Alert tone="warn" title={m.title}><span data-testid="build-mismatch">{m.mismatch}</span></Alert>
+        {/each}
         {#if codes.length > 3}
           <p class="muted small more">{showAllCodes ? t('release-stepper:sb.codesShowingAll', { count: codes.length }) : t('release-stepper:sb.codesShowing', { count: codes.length, shown: 3 })} <button type="button" class="link" onclick={() => (showAllCodes = !showAllCodes)}>{showAllCodes ? t('release-stepper:sb.showFewer') : t('release-stepper:sb.showAll')}</button></p>
         {/if}
