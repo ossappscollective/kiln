@@ -153,6 +153,6 @@
   }
   .problem {
     margin: 0.5rem 0 0;
-    color: var(--danger, #b42318);
+    color: var(--bad-ink);
   }
 </style>
