@@ -494,7 +494,7 @@ export function artifactItem(
   };
 }
 
-async function storeBuilds(
+export async function storeBuilds(
   ctx: BuildsContext,
   workspaceId: string,
   app: ManagedApp,

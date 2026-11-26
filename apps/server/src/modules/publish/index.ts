@@ -1,3 +1,5 @@
+import { loadOriginSources } from '../builds/origins.ts';
+import { createBuildsContext } from '../builds/service.ts';
 import type { ServerModule } from '../module.ts';
 import { buildPriceContext, type PriceDeps } from '../monetization/price-shared.ts';
 import { type CartRoutesContext, cartRoutes } from './cart-routes.ts';
@@ -48,6 +50,8 @@ export type PublishDeps = {
    * (KILN_STORE_PUBLISH_BATCH_ENABLED). It turns no step on: the steps keep the switches and seams above. `claimTtlMs` is for tests.
    */
   publish?: PendingRoutesContext['publish'] | undefined;
+  /** Where a Google Play version code comes from (version, build date): a fake in tests; production reads what the builds module keeps. */
+  origins?: ReleaseRoutesContext['origins'] | undefined;
   /** Price changes of in-app products (docs/adr/0062-price-writes.md), staged into the cart and sent from it: OFF unless `enabled`. */
   price?: PriceDeps | undefined;
 };
@@ -56,7 +60,8 @@ export const publishModule: ServerModule<PublishDeps> = {
   id: 'publish',
   mount(app, services, deps, shared) {
     const { db, masterKey, now } = services;
-    const { rollout, draft, submit, release, version, publish, reply, price } = deps ?? {};
+    const { rollout, draft, submit, release, version, publish, reply, price, origins } = deps ?? {};
+    const buildsContext = createBuildsContext(shared.ci);
     const publishClaimTtlMs = publish?.claimTtlMs;
     app.route(
       '/api/workspaces',
@@ -122,6 +127,7 @@ export const publishModule: ServerModule<PublishDeps> = {
             }
           : {}),
         ...(release ? { release } : {}),
+        origins: origins ?? ((input) => loadOriginSources(buildsContext, input)),
       }),
     );
     app.route(

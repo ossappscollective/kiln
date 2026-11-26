@@ -10,12 +10,13 @@ import {
   getAppReleaseSettings,
   updateAppReleaseSettings,
 } from '../../services/app-release-settings.ts';
-import { getApp } from '../../services/apps.ts';
+import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { createTestLimiter } from '../../services/credential-tests.ts';
 import { MAX_NOTES_HISTORY_LIMIT, notesHistory } from '../../services/notes-history.ts';
 import { checkPlayReleaseOf } from '../../services/play-release-check.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { requireStepUp, stepUpCovers } from '../../services/step-up.ts';
+import { NO_ORIGIN_SOURCES, type OriginSources, withOrigins } from './candidate-origin.ts';
 import { notWhilePublishing } from './publishing.ts';
 import {
   type DraftConnectorFactory,
@@ -61,11 +62,37 @@ export type ReleaseRoutesContext = {
     timeoutMs?: number;
     claimTtlMs?: number;
   };
+  /**
+   * What Kiln knows about where a Google Play version code comes from (the CI files it read, the store builds it synced): the builds
+   * module's reader in production (`modules/builds/origins.ts`), a fake in tests. Without it no version or date is known.
+   */
+  origins?: (input: {
+    workspaceId: string;
+    app: ManagedApp;
+    actor: { type: 'user' | 'token' | 'assistant' | 'system'; id: string };
+  }) => Promise<OriginSources>;
   /** Store reads per workspace per minute (the reads of builds and version codes). */
   readLimit?: number;
   /** "Check with Google Play" per workspace per minute (each check opens, validates and deletes an edit: four store calls). */
   checkLimit?: number;
 };
+
+/** The origins are a help, never a reason to wait: past this the codes are shown without them. */
+const ORIGINS_TIMEOUT_MS = 8000;
+const withinMs = <T,>(work: Promise<T>, ms: number): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), ms);
+    work.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
 
 const param = (c: Context<AppEnv>, name: string) => c.req.param(name) ?? '';
 const ws = (c: Context<AppEnv>) => param(c, 'workspaceId');
@@ -183,7 +210,16 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
       track: c.req.query('track') || undefined,
     });
     c.header('Cache-Control', 'no-store');
-    return done.ok ? c.json({ candidates: done.read }) : respond(c, done);
+    if (!done.ok) return respond(c, done);
+    // One join on the server: the version and build date of every version code (never a request per code from the browser).
+    let sources = NO_ORIGIN_SOURCES;
+    if (done.read.store === 'googleplay' && ctx.origins) {
+      sources = await withinMs(
+        ctx.origins({ workspaceId: ws(c), app, actor: actor(c) }),
+        ORIGINS_TIMEOUT_MS,
+      ).catch(() => NO_ORIGIN_SOURCES);
+    }
+    return c.json({ candidates: withOrigins(done.read, sources, app.identifier) });
   });
 
   // The texts earlier releases used for "what is new": the store's (cached, one read per ten minutes) and this app's plans.

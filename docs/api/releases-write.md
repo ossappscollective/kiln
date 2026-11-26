@@ -34,7 +34,25 @@ Needs `listing.read`. Returns `{ candidates }`:
   stage as the `build` field. Also, per build: `eligibility`, `exportCompliance` and `testNotes` (below).
 - **Google Play**: `track` is required (`422 track_required`). `{ store: "googleplay", platform: "android", track, codes[] }`;
   each code: `versionCode`, `source` (`bundle` or `apk`), `sha256`, `inTrack[] { name, status }` (the releases of that track
-  that already hold it) and `eligibility`.
+  that already hold it), `eligibility` and the origin of the code (below).
+
+**Origin of a Google Play code: which version, and when was it built.** Google Play gives a version code and its sha only, so
+the server joins what Kiln already knows, in ONE read (nothing is downloaded or guessed), and adds to every code:
+`version` (`string | null`), `builtAt` (epoch ms, `number | null`), `origin` (`"ci" | "store" | "release" | null`, where the
+`version` came from; not called `source`, which is `bundle` or `apk`), `builtFrom` (`"ci" | "store" | null`, where `builtAt`
+came from) and, for a CI hit, `ci { runNumber, branch, commit, url }`. In order:
+
+1. `ci`: a CI artifact whose file Kiln read (`ci_artifact_meta`, filled when the Test builds page of the app is open, the files it shows are read one by one, and only with downloads switched on) with this
+   version code and this package. `version` is its versionName, `builtAt` is when GitHub created the artifact (the build; empty when
+   GitHub no longer lists it, a GitHub failure never fails the read) and `ci` is the run. Of several artifacts with one code the earliest counts.
+2. `store`: the store build the sync recorded (`app_builds`): its version, and its upload time when the store gave one (Google Play
+   does not, so this is mostly the version only).
+3. `release`: the NAME of the release of the asked track that holds the code. A name a person typed, not read from the file, and
+   never a date: `builtAt` is never a release date.
+
+`version` comes from the first source that has one; `builtAt` from `ci`, else `store`. A code Kiln has never seen elsewhere
+has `null` for all of them. Open the app's Test builds page once to fill the cache. An App Store build has its own `version` and
+`uploadedDate` from Apple and needs no join.
 
 **Is this build eligible?** Every build and every code has `eligibility: { eligible, severity, code, message }`: `eligible`
 says whether it can be chosen for the draft now, `severity` is `ok`, `warning` (it can be chosen, read the message) or `blocked`,

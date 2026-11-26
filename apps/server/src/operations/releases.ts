@@ -236,6 +236,35 @@ const releaseCandidatesSchema = z.union([
         sha256: z.string().nullable(),
         inTrack: z.array(z.object({ name: z.string().nullable(), status: z.string() })),
         eligibility: eligibilitySchema,
+        version: z
+          .string()
+          .nullable()
+          .describe(
+            'The version of the build: the versionName of a CI file Kiln read (`origin` ci), of the store build it synced (`store`), or the NAME of the track release that holds the code (`release`: typed by a person, not read from the file). Null: not known.',
+          ),
+        builtAt: z
+          .number()
+          .int()
+          .nullable()
+          .describe(
+            'Epoch milliseconds the build was made (`builtFrom` ci: the CI artifact was created) or uploaded (`store`). Google Play gives no build date, so null for a code Kiln has not seen elsewhere. Never the date of a release.',
+          ),
+        origin: z
+          .enum(['ci', 'store', 'release'])
+          .nullable()
+          .describe(
+            'Where `version` came from (else where `builtAt` came from). Not `source`: that is `bundle` or `apk`.',
+          ),
+        builtFrom: z.enum(['ci', 'store']).nullable().describe('Where `builtAt` came from.'),
+        ci: z
+          .object({
+            runNumber: z.number().int().nullable(),
+            branch: z.string().nullable(),
+            commit: z.string().nullable().describe('The short commit of the run.'),
+            url: z.string().nullable(),
+          })
+          .optional()
+          .describe('The CI run that made the file, when a CI file with this version code was read.'),
       }),
     ),
   }),

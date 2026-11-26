@@ -520,6 +520,76 @@ dbTest(
   },
 );
 
+dbTest(
+  'reads: every Google Play code carries its version and build date from ONE server join; App Store builds and failures are left alone',
+  async (db) => {
+    const asked: string[] = [];
+    let fail = false;
+    const t = await bootStaged(db, {
+      extra: {
+        buildOrigins: async (input: { app: { id: string } }) => {
+          asked.push(input.app.id);
+          if (fail) throw new Error('GitHub is down');
+          return {
+            artifacts: [
+              {
+                artifactId: '7',
+                number: '241',
+                version: '2.4.1',
+                packageId: 'com.acme.app',
+                createdAt: 1_900_000_000_000,
+                run: { runNumber: 41, branch: 'main', commit: 'abc1234', url: 'https://github.test/run/41' },
+              },
+            ],
+            store: [],
+          };
+        },
+      },
+    });
+    const droid = await t.addApp('android');
+    t.stores.android.candidates = {
+      store: 'googleplay',
+      platform: 'android',
+      track: 'production',
+      codes: ['242', '241'].map((versionCode) => ({
+        versionCode,
+        source: 'bundle' as const,
+        sha256: null,
+        inTrack: versionCode === '242' ? [{ name: '2.4.2', status: 'completed' }] : [],
+        eligibility: { eligible: true, severity: 'ok' as const, code: 'ok' as const, message: 'ok' },
+      })),
+    };
+    const res = await t.call(t.owner, 'GET', `/apps/${droid}/release/candidates?track=production`);
+    assert.equal(res.status, 200, res.text.slice(0, 300));
+    const [c242, c241] = res.body.candidates.codes;
+    assert.equal(c241.versionCode, '241');
+    assert.equal(c241.source, 'bundle', 'the code keeps its own source');
+    assert.equal(c241.version, '2.4.1');
+    assert.equal(c241.origin, 'ci');
+    assert.equal(c241.builtAt, 1_900_000_000_000);
+    assert.equal(c241.builtFrom, 'ci');
+    assert.equal(c241.ci.runNumber, 41);
+    assert.equal(c241.ci.url, 'https://github.test/run/41');
+    // Never seen by Kiln: only the name of the release that holds it, and no date.
+    assert.equal(c242.version, '2.4.2');
+    assert.equal(c242.origin, 'release');
+    assert.equal(c242.builtAt, null);
+    assert.equal(c242.ci, undefined);
+    assert.equal(asked.length, 1, 'one join for the whole list');
+    // The App Store read is not joined.
+    const app = await t.addApp('ios');
+    await t.call(t.owner, 'GET', `/apps/${app}/release/candidates`);
+    assert.equal(asked.length, 1);
+    // A failing join never fails the read: the codes come back with nothing known.
+    fail = true;
+    const down = await t.call(t.owner, 'GET', `/apps/${droid}/release/candidates?track=production`);
+    assert.equal(down.status, 200);
+    assert.equal(down.body.candidates.codes[1].version, null);
+    assert.equal(down.body.candidates.codes[1].builtAt, null);
+    assert.equal(down.body.candidates.codes[1].origin, null);
+  },
+);
+
 dbTest('reads: a store refusal is an answer, not a crash, and carries no secret', async (db) => {
   const t = await bootStaged(db);
   const app = await t.addApp('ios');

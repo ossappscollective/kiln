@@ -274,6 +274,11 @@ export type AppDeps = {
    * timeouts of `storeDraft`, `storeSubmit`, `storeRelease` and `rollout`. `claimTtlMs` is for tests.
    */
   storePublish?: PublishDeps['publish'] | undefined;
+  /**
+   * Where a Google Play version code comes from (docs/api/releases-write.md, "Origin of a Google Play code"): production reads what the
+   * builds module keeps (the CI files read, the synced store builds); tests replace it with fixed data.
+   */
+  buildOrigins?: PublishDeps['origins'] | undefined;
   /** ASO (docs/api/aso.md): see `AsoDeps` in modules/aso. */
   aso?: AsoDeps | undefined;
   /** Analytics (docs/api/analytics.md): see `AnalyticsDeps` in modules/analytics. */
@@ -524,6 +529,7 @@ export function createApp(deps: AppDeps) {
       release: deps.storeRelease,
       version: deps.storeVersion,
       publish: deps.storePublish,
+      origins: deps.buildOrigins,
       reply: deps.reviews?.reply,
       price: deps.prices,
     },
