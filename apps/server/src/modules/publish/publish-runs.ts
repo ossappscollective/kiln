@@ -228,3 +228,22 @@ export const deleteAppRuns = (sql: Sql, workspaceId: string, appId: string) =>
     appId,
     workspaceId,
   ]);
+
+/**
+ * Google Play: whether Google refused to keep a draft for this app, as the runs say. Newest run first: a run whose push_draft step
+ * failed with `draft_not_allowed` says yes; a run whose draft push went through says no (Google kept a draft since); a run that did
+ * neither (a release, a combined push and submit that went through) says nothing, so the older runs decide. Only the runs of this
+ * platform count. The five newest runs are kept, so the answer fades with them.
+ */
+export async function draftRefusedBefore(
+  sql: Sql,
+  input: { workspaceId: string; appId: string; platform: Platform },
+): Promise<boolean> {
+  for (const run of await listRuns(sql, input)) {
+    if (run.platform !== input.platform) continue;
+    const push = run.results.find((r) => r.type === 'push_draft');
+    if (push?.status === 'failed' && push.error === 'draft_not_allowed') return true;
+    if (push?.status === 'applied') return false;
+  }
+  return false;
+}

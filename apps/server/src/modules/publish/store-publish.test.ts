@@ -535,6 +535,7 @@ dbTest(
       plan.steps.map((s: any) => [s.type, s.availability]),
       [
         ['push_draft', 'available'],
+        ['push_and_submit', 'nothing_to_do'],
         ['submit', 'feature_disabled'],
         ['release', 'feature_disabled'],
         ['rollout', 'feature_disabled'],
@@ -608,9 +609,10 @@ dbTest(
       plan.steps.map((s: any) => [s.type, s.order, s.availability, s.included]),
       [
         ['push_draft', 1, 'available', true],
-        ['submit', 2, 'available', true],
-        ['release', 3, 'nothing_to_do', false],
-        ['rollout', 4, 'nothing_to_do', false],
+        ['push_and_submit', 2, 'nothing_to_do', false],
+        ['submit', 3, 'available', true],
+        ['release', 4, 'nothing_to_do', false],
+        ['rollout', 5, 'nothing_to_do', false],
       ],
     );
     assert.equal(stepOf(res.body, 'push_draft').deferred, false);
@@ -1295,6 +1297,7 @@ dbTest(
       plan.body.plan.steps.map((s: any) => [s.type, s.availability]),
       [
         ['push_draft', 'not_requested'],
+        ['push_and_submit', 'not_requested'],
         ['submit', 'not_requested'],
         ['release', 'needs_input'],
         ['rollout', 'not_requested'],

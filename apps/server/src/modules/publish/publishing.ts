@@ -22,7 +22,13 @@ import type { PublishStep } from './pending.ts';
 export const DEFAULT_PUBLISH_CLAIM_TTL_MS = 900_000;
 
 /** The step words a claim row may hold (the same list as `PUBLISH_STEPS` of pending.ts, kept here so the two files do not import each other). */
-const KNOWN_STEPS: readonly PublishStep[] = ['push_draft', 'submit', 'release', 'rollout'];
+const KNOWN_STEPS: readonly PublishStep[] = [
+  'push_draft',
+  'push_and_submit',
+  'submit',
+  'release',
+  'rollout',
+];
 
 export type Publishing = {
   /** When the batch took the claim (epoch milliseconds). */

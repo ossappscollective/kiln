@@ -96,6 +96,11 @@ import { googleFacts } from './play-causes.ts';
  *   `changesNotSentForReview` the answer is a `draft_not_allowed` error and NOTHING is committed: the connector
  *   never retries without it, because a commit without it may send the changes for review (UNVERIFIED how Play
  *   behaves per app, e.g. with managed publishing off).
+ * - `pushAndSubmit` writes the same edit and commits it WITHOUT `changesNotSentForReview` (Google sends the changes for review as part
+ *   of the commit). It is for an app whose changes Google will not keep as a draft: Google answers the held back commit 400 "Changes are
+ *   sent for review automatically. The query parameter changesNotSentForReview must not be set." (seen in the wild; Google's pages do not
+ *   say when it applies, so what decides it per app is UNVERIFIED). The server calls it only for the batch step the person ticked and
+ *   confirmed; `applyDraft` never does, and never falls back to it.
  * - UNVERIFIED: whether a changed listing or image that was committed but not sent for review shows in
  *   a later edit, so the state read after a commit may not show the draft: a lost commit answer is
  *   `DraftOutcomeUnknownError` and the server does not claim to know (it asks the person to look in Play Console).
@@ -992,7 +997,7 @@ export class PlayDraftConnector
       const refused = new StoreError(
         'googleplay',
         'draft_not_allowed',
-        'Google Play sends the changes of this app for review automatically, so it cannot keep them as a draft, and nothing was committed. This server never sends changes for review from a draft step. Push and submit for review in one step instead, or make the change in Play Console.',
+        'Google Play sends these changes for review automatically for this app, so it cannot keep them as a draft. Nothing was committed, and this server never sends changes for review from a draft step.',
         400,
         said === '' ? undefined : [{ detail: said }],
         { code: 'store.google.draftNotAllowed' },

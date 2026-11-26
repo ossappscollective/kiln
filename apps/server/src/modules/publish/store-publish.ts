@@ -23,7 +23,13 @@ import {
   recordStep,
   recordSteps,
 } from './publishing.ts';
-import { type LastPublish, type RunOutcome, type RunStep, recordRun } from './publish-runs.ts';
+import {
+  draftRefusedBefore,
+  type LastPublish,
+  type RunOutcome,
+  type RunStep,
+  recordRun,
+} from './publish-runs.ts';
 import {
   applyDraftPush,
   DRAFT_ENV,
@@ -99,18 +105,24 @@ export const DEFAULT_PUBLISH_STEP_TIMEOUT_MS = 480_000;
 
 export const STEP_ACTION = {
   push_draft: 'store.push_draft',
+  /** The combined step needs this right AND `store.push_draft` (and both switches): see `COMBINED_ALSO`. */
+  push_and_submit: 'store.submit',
   submit: 'store.submit',
   release: 'store.release',
   rollout: 'releases.rollout',
 } as const;
 export const STEP_ENV = {
   push_draft: DRAFT_ENV,
+  push_and_submit: SUBMIT_ENV,
   submit: SUBMIT_ENV,
   release: RELEASE_ENV,
   rollout: ROLLOUT_ENV,
 } as const;
+/** The combined step is the push AND the submit: it also needs the push's right and switch. */
+const COMBINED_ALSO = { action: 'store.push_draft', envName: DRAFT_ENV } as const;
 const STEP_LABEL = {
   push_draft: 'Push the staged changes to the store as a draft',
+  push_and_submit: 'Push the staged changes and send them for store review in one step',
   submit: 'Submit the draft for store review',
   release: 'Release',
   rollout: 'Change the rollout',
@@ -118,6 +130,7 @@ const STEP_LABEL = {
 /** Steps that cannot be taken back, or change what live users receive: they need the typed phrase. */
 const IRREVERSIBLE: Record<PublishStep, boolean> = {
   push_draft: false,
+  push_and_submit: true,
   submit: true,
   release: true,
   rollout: true,
@@ -166,10 +179,20 @@ export type StepRequest = {
 
 const FIELDS: Record<PublishStep, readonly (keyof StepRequest)[]> = {
   push_draft: [],
+  push_and_submit: [],
   submit: [],
   release: ['version', 'track', 'versionCodes', 'userFraction', 'direct'],
   rollout: ['action', 'version', 'track', 'versionCodes', 'userFraction'],
 };
+
+/**
+ * The combined step is the push and the submit in one commit, so it needs BOTH rights (`store.push_draft` and `store.submit`): the
+ * caller's rights for it are computed here from the two, whatever the caller said about it.
+ */
+export const withCombinedRight = (rights: PublishRights): PublishRights => ({
+  ...rights,
+  push_and_submit: rights.push_draft && rights.submit,
+});
 
 const invalidSteps = (message: string, extra: Record<string, unknown> = {}): Failure =>
   failure(422, 'invalid_steps', message, extra);
@@ -289,6 +312,13 @@ export type PublishPlan = {
   direct: { track: string; versionCodes: string[]; stagedFraction: number | null } | null;
   /** The plan was made as ONE direct release step because only release fields are staged (push draft and submit are left out). */
   defaultedToDirect: boolean;
+  /**
+   * Google Play: the push and the submit as ONE step (`push_and_submit`). `offered`: the plan lists it as an alternative to the pair
+   * (Google may refuse to keep a draft for this app, and the plan cannot know before trying). `draftRefused`: the last run of this app
+   * was refused a draft by Google (`draft_not_allowed`) and no draft push went through since. `defaulted`: no `steps` were sent and
+   * `draftRefused` holds, so the plan was made with this step in place of the pair; the pair stays selectable.
+   */
+  combined: { offered: boolean; draftRefused: boolean; defaulted: boolean };
   readAt: number;
 };
 
@@ -455,8 +485,12 @@ export async function buildPlan(
   },
 ): Promise<PublishPlan> {
   const { app, workspaceId, actor } = input;
+  const rights = withCombinedRight(input.rights);
+  const google = supports(app.platform, 'transactionalEdits');
   const enabled: Record<PublishStep, boolean> = {
     push_draft: ctx.draft.draftEnabled,
+    // Both switches: the push's and the submit's.
+    push_and_submit: ctx.draft.draftEnabled && ctx.submit.submitEnabled,
     submit: ctx.submit.submitEnabled,
     release: ctx.release.releaseEnabled,
     rollout: ctx.rollout.rolloutEnabled,
@@ -478,7 +512,22 @@ export async function buildPlan(
     staged.assets === 0 &&
     staged.fields > 0 &&
     enabled.release &&
-    input.rights.release;
+    rights.release;
+  // Google Play: this app's last run was refused a draft by Google. A person who wants the changes reviewed is offered the push and the
+  // submit as one step by default (the pair stays selectable). Never a fallback of a refused push: only a plan the person confirms.
+  const draftRefused =
+    google &&
+    (await draftRefusedBefore(ctx.db, {
+      workspaceId,
+      appId: app.id,
+      platform: app.platform,
+    }));
+  const defaultedToCombined =
+    input.steps === undefined &&
+    !defaultedToDirect &&
+    draftRefused &&
+    enabled.push_and_submit &&
+    rights.push_and_submit;
   const askedSteps: readonly StepRequest[] | undefined = defaultedToDirect
     ? [
         {
@@ -498,7 +547,7 @@ export async function buildPlan(
   /** What the push promises later steps (set when it is included). */
   let pushPreview: DraftPreview | undefined;
 
-  const evalPush = async (): Promise<Evaluation> => {
+  const evalPush = async (keep = true): Promise<Evaluation> => {
     const p = await previewDraftPush(ctx.draft, { workspaceId, appId: app.id, actor });
     if (!p.ok) {
       if (p.body.error === 'nothing_staged')
@@ -520,7 +569,7 @@ export async function buildPlan(
         problemsFromChecks(pre.checks),
         pre,
       );
-    pushPreview = pre;
+    if (keep) pushPreview = pre;
     return {
       availability: 'available',
       reason: null,
@@ -543,7 +592,49 @@ export async function buildPlan(
   const ONLY_RELEASE_FIELDS =
     'Only release fields were written, no listing text or graphic. Google Play has nothing to submit for them: the release step sends them to Google.';
 
+  const COMBINED_ONLY_GOOGLE = 'Only Google Play can push and send for review in one step.';
+
+  /**
+   * Google Play: the push and the submit as ONE commit. Previewed with the push's own preview (the same edit, the same confirm hash:
+   * what the person saw is what is written, and the store is read again right before). It sends the changes for review, so it needs
+   * the push's and the submit's rights and switches and the typed phrase, and it never runs next to the pair it replaces.
+   */
+  const evalPushAndSubmit = async (): Promise<Evaluation> => {
+    if (done.push_draft?.included || requests.has('submit')) {
+      const message =
+        'Push and submit in one step already pushes the changes and sends them for review. Leave out the separate draft push and submit in the same plan.';
+      return unavailable('blocked', message, [
+        { code: 'combined_with_pair', severity: 'error', message },
+      ]);
+    }
+    const base = await evalPush(false);
+    if (base.availability !== 'available') return base;
+    const pre = base.preview as DraftPreview;
+    if (pre.summary.textChanged + pre.summary.assetSetsChanged === 0)
+      return unavailable('nothing_to_do', ONLY_RELEASE_FIELDS, [], pre);
+    return {
+      ...base,
+      summary: { ...(base.summary ?? {}), sendsForReview: true },
+      problems: [
+        ...base.problems,
+        {
+          code: 'sends_everything_pending',
+          severity: 'warning',
+          message:
+            'Everything pending for this app in Play Console goes to review with these changes, not only what was pushed here. A draft release stays a draft: no track or rollout is started.',
+        },
+      ],
+    };
+  };
+
   const evalSubmit = async (): Promise<Evaluation> => {
+    if (done.push_and_submit?.included) {
+      const message =
+        'The combined step already sends the changes for review. Leave out the separate submit in the same plan.';
+      return unavailable('blocked', message, [
+        { code: 'combined_with_pair', severity: 'error', message },
+      ]);
+    }
     if (done.push_draft?.included && pushPreview) {
       // The record of the push does not exist yet (or will change): the submit is previewed after the push applied.
       const after = await recordAfterPush(ctx.db, app, pushPreview);
@@ -621,7 +712,7 @@ export async function buildPlan(
     if (!resolved.ok)
       return unavailable('blocked', messageOf(resolved), problemOfFailure(resolved));
     const asked = requestOfInput(app, resolved.input);
-    if (request?.direct === true && done.push_draft?.included) {
+    if (request?.direct === true && (done.push_draft?.included || done.push_and_submit?.included)) {
       const message =
         'A direct release makes the release from the staged fields itself. Leave out the draft push in the same plan, or untick the direct release.';
       return unavailable('blocked', message, [
@@ -647,7 +738,9 @@ export async function buildPlan(
     if (!p.ok) return unavailable('blocked', messageOf(p), problemOfFailure(p));
     const pre = p.preview;
     // Only a Google Play draft release is rewritten by a push; an App Store release acts on the approved version, not the editable one.
-    const afterPush = done.push_draft?.included === true && supports(app.platform, 'releaseTracks');
+    const afterPush =
+      (done.push_draft?.included === true || done.push_and_submit?.included === true) &&
+      supports(app.platform, 'releaseTracks');
     const blockingCodes = pre.checks.blocking.map((c) => c.code);
     if (!pre.checks.canRelease) {
       const tolerated = afterPush && blockingCodes.every((c) => RELEASE_DEFERRABLE.includes(c));
@@ -770,19 +863,37 @@ export async function buildPlan(
   for (const type of PUBLISH_STEPS) {
     const request = requests.get(type);
     const requested = explicit && request !== undefined;
+    const combinedStep = type === 'push_and_submit';
     const requires = {
-      action: STEP_ACTION[type],
-      envName: STEP_ENV[type],
+      action: combinedStep && !rights.push_draft ? COMBINED_ALSO.action : STEP_ACTION[type],
+      envName: combinedStep && !ctx.draft.draftEnabled ? COMBINED_ALSO.envName : STEP_ENV[type],
       enabled: enabled[type],
-      allowed: input.rights[type],
+      allowed: rights[type],
     };
     let ev: Evaluation;
-    if (explicit && !requested) ev = unavailable('not_requested', 'Not part of this batch.');
+    if (combinedStep && !google) {
+      ev = requested
+        ? unavailable('blocked', COMBINED_ONLY_GOOGLE, [
+            { code: 'combined_not_supported', severity: 'error', message: COMBINED_ONLY_GOOGLE },
+          ])
+        : unavailable('nothing_to_do', COMBINED_ONLY_GOOGLE);
+    } else if (defaultedToCombined && (type === 'push_draft' || type === 'submit')) {
+      ev = unavailable(
+        'not_requested',
+        'Replaced by pushing and submitting in one step: Google Play does not keep a draft for this app.',
+      );
+    } else if (combinedStep && !requested && !defaultedToCombined) {
+      ev = unavailable(
+        'not_requested',
+        'An alternative to the draft push and the submit: Google Play may refuse to keep a draft for this app, and then this pushes and sends the changes for review in one step.',
+      );
+    } else if (explicit && !requested) ev = unavailable('not_requested', 'Not part of this batch.');
     else if (!requires.enabled)
       ev = unavailable('feature_disabled', `${requires.envName} is off on this server.`);
     else if (!requires.allowed)
       ev = unavailable('forbidden', `Your role, or this token, does not allow ${requires.action}.`);
     else if (type === 'push_draft') ev = await evalPush();
+    else if (type === 'push_and_submit') ev = await evalPushAndSubmit();
     else if (type === 'submit') ev = await evalSubmit();
     else if (type === 'release') ev = await evalRelease(request);
     else ev = await evalRollout(request);
@@ -820,7 +931,11 @@ export async function buildPlan(
   const included = steps.filter((s) => s.included);
   const irreversibleSteps = included.filter((s) => s.irreversible).map((s) => s.type);
   const warnings: string[] = [];
-  if (supports(app.platform, 'releaseTracks') && done.submit?.included && done.release?.included) {
+  if (
+    supports(app.platform, 'releaseTracks') &&
+    (done.submit?.included || done.push_and_submit?.included) &&
+    done.release?.included
+  ) {
     warnings.push(
       'Google Play refuses to start a release while changes are in review (changes_in_review). Submitting first sends changes to review, so the release step may be refused; the batch stops there and reports it.',
     );
@@ -863,6 +978,15 @@ export async function buildPlan(
     confirmation: confirmable && confirmationRequired ? { phrase, instruction } : null,
     direct: directHint,
     defaultedToDirect,
+    combined: {
+      offered:
+        google &&
+        enabled.push_and_submit &&
+        rights.push_and_submit &&
+        done.push_and_submit?.availability !== 'nothing_to_do',
+      draftRefused,
+      defaulted: defaultedToCombined,
+    },
     readAt: ctx.now(),
   };
 }
@@ -926,6 +1050,12 @@ export const publishConfig = (
       envName: STEP_ENV.push_draft,
       enabled: ctx.draft.draftEnabled,
       irreversible: false,
+    },
+    push_and_submit: {
+      action: STEP_ACTION.push_and_submit,
+      envName: STEP_ENV.push_and_submit,
+      enabled: ctx.draft.draftEnabled && ctx.submit.submitEnabled,
+      irreversible: true,
     },
     submit: {
       action: STEP_ACTION.submit,
@@ -1229,6 +1359,28 @@ async function runStep(
       : failedStep(type, r);
   }
 
+  if (type === 'push_and_submit') {
+    // The push and the submit as one commit. Previewed in the plan with the push's own preview, so the hash is that preview's: the
+    // service re-reads the store right before the commit and refuses (`state_changed`) when it is not what the person saw.
+    const r = await applyDraftPush(ctx.draft, {
+      workspaceId,
+      appId: app.id,
+      confirmHash: step.confirmHash ?? '',
+      actor,
+      sendForReview: { submitEnabled: ctx.submit.submitEnabled },
+    });
+    return r.ok
+      ? {
+          type,
+          status: 'applied',
+          confirmedByReread: Boolean(
+            (r.result as { confirmedByReread?: boolean }).confirmedByReread,
+          ),
+          result: r.result,
+        }
+      : failedStep(type, r);
+  }
+
   if (type === 'submit') {
     let confirmHash = step.confirmHash ?? '';
     let phrase = step.stepPhrase ?? '';
@@ -1376,29 +1528,36 @@ export async function applyPublish(
   if (requested.length === 0) return invalidSteps('Name at least one step.');
   const types = requested.map((s) => s.type);
 
-  // Each step keeps its own right and its own switch: the batch checks them all before anything else.
-  const missing = types.filter((t) => !input.rights[t]);
+  // Each step keeps its own right and its own switch: the batch checks them all before anything else. The combined step needs the
+  // rights and the switches of the push and of the submit.
+  const rights = withCombinedRight(input.rights);
+  const actionsOf = (t: PublishStep): string =>
+    t === 'push_and_submit' ? `${COMBINED_ALSO.action} and ${STEP_ACTION[t]}` : STEP_ACTION[t];
+  const missing = types.filter((t) => !rights[t]);
   if (missing.length > 0) {
     return failure(
       403,
       'forbidden',
-      `This batch includes steps you are not allowed to run: ${missing.map((t) => STEP_ACTION[t]).join(', ')}. Nothing was done.`,
-      { missing: missing.map((t) => ({ step: t, action: STEP_ACTION[t] })) },
+      `This batch includes steps you are not allowed to run: ${missing.map(actionsOf).join(', ')}. Nothing was done.`,
+      { missing: missing.map((t) => ({ step: t, action: actionsOf(t) })) },
     );
   }
   const switches: Record<PublishStep, boolean> = {
     push_draft: ctx.draft.draftEnabled,
+    push_and_submit: ctx.draft.draftEnabled && ctx.submit.submitEnabled,
     submit: ctx.submit.submitEnabled,
     release: ctx.release.releaseEnabled,
     rollout: ctx.rollout.rolloutEnabled,
   };
   const off = types.filter((t) => !switches[t]);
+  const envOf = (t: PublishStep): string =>
+    t === 'push_and_submit' && !ctx.draft.draftEnabled ? COMBINED_ALSO.envName : STEP_ENV[t];
   if (off.length > 0) {
     return failure(
       409,
       'step_disabled',
-      `This batch includes steps that are switched off on this server: ${off.map((t) => STEP_ENV[t]).join(', ')}. Nothing was done.`,
-      { disabled: off.map((t) => ({ step: t, envName: STEP_ENV[t] })) },
+      `This batch includes steps that are switched off on this server: ${off.map(envOf).join(', ')}. Nothing was done.`,
+      { disabled: off.map((t) => ({ step: t, envName: envOf(t) })) },
     );
   }
   // The typed phrase needs no store read, so a wrong one is refused before anything is read.

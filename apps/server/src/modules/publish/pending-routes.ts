@@ -31,6 +31,7 @@ import {
   publishConfig,
   STEP_ACTION,
   type StepRequest,
+  withCombinedRight,
 } from './store-publish.ts';
 import {
   defaultReleaseConnectorFactory,
@@ -125,6 +126,7 @@ const releaseFields = {
 /** One step of a batch. Which fields apply is checked per step; a field a step does not take is `422 invalid_steps`. */
 export const stepSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('push_draft') }).strict(),
+  z.object({ type: z.literal('push_and_submit') }).strict(),
   z.object({ type: z.literal('submit') }).strict(),
   z.object({ type: z.literal('release'), ...releaseFields }).strict(),
   z
@@ -216,9 +218,12 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
     const allowed = (action: Action) =>
       can(role, action) &&
       (token === undefined || canToken(token.ceiling, token.actions as Action[] | null, action));
-    return Object.fromEntries(
-      PUBLISH_STEPS.map((step) => [step, allowed(STEP_ACTION[step])]),
-    ) as PublishRights;
+    // The combined step (push and submit in one) needs the push's right AND the submit's: `withCombinedRight` says so.
+    return withCombinedRight(
+      Object.fromEntries(
+        PUBLISH_STEPS.map((step) => [step, allowed(STEP_ACTION[step])]),
+      ) as PublishRights,
+    );
   };
 
   routes.get('/:workspaceId/store-publish/config', needs('apps.read'), (c) =>

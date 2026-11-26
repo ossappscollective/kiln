@@ -469,7 +469,25 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, St
     return this.#state(request);
   }
 
+  /**
+   * Google Play that will not keep this app's changes as a draft: `applyDraft` is refused like Google does (`draft_not_allowed`, nothing
+   * written), `pushAndSubmit` commits and sends for review.
+   */
+  draftRefused = false;
+  /** How many times `pushAndSubmit` was called, and how many of them sent changes for review. */
+  pushAndSubmitCalls = 0;
+  sentForReview = 0;
+
   async applyDraft(input: DraftApplyInput): Promise<DraftApplyResult> {
+    return this.#apply(input, false);
+  }
+
+  async pushAndSubmit(input: DraftApplyInput): Promise<DraftApplyResult> {
+    this.pushAndSubmitCalls++;
+    return this.#apply(input, true);
+  }
+
+  async #apply(input: DraftApplyInput, review: boolean): Promise<DraftApplyResult> {
     this.applyCalls++;
     this.lastInput = input;
     const request: DraftReadRequest = {
@@ -497,6 +515,17 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, St
     const b = this.behavior;
     const steps: DraftStep[] = [];
     let applied = 0;
+    if (this.draftRefused && !review) {
+      this.writes.pop();
+      throw new StoreError(
+        'googleplay',
+        'draft_not_allowed',
+        'Google Play sends the changes of this app for review automatically, so it cannot keep them as a draft, and nothing was committed.',
+        400,
+        [{ detail: 'Changes are sent for review automatically. The query parameter changesNotSentForReview must not be set.' }],
+        { code: 'store.google.draftNotAllowed' },
+      );
+    }
     const apply = (
       step: DraftStep,
       change: () => void,
@@ -571,10 +600,16 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, St
       if (this.readFailsAfterWrite) this.readError = new Error('down');
       throw new DraftOutcomeUnknownError(this.store, 'timed out', [...steps]);
     }
+    if (review && applied > 0) this.sentForReview++;
     return {
       before,
       steps,
-      commit: this.platform === 'android' && applied > 0 ? 'not_sent_for_review' : 'none',
+      commit:
+        this.platform === 'android' && applied > 0
+          ? review
+            ? 'sent_for_review'
+            : 'not_sent_for_review'
+          : 'none',
     };
   }
 }

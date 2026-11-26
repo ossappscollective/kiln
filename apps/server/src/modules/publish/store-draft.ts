@@ -3,6 +3,7 @@ import {
   AppleDraftConnector,
   appleScope,
   connectorFactory,
+  type DraftApplyInput,
   type DraftApplyResult,
   type DraftAssetWrite,
   DraftDriftError,
@@ -69,7 +70,13 @@ import {
   storeTargetOf,
 } from './staged-changes.ts';
 import { type ReleaseCheck, releaseFieldChecks } from './staged-release.ts';
-import { fileEntry, type PushedManifest, recordPush, textEntry } from './store-draft-record.ts';
+import {
+  deletePush,
+  fileEntry,
+  type PushedManifest,
+  recordPush,
+  textEntry,
+} from './store-draft-record.ts';
 import { storeBody } from './store-failure.ts';
 
 /**
@@ -126,6 +133,9 @@ const FIELDS_NOTE = {
 
 const DRAFT_NOTE =
   'This is a draft only. Nothing was submitted for review or published: do that in App Store Connect or Play Console.';
+
+const PUSH_SUBMIT_NOTE =
+  'The changes were written and sent to Google Play review in one commit (Google Play sends this app\u2019s changes for review automatically, so it could not keep them as a draft). A draft release stays a draft: no track or rollout was started. Follow the review in Play Console.';
 
 // ---------------------------------------------------------------------------------------------
 // Context
@@ -1244,14 +1254,17 @@ export type DraftPushResult = {
   version: { id: string; versionString: string | null; state: string } | null;
   steps: DraftResultStep[];
   counts: { applied: number; alreadySame: number; filesUploaded: number; filesRemoved: number };
-  /** Google Play: `not_sent_for_review` (the commit held the changes back). App Store: `none`. */
-  commit: 'not_sent_for_review' | 'draft_release' | 'none';
+  /**
+   * Google Play: `not_sent_for_review` (the commit held the changes back), or `sent_for_review` (the combined push and submit: the
+   * commit had no hold-back, so Google sent the changes for review). App Store: `none`.
+   */
+  commit: 'not_sent_for_review' | 'draft_release' | 'sent_for_review' | 'none';
   /** The release fields that were part of the push (docs/api/releases-write.md). */
   fields: number;
-  /** Always true: what was written is a draft. */
-  draft: true;
-  /** Always false: nothing was submitted, sent for review or published. */
-  submitted: false;
+  /** True: what was written is a draft. False only for the combined push and submit, which sends it for review. */
+  draft: boolean;
+  /** False for a draft push: nothing was submitted, sent for review or published. True only for the combined push and submit. */
+  submitted: boolean;
   /** True when the write's outcome was unknown and reading the draft back showed the changes. */
   confirmedByReread: boolean;
   pushedAt: number;
@@ -1375,28 +1388,36 @@ async function succeed(
     commit: DraftPushResult['commit'];
     via: 'store' | 'reread';
     cause?: string;
+    /** The combined push and submit: the commit sent the changes for review (nothing stays a draft, no push record is kept). */
+    review?: boolean;
   },
 ): Promise<{ ok: true; result: DraftPushResult }> {
   const at = ctx.now();
+  const review = s.review === true;
   const counts = countsOf(s.steps);
   // The store changed: whoever caches a read of it (the store graphics) drops it.
   for (const listener of draftPushListeners) listener(input.workspaceId, s.app.id);
   await ctx.db.transaction(async (tx) => {
     await markPushed(tx, input.workspaceId, s.app.id, s.prepared, s.steps, at);
-    // The record the submit step checks the store against (hashes and ids only).
-    await recordPush(tx, {
-      workspaceId: input.workspaceId,
-      appId: s.app.id,
-      platform: s.app.platform,
-      version:
-        s.before.version === null
-          ? null
-          : { id: s.before.version.id, versionString: s.before.version.versionString },
-      confirmHash: input.confirmHash,
-      manifest: manifestOfPrepared(s.prepared),
-      actorId: input.actor.id,
-      at,
-    });
+    if (review) {
+      // What was pushed is now with the store's review: no record of a draft is kept for a later submit, and an older one is spent.
+      await deletePush(tx, s.app.id, s.app.platform);
+    } else {
+      // The record the submit step checks the store against (hashes and ids only).
+      await recordPush(tx, {
+        workspaceId: input.workspaceId,
+        appId: s.app.id,
+        platform: s.app.platform,
+        version:
+          s.before.version === null
+            ? null
+            : { id: s.before.version.id, versionString: s.before.version.versionString },
+        confirmHash: input.confirmHash,
+        manifest: manifestOfPrepared(s.prepared),
+        actorId: input.actor.id,
+        at,
+      });
+    }
     const detail = {
       appId: s.app.id,
       store: s.app.store,
@@ -1409,6 +1430,7 @@ async function succeed(
       commit: s.commit,
       hash: input.confirmHash,
       via: s.via,
+      ...(review ? { combined: true, submitted: true } : {}),
       ...(s.cause ? { cause: s.cause } : {}),
     };
     await recordAudit(tx, {
@@ -1419,6 +1441,41 @@ async function succeed(
       detail,
       at,
     });
+    if (review) {
+      // The same commit handed the changes to Google's review: audited and emitted as a submit too, so whoever follows submits sees it.
+      await recordAudit(tx, {
+        workspaceId: input.workspaceId,
+        actor: input.actor,
+        action: 'listing.submitted',
+        target: { type: 'app', id: s.app.id },
+        detail: {
+          appId: s.app.id,
+          store: s.app.store,
+          platform: s.app.platform,
+          via: 'edit_commit',
+          combined: true,
+          confirmedByReread: s.via === 'reread',
+          hash: input.confirmHash,
+          ...(s.cause ? { cause: s.cause } : {}),
+        },
+        at,
+      });
+      await emitEvent(tx, {
+        workspaceId: input.workspaceId,
+        type: 'listing.submitted',
+        subject: { appId: s.app.id },
+        payload: {
+          appId: s.app.id,
+          store: s.app.store,
+          platform: s.app.platform,
+          via: 'edit_commit',
+          released: false,
+          confirmedByReread: s.via === 'reread',
+          actor: { type: input.actor.type, id: input.actor.id },
+        },
+        at,
+      });
+    }
     await emitEvent(tx, {
       workspaceId: input.workspaceId,
       type: 'listing.draft_pushed',
@@ -1432,7 +1489,7 @@ async function succeed(
         fields: s.prepared.fields.length,
         ...counts,
         commit: s.commit,
-        submitted: false,
+        submitted: review,
         confirmedByReread: s.via === 'reread',
         actor: { type: input.actor.type, id: input.actor.id },
       },
@@ -1449,11 +1506,11 @@ async function succeed(
       counts,
       commit: s.commit,
       fields: s.prepared.fields.length,
-      draft: true,
-      submitted: false,
+      draft: !review,
+      submitted: review,
       confirmedByReread: s.via === 'reread',
       pushedAt: at,
-      note: DRAFT_NOTE,
+      note: review ? PUSH_SUBMIT_NOTE : DRAFT_NOTE,
     },
   };
 }
@@ -1464,12 +1521,40 @@ async function succeed(
  */
 export async function applyDraftPush(
   ctx: DraftContext,
-  input: { workspaceId: string; appId: string; confirmHash: string; actor: Actor },
+  input: {
+    workspaceId: string;
+    appId: string;
+    confirmHash: string;
+    actor: Actor;
+    /**
+     * Google Play only, for the batch publish's combined step: commit the same edit so that Google sends it for review
+     * (`pushAndSubmit`). `submitEnabled` is KILN_STORE_SUBMIT_ENABLED: the combined step needs the submit switch as well as the draft
+     * one. Never set by the route of a draft push, and never a fallback of a refused draft: the batch sets it only for a step the
+     * person ticked, after the confirmation of the plan.
+     */
+    sendForReview?: { submitEnabled: boolean } | undefined;
+  },
 ): Promise<{ ok: true; result: DraftPushResult } | Failure> {
   if (!ctx.draftEnabled) return disabled();
+  const review = input.sendForReview !== undefined;
+  /** The audit of every refusal and failure of the combined step says so. */
+  const tag = review ? { combined: true } : {};
+  if (input.sendForReview && !input.sendForReview.submitEnabled)
+    return failure(
+      409,
+      'store_submit_disabled',
+      'Submitting drafts for store review is switched off on this server (KILN_STORE_SUBMIT_ENABLED), and pushing and submitting in one step needs it. Nothing was written.',
+      { envName: 'KILN_STORE_SUBMIT_ENABLED' },
+    );
   const { db } = ctx;
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
+  if (review && !supports(app.platform, 'transactionalEdits'))
+    return failure(
+      422,
+      'push_and_submit_unsupported',
+      'Only Google Play can push and send for review in one step. Nothing was written.',
+    );
   const locked = await metadataLockedFailure(db, input.workspaceId, app);
   if (locked) return locked;
   const appView = {
@@ -1479,6 +1564,27 @@ export async function applyDraftPush(
     store: storeFor(app.platform),
   };
 
+  if (review) {
+    // A submit of the app that runs, or whose outcome is not known, is settled first: a second send for review is never stacked on it.
+    const [own] = await db.query(
+      'SELECT status, claim_at FROM store_submit_claims WHERE app_id = ? AND platform = ?',
+      [app.id, app.platform],
+    );
+    if (own && String(own.status) === 'unknown')
+      return failure(
+        409,
+        'outcome_unknown',
+        'It is not known whether the last submit of this app reached the store. Look at the app in Play Console, then preview the submit again. Nothing was written.',
+        coded('publish.unknown.submit'),
+      );
+    if (own && ctx.now() - Number(own.claim_at) < 300_000)
+      return failure(
+        409,
+        'write_in_progress',
+        'A submit for this app is in progress. Wait for it to finish.',
+        coded('publish.inProgress.submit'),
+      );
+  }
   const taken = await takeClaim(ctx, { workspaceId: input.workspaceId, app, actor: input.actor });
   if (!taken.ok) return taken;
   const claim = taken.claim;
@@ -1500,8 +1606,8 @@ export async function applyDraftPush(
   let done: DraftApplyResult | undefined;
   let unknown: { cause: string; completed: DraftStep[] } | undefined;
   try {
-    done = await withConnector(ctx, connection.input, (connector) =>
-      connector.applyDraft({
+    done = await withConnector(ctx, connection.input, (connector) => {
+      const write: DraftApplyInput = {
         ...writesOf(p),
         guard: (current) => {
           const checks = checksOf(p, app.platform, current);
@@ -1513,12 +1619,37 @@ export async function applyDraftPush(
           if (same) accepted = current;
           return same;
         },
-      }),
-    );
+      };
+      if (!review) return connector.applyDraft(write);
+      // The combined step: the same guard (the store must still be what the person confirmed), then the commit that sends for review.
+      if (!connector.pushAndSubmit)
+        throw new StoreError(
+          connector.store,
+          'unsupported',
+          'This store connector cannot push and send for review in one step.',
+        );
+      return connector.pushAndSubmit(write);
+    });
+    if (review && done?.commit !== 'sent_for_review') {
+      // Nothing differed any more (the guard accepted a store that already holds everything): nothing was committed, so nothing was sent.
+      await audit(ctx, input, app, accepted, {
+      ...tag,
+        code: 'nothing_sent',
+        outcome: 'refused',
+      });
+      await releaseClaim(db, claim);
+      return failure(
+        409,
+        'state_changed',
+        'The store already holds these changes, so nothing was committed and nothing was sent for review. Review the new plan.',
+        coded('publish.changedSinceDraft'),
+      );
+    }
   } catch (error) {
     if (error instanceof DraftDriftError) {
       if (blocked) {
         await audit(ctx, input, app, error.current, {
+      ...tag,
           code: 'blocked',
           outcome: 'refused',
           blocking: blocked.blocking.map((b) => b.code).slice(0, 20),
@@ -1531,7 +1662,8 @@ export async function applyDraftPush(
           { checks: blocked, ...coded('publish.blocked.draft') },
         );
       }
-      await audit(ctx, input, app, error.current, { code: 'state_changed', outcome: 'refused' });
+      await audit(ctx, input, app, error.current, {
+      ...tag, code: 'state_changed', outcome: 'refused' });
       await releaseClaim(db, claim);
       return failure(
         409,
@@ -1548,6 +1680,7 @@ export async function applyDraftPush(
       await markPushed(db, input.workspaceId, app.id, p, error.completed, at);
       const mapped = mapStoreError(error.cause, connection.secret);
       await audit(ctx, input, app, accepted, {
+      ...tag,
         code: 'partial',
         outcome: 'partial',
         storeCode: mapped.code,
@@ -1575,7 +1708,8 @@ export async function applyDraftPush(
       };
     } else {
       const mapped = mapStoreError(error, connection.secret);
-      await audit(ctx, input, app, accepted, { code: mapped.code, outcome: 'failed' });
+      await audit(ctx, input, app, accepted, {
+      ...tag, code: mapped.code, outcome: 'failed' });
       await releaseClaim(db, claim);
       return mapped.failure;
     }
@@ -1590,6 +1724,7 @@ export async function applyDraftPush(
       steps: done.steps,
       commit: done.commit,
       via: 'store',
+      review,
     });
   }
 
@@ -1610,6 +1745,7 @@ export async function applyDraftPush(
   if (current === undefined || before === undefined) {
     await markUnknown(db, claim);
     await audit(ctx, input, app, before, {
+      ...tag,
       code: cause,
       outcome: 'unknown',
       ...(current === undefined ? { readBack: 'failed' } : {}),
@@ -1617,8 +1753,10 @@ export async function applyDraftPush(
     return failure(
       409,
       'outcome_unknown',
-      'It is not known whether the draft reached the store: the store did not answer and its draft could not be read back. Preview the push again to see where it stands; nothing is written until you confirm a new preview.',
-      coded('publish.unknown.draftReached'),
+      review
+        ? 'It is not known whether the changes reached Google Play and were sent for review: Google Play did not answer and the store could not be read back. Look at the app in Play Console (Publishing overview), then preview again. Nothing is sent again until you confirm a new plan.'
+        : 'It is not known whether the draft reached the store: the store did not answer and its draft could not be read back. Preview the push again to see where it stands; nothing is written until you confirm a new preview.',
+      review ? coded('publish.unknown.pushSubmitReached') : coded('publish.unknown.draftReached'),
     );
   }
   const now = itemMatches(current, p);
@@ -1630,14 +1768,18 @@ export async function applyDraftPush(
       claim,
       before,
       steps: stepsFromReread(p, before),
-      commit: byFamily(app.platform, { apple: 'none', google: 'not_sent_for_review' }),
+      commit: review
+        ? 'sent_for_review'
+        : byFamily(app.platform, { apple: 'none', google: 'not_sent_for_review' }),
       via: 'reread',
       cause,
+      review,
     });
   }
   if (sameDraftState(current, before)) {
     if (!supports(app.platform, 'transactionalEdits')) {
-      await audit(ctx, input, app, before, { code: 'not_applied', outcome: 'failed', cause });
+      await audit(ctx, input, app, before, {
+      ...tag, code: 'not_applied', outcome: 'failed', cause });
       await releaseClaim(db, claim);
       return failure(
         502,
@@ -1648,12 +1790,15 @@ export async function applyDraftPush(
     }
     // Google Play can be slow to show a committed edit: the old draft is not proof.
     await markUnknown(db, claim);
-    await audit(ctx, input, app, before, { code: 'not_visible', outcome: 'unknown', cause });
+    await audit(ctx, input, app, before, {
+      ...tag, code: 'not_visible', outcome: 'unknown', cause });
     return failure(
       409,
       'outcome_unknown',
-      'Google Play did not answer, and the draft it shows is unchanged. A commit can take a while to show: check Play Console, then preview the push again. Nothing is written until you confirm a new preview.',
-      coded('publish.playDraftUnchanged'),
+      review
+        ? 'Google Play did not answer, and what it shows is unchanged. A commit can take a while to show, and Google Play shows no review state through its API: check Play Console (Publishing overview), then preview again. Nothing is sent again until you confirm a new plan.'
+        : 'Google Play did not answer, and the draft it shows is unchanged. A commit can take a while to show: check Play Console, then preview the push again. Nothing is written until you confirm a new preview.',
+      review ? coded('publish.unknown.pushSubmitUnchanged') : coded('publish.playDraftUnchanged'),
     );
   }
   // Neither the old draft nor the asked one: part of it was written (App Store), or somebody else changed it too.
@@ -1675,6 +1820,7 @@ export async function applyDraftPush(
     })),
   };
   await audit(ctx, input, app, before, {
+      ...tag,
     code: 'partial',
     outcome: 'partial',
     cause,

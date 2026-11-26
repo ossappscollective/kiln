@@ -32,7 +32,17 @@ export const PENDING_KINDS = [
 export type PendingKind = (typeof PENDING_KINDS)[number];
 
 /** The gated steps a person takes to publish something, in the order they happen. */
-export const PUBLISH_STEPS = ['push_draft', 'submit', 'release', 'rollout'] as const;
+/**
+ * The steps of a batch publish, in the order they run. `push_and_submit` is Google Play only: the push and the submit as ONE commit,
+ * for an app whose changes Google will not keep as a draft; it never runs together with `push_draft` or `submit`.
+ */
+export const PUBLISH_STEPS = [
+  'push_draft',
+  'push_and_submit',
+  'submit',
+  'release',
+  'rollout',
+] as const;
 export type PublishStep = (typeof PUBLISH_STEPS)[number];
 
 export type PendingProblem = {
