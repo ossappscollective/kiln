@@ -81,14 +81,14 @@ test("a code this app has no sentence for falls back to the server's English sen
     status: 'failed',
     startedAt: 1,
     finishedAt: 2,
-    error: 'step_timeout',
+    error: 'step_brand_new',
     httpStatus: 504,
     outcome: 'unknown',
     message: 'The step did not finish within 8 minutes.',
   });
   assert.equal(bare.said, '');
-  assert.equal(bare.technical, 'step_timeout · HTTP 504');
-  assert.match(bare.title, /step_timeout|did not finish/);
+  assert.equal(bare.technical, 'step_brand_new · HTTP 504');
+  assert.match(bare.title, /step_brand_new|did not finish/);
   const odd = reasonOf({ ...failedPush, error: 'weird code!<script>', code: undefined as never });
   assert.doesNotMatch(odd.title + odd.technical, /[<>!]/);
 });
@@ -322,4 +322,51 @@ test('the report of a partly published run keeps both steps with their codes', (
   assert.match(report, /Code: changes_in_review/);
   assert.match(report, /Store: changes_in_review, HTTP 400/);
   assert.match(report, /CHANGES_ALREADY_IN_REVIEW/);
+});
+
+test('an interrupted publish (the server restarted or lost the request) says so, keeps what ended applied, and tells the person to look at the store', () => {
+  const interrupted: RunStep = {
+    type: 'submit',
+    status: 'failed',
+    startedAt: 1_000,
+    finishedAt: 5_000,
+    error: 'interrupted',
+    httpStatus: 504,
+    outcome: 'unknown',
+    message:
+      'The publish was interrupted: the server restarted or lost the request. Check the store, then review again.',
+    code: 'publish.interrupted',
+  };
+  const pushed: RunStep = { type: 'push_draft', status: 'applied', startedAt: 1_000, finishedAt: 2_000 };
+  const reason = reasonOf(interrupted);
+  assert.equal(
+    reason.title,
+    'The publish was interrupted: the server restarted or lost the request. Check the store, then review again.',
+  );
+  assert.equal(reason.advice, '', 'the title already says it');
+  assert.match(reason.outcome, /not known/i);
+  assert.equal(reason.technical, 'interrupted · HTTP 504');
+  const lines = stepLines(run([pushed, interrupted], { outcome: 'partial', platform: 'ios' }));
+  assert.deepEqual(
+    lines.map((l) => [l.type, l.status]),
+    [
+      ['push_draft', 'applied'],
+      ['submit', 'failed'],
+    ],
+  );
+  assert.ok(partlyPublished(run([pushed, interrupted], { outcome: 'partial', platform: 'ios' }), 'ios'));
+});
+
+test('a step that took too long has its own sentence, not "did not finish (step_timeout)"', () => {
+  const slow: RunStep = {
+    type: 'push_draft',
+    status: 'failed',
+    startedAt: 1,
+    finishedAt: 2,
+    error: 'step_timeout',
+    httpStatus: 504,
+    outcome: 'unknown',
+  };
+  assert.match(reasonOf(slow).title, /took too long/);
+  assert.doesNotMatch(reasonOf(slow).title, /step_timeout/);
 });

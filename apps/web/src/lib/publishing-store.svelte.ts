@@ -1,4 +1,4 @@
-import type { Api } from './api.ts';
+import { type Api, ApiError } from './api.ts';
 import { announcePublished } from './app-page.ts';
 import { cartSummaryStore } from './cart-summary.svelte.ts';
 import type { LastPublish, PublishStepType } from './pending.ts';
@@ -67,6 +67,34 @@ export const publishingStore = {
   refresh(api: Api, workspaceId: string): Promise<void> {
     current = api;
     return loader.refresh(workspaceId);
+  },
+  /** "Still running? Check status": read the server's claim now (a publish that is gone leaves the screens by itself). */
+  recheck(workspaceId: string): Promise<void> {
+    return loader.refresh(workspaceId);
+  },
+  /**
+   * "Mark as interrupted": ask the server to end a claim that went silent or has run too long. The server decides (`still_running`
+   * when the publish is alive and recent: nothing is stopped), and the screens read again whatever the answer.
+   */
+  async interrupt(
+    workspaceId: string,
+    appId: string,
+  ): Promise<'ended' | 'still_running' | 'not_publishing' | 'failed'> {
+    const api = current;
+    if (api === null) return 'failed';
+    let answer: 'ended' | 'still_running' | 'not_publishing' | 'failed' = 'ended';
+    try {
+      await api.interruptPublish(workspaceId, appId);
+    } catch (e) {
+      answer =
+        e instanceof ApiError && e.status === 409 && e.code === 'still_running'
+          ? 'still_running'
+          : e instanceof ApiError && e.status === 404
+            ? 'not_publishing'
+            : 'failed';
+    }
+    await loader.refresh(workspaceId);
+    return answer;
   },
   /** This browser sent a publish: shown at once, confirmed by the server's claim. */
   started(api: Api, workspaceId: string, appId: string, steps: readonly PublishStepType[]): void {

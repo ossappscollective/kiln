@@ -3,7 +3,7 @@ import { appAddress, type PlatformScope } from './app-scope.ts';
 import { timeAgo } from './format.ts';
 import { t } from './i18n/t.ts';
 import { type LastPublish, type PublishStepType, STEP_NAME } from './pending.ts';
-import { elapsedText } from './publish-run.ts';
+import { elapsedText, PUBLISH_WAIT_LIMIT_MS } from './publish-run.ts';
 
 /**
  * A publish that runs on the server right now (docs/api/pending.md "Publishing now"), pure: the wire types of
@@ -11,6 +11,14 @@ import { elapsedText } from './publish-run.ts';
  * when), why a button is off while it runs, when the screens poll, and the loader that keeps ONE answer for the workspace in view. No
  * DOM and no framework: `publishing-store.svelte.ts` wraps `createPublishingLoader`, so every screen agrees.
  */
+
+/** What the running step says it is doing: a fixed phase word and two counts (never a text of the store). */
+export type PublishingDetail = {
+  phase: 'writing_texts' | 'uploading_images' | 'processing_images' | 'placing_images';
+  done: number | null;
+  total: number | null;
+  at: number;
+};
 
 export type Publishing = {
   startedAt: number;
@@ -20,6 +28,14 @@ export type Publishing = {
   currentStep: PublishStepType | null;
   stepStartedAt: number | null;
   by: { id: string; name: string | null } | null;
+  /** The last sign of life of the server process that runs it (absent from an older server). */
+  heartbeatAt?: number | undefined;
+  /** What the running step is doing, or null (absent from an older server). */
+  detail?: PublishingDetail | null | undefined;
+  /** How many steps ended applied so far. */
+  stepsDone?: number | undefined;
+  /** The server lets a person end this claim now: silent for a minute, or running for longer than any batch should. */
+  interruptible?: boolean | undefined;
 };
 
 export type PublishingList = {
@@ -77,6 +93,55 @@ export function detailText(p: Publishing, now: number): string {
   else if (at.total > 0) parts.push(t('publish:publishing.steps', { count: at.total }));
   return parts.join(' · ');
 }
+
+/** The second line's progress of a long step: `Uploading screenshots: 12 of 40`; null when the step says nothing (or not with numbers). */
+export function progressText(p: Pick<Publishing, 'detail' | 'currentStep'>): string | null {
+  const d = p.detail;
+  if (p.currentStep === null || d === null || d === undefined) return null;
+  const done = d.done ?? 0;
+  const total = d.total ?? 0;
+  switch (d.phase) {
+    case 'writing_texts':
+      return t('publish:publishing.detail.writingTexts', {
+        current: Math.min(done + 1, Math.max(total, 1)),
+        total,
+      });
+    case 'uploading_images':
+      return t('publish:publishing.detail.uploading', { done, total });
+    case 'processing_images':
+      return t('publish:publishing.detail.processing', { done, total });
+    case 'placing_images':
+      return t('publish:publishing.detail.placing');
+    default:
+      return null;
+  }
+}
+
+/** After this long without a sign of life from the server the row says so (a beat is due every 20 seconds). */
+export const QUIET_AFTER_MS = 45_000;
+
+/** How long the server has been silent, when that is worth saying (a server that does not send a beat: nothing to say). */
+export const quietFor = (p: Pick<Publishing, 'heartbeatAt'>, now: number): number | null =>
+  p.heartbeatAt === undefined || now - p.heartbeatAt < QUIET_AFTER_MS ? null : now - p.heartbeatAt;
+
+/** The line for a server that has gone quiet: `The server has not reported for 2:10.` */
+export const quietText = (p: Pick<Publishing, 'heartbeatAt'>, now: number): string | null => {
+  const ms = quietFor(p, now);
+  return ms === null ? null : t('publish:publishing.quiet', { time: elapsedText(ms) });
+};
+
+/** A publish that has run for longer than any batch is meant to (a step is cut at 8 minutes): the row says it looks stuck. */
+export const STUCK_AFTER_MS = 15 * 60_000;
+export const looksStuck = (p: Pick<Publishing, 'startedAt'>, now: number): boolean =>
+  now - p.startedAt >= STUCK_AFTER_MS;
+
+/**
+ * Whether the server ended a publish without an answer (it restarted, or the request was lost): the latest kept failure is a run that is
+ * not the one that was there when this publish began (`before`) and whose step failed with `interrupted`. The dialog that still waits for
+ * its request stops waiting then.
+ */
+export const endedByServer = (run: LastPublish | null, before: string): boolean =>
+  run !== null && run.id !== before && run.results.some((r) => r.error === 'interrupted');
 
 /** The time the publish has been running, as `3:12` (never negative). */
 export const elapsedOf = (p: Pick<Publishing, 'startedAt'>, now: number): string =>
@@ -154,8 +219,14 @@ const realTimer: Timer = (fn, ms) => {
   return () => clearTimeout(handle);
 };
 
-/** How long a publish this browser started may go unseen by the server before it is dropped (the request failed before it took its claim). */
-export const OPTIMISTIC_GRACE_MS = 60_000;
+/**
+ * How long a publish this browser started may go unseen by the server before it is dropped (the request failed before it took its
+ * claim): a read that finds no claim after this long ends the mark at once, whatever the dialog still waits for.
+ */
+export const OPTIMISTIC_GRACE_MS = 30_000;
+
+/** A mark this browser made is never kept longer than the dialog waits for the answer (and reads that fail do not keep it either). */
+export const OPTIMISTIC_LIMIT_MS = PUBLISH_WAIT_LIMIT_MS;
 
 /**
  * Keeps ONE view of which apps of the workspace are publishing, for every screen. `start` (a screen that needs it is shown) reads now and
@@ -245,6 +316,22 @@ export function createPublishingLoader(opts: {
     } catch {
       if (mine !== token || workspaceId !== workspace) return;
       failures += 1;
+      // The server cannot be read: a mark this browser made still expires with the dialog's own limit, so it is never shown for ever.
+      const at = now();
+      const gone = idsOf().filter((id) => {
+        const entry = known[id];
+        return entry?.optimistic === true && at - entry.startedAt >= OPTIMISTIC_LIMIT_MS;
+      });
+      if (gone.length > 0) {
+        const kept: Record<string, PublishingEntry> = {};
+        for (const id of idsOf()) {
+          const entry = known[id];
+          if (entry !== undefined && !gone.includes(id)) kept[id] = entry;
+        }
+        known = kept;
+        opts.onChange();
+        opts.onFinished(workspaceId, gone);
+      }
     }
     schedule();
   }

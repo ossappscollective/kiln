@@ -368,6 +368,20 @@ export const appStateStore = {
     return { key: `${summary.generatedAt}/${ids.join(',')}`, ids };
   },
 
+  /** "Still running? Check status": the server's claims of the workspace are read again now. Stops nothing. */
+  recheckPublishing(workspaceId: string): Promise<void> {
+    return publishingStore.recheck(workspaceId);
+  },
+  /**
+   * "Mark as interrupted": the server ends a claim that went silent or has run too long, and refuses (`still_running`) one that is alive
+   * and recent. The answer is in words; the claims are read again whatever it was.
+   */
+  interruptPublish(
+    workspaceId: string,
+    appId: string,
+  ): Promise<'ended' | 'still_running' | 'not_publishing' | 'failed'> {
+    return publishingStore.interrupt(workspaceId, appId);
+  },
   /** A person hides the failure of this app (the server keeps the mark): the model returns to changes_pending at once. */
   dismissFailure(api: Api, workspaceId: string, appId: string): void {
     publishingStore.dismissFailure(api, workspaceId, appId);

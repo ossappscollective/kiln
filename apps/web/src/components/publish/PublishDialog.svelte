@@ -65,6 +65,7 @@
   } from '../../lib/pending.ts';
   import { announcePublished } from '../../lib/app-page.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
+  import { endedByServer } from '../../lib/publishing.ts';
   import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import { publishSummary, shownErrors } from '../../lib/publish-summary.ts';
   import { elapsedText, failureDetail, minutesOf, PUBLISH_SLOW_AFTER_MS, PUBLISH_WAIT_LIMIT_MS, PublishWaitError, withWaitLimit } from '../../lib/publish-run.ts';
@@ -152,6 +153,23 @@ import { supports } from '@kiln/core';
     tick = started;
     const timer = setInterval(() => (tick = Date.now()), 1000);
     return () => clearInterval(timer);
+  });
+
+  /** The failure the server held when this publish began (an old interrupted run is not news). */
+  let failureBefore = '';
+  /** The server ended this publish without an answer (restart, lost request): the shared state reads its claim, so the dialog need not wait 20 minutes. */
+  const endedHere = $derived(
+    phase === 'publishing' && app !== undefined && endedByServer(publishingStore.failureOf(workspaceId, app.id), failureBefore),
+  );
+  $effect(() => {
+    if (!endedHere) return;
+    // The request is not waited for any more: its late answer, if it ever comes, is not ours (`seq`).
+    seq++;
+    problem = t('app:pending.failed.interrupted');
+    stale = true;
+    changed = true;
+    onchanged();
+    phase = 'ready';
   });
 
   const busy = $derived(phase === 'previewing' || phase === 'publishing');
@@ -395,6 +413,7 @@ import { supports } from '@kiln/core';
     problem = '';
     // Every screen learns at once that this app is publishing (the pending panel, the buttons that would release or promote), before the
     // server's own claim is read; the answer below, or a close, reads it again.
+    failureBefore = publishingStore.failureOf(space, appId)?.id ?? '';
     publishingStore.started(client, space, appId, includedTypes(sent));
     try {
       // The only call that writes. Sent once, with the plan's hash, its steps and the phrase; never sent again by this app.

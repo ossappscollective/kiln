@@ -5,6 +5,7 @@ import * as fx from '../store.fixtures.ts';
 import { FakeAppleDraftApi, md5Of, sha256 } from '../store-draft.fixtures.ts';
 import {
   type DraftApplyInput,
+  type DraftProgress,
   DraftDriftError,
   type DraftFile,
   DraftOutcomeUnknownError,
@@ -33,7 +34,10 @@ const file = (name: string, seed: number, size = 11): DraftFile => {
 };
 const accept = () => true;
 
-function setup(configure?: (api: FakeAppleDraftApi) => void) {
+function setup(
+  configure?: (api: FakeAppleDraftApi) => void,
+  extra: Partial<ConstructorParameters<typeof AppleDraftConnector>[0]> = {},
+) {
   const api = new FakeAppleDraftApi();
   configure?.(api);
   const connector = new AppleDraftConnector({
@@ -42,6 +46,7 @@ function setup(configure?: (api: FakeAppleDraftApi) => void) {
     fetch: api.fetch,
     now: () => T0,
     sleep: async () => undefined,
+    ...extra,
   });
   return { api, connector };
 }
@@ -243,7 +248,8 @@ test('a locale the draft does not have is created on the editable version', asyn
 });
 
 test('screenshots: library, reserve, upload every part without the JWT, commit with uploaded alone, wait, place', async () => {
-  const { api, connector } = setup();
+  // One file at a time, so the order of the requests is the one this test reads.
+  const { api, connector } = setup(undefined, { uploadConcurrency: 1 });
   const a = file('01.png', 1, 11);
   const b = file('02.png', 50, 20);
   const result = await connector.applyDraft(input({ assets: [{ ...SLOT, files: [a, b] }] }));
@@ -914,4 +920,116 @@ test('a bad App Store id is refused when the connector is built', () => {
       }),
     /not a number/,
   );
+});
+
+test('files of one set are uploaded a few at a time, and the placements keep the wanted order', async () => {
+  const { api, connector } = setup();
+  const files = [1, 2, 3, 4, 5].map((n) => file(`0${n}.png`, n * 20, 11 + n));
+  const result = await connector.applyDraft(input({ assets: [{ ...SLOT, files }] }));
+  assert.equal((result.steps[0] as { uploaded?: number }).uploaded, 5);
+  assert.deepEqual(api.groupFiles('loc-en', GROUP), ['01.png', '02.png', '03.png', '04.png', '05.png']);
+  // The first three reservations are made before the first commit: they overlap.
+  const writes = api.writes().map((w) => w.replace(/(img|pl)-\d+/g, '$1'));
+  const firstCommit = writes.indexOf('PATCH /v1/appAssetLibraryImages/img');
+  assert.ok(
+    writes.slice(0, firstCommit).filter((w) => w === 'POST /v1/appAssetLibraryImages').length >= 2,
+  );
+});
+
+test('progress: the push says which phase it is in and how many files are through', async () => {
+  const seen: DraftProgress[] = [];
+  const { connector } = setup();
+  await connector.applyDraft(
+    input({
+      text: [{ locale: 'en-US', field: 'description', value: 'New description' }],
+      assets: [{ ...SLOT, files: [file('01.png', 1), file('02.png', 50, 20)] }],
+      progress: (p) => seen.push({ ...p }),
+    }),
+  );
+  assert.deepEqual(seen[0], { phase: 'writing_texts', done: 0, total: 1 });
+  const phases = new Set(seen.map((p) => p.phase));
+  for (const phase of ['uploading_images', 'processing_images', 'placing_images'])
+    assert.ok(phases.has(phase as DraftProgress['phase']), phase);
+  const placing = seen.find((p) => p.phase === 'placing_images');
+  assert.deepEqual(placing, { phase: 'placing_images', done: 2, total: 2 });
+  for (const p of seen) assert.equal(Object.keys(p).sort().join(), 'done,phase,total');
+});
+
+test('a progress callback that throws never changes the push', async () => {
+  const { api, connector } = setup();
+  await connector.applyDraft(
+    input({
+      assets: [{ ...SLOT, files: [file('01.png', 1)] }],
+      progress: () => {
+        throw new Error('boom');
+      },
+    }),
+  );
+  assert.deepEqual(api.groupFiles('loc-en', GROUP), ['01.png']);
+});
+
+test('processing that never finishes: bounded polls, a coded error, and the image is kept for the next push', async () => {
+  const sleeps: number[] = [];
+  const { api, connector } = setup(
+    (a) => {
+      a.pollsBeforeComplete = 100_000;
+    },
+    { maxPolls: 4, pollIntervalMs: 500, sleep: async (ms) => void sleeps.push(ms) },
+  );
+  await assert.rejects(
+    connector.applyDraft(input({ assets: [{ ...SLOT, files: [file('slow.png', 1)] }] })),
+    (e: unknown) =>
+      e instanceof StoreError &&
+      e.kind === 'server' &&
+      e.code === 'store.apple.processingSlow' &&
+      e.params?.checks === 4 &&
+      /push again to use it/.test(e.message),
+  );
+  assert.deepEqual(sleeps, [500, 500, 500, 500], 'one wait per check, never more');
+  const checks = api.seen.filter((s) => s.method === 'GET' && /appAssetLibraryImages\/img/.test(s.path));
+  assert.equal(checks.length, 4);
+  assert.equal(api.placements.size, 0, 'nothing was placed');
+  assert.equal(api.images.size, 1, 'the uploaded file stays in the library, never discarded');
+});
+
+test('a poll answered with a long 429 is reported, not slept for an hour', async () => {
+  const sleeps: number[] = [];
+  const { connector } = setup(
+    (a) => {
+      a.hook = (s) =>
+        s.method === 'GET' && /appAssetLibraryImages\/img-/.test(s.path)
+          ? new Response('{}', { status: 429, headers: { 'retry-after': '3600' } })
+          : undefined;
+    },
+    { sleep: async (ms) => void sleeps.push(ms) },
+  );
+  await assert.rejects(
+    connector.applyDraft(input({ assets: [{ ...SLOT, files: [file('01.png', 1)] }] })),
+    (e: unknown) => e instanceof StoreError && e.kind === 'rate_limited',
+  );
+  assert.ok(
+    sleeps.every((ms) => ms <= 10_000),
+    `waited ${sleeps.join()}`,
+  );
+});
+
+test('a paging list that never ends is read up to maxPages and no further', async () => {
+  let pages = 0;
+  const { connector } = setup(
+    (a) => {
+      a.hook = (s) => {
+        if (s.method === 'GET' && s.path.endsWith('/appStoreVersions')) {
+          pages++;
+          return reply(200, {
+            data: [],
+            links: { next: `https://api.appstoreconnect.apple.com${s.path}?cursor=${pages}` },
+          });
+        }
+        return undefined;
+      };
+    },
+    { maxPages: 3 },
+  );
+  await assert.rejects(connector.readDraft({ text: [], assets: [] }), StoreError);
+  assert.equal(pages, 3);
 });

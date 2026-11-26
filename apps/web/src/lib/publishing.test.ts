@@ -9,16 +9,23 @@ import {
   detailText,
   disabledReason,
   elapsedOf,
+  endedByServer,
   finishedApps,
   HIDDEN_POLL_MS,
   headlineText,
+  looksStuck,
   MAX_POLL_MS,
   OPTIMISTIC_GRACE_MS,
+  OPTIMISTIC_LIMIT_MS,
   POLL_MS,
   type Publishing,
   type PublishingList,
   panelTarget,
   pollDelay,
+  progressText,
+  QUIET_AFTER_MS,
+  quietText,
+  STUCK_AFTER_MS,
   stepProgress,
 } from './publishing.ts';
 
@@ -387,4 +394,133 @@ test('loader: the failure of the last publish comes from the server, is replaced
   h.loader.noteResult('w', 'a', failedRun());
   h.loader.noteResult('w', 'a', null);
   assert.equal(h.loader.failedOf('w', 'a'), null);
+});
+
+// ----- long steps and ghosts (the status row says what a step does, when the server went quiet, and lets a person out of a ghost) ---------
+
+test('progress: what a long step is doing, as words with counts; nothing when it says nothing or no step runs', () => {
+  const at = { at: 1 };
+  assert.equal(
+    progressText(running({ detail: { phase: 'uploading_images', done: 12, total: 40, ...at } })),
+    'Uploading screenshots: 12 of 40 done',
+  );
+  assert.equal(
+    progressText(running({ detail: { phase: 'processing_images', done: 3, total: 10, ...at } })),
+    'Waiting for the store to process the screenshots (3 of 10 done)',
+  );
+  assert.equal(
+    progressText(running({ detail: { phase: 'placing_images', done: 10, total: 10, ...at } })),
+    'Adding the screenshots to the draft',
+  );
+  assert.equal(
+    progressText(running({ detail: { phase: 'writing_texts', done: 0, total: 40, ...at } })),
+    'Writing the texts: language 1 of 40',
+  );
+  assert.equal(progressText(running()), null, 'an older server sends no detail');
+  assert.equal(progressText(running({ detail: null })), null);
+  assert.equal(
+    progressText(
+      running({ currentStep: null, detail: { phase: 'uploading_images', done: 1, total: 2, ...at } }),
+    ),
+    null,
+    'between steps the last words are stale',
+  );
+});
+
+test('quiet: the row says so when the server has not reported for a while, and not before', () => {
+  const beat = 5_000_000;
+  assert.equal(quietText(running({ heartbeatAt: beat }), beat + QUIET_AFTER_MS - 1), null);
+  assert.equal(
+    quietText(running({ heartbeatAt: beat }), beat + 130_000),
+    'The server has not reported for 2:10. It may have been restarted.',
+  );
+  assert.equal(quietText(running(), beat + 10 * MIN), null, 'a server without a beat: nothing to say');
+});
+
+test('stuck: after 15 minutes the row says it takes much longer than a publish should', () => {
+  assert.equal(looksStuck(running(), 1_000_000 + STUCK_AFTER_MS - 1), false);
+  assert.equal(looksStuck(running(), 1_000_000 + STUCK_AFTER_MS), true);
+});
+
+test('the server ended the publish: an interrupted run that is not the one held before this publish began', () => {
+  const run = (id: string, error?: string): LastPublish => ({
+    id,
+    platform: 'ios',
+    startedAt: 1,
+    finishedAt: 2,
+    outcome: 'failed',
+    completed: false,
+    steps: ['push_draft'],
+    results: [
+      {
+        type: 'push_draft',
+        status: 'failed',
+        startedAt: 1,
+        finishedAt: 2,
+        ...(error ? { error } : {}),
+      },
+    ],
+    by: null,
+    dismissed: false,
+  });
+  assert.equal(endedByServer(null, ''), false);
+  assert.equal(endedByServer(run('r1', 'interrupted'), ''), true);
+  assert.equal(endedByServer(run('r1', 'interrupted'), 'r1'), false, 'the ghost that was already there is not news');
+  assert.equal(endedByServer(run('r2', 'store_rejected'), 'r1'), false, 'another failure is the answer’s to tell');
+});
+
+test('loader: a mark the server does not confirm ends at once after the short grace, never in the middle of it', async () => {
+  const h = harness(() => list());
+  h.loader.start('w');
+  await settle();
+  h.loader.mark('w', 'a', ['release']);
+  h.advance(OPTIMISTIC_GRACE_MS - 1_000);
+  await h.loader.refresh('w');
+  assert.notEqual(h.loader.of('w', 'a'), null, 'inside the grace the request may still be on its way');
+  h.advance(2_000);
+  await h.loader.refresh('w');
+  assert.equal(h.loader.of('w', 'a'), null, 'the server says none: the mark is cleared');
+  assert.ok(OPTIMISTIC_GRACE_MS <= 30_000);
+});
+
+test('loader: a mark never outlives the dialog’s own limit, even when the server cannot be read', async () => {
+  const h = harness((n) => (n === 0 ? list() : new Error('down')));
+  h.loader.start('w');
+  await settle();
+  h.loader.mark('w', 'a', ['release']);
+  await h.loader.refresh('w');
+  assert.notEqual(h.loader.of('w', 'a'), null, 'a failed read keeps what was shown');
+  h.advance(OPTIMISTIC_LIMIT_MS + 1);
+  await h.loader.refresh('w');
+  assert.equal(h.loader.of('w', 'a'), null, 'expired');
+  assert.deepEqual(h.finished, [['w', ['a']]], 'reported so the screens read what it left');
+});
+
+test('loader: a claim the server stops reporting (interrupted, ended) leaves the screens at once and carries its failure', async () => {
+  const interrupted: LastPublish = {
+    id: 'r9',
+    platform: 'ios',
+    startedAt: 1,
+    finishedAt: 2,
+    outcome: 'failed',
+    completed: false,
+    steps: ['push_draft'],
+    results: [
+      { type: 'push_draft', status: 'failed', startedAt: 1, finishedAt: 2, error: 'interrupted', outcome: 'unknown' },
+    ],
+    by: null,
+    dismissed: false,
+  };
+  const h = harness((n) =>
+    n === 0
+      ? list('a')
+      : { apps: [], lastPublish: [{ appId: 'a', lastPublish: interrupted }], generatedAt: 2 },
+  );
+  h.loader.start('w');
+  await settle();
+  assert.notEqual(h.loader.of('w', 'a'), null);
+  await h.loader.refresh('w');
+  assert.equal(h.loader.of('w', 'a'), null, 'no longer publishing');
+  assert.equal(h.loader.failedOf('w', 'a')?.results[0]?.error, 'interrupted');
+  assert.deepEqual(h.finished, [['w', ['a']]]);
 });

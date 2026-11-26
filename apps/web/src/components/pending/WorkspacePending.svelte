@@ -17,6 +17,7 @@
   import { k, t } from '../../lib/i18n/t.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { queueCartOpen } from '../../lib/pending-cart.ts';
+  import { canPublishBatch } from '../../lib/pending.ts';
   import FailureAnchor from '../app-state/FailureAnchor.svelte';
   import PendingGroupChanges from './PendingGroupChanges.svelte';
   import PublishFailure from '../publish/PublishFailure.svelte';
@@ -29,7 +30,7 @@
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
 
-  let { api, workspaceId }: { api: Api; workspaceId: string; role: Role } = $props();
+  let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
   // Everything on this page comes from the app-state store: the same count as the top bar and the sidebar, the same failures.
   const known = $derived(appStateStore.pendingKnown(workspaceId));
@@ -81,7 +82,7 @@
   {#each publishingApps as p (p.app.id)}
     <div class="publishing-now" data-testid="workspace-publishing">
       <strong>{p.app.name}</strong>
-      <PublishingStatus publishing={p.entry} platform={p.app.platform} appId={p.app.id} href={appAddress(p.app.id, 'pending')} />
+      <PublishingStatus publishing={p.entry} platform={p.app.platform} appId={p.app.id} href={appAddress(p.app.id, 'pending')} {workspaceId} canInterrupt={canPublishBatch(role)} />
     </div>
   {/each}
   {#each failedApps as f (f.app.id)}

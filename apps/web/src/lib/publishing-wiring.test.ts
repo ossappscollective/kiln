@@ -69,3 +69,51 @@ test('the reason of a failed publish shows in the panel, the drawer, the Pending
   assert.match(failure, /CopyButton/);
   assert.match(failure, /publish:failure\.showMore/);
 });
+
+test('the status row says what a long step does and when the server went quiet, and offers the way out of a ghost: check, and end only when the server allows', () => {
+  const row = read('../components/publish/PublishingStatus.svelte');
+  assert.match(row, /progressText\(publishing\)/);
+  assert.match(row, /data-testid="publishing-progress"/);
+  assert.match(row, /quietText\(publishing, now\)/);
+  assert.match(row, /data-testid="publishing-quiet"/);
+  assert.match(row, /looksStuck\(publishing, now\)/);
+  // "Still running? Check status" reads the claim again; it stops nothing.
+  assert.match(row, /appStateStore\.recheckPublishing\(workspaceId\)/);
+  assert.match(row, /publish:publishing\.check'/);
+  // "Mark as interrupted" only for a person who may publish AND when the server says the claim can be ended.
+  assert.match(row, /canInterrupt && publishing\.interruptible === true/);
+  assert.match(row, /\{#if mayEnd\}<Button[^>]*onclick=\{end\}/);
+  assert.match(row, /appStateStore\.interruptPublish\(workspaceId, appId\)/);
+  assert.match(row, /publish:publishing\.interruptStill/);
+  // The way out is only for the server's claim: this browser's own mark has no heartbeat.
+  assert.match(row, /publishing\.heartbeatAt !== undefined && workspaceId !== undefined/);
+  for (const file of [
+    '../components/app/PendingCartDrawer.svelte',
+    '../components/publish/PendingChanges.svelte',
+    '../components/pending/WorkspacePending.svelte',
+  ])
+    assert.match(read(file), /<PublishingStatus[^>]*\{workspaceId\}[^>]*canInterrupt/, file);
+  for (const file of [
+    '../components/publish/PendingChanges.svelte',
+    '../components/pending/WorkspacePending.svelte',
+  ])
+    assert.match(read(file), /canInterrupt=\{canPublishBatch\(role\)\}/, file);
+});
+
+test('the store only ends a claim through the server: its answer decides, and every answer is read again', () => {
+  const store = read('./publishing-store.svelte.ts');
+  assert.match(store, /api\.interruptPublish\(workspaceId, appId\)/);
+  assert.match(store, /e\.status === 409 && e\.code === 'still_running'/);
+  assert.match(store, /await loader\.refresh\(workspaceId\);\n    return answer;/);
+  const api = read('./api.ts');
+  assert.match(api, /publish\/interrupt`/);
+});
+
+test('the dialog stops waiting for its request when the server ended the publish (restart, lost request), and keeps the answer of a request that does come', () => {
+  const dialog = read('../components/publish/PublishDialog.svelte');
+  assert.match(dialog, /endedByServer\(publishingStore\.failureOf\(workspaceId, app\.id\), failureBefore\)/);
+  assert.match(dialog, /failureBefore = publishingStore\.failureOf\(space, appId\)\?\.id/);
+  assert.match(dialog, /t\('app:pending\.failed\.interrupted'\)/);
+  // A late answer is not ours any more (the sequence moved on).
+  assert.match(dialog, /if \(!endedHere\) return;\n    \/\/ The request is not waited for any more[^\n]*\n    seq\+\+;/);
+});

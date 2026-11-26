@@ -153,6 +153,16 @@ export type DraftStep = {
   removed?: number;
 };
 
+/**
+ * What a long push says about itself while it runs, for a person who waits ("Uploading screenshots 12 of 40"): a fixed phase word and
+ * two counts, never a file name, a locale text or a store answer. `done` of `total` are counts of the thing the phase names.
+ */
+export type DraftProgress = {
+  phase: 'writing_texts' | 'uploading_images' | 'processing_images' | 'placing_images';
+  done: number;
+  total: number;
+};
+
 export type DraftApplyInput = {
   text: DraftTextWrite[];
   assets: DraftAssetWrite[];
@@ -176,6 +186,11 @@ export type DraftApplyInput = {
    * preview" is decided on the freshest read there is.
    */
   guard: (current: DraftState) => boolean;
+  /**
+   * Optional: told when a phase of the push starts and when it moves on (the connector throttles nothing; the caller does). A throw
+   * here is the caller's own bug and never changes the push: the connector swallows it.
+   */
+  progress?: (progress: DraftProgress) => void;
 };
 
 export type DraftApplyResult = {

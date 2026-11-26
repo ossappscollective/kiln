@@ -1284,6 +1284,8 @@ const FAILED_TEXT: Readonly<Record<string, string>> = {
   store_not_found: k('app:pending.failed.storeNotFound'),
   store_rejected: k('app:pending.failed.storeRejected'),
   step_error: k('app:pending.failed.stepError'),
+  step_timeout: k('app:pending.failed.stepTimeout'),
+  interrupted: k('app:pending.failed.interrupted'),
   asset_changed: k('app:pending.failed.assetChanged'),
   asset_unreadable: k('app:pending.failed.assetUnreadable'),
   staged_invalid: k('app:pending.failed.stagedInvalid'),

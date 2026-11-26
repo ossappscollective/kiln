@@ -26,6 +26,7 @@
     type PendingItem,
     type PendingView,
     blockingItems,
+    canPublishBatch,
     combineTotals,
     discardIds,
     editHref,
@@ -425,7 +426,7 @@
   {/if}
 
   {#each publishing.filter((p) => !groups.some((g) => g.appId === p.appId)) as p (p.appId)}
-    <PublishingStatus publishing={p.entry} platform={p.platform} appId={p.appId} />
+    <PublishingStatus publishing={p.entry} platform={p.platform} appId={p.appId} {workspaceId} canInterrupt={canPublishBatch(role)} />
   {/each}
   {#each lastFailures as f (f.appId)}
     <FailureAnchor appId={f.appId}>
@@ -458,7 +459,7 @@
       {@const allOpen = expansionOf(expanded, rows) === 'all'}
       {@const running = publishingOf(g.appId)}
       <section class="group card" class:publishing={running !== null} aria-label={t('publish:pending.groupAria', { platform: platformLabel(g.platform.platform) })}>
-        {#if running}<PublishingStatus publishing={running} platform={g.platform.platform} appId={g.appId} />{/if}
+        {#if running}<PublishingStatus publishing={running} platform={g.platform.platform} appId={g.appId} {workspaceId} canInterrupt={canPublishBatch(role)} />{/if}
         <div class="group-head">
           {#if members.length > 1 || groups.length > 1}<PlatformBadge platform={g.platform.platform} tinted />{/if}
           <span class="muted">{totalsLine(g.platform.totals)}</span>

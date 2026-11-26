@@ -34,10 +34,30 @@ const publishingSchema = z
       .object({ id: z.string(), name: z.string().nullable() })
       .nullable()
       .describe('Who started it (`name` is null when the person is gone).'),
+    heartbeatAt: timestamp.describe(
+      'The last sign of life of the process that runs it (a timer renews it every 20 seconds, also inside a step).',
+    ),
+    detail: z
+      .object({
+        phase: z.enum(['writing_texts', 'uploading_images', 'processing_images', 'placing_images']),
+        done: z.number().int().nullable(),
+        total: z.number().int().nullable(),
+        at: timestamp,
+      })
+      .nullable()
+      .describe(
+        'What the running step says it is doing, as a fixed word and two counts (`uploading_images` 12 of 40); null when it says nothing. Never a text of the store.',
+      ),
+    stepsDone: z.number().int().describe('How many steps ended applied so far.'),
+    interruptible: z
+      .boolean()
+      .describe(
+        'The server lets a person end this claim now (`interruptStorePublish`): it has been silent for a minute, or it has run longer than any batch should (15 minutes).',
+      ),
   })
   .nullable()
   .describe(
-    'A batch publish of this app that is running now, else null. A claim nobody touched for 15 minutes (a process that died) is not reported. Ids, step names and times only.',
+    'A batch publish of this app that is running now, else null. A claim whose heartbeat is older than 2 minutes (a process that died) is not reported and becomes an `interrupted` run. Ids, step names, times and counts only.',
   );
 
 const storeFactsSchema = z
@@ -735,7 +755,7 @@ export const pendingOperations: Draft[] = [
     tags: ['pending'],
     summary: 'Which apps have a batch publish running now, and where it is (cheap to poll)',
     description:
-      'One read of the publish claims, no pending state is built: the apps of the workspace for which `publishStoreBatch` is running, with the steps it runs, the step that runs now and when it started. Apps that are not listed are not publishing. A claim nobody has touched for 15 minutes (the step start and end renew it) is a process that died and is left out. While an app is listed, `409 publish_in_progress` refuses a second publish, a release, a submit, a rollout change, a push of the staged changes, a version, and a cart publish or discard for it. Stored state only; a token limited to some apps sees only those apps. Ids, step names and times only.',
+      'One read of the publish claims, no pending state is built: the apps of the workspace for which `publishStoreBatch` is running, with the steps it runs, the step that runs now and when it started. Apps that are not listed are not publishing. A claim whose heartbeat (a timer renews it every 20 seconds while the batch runs) is older than 2 minutes is a process that died: it is ended and kept as a run that failed with `interrupted` (outcome `unknown`), and left out. A server that starts again does the same for every claim of the process before it. While an app is listed, `409 publish_in_progress` refuses a second publish, a release, a submit, a rollout change, a push of the staged changes, a version, and a cart publish or discard for it. Stored state only; a token limited to some apps sees only those apps. Ids, step names and times only.',
     risk: 'read',
     access: { action: 'listing.read' },
     appScope: { kind: 'list' },
@@ -771,6 +791,22 @@ export const pendingOperations: Draft[] = [
         description: 'The runs, newest first.',
         schema: z.object({ runs: z.array(lastPublishSchema) }),
       },
+    },
+  },
+  {
+    id: 'interruptStorePublish',
+    method: 'post',
+    path: `${W}/apps/{id}/publish/interrupt`,
+    tags: ['pending'],
+    summary:
+      'End the claim of a publish that is silent or has run too long, and keep it as an interrupted run',
+    description:
+      'For a person who sees "Publishing\u2026" and nothing moves. Needs `store.publish`. Allowed only when the claim says it can be ended (`publishing.interruptible`: no heartbeat for a minute, or running for more than 15 minutes); a batch that is alive and recent is never stopped (`409 still_running`). Nothing is sent to a store: the claim is ended and a run is kept whose running step failed with `interrupted` and outcome `unknown`, so the person is told to look at the store and review again. `404 not_publishing` when no publish of the app runs.',
+    risk: 'write',
+    access: { action: 'store.publish' },
+    appScope: { kind: 'param', name: 'id' },
+    responses: {
+      '200': { description: 'Ended.', schema: z.object({ interrupted: z.boolean() }) },
     },
   },
   {

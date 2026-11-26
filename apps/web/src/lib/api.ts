@@ -2035,6 +2035,16 @@ export function createApi(options: ApiOptions = {}) {
     /** Which apps have a batch publish running now, and where it is (docs/api/pending.md "Publishing now"). One small read; polled while one runs. */
     pendingPublishing: (workspaceId: string) =>
       request<PublishingList>('GET', `${workspace(workspaceId)}/pending/publishing`),
+    /**
+     * Ends the claim of a publish that went silent or has run too long (`publishing.interruptible`) and keeps it as an interrupted run.
+     * `409 still_running` when the server says it is alive and recent; `404 not_publishing` when none runs. Needs `store.publish`.
+     */
+    interruptPublish: (workspaceId: string, appId: string) =>
+      request<{ interrupted: boolean }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/publish/interrupt`,
+        {},
+      ),
     /** Hides the failure of one kept publish run until a newer run (docs/api/pending.md "Why a publish failed"). */
     dismissPublishRun: (workspaceId: string, appId: string, runId: string) =>
       request<{ dismissed: boolean }>(

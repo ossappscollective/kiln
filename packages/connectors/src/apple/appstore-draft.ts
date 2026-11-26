@@ -4,6 +4,7 @@ import {
   normalizeReleaseValue,
   PLATFORM_META,
 } from '@kiln/core';
+import { mapLimit } from '../concurrency.ts';
 import { StoreError, type StoreErrorDetail } from '../errors.ts';
 import { appleBuildEligibility } from '../release-eligibility.ts';
 import {
@@ -33,6 +34,7 @@ import {
   type DraftFieldWrite,
   DraftOutcomeUnknownError,
   DraftPartialError,
+  type DraftProgress,
   type DraftReadRequest,
   type DraftSlot,
   type DraftState,
@@ -150,6 +152,8 @@ export type AppleDraftConnectorOptions = Omit<StoreHttpOptions, 'store'> & {
   pollIntervalMs?: number;
   /** Looks at the processing state before giving up. Default 20. */
   maxPolls?: number;
+  /** Files of one set that are uploaded and processed at the same time (1 to 6). Default 3. */
+  uploadConcurrency?: number;
 };
 
 const DEFAULT_BASE = 'https://api.appstoreconnect.apple.com';
@@ -241,9 +245,14 @@ export class AppleDraftConnector
   readonly #maxPages: number;
   readonly #pollMs: number;
   readonly #maxPolls: number;
+  readonly #uploadConcurrency: number;
   readonly #sleep: (ms: number) => Promise<void>;
   #library: string | undefined;
   #ref: RefData | undefined;
+  /** What a long push tells the caller about itself (`DraftApplyInput.progress`), and the file counts it is told with. */
+  #emit: ((progress: DraftProgress) => void) | undefined;
+  #imagesTotal = 0;
+  #imagesDone = 0;
 
   constructor(options: AppleDraftConnectorOptions) {
     if (!/^[0-9]{1,20}$/.test(options.appStoreId)) {
@@ -269,6 +278,7 @@ export class AppleDraftConnector
     this.#maxPages = Math.max(1, options.maxPages ?? 10);
     this.#pollMs = options.pollIntervalMs ?? 2000;
     this.#maxPolls = Math.max(1, options.maxPolls ?? 20);
+    this.#uploadConcurrency = Math.max(1, Math.min(6, Math.trunc(options.uploadConcurrency ?? 3)));
     this.#sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     const pem = options.credential.privateKey;
     for (const http of [this.#http, this.#writeHttp]) {
@@ -456,6 +466,18 @@ export class AppleDraftConnector
       })),
       ...(input.fields !== undefined && input.fields.length > 0 ? { fields: input.fields } : {}),
     };
+    const sayProgress = input.progress;
+    this.#emit = sayProgress
+      ? (progress) => {
+          try {
+            sayProgress(progress);
+          } catch {
+            // What the caller does with a progress line never changes the push.
+          }
+        }
+      : undefined;
+    this.#imagesTotal = input.assets.reduce((n, a) => n + a.files.length, 0);
+    this.#imagesDone = 0;
     const version = await this.#editableVersion();
     const locs = await this.#localizations(version.id);
     const read = await this.#read(request, version, locs);
@@ -478,7 +500,9 @@ export class AppleDraftConnector
       }
       const localeIds = new Map<string, string>();
       for (const [locale, ref] of locs) localeIds.set(locale, ref.id);
+      let textsDone = 0;
       for (const [locale, fields] of byLocale) {
+        this.#emit?.({ phase: 'writing_texts', done: textsDone++, total: byLocale.size });
         const known = locs.get(locale);
         const wanted: Record<string, string> = {};
         for (const [field, value] of fields) wanted[attr(field)] = value;
@@ -1553,8 +1577,10 @@ export class AppleDraftConnector
     existing: PlacementRef[],
   ): Promise<DraftStep> {
     const base = { type: 'asset' as const, locale: write.locale, target: write.target };
-    if (state?.setExists && setMatches(state.images, write.files))
+    if (state?.setExists && setMatches(state.images, write.files)) {
+      this.#imagesDone += write.files.length;
       return { ...base, outcome: 'already_same' };
+    }
     const ref = await this.#refData();
     const max = ref.maxCount.get(group) ?? MAX_SET_FILES;
     if (write.files.length > max) {
@@ -1590,14 +1616,20 @@ export class AppleDraftConnector
     });
     // 2. Images first: nothing visible changes until a placement is made.
     let uploaded = 0;
-    for (const item of plan) {
-      if (item.placementId) continue;
+    const todo = plan.filter((item) => !item.placementId);
+    this.#imagesDone += plan.length - todo.length;
+    // A few files at a time: each one waits for Apple to process it, and one after the other made a big push (many locales, ten files each)
+    // run for many minutes. The first failure stops starting new files; the ones in flight finish. Nothing is visible until the placements.
+    await mapLimit(todo, this.#uploadConcurrency, async (item) => {
+      this.#say('uploading_images');
       item.imageId = await this.#libraryImage(item.file, group, ref);
       if (item.imageId === undefined) {
         item.imageId = await this.#upload(item.file, group, ref);
         uploaded++;
       }
-    }
+      this.#imagesDone += 1;
+    });
+    this.#say('placing_images');
     // 3. Placements: new ones before the old are deleted when the group has room for both.
     const stale = pool.filter((e) => !e.used).map((e) => e.p.id);
     const fresh = plan.filter((p) => !p.placementId).length;
@@ -1682,6 +1714,11 @@ export class AppleDraftConnector
       );
     }
     return { ...base, outcome: 'applied', uploaded, removed };
+  }
+
+  /** One progress line: the phase and how many files are through of all that the push carries. */
+  #say(phase: DraftProgress['phase']): void {
+    this.#emit?.({ phase, done: this.#imagesDone, total: this.#imagesTotal });
   }
 
   /** An image of the library that already is this file and is processed, or undefined. A failed lookup is just "not found". */
@@ -1887,12 +1924,16 @@ export class AppleDraftConnector
           `App Store Connect rejected ${name} while processing it (${this.#http.redact(details ?? 'no reason given')}).`,
         );
       }
+      this.#say('processing_images');
       await this.#sleep(this.#pollMs);
     }
     throw new StoreError(
       'appstoreconnect',
       'server',
-      `App Store Connect had not finished processing ${name} after ${this.#maxPolls} checks. It stays in the asset library without a placement; push again to use it.`,
+      `App Store Connect had not finished processing ${name} after ${this.#maxPolls} checks (about ${Math.round((this.#maxPolls * this.#pollMs) / 1000)} seconds). Nothing is lost: the file stays in the asset library without a placement, so push again to use it.`,
+      undefined,
+      undefined,
+      { code: 'store.apple.processingSlow', params: { checks: this.#maxPolls } },
     );
   }
 

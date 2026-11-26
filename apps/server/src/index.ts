@@ -44,6 +44,7 @@ import {
   LISTING_READ_QUEUE,
   listingIntervalMs,
 } from './modules/listing/schedule.ts';
+import { reapPreviousProcessClaims } from './modules/publish/publishing.ts';
 import { reviewSyncIntervalMs } from './modules/reviews/schedule.ts';
 import {
   createReviewSyncHandler,
@@ -121,6 +122,19 @@ try {
 }
 if (applied.length > 0) console.log(`Applied migrations: ${applied.join(', ')}`);
 await pruneSessions(database, Date.now());
+// A publish that was running when the last server process ended is not running any more (the step died with it): its claim is ended and
+// kept as a run that failed with `interrupted`, so no screen shows "Publishing..." for a ghost.
+try {
+  const ghosts = await reapPreviousProcessClaims(database, { now: Date.now() });
+  if (ghosts > 0)
+    console.warn(
+      `publish: ${ghosts} publish(es) of the previous server process were interrupted by the restart; each is kept as an interrupted run (check the store, then review again)`,
+    );
+} catch (error) {
+  console.warn(
+    `publish: could not end the claims of the previous process (${(error as Error).name})`,
+  );
+}
 await pruneEvents(database, Date.now());
 await pruneDeliveries(database, Date.now());
 

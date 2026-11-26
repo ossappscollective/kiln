@@ -30,6 +30,7 @@ import {
   type DraftFieldWrite,
   type DraftImageState,
   DraftOutcomeUnknownError,
+  type DraftProgress,
   type DraftReadRequest,
   type DraftState,
   type DraftStep,
@@ -372,7 +373,18 @@ export class PlayDraftConnector
         }
 
         // Graphics: a set is replaced as a whole (delete all, upload in order), then checked against Google's SHA-256.
+        const say = (progress: DraftProgress) => {
+          try {
+            input.progress?.(progress);
+          } catch {
+            // What the caller does with a progress line never changes the push.
+          }
+        };
+        const imagesTotal = input.assets.reduce((n, a) => n + a.files.length, 0);
+        let imagesDone = 0;
         for (const write of input.assets) {
+          say({ phase: 'uploading_images', done: imagesDone, total: imagesTotal });
+          imagesDone += write.files.length;
           const state = before.assets.find(
             (a) => a.locale === write.locale && a.target === write.target,
           );

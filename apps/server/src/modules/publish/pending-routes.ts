@@ -17,7 +17,7 @@ import {
   pendingSummary,
 } from './pending.ts';
 import { dismissRun, listRuns, readLastPublish } from './publish-runs.ts';
-import { readPublishing } from './publishing.ts';
+import { interruptPublish, reapDeadClaims, readPublishing } from './publishing.ts';
 import {
   type DraftConnectorFactory,
   type DraftContext,
@@ -71,6 +71,7 @@ export type PendingRoutesContext = {
     claimTtlMs?: number;
     /** The longest one step of the batch may run before the batch answers without it (tests). */
     stepTimeoutMs?: number;
+    heartbeatMs?: number;
     /** One line to the server log per boundary of a batch (ids, step names and statuses only). */
     log?: (line: string) => void;
   };
@@ -204,6 +205,7 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
     ...(ctx.publish?.stepTimeoutMs !== undefined
       ? { stepTimeoutMs: ctx.publish.stepTimeoutMs }
       : {}),
+    ...(ctx.publish?.heartbeatMs !== undefined ? { heartbeatMs: ctx.publish.heartbeatMs } : {}),
     ...(ctx.publish?.log ? { log: ctx.publish.log } : {}),
   };
 
@@ -299,6 +301,16 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
   // every few seconds while one runs. Stored state only; a claim nobody has touched for the time to live (a dead process) is left out.
   routes.get('/:workspaceId/pending/publishing', needs('listing.read'), async (c) => {
     const tokenApps = c.get('token')?.appIds ?? undefined;
+    // A claim that fell silent is ended first and kept as an interrupted run, so it shows as a failure instead of "running" for ever.
+    try {
+      await reapDeadClaims(db, {
+        workspaceId: ws(c),
+        now: ctx.now(),
+        ttlMs: ctx.publish?.claimTtlMs,
+      });
+    } catch {
+      // A read never fails because the clean-up did.
+    }
     const running = await readPublishing(db, {
       workspaceId: ws(c),
       ...(tokenApps ? { appIds: tokenApps as string[] } : {}),
@@ -326,6 +338,17 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
     const runs = await listRuns(db, { workspaceId: ws(c), appId: param(c, 'id') });
     c.header('Cache-Control', 'no-store');
     return c.json({ runs });
+  });
+
+  // A person ends the claim of a publish that went silent or has run too long (the server decides, `publishing.interruptible`).
+  routes.post('/:workspaceId/apps/:id/publish/interrupt', needs('store.publish'), async (c) => {
+    const done = await interruptPublish(db, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      now: ctx.now(),
+    });
+    c.header('Cache-Control', 'no-store');
+    return done.ok ? c.json({ interrupted: true }) : respond(c, done);
   });
 
   // Hides the failure of one run (it stays hidden until a newer run). Needs the right to publish: it changes what everybody sees.

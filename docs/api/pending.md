@@ -260,8 +260,27 @@ One small read of the claims (no pending state is built), meant to be polled eve
 `currentStep` is null before the first step starts and between steps; `steps` is empty for a claim older than migration 71. Ids, step
 names and times only: never a text.
 
-**Expiry.** Every step start and end renews the claim (`step_at`). A claim nobody touched for 15 minutes (more than a step's backstop) is a
-process that died: it is not reported, it does not block a new publish (which takes it over), and the guards below ignore it.
+**Liveness (migration 74).** A running batch renews `heartbeat_at` by a timer every 20 seconds, also while one step waits for the store.
+A claim whose last sign of life (`heartbeat_at`, `step_at`, `claim_at`) is older than 2 minutes is a process that died: it is not
+reported, it does not block a new publish, and the guards below ignore it. The poll (and the next publish) turn it into a kept run whose
+running step failed with `interrupted` and outcome `unknown` ("The publish was interrupted: the server restarted or lost the request.
+Check the store, then review again."); the steps that ended applied before stay `applied` (`partial`). A claim also carries the boot id
+of the server process that took it (`instance_id`): at start the server ends every claim of another process the same way, so a restart
+never leaves a publish that reads as running. One server process runs per database; a second one would have its claims ended at its
+start.
+
+`publishing` also has `heartbeatAt`, `stepsDone`, `interruptible` and `detail`: `{ phase, done, total, at }` with `phase` one of
+`writing_texts`, `uploading_images`, `processing_images`, `placing_images` (what the running step says it is doing, throttled to one write
+every 2 seconds per phase; a fixed word and two counts, never a file name or a store text; null when the step says nothing). Apple pushes
+upload a few files of a set at a time and wait for Apple to process each one (at most 20 checks, then `store.apple.processingSlow`: the
+file stays in the asset library without a placement and the next push uses it).
+
+### `POST /apps/{id}/publish/interrupt`
+
+For a person who sees "Publishing…" and nothing moves. `store.publish`. Allowed only when the claim says `interruptible` (no heartbeat for
+a minute, or running for more than 15 minutes); a batch that is alive and recent is never stopped (`409 still_running`). `404
+not_publishing` when none runs. Nothing is sent to a store: the claim is ended and the interrupted run is kept, so the person looks at the
+store and reviews again. A batch that is in fact still running goes on; its own writes find no claim.
 
 **Refusals.** While an app is publishing, a second `POST /apps/{id}/publish`, `POST .../store-release`, `.../store-submit`,
 `.../rollout/apply`, `.../store-version`, `.../staged/push`, `DELETE .../staged` and `.../staged/items`, `POST .../pending/publish` and

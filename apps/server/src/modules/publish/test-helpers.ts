@@ -14,6 +14,7 @@ import {
   type DraftImageState,
   DraftOutcomeUnknownError,
   DraftPartialError,
+  type DraftProgress,
   type DraftReadRequest,
   type DraftState,
   type DraftStep,
@@ -254,6 +255,8 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, St
   lastInput: DraftApplyInput | undefined;
   /** A write waits for this after the guard accepted: lets a test hold a write in flight. */
   gate: Promise<void> | undefined;
+  /** The progress lines `applyDraft` reports before it waits on the gate (tests). */
+  progressLines: DraftProgress[] = [];
   #n = 0;
 
   constructor(platform: Platform) {
@@ -517,6 +520,8 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, St
       })),
       ...(input.fields ? { fields: input.fields.map((f) => ({ ...f })) } : {}),
     });
+    // What a long push says about itself (the batch writes it on the claim): the lines a test set, before the step waits.
+    for (const line of this.progressLines) input.progress?.({ ...line });
     if (this.gate) await this.gate;
     const b = this.behavior;
     const steps: DraftStep[] = [];

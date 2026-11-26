@@ -1511,6 +1511,12 @@ export const storePublishClaims = pgTable(
     steps: text('steps'),
     currentStep: text('current_step'),
     stepAt: epochMs('step_at'),
+    /** Migration 74: the owning process, a heartbeat, what the running step is doing, how many steps ended applied. */
+    instanceId: text('instance_id'),
+    heartbeatAt: epochMs('heartbeat_at'),
+    detail: text('detail'),
+    detailAt: epochMs('detail_at'),
+    stepsDone: integer('steps_done'),
   },
   (t) => [
     primaryKey({ columns: [t.appId, t.platform] }),

@@ -1592,6 +1592,8 @@ export async function applyDraftPush(
     appId: string;
     confirmHash: string;
     actor: Actor;
+    /** The batch publish's window on a long push: what the connector says it is doing ("uploading 12 of 40"). Optional; never changes the push. */
+    onProgress?: (detail: { phase: string; done?: number; total?: number }) => void;
     /**
      * Google Play only, for the batch publish's combined step: commit the same edit so that Google sends it for review
      * (`pushAndSubmit`). `submitEnabled` is KILN_STORE_SUBMIT_ENABLED: the combined step needs the submit switch as well as the draft
@@ -1698,6 +1700,7 @@ export async function applyDraftPush(
         ...writesOf(p),
         ...(startRelease ? { start: { userFraction: startRelease.userFraction } } : {}),
         ...(replaceReview ? { replaceReview: true } : {}),
+        ...(input.onProgress ? { progress: input.onProgress } : {}),
         guard: (current) => {
           const checks = checksOf(p, app.platform, current);
           if (!checks.canPush) {

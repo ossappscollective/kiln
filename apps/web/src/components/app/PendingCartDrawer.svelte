@@ -253,7 +253,7 @@
 
       <div class="body">
         {#each publishing as p (p.appId)}
-          <PublishingStatus publishing={p.entry} platform={p.platform} appId={p.appId} />
+          <PublishingStatus publishing={p.entry} platform={p.platform} appId={p.appId} {workspaceId} canInterrupt />
         {/each}
         {#each failures as f (f.appId)}
           <FailureAnchor appId={f.appId}>
