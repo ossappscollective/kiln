@@ -1081,6 +1081,12 @@ export class FakePlayDraftApi {
   trackUpdateRefusal: string | undefined;
   /** How often `edits.validate` was called. */
   validations = 0;
+  /** How often a commit cancelled a review in progress (`CANCEL_IN_REVIEW_AND_SUBMIT`). */
+  reviewsCancelled = 0;
+  /** How many edits are open (inserted, neither committed nor deleted). */
+  get openEdit(): boolean {
+    return this.#edit !== undefined;
+  }
   /** Make an upload store different bytes than were sent (a bad answer from the store). */
   corruptUploads = false;
   hook: Hook | undefined;
@@ -1228,6 +1234,13 @@ export class FakePlayDraftApi {
       this.commits.push({ query: s.query });
       switch (this.commitAnswer) {
         case 'in_review':
+          // `CANCEL_IN_REVIEW_AND_SUBMIT` cancels the review in progress and sends everything (Google's own words); the default
+          // `ERROR_IF_IN_REVIEW` is refused with CHANGES_ALREADY_IN_REVIEW and the edit is not invalidated.
+          if (/changesInReviewBehavior=CANCEL_IN_REVIEW_AND_SUBMIT/.test(s.query)) {
+            this.reviewsCancelled++;
+            this.#apply();
+            return json(200, fx.googleEdit);
+          }
           return json(400, {
             error: {
               code: 400,

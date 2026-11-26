@@ -283,6 +283,25 @@ export class PlayDraftConnector
   }
 
   async #apply(input: DraftApplyInput, review: boolean): Promise<DraftApplyResult> {
+    if (!review && (input.start !== undefined || input.replaceReview === true)) {
+      // A draft push is held back from review: it never starts a release and never replaces a review in progress.
+      throw new StoreError(
+        'googleplay',
+        'invalid_input',
+        'Only the push that sends for review can start a release or replace a review in progress. Nothing was written.',
+      );
+    }
+    const start = input.start;
+    if (
+      start !== undefined &&
+      (!Number.isFinite(start.userFraction) || start.userFraction <= 0 || start.userFraction > 1)
+    ) {
+      throw new StoreError(
+        'googleplay',
+        'invalid_input',
+        'Name the share of users to release to, more than 0 and at most 1 (1 is everybody). Nothing was written.',
+      );
+    }
     const request: DraftReadRequest = {
       text: input.text.map((t) => ({ locale: t.locale, field: t.field })),
       assets: input.assets.map((a) => ({
@@ -337,9 +356,19 @@ export class PlayDraftConnector
             });
         }
 
-        // The draft release of a track (name, version codes, release notes per language): one `tracks.update`.
+        // The draft release of a track (name, version codes, release notes per language): one `tracks.update`. With `start` the same
+        // `tracks.update` makes it a RELEASE (in progress, or completed for everybody) instead of a draft: still the one edit.
+        if (start !== undefined && (input.fields === undefined || input.fields.length === 0)) {
+          throw new StoreError(
+            'googleplay',
+            'invalid_input',
+            'There is no staged release to start (track and version codes), so nothing was written.',
+          );
+        }
         if (input.fields !== undefined && input.fields.length > 0) {
-          steps.push(...(await this.#applyFields(http, editId, input.fields, before.fields ?? [])));
+          steps.push(
+            ...(await this.#applyFields(http, editId, input.fields, before.fields ?? [], start)),
+          );
         }
 
         // Graphics: a set is replaced as a whole (delete all, upload in order), then checked against Google's SHA-256.
@@ -405,7 +434,10 @@ export class PlayDraftConnector
         let commit: 'not_sent_for_review' | 'draft_release' | 'sent_for_review' =
           'not_sent_for_review';
         try {
-          commit = review ? await this.#commitForReview(editId) : await this.#commit(editId, releaseOnly);
+          if (review && start !== undefined) await this.#validate(http, editId);
+          commit = review
+            ? await this.#commitForReview(editId, input.replaceReview === true)
+            : await this.#commit(editId, releaseOnly);
         } catch (error) {
           // A refused commit (4xx) applied nothing: the edit is deleted below. An unknown one is left alone.
           if (!(error instanceof DraftOutcomeUnknownError)) settled = false;
@@ -570,6 +602,7 @@ export class PlayDraftConnector
     editId: string,
     wanted: readonly DraftFieldWrite[],
     current: readonly DraftFieldState[],
+    start?: { userFraction: number },
   ): Promise<DraftStep[]> {
     const track = wanted.find((w) => w.field === 'track')?.value;
     if (track === undefined)
@@ -583,7 +616,7 @@ export class PlayDraftConnector
     const steps: DraftStep[] = [
       { type: 'field', locale: '', target: 'track', outcome: 'already_same' },
     ];
-    if (writes.some(differs)) {
+    if (start !== undefined || writes.some(differs)) {
       const codes = writes.find((w) => w.field === 'version_codes');
       if (!draft && !codes) {
         throw new StoreError(
@@ -614,16 +647,42 @@ export class PlayDraftConnector
       if (notesChanged)
         next.releaseNotes = [...notes].map(([language, body]) => ({ language, text: body }));
       const index = draft ? releases.indexOf(draft) : -1;
-      const all =
+      let all =
         index === -1 ? [...releases, next] : releases.map((r, i) => (i === index ? next : r));
+      if (start !== undefined) {
+        const codesOf = (r: Json) => (Array.isArray(r.versionCodes) ? r.versionCodes.map(String) : []);
+        const made = codesOf(next).slice().sort().join(',');
+        if (
+          made === '' ||
+          releases.some((r) => r !== draft && codesOf(r).slice().sort().join(',') === made)
+        ) {
+          throw new StoreError(
+            'googleplay',
+            'invalid_input',
+            `The ${track} track cannot take a new release with these version codes, so nothing was released.`,
+          );
+        }
+        next.status = start.userFraction === 1 ? 'completed' : 'inProgress';
+        if (start.userFraction === 1) delete next.userFraction;
+        else next.userFraction = start.userFraction;
+        // A completed release replaces the older completed one (Google: only one completed release is allowed); a staged rollout
+        // keeps it, it serves the rest.
+        all = all.filter(
+          (r) => r === next || !(start.userFraction === 1 && text(r.status) === 'completed'),
+        );
+      }
       await this.#call(
         http,
         'PUT',
         this.#url(`/${enc(editId)}/tracks/${enc(track)}`),
-        `changing the draft release of the ${track} track`,
+        start !== undefined
+          ? `starting the release in the ${track} track`
+          : `changing the draft release of the ${track} track`,
         { json: { track, releases: all } },
       );
     }
+    if (start !== undefined)
+      steps.push({ type: 'field', locale: '', target: 'release_start', outcome: 'applied' });
     for (const w of writes) {
       steps.push({
         type: 'field',
@@ -933,17 +992,40 @@ export class PlayDraftConnector
    * review in progress (`ERROR_IF_IN_REVIEW`). Never retried. A lost answer or a 5xx is `DraftOutcomeUnknownError`: Google Play shows no
    * review state, so nothing here can tell whether the changes were sent.
    */
-  async #commitForReview(editId: string): Promise<'sent_for_review'> {
-    await this.#commitOnce(editId, false, 'pushing the changes and sending them for review');
+  async #commitForReview(editId: string, replaceReview = false): Promise<'sent_for_review'> {
+    await this.#commitOnce(
+      editId,
+      false,
+      'pushing the changes and sending them for review',
+      replaceReview,
+    );
     return 'sent_for_review';
+  }
+
+  /**
+   * `POST .../edits/{editId}:validate` (body empty): Google checks the whole edit (listings, images, the track release) and answers
+   * 4xx when the commit would be refused. A refusal applies nothing: the edit is deleted by the caller. Used only when the edit also
+   * starts a release, so a bad release is found before the one commit.
+   */
+  async #validate(http: StoreHttp, editId: string): Promise<void> {
+    await this.#call(
+      http,
+      'POST',
+      `${this.#url(`/${enc(editId)}`)}:validate`,
+      'checking the edit before the commit',
+    );
   }
 
   async #commitOnce(
     editId: string,
     holdBack: boolean,
     what = 'committing the draft',
+    replaceReview = false,
   ): Promise<void> {
-    const url = `${this.#url(`/${enc(editId)}`)}:commit?${holdBack ? 'changesNotSentForReview=true&' : ''}changesInReviewBehavior=ERROR_IF_IN_REVIEW`;
+    // ERROR_IF_IN_REVIEW is the rule: a review in progress is never cancelled. CANCEL_IN_REVIEW_AND_SUBMIT only for the step the person
+    // confirmed as "replace the review in progress with everything together" (Google: it cancels that review first, then sends ALL changes).
+    const behavior = replaceReview ? 'CANCEL_IN_REVIEW_AND_SUBMIT' : 'ERROR_IF_IN_REVIEW';
+    const url = `${this.#url(`/${enc(editId)}`)}:commit?${holdBack ? 'changesNotSentForReview=true&' : ''}changesInReviewBehavior=${behavior}`;
     for (let attempt = 0; ; attempt++) {
       const token = await this.#tokens.token();
       let reply: StoreReply;

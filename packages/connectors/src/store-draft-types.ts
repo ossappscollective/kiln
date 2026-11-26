@@ -144,7 +144,7 @@ export type DraftState = {
 export type DraftStep = {
   type: 'text' | 'asset' | 'locale' | 'field';
   locale: string;
-  /** The field id (text), the set's store name (asset) or `locale`. */
+  /** The field id (text), the set's store name (asset), `locale`, or `release_start` (the release made in the same edit). */
   target: string;
   /** `applied`, or `already_same` (the store already held exactly this: nothing was sent). */
   outcome: 'applied' | 'already_same';
@@ -158,6 +158,18 @@ export type DraftApplyInput = {
   assets: DraftAssetWrite[];
   /** Release fields: App Store version fields, or the Google Play draft release. */
   fields?: DraftFieldWrite[];
+  /**
+   * Google Play, `pushAndSubmit` only: start the release of the release fields in the SAME edit instead of leaving it a draft
+   * (`inProgress` with the share, or `completed` for everybody when `userFraction` is 1). One edit, one commit: the listing texts, the
+   * graphics and the release go to Google together. `applyDraft` refuses it (a draft push never starts a release).
+   */
+  start?: { userFraction: number };
+  /**
+   * Google Play, `pushAndSubmit` only: commit with `changesInReviewBehavior=CANCEL_IN_REVIEW_AND_SUBMIT`, which cancels the review
+   * that is in progress and sends ALL the changes together. Without it the commit uses `ERROR_IF_IN_REVIEW` and is refused when
+   * changes are in review. Only ever set for a step the person confirmed with that wording.
+   */
+  replaceReview?: boolean;
   /**
    * Called with the draft read from the store right before the first write. When it says false
    * nothing is written and `DraftDriftError` is thrown: this is how "the store changed since the
