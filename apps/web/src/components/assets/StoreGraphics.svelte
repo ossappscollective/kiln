@@ -5,17 +5,36 @@
   and reorder (drag, or the move buttons). EVERY change is STAGED (our database, nothing is sent to a store): the set then shows the
   staged files, appears in the pending cart with thumbnails, and is written by the cart's publish through the draft push. A set that
   is not staged yet starts from the images the store holds (`base=store`), so a push keeps the ones that were not touched.
+  Taking images out: each image has a checkbox (shown on hover or focus, and always once something is selected; Shift-click ticks a range),
+  a set has "Select all in this set", and a sticky bar says "N selected" with Remove and Cancel (Escape clears, Delete removes). ONE request
+  stages every removal and answers for each image (lib/assets/removal.ts): the image shows "Removing…" meanwhile (dimmed, a spinner), stays
+  in its place, and on a refusal is restored with its reason. Asking first is inline, and only for every image of a set or more than 5. The
+  last image of a set can be removed (the set is then staged empty); when the store needs at least one the bar says so. After a removal an
+  Undo link discards the staged change it made. Counts and the staged tray come from the staged view the answer carries (the app state).
   The images come through the server's thumbnail route; the read is the cached one of the last minute, and the last read is kept in
   the browser (lib/assets/store-cache.ts), so coming back shows it at once while it is read again.
   Props: api, workspaceId, role, app, now (ms), view (the answer, or null while reading), problem (why it could not be read, or ''),
   reloading, onreload, locked (the version in the store locks its listing and graphics).
 -->
 <script lang="ts">
-  import { ASSET_KIND_LABELS, type Role, checkStoreImages } from '@kiln/core';
+  import { ASSET_KIND_LABELS, type Role, assetStoreOf, checkStoreImages, setNeedsAnImage } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { assetFileUrl } from '../../lib/assets/assets.ts';
   import { type GraphicRow, type GraphicSet, buildGraphicSets, canAddMore, moveBy } from '../../lib/assets/graphic-sets.ts';
-  import { EMPTY_SET_REASON, SYNC_ROLE_REASON, canChangeAssets, stagedBlobUrl, storeFileUrl, storeThumbUrl } from '../../lib/assets/sync.ts';
+  import { SYNC_ROLE_REASON, canChangeAssets, stagedBlobUrl, storeFileUrl, storeThumbUrl } from '../../lib/assets/sync.ts';
+  import {
+    NO_STATES,
+    REASON_KEYS,
+    type ItemStates,
+    applyResults,
+    canUndo,
+    emptyingConsequence,
+    failAll,
+    fileIdOf,
+    needsConfirm,
+    startRemoving,
+  } from '../../lib/assets/removal.ts';
+  import { NO_SELECTION, type Selection, allSelected, click as clickSelection, clearSelection, isSelected, selectAll, selectedInOrder, selectionSize } from '../../lib/assets/selection.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { stagingError } from '../../lib/staged.ts';
@@ -123,10 +142,104 @@
     }
   }
 
-  const remove = (set: GraphicSet, row: GraphicRow) =>
-    run(`remove:${set.id}:${row.position}`, t('assets:store.announceRemoved', { set: setName(set), position: row.position }), () =>
-      api.removeStagedAssetFile(workspaceId, app.id, { ...slotOf(set), position: row.position, base: 'store' }),
-    );
+  // ---- Taking images out (selection, one batch request, per-image state, undo) ----
+  let selections = $state<Record<string, Selection | undefined>>({});
+  let itemStates = $state<ItemStates>(NO_STATES);
+  let confirming = $state<{ setId: string; keys: string[] } | null>(null);
+  let undoable = $state<{ setId: string; count: number; screenshots: boolean } | null>(null);
+  let openLocales = $state<Record<string, boolean | undefined>>({});
+
+  const store = $derived(assetStoreOf(app.platform));
+  const stateKey = (set: GraphicSet, row: GraphicRow) => `${set.id}\u0000${row.key}`;
+  const orderOf = (set: GraphicSet) => set.rows.map((r) => r.key);
+  const selectionOf = (set: GraphicSet): Selection => selections[set.id] ?? NO_SELECTION;
+  /** The ticked images that are still in the set, in the set's order. */
+  const pickedOf = (set: GraphicSet): string[] => selectedInOrder(selectionOf(set), orderOf(set));
+  const removingIn = (set: GraphicSet): number => set.rows.filter((r) => itemStates[stateKey(set, r)]?.status === 'removing').length;
+  const consequence = (set: GraphicSet, count: number) => emptyingConsequence(store, { kind: set.kind, device: set.device }, set.rows.length, count);
+  const noneLeftText = () => (store === 'app_store' ? t('assets:store.noneLeftApple') : t('assets:store.noneLeftPlay'));
+
+  function pick(event: MouseEvent, set: GraphicSet, row: GraphicRow) {
+    selections[set.id] = clickSelection(selectionOf(set), orderOf(set), row.key, event.shiftKey);
+    confirming = null;
+  }
+  const pickAll = (set: GraphicSet) => {
+    selections[set.id] = allSelected(selectionOf(set), orderOf(set)) ? clearSelection() : selectAll(orderOf(set));
+    confirming = null;
+  };
+  const cancelPick = (set: GraphicSet) => {
+    selections[set.id] = clearSelection();
+    if (confirming?.setId === set.id) confirming = null;
+  };
+
+  /** Removes the images (by their keys in the set): inline confirmation first when it empties the set or is more than 5. */
+  function askRemove(set: GraphicSet, keys: string[]) {
+    if (!editable || working !== '' || keys.length === 0) return;
+    if (needsConfirm(set.rows.length, keys.length)) confirming = { setId: set.id, keys };
+    else void removeKeys(set, keys);
+  }
+
+  async function removeKeys(set: GraphicSet, keys: string[]) {
+    const rows = keys.map((key) => set.rows.filter((r) => r.key === key)[0]).filter((r): r is GraphicRow => r !== undefined);
+    if (rows.length === 0 || working !== '' || !editable) return;
+    confirming = null;
+    undoable = null;
+    trouble = '';
+    const marks = rows.map((r) => stateKey(set, r));
+    const wasStaged = set.staged;
+    itemStates = startRemoving(itemStates, marks);
+    working = `remove:${set.id}`;
+    try {
+      const done = await api.removeStagedAssetFiles(workspaceId, app.id, { ...slotOf(set), files: rows.map(fileIdOf), base: 'store' });
+      const applied = applyResults(itemStates, marks, done.results, (reason) => t(REASON_KEYS[reason]));
+      itemStates = applied.states;
+      stagedStore.set(done.staged);
+      const gone = applied.gone.map((m) => rows[marks.indexOf(m)]?.key);
+      selections[set.id] = { keys: selectionOf(set).keys.filter((key) => gone.indexOf(key) < 0), anchor: null };
+      const screenshots = set.kind === 'screenshot';
+      undoable = canUndo(wasStaged, done.summary) ? { setId: set.id, count: done.summary.removed, screenshots } : null;
+      announce =
+        done.summary.removed > 0
+          ? screenshots
+            ? t('assets:store.removedScreenshots', { count: done.summary.removed })
+            : t('assets:store.removedImages', { count: done.summary.removed })
+          : t('assets:store.refusedLine', { count: done.summary.notFound + done.summary.alreadyRemoved });
+    } catch (e) {
+      itemStates = failAll(itemStates, marks, stagingError(e));
+    } finally {
+      working = '';
+    }
+  }
+
+  async function undo() {
+    const last = undoable;
+    if (!last || working !== '') return;
+    working = `undo:${last.setId}`;
+    try {
+      const done = await api.unstageItem(workspaceId, app.id, last.setId);
+      stagedStore.set(done.staged);
+      undoable = null;
+      announce = t('assets:store.undone');
+    } catch (e) {
+      trouble = stagingError(e);
+    } finally {
+      working = '';
+    }
+  }
+
+  /** Escape clears the selection of the set; Delete removes the ticked images (never while typing in a field). */
+  function onSetKey(event: KeyboardEvent, set: GraphicSet) {
+    const target = event.target as HTMLElement | null;
+    const typing = target !== null && (target.tagName === 'TEXTAREA' || target.isContentEditable || (target.tagName === 'INPUT' && (target as HTMLInputElement).type !== 'checkbox'));
+    if (typing) return;
+    if (event.key === 'Escape' && selectionSize(selectionOf(set)) > 0) {
+      event.preventDefault();
+      cancelPick(set);
+    } else if ((event.key === 'Delete' || event.key === 'Backspace') && pickedOf(set).length > 0) {
+      event.preventDefault();
+      askRemove(set, pickedOf(set));
+    }
+  }
 
   const move = (set: GraphicSet, from: number, to: number) =>
     run(`move:${set.id}`, t('assets:store.announceMoved', { set: setName(set), from, to }), () =>
@@ -148,12 +261,10 @@
   async function removeFromViewer(row: GraphicRow) {
     const set = viewedSet;
     if (!set) return;
-    if (set.rows.length <= 1) return;
     viewerOpen = false;
-    await remove(set, row);
+    askRemove(set, [row.key]);
   }
 
-  const lastReason = (set: GraphicSet) => (set.rows.length <= 1 ? t(EMPTY_SET_REASON) : '');
   const fullReason = (set: GraphicSet) => (canAddMore(set) ? '' : t('assets:store.fullReason', { max: set.max }));
 </script>
 
@@ -186,13 +297,16 @@
     {#if !editable && may}<p class="muted lock"><Icon name="lock" size="sm" /> {editReason}</p>{/if}
     {#if trouble}<Alert tone="error" title={t('assets:store.editFailed')}>{trouble}</Alert>{/if}
     {#each locales as loc (loc.locale)}
-      <details class="card locale" open={locales.length === 1}>
+      <details class="card locale" open={openLocales[loc.locale] ?? locales.length === 1} ontoggle={(e) => (openLocales[loc.locale] = e.currentTarget.open)}>
         <summary>
           <strong>{loc.locale}</strong>
           <span class="muted">{t('assets:store.images', { count: imageCount(loc.sets) })}</span>
           {#if loc.sets.some((s) => s.staged)}<Badge tone="accent" icon="layers">{t('assets:store.staged')}</Badge>{/if}
         </summary>
         {#each loc.sets as set (set.id)}
+          {@const picked = pickedOf(set)}
+          {@const busyCount = removingIn(set)}
+          {@const selecting = picked.length > 0 || busyCount > 0}
           <div class="set-head">
             <h4>{setName(set)} <span class="muted">({set.rows.length})</span></h4>
             {#if set.staged}
@@ -200,13 +314,56 @@
               <span class="muted small">{t('assets:store.storeHolds', { count: set.storeCount })}</span>
             {/if}
             <span class="spacer"></span>
+            {#if editable && set.rows.length > 0}
+              <Button size="sm" variant="ghost" icon="check" disabled={working !== ''} onclick={() => pickAll(set)}>{allSelected(selectionOf(set), orderOf(set)) ? t('assets:store.selectNone') : t('assets:store.selectAll')}</Button>
+            {/if}
             <Button size="sm" icon="upload" disabled={!editable || working !== '' || !canAddMore(set)} title={editReason || fullReason(set) || undefined} onclick={() => openUpload(set, 'add')}>{t('assets:store.add')}</Button>
           </div>
-          <ul class="thumbs" aria-label={setName(set)}>
+          {#if set.cleared}
+            <p class="muted small cleared" role="status">
+              {t('assets:store.clearedNote')}
+              {#if setNeedsAnImage(store, { kind: set.kind, device: set.device })}<strong class="warn"> {noneLeftText()}</strong>{/if}
+            </p>
+          {/if}
+          {#if undoable && undoable.setId === set.id}
+            <p class="undo" role="status">
+              {undoable.screenshots ? t('assets:store.removedScreenshots', { count: undoable.count }) : t('assets:store.removedImages', { count: undoable.count })}
+              · <Button variant="link" size="sm" disabled={working !== ''} onclick={undo}>{t('assets:store.undo')}</Button>
+            </p>
+          {/if}
+          {#if selecting}
+            <div class="bar" role="toolbar" aria-label={t('assets:store.selectionBar', { set: setName(set) })}>
+              {#if busyCount > 0}
+                <span class="bar-count" role="status"><Spinner size={14} label="" /> {t('assets:store.removingCount', { count: busyCount })}</span>
+              {:else}
+                <span class="bar-count" role="status">{t('assets:store.selectedCount', { count: picked.length })}</span>
+              {/if}
+              <Button size="sm" variant="danger" icon="trash" disabled={working !== '' || picked.length === 0} onclick={() => askRemove(set, picked)}>{t('assets:store.removeSelected')}</Button>
+              <Button size="sm" variant="ghost" disabled={busyCount > 0} onclick={() => cancelPick(set)}>{t('assets:store.cancelSelection')}</Button>
+              <span class="muted small hint">{t('assets:store.selectionHint')}</span>
+              {#if busyCount === 0 && consequence(set, picked.length) === 'required'}
+                <p class="warn bar-warn" role="status">{noneLeftText()}</p>
+              {/if}
+            </div>
+          {/if}
+          {#if confirming && confirming.setId === set.id}
+            <div class="confirm" role="alert">
+              <span>{confirming.keys.length >= set.rows.length ? t('assets:store.confirmAll', { count: confirming.keys.length, set: setName(set) }) : t('assets:store.confirmMany', { count: confirming.keys.length })}</span>
+              {#if consequence(set, confirming.keys.length) === 'required'}<strong class="warn">{noneLeftText()}</strong>{/if}
+              <Button size="sm" variant="danger" disabled={working !== ''} onclick={() => confirming && removeKeys(set, confirming.keys)}>{t('assets:store.confirmYes')}</Button>
+              <Button size="sm" variant="ghost" onclick={() => (confirming = null)}>{t('assets:store.confirmNo')}</Button>
+            </div>
+          {/if}
+          <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+          <ul class="thumbs" class:selecting aria-label={setName(set)} onkeydown={(e) => onSetKey(e, set)}>
             {#each set.rows as row (row.key)}
+              {@const mark = itemStates[stateKey(set, row)]}
               <li
-                draggable={editable && working === '' && set.rows.length > 1}
+                draggable={editable && working === '' && set.rows.length > 1 && !selecting}
                 class:dragging={dragFrom?.setId === set.id && dragFrom.position === row.position}
+                class:removing={mark?.status === 'removing'}
+                class:picked={isSelected(selectionOf(set), row.key)}
+                aria-busy={mark?.status === 'removing'}
                 ondragstart={(e) => {
                   dragFrom = { setId: set.id, position: row.position };
                   e.dataTransfer?.setData('text/plain', String(row.position));
@@ -225,14 +382,28 @@
                     <span class="none muted">{t('assets:store.noPreview')}</span>
                   {/if}
                 </button>
+                {#if editable}
+                  <input
+                    type="checkbox"
+                    class="pick"
+                    checked={isSelected(selectionOf(set), row.key)}
+                    disabled={mark?.status === 'removing' || working !== ''}
+                    aria-label={t('assets:store.select', { position: row.position })}
+                    onclick={(e) => pick(e, set, row)}
+                  />
+                {/if}
+                {#if mark?.status === 'removing'}
+                  <span class="busy" role="status"><Spinner size={20} label="" /><span>{t('assets:store.removingItem')}</span></span>
+                {/if}
                 <span class="dim muted">{row.position}{#if row.width !== null && row.height !== null} · {row.width}×{row.height}{/if}</span>
+                {#if mark?.status === 'error'}<span class="item-error" role="alert">{mark.message}</span>{/if}
                 {#if editable}
                   <span class="tools" role="group" aria-label={t('assets:store.tools', { position: row.position })}>
                     <span class="grip muted" aria-hidden="true" title={t('assets:store.dragHint')}><Icon name="menu" size="sm" /></span>
                     <Button size="sm" variant="ghost" iconOnly icon="arrow-left" label={t('assets:store.moveEarlier', { position: row.position })} disabled={working !== '' || row.position <= 1} onclick={() => nudge(set, row, -1)} />
                     <Button size="sm" variant="ghost" iconOnly icon="arrow-right" label={t('assets:store.moveLater', { position: row.position })} disabled={working !== '' || row.position >= set.rows.length} onclick={() => nudge(set, row, 1)} />
                     <Button size="sm" variant="ghost" iconOnly icon="upload" label={t('assets:store.replace', { position: row.position })} disabled={working !== ''} onclick={() => openUpload(set, 'replace', row.position)} />
-                    <Button size="sm" variant="ghost" iconOnly icon="trash" label={t('assets:store.removeImage', { position: row.position })} title={lastReason(set) || undefined} disabled={working !== '' || set.rows.length <= 1} onclick={() => remove(set, row)} />
+                    <Button size="sm" variant="ghost" iconOnly icon="trash" label={t('assets:store.removeImage', { position: row.position })} disabled={working !== ''} onclick={() => askRemove(set, [row.key])} />
                   </span>
                 {/if}
               </li>
@@ -414,5 +585,119 @@
   .grip {
     display: inline-flex;
     cursor: grab;
+  }
+  .bar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    margin: 0 0 var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+  }
+
+  .bar-count {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-weight: 600;
+  }
+
+  .bar-warn {
+    flex-basis: 100%;
+    margin: 0;
+  }
+
+  .hint {
+    margin-left: auto;
+  }
+
+  .warn {
+    color: var(--warn-ink);
+  }
+
+  .confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    margin: 0 0 var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+  }
+
+  .undo,
+  .cleared {
+    margin: 0 0 var(--space-2);
+  }
+
+  .thumbs li {
+    position: relative;
+  }
+
+  .thumbs li.removing > .open,
+  .thumbs li.removing > .dim {
+    opacity: 0.45;
+  }
+
+  .thumbs li.picked img,
+  .thumbs li.picked .none {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .pick {
+    position: absolute;
+    top: var(--space-1);
+    left: var(--space-1);
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .thumbs li:hover .pick,
+  .thumbs li:focus-within .pick,
+  .thumbs.selecting .pick,
+  .pick:checked {
+    opacity: 1;
+  }
+
+  @media (hover: none) {
+    .pick {
+      opacity: 1;
+    }
+  }
+
+  .busy {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 80px;
+    height: 140px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    font-size: var(--text-xs);
+    background: color-mix(in srgb, var(--surface) 55%, transparent);
+    border-radius: var(--radius-sm);
+    pointer-events: none;
+  }
+
+  .item-error {
+    max-width: 120px;
+    font-size: var(--text-xs);
+    color: var(--danger-text);
+    text-align: center;
   }
 </style>

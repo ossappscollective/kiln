@@ -28,6 +28,8 @@ export type GraphicRow = {
   full: string | null;
   /** The store image's `ref` (absent for a staged row). */
   ref?: string;
+  /** The git blob id of a staged file (absent for a store image): what a removal names it by. */
+  oid?: string;
   /** This image is part of a staged set, not what the store holds. */
   staged: boolean;
 };
@@ -40,6 +42,8 @@ export type GraphicSet = {
   deviceLabel: string;
   /** A change to this set is staged (the rows are the staged ones). */
   staged: boolean;
+  /** The staged set is EMPTY: a push removes every image the store holds in it (`rows` is then empty). */
+  cleared: boolean;
   /** How many images the store holds in it now (0 for a set that exists only as a staged one). */
   storeCount: number;
   rows: GraphicRow[];
@@ -95,6 +99,7 @@ export function buildGraphicSets(args: {
         device: s.device,
         deviceLabel: deviceText(s.kind, s.device, s.deviceLabel),
         staged: false,
+        cleared: false,
         storeCount: rows.length,
         rows,
         max: slotMaxFiles(platform, { kind: s.kind, device: s.device }),
@@ -104,6 +109,9 @@ export function buildGraphicSets(args: {
     if (a.pushed) continue;
     const key = setKey(a.locale, a.slot.kind, a.slot.device);
     const found = sets.get(key);
+    // A key names the file (its blob id and which copy of it), never its place: removing an image does not give the ones after it a
+    // new key, so the grid patches in place instead of drawing them again.
+    const seen: Record<string, number> = {};
     const rows: GraphicRow[] = stagedFileRows(
       stagedSetOf(staged, a.locale, a.slot.kind, a.slot.device),
     ).map((r) => {
@@ -112,8 +120,9 @@ export function buildGraphicSets(args: {
         : r.commit !== ''
           ? urls.repo(r.path, r.commit)
           : null;
+      const copy = (seen[r.oid] = (seen[r.oid] ?? 0) + 1);
       return {
-        key: `staged:${r.position}:${r.oid}`,
+        key: `staged:${r.oid}:${copy}`,
         position: r.position,
         name: r.name,
         width: r.width,
@@ -121,6 +130,7 @@ export function buildGraphicSets(args: {
         bytes: r.bytes,
         thumb: url,
         full: url,
+        oid: r.oid,
         staged: true,
       };
     });
@@ -133,6 +143,7 @@ export function buildGraphicSets(args: {
         found?.deviceLabel ??
         deviceText(a.slot.kind, a.slot.device, deviceLabel(store, a.slot.device)),
       staged: true,
+      cleared: a.cleared === true,
       storeCount: found?.storeCount ?? 0,
       rows,
       max: found?.max ?? slotMaxFiles(platform, a.slot),

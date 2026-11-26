@@ -199,3 +199,67 @@ test('Play kinds without a device dimension have no device suffix; an unrecognis
   assert.equal(label('screenshot', 'phone'), 'Phone');
   assert.equal(label('screenshot', null), 'Device not recognised');
 });
+
+test('a row is named by its blob id and copy, not by its place: removing one image keeps the keys of the others', () => {
+  const three = buildGraphicSets({
+    platform: 'android',
+    view: null,
+    staged: staged([
+      { position: 1, oid: 'o1', upload: true },
+      { position: 2, oid: 'o2', upload: true },
+      { position: 3, oid: 'o3', upload: true },
+    ]),
+    urls,
+  })[0]?.sets[0];
+  const two = buildGraphicSets({
+    platform: 'android',
+    view: null,
+    staged: staged([
+      { position: 1, oid: 'o1', upload: true },
+      { position: 2, oid: 'o3', upload: true },
+    ]),
+    urls,
+  })[0]?.sets[0];
+  assert.deepEqual(
+    three?.rows.map((r) => r.key),
+    ['staged:o1:1', 'staged:o2:1', 'staged:o3:1'],
+  );
+  assert.deepEqual(
+    two?.rows.map((r) => r.key),
+    ['staged:o1:1', 'staged:o3:1'],
+    'o3 keeps its key although it moved from place 3 to 2',
+  );
+  assert.deepEqual(
+    three?.rows.map((r) => r.oid),
+    ['o1', 'o2', 'o3'],
+  );
+  const twice = buildGraphicSets({
+    platform: 'android',
+    view: null,
+    staged: staged([
+      { position: 1, oid: 'o1', upload: true },
+      { position: 2, oid: 'o1', upload: true },
+    ]),
+    urls,
+  })[0]?.sets[0];
+  assert.deepEqual(
+    twice?.rows.map((r) => r.key),
+    ['staged:o1:1', 'staged:o1:2'],
+    'the same picture twice is two rows with two keys',
+  );
+});
+
+test('a set staged empty is listed with no row, as cleared, and keeps what the store holds', () => {
+  const [loc] = buildGraphicSets({
+    platform: 'android',
+    view: view([file(1), file(2)]),
+    staged: staged([], { cleared: true }),
+    urls,
+  });
+  const set = loc?.sets[0];
+  assert.equal(set?.staged, true);
+  assert.equal(set?.cleared, true);
+  assert.deepEqual(set?.rows, []);
+  assert.equal(set?.storeCount, 2);
+  assert.equal(buildGraphicSets({ platform: 'android', view: view([file(1)]), staged: null, urls })[0]?.sets[0]?.cleared, false);
+});

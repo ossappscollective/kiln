@@ -14,7 +14,6 @@
   import type { Api } from '../../lib/api.ts';
   import {
     DEFAULT_BACKGROUND,
-    EMPTY_SET_REASON,
     type EditorSet,
     type MenuItem,
     SYNC_ROLE_REASON,
@@ -30,6 +29,7 @@
     type ToRepoResult,
   } from '../../lib/assets/sync.ts';
   import { assetFileUrl, fileName } from '../../lib/assets/assets.ts';
+  import { REASON_KEYS, fileIdOf } from '../../lib/assets/removal.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { stagingError } from '../../lib/staged.ts';
@@ -99,13 +99,12 @@
   const reason = $derived(may ? '' : t(SYNC_ROLE_REASON));
 
   function itemsFor(r: StagedFileRow): MenuItem[] {
-    const last = rows.length <= 1;
     return [
       { id: 'replace', label: t('assets:editor.menu.replace'), icon: 'upload', disabled: !may, reason: t(SYNC_ROLE_REASON) },
       { id: 'alpha', label: t('assets:editor.menu.alpha'), icon: 'image', disabled: !may || r.hasAlpha === false || r.format === 'jpeg', reason: !may ? t(SYNC_ROLE_REASON) : t('assets:editor.menu.noAlpha') },
       { id: 'resize', label: t('assets:editor.menu.resize'), icon: 'image', disabled: !may || r.format !== 'png', reason: !may ? t(SYNC_ROLE_REASON) : t('assets:editor.menu.pngOnly') },
       { id: 'compare', label: t('assets:gallery.compare'), icon: 'eye' },
-      { id: 'remove', label: t('assets:editor.menu.remove'), icon: 'trash', danger: true, disabled: !may || last, reason: !may ? t(SYNC_ROLE_REASON) : t(EMPTY_SET_REASON) },
+      { id: 'remove', label: t('assets:editor.menu.remove'), icon: 'trash', danger: true, disabled: !may, reason: t(SYNC_ROLE_REASON) },
     ];
   }
 
@@ -129,9 +128,12 @@
     if (!set || working !== '') return;
     working = `remove:${r.position}`;
     try {
-      const done = await api.removeStagedAssetFile(workspaceId, app.id, { locale: set.locale, kind: set.kind, device: set.device, position: r.position });
+      // One file, named by its blob id (never by a place that may have moved), answered for itself.
+      const done = await api.removeStagedAssetFiles(workspaceId, app.id, { locale: set.locale, kind: set.kind, device: set.device, files: [fileIdOf(r)] });
       stagedStore.set(done.staged);
-      message = t('assets:editor.removed', { name: r.name });
+      const result = done.results[0];
+      if (result && result.outcome === 'not_found') problem = t(REASON_KEYS[result.reason ?? 'unknown_file']);
+      else message = t('assets:editor.removed', { name: r.name });
     } catch (e) {
       problem = stagingError(e);
     } finally {

@@ -429,10 +429,6 @@ export function stagedFileRows(set: StagedAssetView | null): StagedFileRow[] {
   }));
 }
 
-/** Why removing the last file of a set is not offered, or ''. A push cannot empty a store's set. */
-/** A message key: `t(EMPTY_SET_REASON)`. */
-export const EMPTY_SET_REASON = k('assets:sync.emptySetReason');
-
 /** The set the editor shows: its place, a title, and the repository's files of it (shown until a change is staged). */
 export type EditorSet = {
   locale: string;

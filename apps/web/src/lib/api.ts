@@ -3,10 +3,13 @@ import type {
   AiSuggestionView,
   AssetDiffView,
   AssetProposalView,
+  FileId,
   Listing,
   ListingProblem,
   ManualEventKind,
   ProposalState,
+  RemovalResult,
+  RemovalSummary,
   StagedChangesView,
   StagedRolloutMode,
   StoreImagesView,
@@ -1758,6 +1761,29 @@ export function createApi(options: ApiOptions = {}) {
       request<{ staged: StagedChangesView }>(
         'DELETE',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets/file?${uploadQueryText(query)}`,
+      ).then(addedToCart(appId)),
+    /** Takes several files out of ONE set in one change; one answer per file (docs/api/staged-changes.md). */
+    removeStagedAssetFiles: (
+      workspaceId: string,
+      appId: string,
+      body: {
+        locale: string;
+        kind: string;
+        device: string | null;
+        files: FileId[];
+        base?: 'store';
+      },
+    ) =>
+      request<{
+        results: RemovalResult[];
+        summary: RemovalSummary;
+        emptied: boolean;
+        remaining: number;
+        staged: StagedChangesView;
+      }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets/remove`,
+        body,
       ).then(addedToCart(appId)),
     moveStagedAssetFile: (
       workspaceId: string,
