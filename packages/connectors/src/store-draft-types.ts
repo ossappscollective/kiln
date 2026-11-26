@@ -146,11 +146,25 @@ export type DraftStep = {
   locale: string;
   /** The field id (text), the set's store name (asset), `locale`, or `release_start` (the release made in the same edit). */
   target: string;
-  /** `applied`, or `already_same` (the store already held exactly this: nothing was sent). */
-  outcome: 'applied' | 'already_same';
-  /** Files uploaded and files removed, for a set of graphics. */
+  /**
+   * `applied`, or `already_same` (the store already held exactly this: nothing was sent), or `applied_with_differences`: every request was
+   * accepted but the set read back from the store is not the wanted one (`differences` says how). Such a step is never "done".
+   */
+  outcome: 'applied' | 'already_same' | 'applied_with_differences';
+  /** Files uploaded, removed and kept (already in place), for a set of graphics. */
   uploaded?: number;
   removed?: number;
+  kept?: number;
+  /** For `applied_with_differences`: what the store still shows differently from the wanted set (ids and file names only, bounded). */
+  differences?: DraftDifference[];
+};
+
+/** One way a set read back from the store differs from the wanted set. */
+export type DraftDifference = {
+  /** `still_present`: a placement that should be gone is listed; `missing`: a wanted file is not listed; `order`: the same files in another order. */
+  kind: 'still_present' | 'missing' | 'order';
+  id?: string;
+  name?: string | null;
 };
 
 /**
@@ -191,6 +205,8 @@ export type DraftApplyInput = {
    * here is the caller's own bug and never changes the push: the connector swallows it.
    */
   progress?: (progress: DraftProgress) => void;
+  /** Optional: one line per set of graphics with counts only ("removed 3, uploaded 1, kept 5"), never a name, a url or a store answer. */
+  log?: (line: string) => void;
 };
 
 export type DraftApplyResult = {
@@ -399,8 +415,14 @@ export type StoreImagesRead = {
 
 /** The read side that both draft connectors have besides `StoreDraftConnector`. Changes nothing in the store. */
 export interface StoreImageReader {
-  readStoreImages(): Promise<StoreImagesRead>;
+  readStoreImages(options?: StoreImagesOptions): Promise<StoreImagesRead>;
 }
+
+/**
+ * App Store: which version's images are read. `editable` (default): the version a push edits, else the live one. `live`: the live
+ * version only (it cannot be edited while it is live). Google Play has one listing and ignores it.
+ */
+export type StoreImagesOptions = { channel?: 'editable' | 'live' };
 
 export const isStoreImageReader = (value: unknown): value is StoreImageReader =>
   typeof value === 'object' &&

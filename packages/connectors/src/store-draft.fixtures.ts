@@ -71,6 +71,8 @@ export class FakeAppleDraftApi {
   >();
   images = new Map<string, AppleImage>();
   placements = new Map<string, ApplePlacement>();
+  /** `ok` (default): a deleted placement is gone. `ignored`: 204 but it stays listed. `refused`: 409. */
+  placementDeletes: 'ok' | 'ignored' | 'refused' = 'ok';
   /** `locId\u0000group` -> placement ids in display order. */
   order = new Map<string, string[]>();
   library = '10746822401';
@@ -893,6 +895,12 @@ export class FakeAppleDraftApi {
     if (method === 'DELETE' && (m = path.match(/^\/v1\/appAssetLibraryPlacements\/([^/]+)$/))) {
       const placement = this.placements.get(m[1] ?? '');
       if (!placement) return notFound();
+      // A test can make Apple answer 204 and keep the placement (a removal that shows late or never), or refuse it.
+      if (this.placementDeletes === 'ignored') return json(204);
+      if (this.placementDeletes === 'refused')
+        return json(409, {
+          errors: [{ status: '409', code: 'STATE_ERROR', title: 'The placement cannot be deleted' }],
+        });
       this.placements.delete(placement.id);
       const key = `${placement.locId}\u0000${placement.group}`;
       this.order.set(

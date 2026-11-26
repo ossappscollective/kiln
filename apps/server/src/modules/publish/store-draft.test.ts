@@ -854,6 +854,41 @@ dbTest(
 );
 
 dbTest(
+  'App Store: when the set read back still lists images that were to go, the push is applied_with_differences, the set stays staged, and nothing is claimed as done',
+  async (db) => {
+    const t = await bootStaged(db);
+    const app = await stagedIos(t);
+    // The store holds four screenshots; the staged set has fewer, so a push removes some.
+    t.stores.ios.seedSet(
+      'en-US',
+      'APP_IPHONE_65',
+      [1, 2, 3, 4].map((n) => ({ name: `left${n}.png`, bytes: new Uint8Array([n, 9, 9]) })),
+    );
+    t.stores.ios.ghostRemovals = true;
+    const hash = await hashOf(t, app);
+    const res = await t.push(app, hash);
+    assert.equal(res.status, 409, res.text.slice(0, 400));
+    assert.equal(res.body.error, 'applied_with_differences');
+    assert.match(res.body.message, /still listed: left3\.png, left4\.png/);
+    assert.deepEqual(
+      res.body.differences.map((d: { stillPresent: { name: string }[] }) =>
+        d.stillPresent.map((f) => f.name),
+      ),
+      [['left3.png', 'left4.png']],
+    );
+    const view = await t.view(app);
+    assert.deepEqual(
+      [view.text[0]?.pushed, view.assets[0]?.pushed],
+      [true, false],
+      'the text is done; the set whose removals did not show stays pending',
+    );
+    assert.equal(await t.claim(app), undefined);
+    assert.equal((await t.audit('listing.draft_push_failed'))[0]?.detail.code, 'applied_with_differences');
+    assert.equal((await t.events('listing.draft_pushed')).length, 0, 'no success was announced');
+  },
+);
+
+dbTest(
   'a push that outlives the timeout is read back, not repeated; a read that outlives it answers 504',
   async (db) => {
     const t = await bootStaged(db, { draft: { timeoutMs: 80 } });

@@ -96,6 +96,35 @@ test('App Store: with no editable version the live one is read and the note says
   );
 });
 
+test('App Store: the editable version and the live version are separate channels, each says which version it read', async () => {
+  const { api, connector } = apple((a) => {
+    // The default fake has the live 2.0 (READY_FOR_DISTRIBUTION, the name of `appVersionState`) and the editable 2.1.
+    a.locs.set('loc-live', {
+      versionId: 'v-live',
+      locale: 'en-US',
+      attributes: { locale: 'en-US' },
+    });
+    const size = { width: 1242, height: 2208 };
+    a.addPlacements('loc-en', 'IPHONE_55_PROFILE', [{ name: 'draft.png', bytes: new Uint8Array([1]), size }]);
+    a.addPlacements('loc-live', 'IPHONE_55_PROFILE', [
+      { name: 'left1.png', bytes: new Uint8Array([2]), size },
+      { name: 'left2.png', bytes: new Uint8Array([3]), size },
+    ]);
+  });
+  const editable = await connector.readStoreImages();
+  assert.deepEqual(
+    [editable.version?.versionString, editable.version?.editable, editable.images.map((i) => i.name)],
+    ['2.1', true, ['draft.png']],
+  );
+  const live = await connector.readStoreImages({ channel: 'live' });
+  assert.deepEqual(
+    [live.version?.versionString, live.version?.editable, live.images.map((i) => i.name)],
+    ['2.0', false, ['left1.png', 'left2.png']],
+  );
+  // Deleting from the draft never touches the live version's placements.
+  assert.deepEqual(api.writes(), []);
+});
+
 test('Google Play: readStoreImages reads every type of every language in a throwaway edit and commits nothing', async () => {
   const api = new FakePlayDraftApi();
   api.setImages('en-US', 'phoneScreenshots', [new Uint8Array([1, 2, 3]), new Uint8Array([4])]);

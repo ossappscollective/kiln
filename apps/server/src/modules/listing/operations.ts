@@ -234,7 +234,13 @@ export const listingOperations: Draft[] = [
     access: { action: 'listing.read' },
     appScope: { kind: 'param', name: 'id' },
     rateLimited: true,
-    query: z.object({ fresh: z.string().optional().describe('`1` skips the cache.') }),
+    query: z.object({
+      fresh: z.string().optional().describe('`1` skips the cache.'),
+      channel: z
+        .string()
+        .optional()
+        .describe('App Store: `live` reads the live version instead of the editable one (the default). Google Play ignores it.'),
+    }),
     responses: { '200': { description: 'The store\u2019s sets and images.', schema: object } },
   },
   {

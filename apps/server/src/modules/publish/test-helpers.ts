@@ -222,6 +222,8 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, St
   texts = new Map<string, string>();
   sets = new Map<string, DraftImageState[]>();
   behavior: DraftBehavior = { kind: 'ok' };
+  /** App Store: the store accepts every request but a set that is to shrink is read back unchanged (`applied_with_differences`). */
+  ghostRemovals = false;
   readError: unknown;
   /** After a failed write the draft cannot be read back. */
   readFailsAfterWrite = false;
@@ -448,7 +450,7 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, St
     };
   }
 
-  async readStoreImages(): Promise<StoreImagesRead> {
+  async readStoreImages(_options?: { channel?: 'editable' | 'live' }): Promise<StoreImagesRead> {
     this.imageReads++;
     if (this.imageReadError) throw this.imageReadError;
     return {
@@ -611,13 +613,22 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, St
     for (const a of input.assets) {
       const current = this.sets.get(`${a.locale}\u0000${a.target}`) ?? [];
       const same = setMatches(current, a.files);
+      const ghost = this.ghostRemovals && !same && a.files.length < current.length;
       apply(
         {
           type: 'asset',
           locale: a.locale,
           target: a.target,
-          outcome: same ? 'already_same' : 'applied',
+          outcome: same ? 'already_same' : ghost ? 'applied_with_differences' : 'applied',
           ...(same ? {} : { uploaded: a.files.length, removed: current.length }),
+          ...(ghost
+            ? {
+                kept: a.files.length,
+                differences: current
+                  .slice(a.files.length)
+                  .map((im, i) => ({ kind: 'still_present' as const, id: `pl-${i}`, name: im.name })),
+              }
+            : {}),
         },
         () => {
           this.locales.add(a.locale);

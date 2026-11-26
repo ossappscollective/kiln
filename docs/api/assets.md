@@ -66,7 +66,7 @@ address serves a **downscaled rendition** unless it has a size option, so the pr
 always ask for the original (`=s0`), and a thumbnail for `=s<size>`; a size that comes from the header (`sizeFrom: "header"`) is
 only ever a note, never an error or a warning, and an image that cannot be probed is one grouped note ("could not be checked").
 UNVERIFIED: that `=s0` returns the original for a Play `url` (Google documents it for its image hosts in general).
-`GET /assets/store` is reused for `STORE_VIEW_TTL_SECONDS` (60) and dropped by a successful draft push or `fresh=1`. The index is limited by the source:
+`GET /assets/store` is reused for `STORE_VIEW_TTL_SECONDS` (60) and dropped by a successful draft push or `fresh=1`. A draft push that read back different from what it pushed, or stopped part way, drops it too. `channel=live` (App Store) reads the live version instead of the editable one (default); each channel is cached on its own. The answer's `version` says which version was read (`versionString`, `state`, `editable`). The index is limited by the source:
 
 | Source                            | Images opened | Bytes pulled |
 | --------------------------------- | ------------- | ------------ |

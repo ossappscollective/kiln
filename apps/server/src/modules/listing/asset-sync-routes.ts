@@ -280,6 +280,7 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
       app,
       actor: actor(c),
       fresh: c.req.query('fresh') === '1',
+      channel: c.req.query('channel') === 'live' ? 'live' : 'editable',
     });
     if (!done.ok) return respond(c, done);
     c.header('Cache-Control', 'no-store');

@@ -28,6 +28,7 @@ import {
   type DraftApplyResult,
   type DraftAssetState,
   type DraftAssetWrite,
+  type DraftDifference,
   DraftDriftError,
   type DraftFieldFacts,
   type DraftFieldState,
@@ -42,6 +43,7 @@ import {
   type DraftTextState,
   type StoreDraftConnector,
   type StoreImageReader,
+  type StoreImagesOptions,
   type StoreImageRecord,
   type StoreImagesRead,
   setMatches,
@@ -202,6 +204,22 @@ const hashOfReference = (name: string | undefined): string | null => {
   const hex = name.slice(REFERENCE_PREFIX.length).toLowerCase();
   return /^[0-9a-f]{32}$/.test(hex) ? hex : null;
 };
+
+/**
+ * The display a placement's image is for, from its pixel size (null: no size known). The same rule `readStoreImages` uses, so the set a
+ * push edits is the set the Graphics tab shows: the tab groups the images of a locale by display, whatever placement group they sit in.
+ */
+const deviceOfPlacement = (p: PlacementRef): string | null => {
+  const a = isRecord(p.image.attributes) ? p.image.attributes : {};
+  const asset = isRecord(a.imageAsset) ? a.imageAsset : {};
+  const width = num(asset.width);
+  const height = num(asset.height);
+  return width !== undefined && height !== undefined ? classifyAppleScreenshot(width, height) : null;
+};
+
+/** A placement belongs to the set of a slot when it is in the slot's placement group, or its image is for the slot's display. */
+const belongsToSet = (p: PlacementRef, group: string, device: string | null): boolean =>
+  p.group === group || (device !== null && deviceOfPlacement(p) === device);
 const num = (v: unknown): number | undefined =>
   typeof v === 'number' && Number.isFinite(v) ? v : undefined;
 /** The family keyword of a device id of this server's (`iphone_6_5` is an IPHONE display, and so on). */
@@ -253,6 +271,8 @@ export class AppleDraftConnector
   #emit: ((progress: DraftProgress) => void) | undefined;
   #imagesTotal = 0;
   #imagesDone = 0;
+  /** One counts-only line per set (`DraftApplyInput.log`); a throw is the caller's and never changes the push. */
+  #log: ((line: string) => void) | undefined;
 
   constructor(options: AppleDraftConnectorOptions) {
     if (!/^[0-9]{1,20}$/.test(options.appStoreId)) {
@@ -372,9 +392,9 @@ export class AppleDraftConnector
    * says "to render a thumbnail"), so a pulled file is compared by size and never taken as byte for byte the uploaded file.
    * The device of an image is worked out from its pixel size; an image of an unknown size is counted in `unplaced`.
    */
-  async readStoreImages(): Promise<StoreImagesRead> {
+  async readStoreImages(options: StoreImagesOptions = {}): Promise<StoreImagesRead> {
     const notes: string[] = [];
-    const version = await this.#readableVersion(notes);
+    const version = await this.#readableVersion(notes, options.channel ?? 'editable');
     const locs = await this.#localizations(version.id);
     const images: StoreImageRecord[] = [];
     let unplaced = 0;
@@ -420,12 +440,15 @@ export class AppleDraftConnector
   /** The editable iOS version, else the one that is live (`READY_FOR_SALE`, UNVERIFIED name), else a refusal. */
   async #readableVersion(
     notes: string[],
+    channel: 'editable' | 'live' = 'editable',
   ): Promise<{ id: string; versionString: string | null; state: string; editable: boolean }> {
-    try {
-      const v = await this.#editableVersion();
-      return { id: v.id, versionString: v.versionString, state: v.state, editable: true };
-    } catch (error) {
-      if (!(error instanceof StoreError) || error.kind !== 'no_editable_version') throw error;
+    if (channel === 'editable') {
+      try {
+        const v = await this.#editableVersion();
+        return { id: v.id, versionString: v.versionString, state: v.state, editable: true };
+      } catch (error) {
+        if (!(error instanceof StoreError) || error.kind !== 'no_editable_version') throw error;
+      }
     }
     const what = 'looking for the live App Store version';
     let url: string | undefined =
@@ -436,8 +459,14 @@ export class AppleDraftConnector
         const a = isRecord(item.attributes) ? item.attributes : {};
         const id = text(item.id);
         const state = (text(a.appVersionState) ?? text(a.appStoreState) ?? '').toUpperCase();
-        if (id && text(a.platform) === this.#apple && state === 'READY_FOR_SALE') {
-          notes.push('There is no editable version, so the images of the live version were read.');
+        // `READY_FOR_SALE` is the old name of the state, `READY_FOR_DISTRIBUTION` the one of `appVersionState`.
+        if (
+          id &&
+          text(a.platform) === this.#apple &&
+          (state === 'READY_FOR_SALE' || state === 'READY_FOR_DISTRIBUTION')
+        ) {
+          if (channel === 'editable')
+            notes.push('There is no editable version, so the images of the live version were read.');
           return { id, versionString: text(a.versionString) ?? null, state, editable: false };
         }
       }
@@ -473,6 +502,16 @@ export class AppleDraftConnector
             sayProgress(progress);
           } catch {
             // What the caller does with a progress line never changes the push.
+          }
+        }
+      : undefined;
+    const sayLog = input.log;
+    this.#log = sayLog
+      ? (line) => {
+          try {
+            sayLog(line);
+          } catch {
+            // A log line never changes the push.
           }
         }
       : undefined;
@@ -735,7 +774,7 @@ export class AppleDraftConnector
     const assets: DraftAssetState[] = [];
     for (const slot of request.assets) {
       const group = await this.#groupFor(slot);
-      const mine = (read.get(slot.locale) ?? []).filter((p) => p.group === group);
+      const mine = (read.get(slot.locale) ?? []).filter((p) => belongsToSet(p, group, slot.device));
       placements.set(`${slot.locale}\u0000${group}`, mine);
       assets.push({
         locale: slot.locale,
@@ -1581,6 +1620,11 @@ export class AppleDraftConnector
       this.#imagesDone += write.files.length;
       return { ...base, outcome: 'already_same' };
     }
+    if (write.files.length === 0 && existing.length === 0) {
+      // Emptying a set that holds nothing (in this group or for this display): there is nothing to remove.
+      this.#log?.(`appstore: set ${write.target} (${write.locale}) already empty`);
+      return { ...base, outcome: 'already_same', kept: 0, removed: 0 };
+    }
     const ref = await this.#refData();
     const max = ref.maxCount.get(group) ?? MAX_SET_FILES;
     if (write.files.length > max) {
@@ -1604,6 +1648,7 @@ export class AppleDraftConnector
       const hit = pool.find(
         (e) =>
           !e.used &&
+          e.p.group === group &&
           e.hash === wanted &&
           text((isRecord(e.p.image.attributes) ? e.p.image.attributes : {}).state) !== 'FAILED',
       );
@@ -1634,7 +1679,9 @@ export class AppleDraftConnector
     const stale = pool.filter((e) => !e.used).map((e) => e.p.id);
     const fresh = plan.filter((p) => !p.placementId).length;
     const kept = plan.length - fresh;
-    const roomForBoth = kept + stale.length + fresh <= max;
+    // Only the placements of this group take room in it (a placement of another group that shows the same display is removed too).
+    const staleHere = pool.filter((e) => !e.used && e.p.group === group).length;
+    const roomForBoth = kept + staleHere + fresh <= max;
     let removed = 0;
     const removeStale = async () => {
       for (const id of stale) {
@@ -1713,7 +1760,69 @@ export class AppleDraftConnector
         },
       );
     }
-    return { ...base, outcome: 'applied', uploaded, removed };
+    // 5. Read the placements back: what the store lists now must be exactly the wanted set (a removal Apple has not carried out,
+    // or a refused one, is told, never counted as done).
+    const differences = await this.#verifySet(localizationId, group, write.device, wantedOrder, plan);
+    const outcome = differences.length === 0 ? 'applied' : 'applied_with_differences';
+    this.#log?.(
+      `appstore: set ${write.target} (${write.locale}) removed ${removed}, uploaded ${uploaded}, kept ${kept}, read back ${differences.length === 0 ? 'equal' : `${differences.length} differences`}`,
+    );
+    return {
+      ...base,
+      outcome,
+      uploaded,
+      removed,
+      kept,
+      ...(differences.length > 0 ? { differences } : {}),
+    };
+  }
+
+  /**
+   * Reads the placements of the localization again and compares the set of a slot (its group, and the images that are for its
+   * display) with the wanted placement ids in order. Differences: a placement that is still listed although it was to go
+   * (`still_present`), a wanted one that is not (`missing`), the same ones in another order (`order`). A difference is read once
+   * more after a pause (a removal may show late); ids and names only, at most 20.
+   */
+  async #verifySet(
+    localizationId: string,
+    group: string,
+    device: string | null,
+    wanted: string[],
+    plan: { file: { name: string }; placementId: string | undefined }[],
+  ): Promise<DraftDifference[]> {
+    const compare = async (): Promise<DraftDifference[]> => {
+      const now = (await this.#placements(localizationId)).filter((p) =>
+        belongsToSet(p, group, device),
+      );
+      const out: DraftDifference[] = [];
+      const wantedSet = new Set(wanted);
+      const listed = new Set(now.map((p) => p.id));
+      for (const p of now) {
+        if (wantedSet.has(p.id)) continue;
+        const a = isRecord(p.image.attributes) ? p.image.attributes : {};
+        out.push({ kind: 'still_present', id: p.id, name: text(a.fileName) ?? null });
+      }
+      for (const id of wanted) {
+        if (listed.has(id)) continue;
+        out.push({
+          kind: 'missing',
+          id,
+          name: plan.find((x) => x.placementId === id)?.file.name ?? null,
+        });
+      }
+      if (out.length === 0) {
+        const have = now.filter((p) => p.group === group).map((p) => p.id);
+        if (have.length !== wanted.length || have.some((id, i) => id !== wanted[i]))
+          out.push({ kind: 'order' });
+      }
+      return out.slice(0, 20);
+    };
+    let found = await compare();
+    if (found.length > 0) {
+      await this.#sleep(this.#pollMs);
+      found = await compare();
+    }
+    return found;
   }
 
   /** One progress line: the phase and how many files are through of all that the push carries. */

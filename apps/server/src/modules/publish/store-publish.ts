@@ -1719,7 +1719,7 @@ export type PublishResult = {
 const outcomeOf = (f: Failure): 'refused' | 'not_applied' | 'unknown' | 'partial' => {
   if (f.body.outcome === 'not_applied') return 'not_applied';
   if (f.body.error === 'outcome_unknown') return 'unknown';
-  if (f.body.error === 'draft_partial') return 'partial';
+  if (f.body.error === 'draft_partial' || f.body.error === 'applied_with_differences') return 'partial';
   return 'refused';
 };
 
@@ -1858,6 +1858,7 @@ async function runStep(
       confirmHash: step.confirmHash ?? '',
       actor,
       ...onProgress,
+      ...(ctx.log ? { log: (line: string) => ctx.log?.(`publish: app ${app.id} ${line}`) } : {}),
     });
     return r.ok
       ? {

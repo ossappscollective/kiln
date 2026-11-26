@@ -469,7 +469,7 @@ export const IMAGES_PURPOSE = 'store.images_read';
  */
 export async function readStoreImagesOf(
   ctx: DraftContext,
-  input: { workspaceId: string; app: ManagedApp; actor: Actor },
+  input: { workspaceId: string; app: ManagedApp; actor: Actor; channel?: 'editable' | 'live' },
 ): Promise<{ ok: true; read: StoreImagesRead } | Failure> {
   const connected = await connect(ctx, input.workspaceId, input.app, input.actor, IMAGES_PURPOSE);
   if (!connected.ok) return connected;
@@ -483,7 +483,7 @@ export async function readStoreImagesOf(
           'unsupported',
           'This store connection cannot read images.',
         );
-      return connector.readStoreImages();
+      return connector.readStoreImages(input.channel ? { channel: input.channel } : {});
     });
     return { ok: true, read };
   } catch (error) {
@@ -1597,6 +1597,8 @@ export async function applyDraftPush(
     actor: Actor;
     /** The batch publish's window on a long push: what the connector says it is doing ("uploading 12 of 40"). Optional; never changes the push. */
     onProgress?: (detail: { phase: string; done?: number; total?: number }) => void;
+    /** One counts-only line per set of graphics ("removed 3, uploaded 1, kept 5, read back equal"). Optional; never changes the push. */
+    log?: (line: string) => void;
     /**
      * Google Play only, for the batch publish's combined step: commit the same edit so that Google sends it for review
      * (`pushAndSubmit`). `submitEnabled` is KILN_STORE_SUBMIT_ENABLED: the combined step needs the submit switch as well as the draft
@@ -1704,6 +1706,7 @@ export async function applyDraftPush(
         ...(startRelease ? { start: { userFraction: startRelease.userFraction } } : {}),
         ...(replaceReview ? { replaceReview: true } : {}),
         ...(input.onProgress ? { progress: input.onProgress } : {}),
+        ...(input.log ? { log: input.log } : {}),
         guard: (current) => {
           const checks = checksOf(p, app.platform, current);
           if (!checks.canPush) {
@@ -1775,6 +1778,8 @@ export async function applyDraftPush(
     }
     if (error instanceof DraftPartialError) {
       const at = ctx.now();
+      // Part of the store changed: whoever caches a read of it (the store graphics) drops it.
+      for (const listener of draftPushListeners) listener(input.workspaceId, app.id);
       await markPushed(db, input.workspaceId, app.id, p, error.completed, at);
       const mapped = mapStoreError(error.cause, connection.secret);
       await audit(ctx, input, app, accepted, {
@@ -1817,6 +1822,50 @@ export async function applyDraftPush(
   }
 
   if (done) {
+    const differing = done.steps.filter((st) => st.outcome === 'applied_with_differences');
+    if (differing.length > 0) {
+      // Every request was accepted but the store, read back, does not hold what was asked (a removal that did not happen, or shows late).
+      // That is not "applied": the sets that differ stay staged (markPushed skips them), the rest is marked done, and nothing is submitted.
+      const at = ctx.now();
+      for (const listener of draftPushListeners) listener(input.workspaceId, app.id);
+      await markPushed(db, input.workspaceId, app.id, p, done.steps, at);
+      const items = differing.map((st) => ({
+        locale: st.locale,
+        target: st.target,
+        removed: st.removed ?? 0,
+        uploaded: st.uploaded ?? 0,
+        kept: st.kept ?? 0,
+        stillPresent: (st.differences ?? [])
+          .filter((d) => d.kind === 'still_present')
+          .map((d) => ({ id: d.id ?? '', name: d.name ?? null })),
+        missing: (st.differences ?? []).filter((d) => d.kind === 'missing').length,
+        order: (st.differences ?? []).some((d) => d.kind === 'order'),
+      }));
+      const still = items.reduce((n, i) => n + i.stillPresent.length, 0);
+      const names = items
+        .flatMap((i) => i.stillPresent.map((f) => f.name ?? f.id))
+        .slice(0, 6)
+        .join(', ');
+      await audit(ctx, input, app, accepted, {
+        ...tag,
+        code: 'applied_with_differences',
+        outcome: 'partial',
+        ...countsOf(done.steps),
+        sets: items.length,
+        stillPresent: still,
+      });
+      await releaseClaim(db, claim);
+      return failure(
+        409,
+        'applied_with_differences',
+        `The store accepted the requests, but reading it back shows ${items.length} ${items.length === 1 ? 'set' : 'sets'} that ${items.length === 1 ? 'does' : 'do'} not hold what was pushed (${still} ${still === 1 ? 'image' : 'images'} still listed${names ? `: ${names}` : ''}). Those changes stay staged, nothing was submitted. Check the draft in App Store Connect, then push again.`,
+        {
+          completed: done.steps.filter((st) => st.outcome !== 'applied_with_differences'),
+          differences: items,
+          ...coded('publish.appliedWithDifferences', { sets: items.length, images: still }),
+        },
+      );
+    }
     return succeed(ctx, input, {
       app: appView,
       prepared: p,

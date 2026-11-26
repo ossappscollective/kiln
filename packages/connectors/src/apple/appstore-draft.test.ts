@@ -261,6 +261,7 @@ test('screenshots: library, reserve, upload every part without the JWT, commit w
       outcome: 'applied',
       uploaded: 2,
       removed: 0,
+      kept: 0,
     },
   ]);
   assert.equal(result.commit, 'none');
@@ -386,6 +387,7 @@ test('replacing a set uploads the new files first, then places them, deletes the
     outcome: 'applied',
     uploaded: 1,
     removed: 2,
+    kept: 0,
   });
   const order = api.writes().map((w) => w.replace(/(img|pl)-\d+/g, '$1'));
   const lastCommit = order
@@ -431,6 +433,7 @@ test('the same files in a new order: no upload, one ordering request that names 
     outcome: 'applied',
     uploaded: 0,
     removed: 0,
+    kept: 2,
   });
   assert.deepEqual(api.writes(), ['POST /v1/appAssetLibraryPlacementOrderingRequests']);
   const body = api.seen.find((s) => s.method === 'POST')?.body as {
@@ -478,6 +481,7 @@ test('a placement that already shows a wanted file is kept: no upload, no new pl
     outcome: 'applied',
     uploaded: 0,
     removed: 1,
+    kept: 1,
   });
   assert.deepEqual(
     api.writes(),
@@ -521,6 +525,7 @@ test('an image that already is in the library (found by its reference name) is p
     outcome: 'applied',
     uploaded: 0,
     removed: 0,
+    kept: 0,
   });
   assert.deepEqual(
     api.writes().map((w) => w.replace(/(img|pl)-\d+/g, '$1')),
@@ -1032,4 +1037,132 @@ test('a paging list that never ends is read up to maxPages and no further', asyn
   );
   await assert.rejects(connector.readDraft({ text: [], assets: [] }), StoreError);
   assert.equal(pages, 3);
+});
+
+// ----- removing screenshots: the pushed set equals the wanted one (adds, removals, order), read back -----------------
+
+const six = () =>
+  [1, 2, 3, 4, 5, 6].map((n) => ({ name: `s${n}.png`, bytes: new Uint8Array([n, n, n]) }));
+/** `file()` makes bytes from a seed; these make the very bytes `six()` uploaded, so the hash is the placement's. */
+const same = (n: number): DraftFile => {
+  const bytes = new Uint8Array([n, n, n]);
+  return { name: `s${n}.png`, mime: 'image/png', bytes, md5: md5Of(bytes), sha256: sha256(bytes) };
+};
+
+test('six screenshots in the set, three wanted: three DELETEs, nothing uploaded, the kept ones in the wanted order, read back equal', async () => {
+  const { api, connector } = setup((a) => a.addPlacements('loc-en', GROUP, six()));
+  const lines: string[] = [];
+  const result = await connector.applyDraft(
+    input({
+      assets: [{ ...SLOT, files: [same(5), same(1), same(3)] }],
+      log: (l) => lines.push(l),
+    }),
+  );
+  const step = result.steps[0];
+  assert.equal(step?.outcome, 'applied');
+  assert.deepEqual([step?.removed, step?.uploaded, step?.kept], [3, 0, 3]);
+  assert.equal(api.writes().filter((w) => w.startsWith('DELETE /v1/appAssetLibraryPlacements/')).length, 3);
+  assert.ok(api.writes().includes('POST /v1/appAssetLibraryPlacementOrderingRequests'));
+  assert.deepEqual(api.groupFiles('loc-en', GROUP), ['s5.png', 's1.png', 's3.png']);
+  assert.ok(lines.some((l) => /removed 3, uploaded 0, kept 3, read back equal/.test(l)));
+  assert.ok(lines.every((l) => !/\.png/.test(l)), 'counts only, never a file name');
+});
+
+test('an emptied set (no wanted file): every placement of the set is deleted and the step says so', async () => {
+  const { api, connector } = setup((a) => a.addPlacements('loc-en', GROUP, six()));
+  const result = await connector.applyDraft(input({ assets: [{ ...SLOT, files: [] }] }));
+  const step = result.steps[0];
+  assert.equal(step?.outcome, 'applied');
+  assert.deepEqual([step?.removed, step?.uploaded, step?.kept], [6, 0, 0]);
+  assert.deepEqual(api.groupFiles('loc-en', GROUP), []);
+  assert.ok(api.writes().every((w) => !w.startsWith('POST')), 'nothing was created or ordered');
+  // A second push of the same empty set finds nothing to do.
+  const again = await connector.applyDraft(input({ assets: [{ ...SLOT, files: [] }] }));
+  assert.equal(again.steps[0]?.outcome, 'already_same');
+});
+
+test('a DELETE the store refuses is a refusal (partial), and what was already deleted stays reported', async () => {
+  const { api, connector } = setup((a) => {
+    a.addPlacements('loc-en', GROUP, six());
+    a.placementDeletes = 'refused';
+  });
+  await assert.rejects(
+    connector.applyDraft(input({ assets: [{ ...SLOT, files: [same(1)] }] })),
+    (e: unknown) => e instanceof StoreError,
+  );
+  assert.equal(api.groupFiles('loc-en', GROUP).length, 6);
+});
+
+test('Apple answers 204 to the deletes but still lists the placements: applied_with_differences names them, never "applied"', async () => {
+  const { api, connector } = setup((a) => {
+    a.addPlacements('loc-en', GROUP, six());
+    a.placementDeletes = 'ignored';
+  });
+  const result = await connector.applyDraft(
+    input({ assets: [{ ...SLOT, files: [same(1), same(2)] }] }),
+  );
+  const step = result.steps[0];
+  assert.equal(step?.outcome, 'applied_with_differences');
+  assert.equal(step?.removed, 4);
+  assert.deepEqual(
+    step?.differences?.map((d) => [d.kind, d.name]),
+    [
+      ['still_present', 's3.png'],
+      ['still_present', 's4.png'],
+      ['still_present', 's5.png'],
+      ['still_present', 's6.png'],
+    ],
+  );
+  // Read back twice: once right away, once after a pause.
+  const reads = api.seen.filter((s) => s.method === 'GET' && /\/placements$/.test(s.path));
+  assert.ok(reads.length >= 3);
+});
+
+test('placements of another group that show the same display are part of the set: they are removed, not left behind', async () => {
+  const size = { width: 1242, height: 2688 };
+  const { api, connector } = setup((a) => {
+    a.addPlacements('loc-en', GROUP, [{ name: 'a.png', bytes: new Uint8Array([7, 7, 7]), size }]);
+    // The Graphics tab shows images by display; these two are for the same display but sit in another group.
+    a.addPlacements('loc-en', 'IPHONE_OTHER_PROFILE', [
+      { name: 'x.png', bytes: new Uint8Array([8, 8, 8]), size },
+      { name: 'y.png', bytes: new Uint8Array([9, 9, 9]), size },
+    ]);
+  });
+  const state = await connector.readDraft({ text: [], assets: [SLOT] });
+  assert.equal(state.assets[0]?.images.length, 3, 'the set is what the tab shows for the display');
+  const result = await connector.applyDraft(input({ assets: [{ ...SLOT, files: [] }] }));
+  assert.equal(result.steps[0]?.outcome, 'applied');
+  assert.equal(result.steps[0]?.removed, 3);
+  assert.deepEqual(api.groupFiles('loc-en', GROUP), []);
+  assert.deepEqual(api.groupFiles('loc-en', 'IPHONE_OTHER_PROFILE'), []);
+});
+
+test('a placement of another display in the same locale is never touched by emptying a set', async () => {
+  const { api, connector } = setup((a) => {
+    a.addPlacements('loc-en', GROUP, [
+      { name: 'a.png', bytes: new Uint8Array([7, 7, 7]), size: { width: 1242, height: 2688 } },
+    ]);
+    a.addPlacements('loc-en', 'IPHONE_69_PROFILE', [
+      { name: 'big.png', bytes: new Uint8Array([4, 4, 4]), size: { width: 1290, height: 2796 } },
+    ]);
+  });
+  await connector.applyDraft(input({ assets: [{ ...SLOT, files: [] }] }));
+  assert.deepEqual(api.groupFiles('loc-en', GROUP), []);
+  assert.deepEqual(api.groupFiles('loc-en', 'IPHONE_69_PROFILE'), ['big.png']);
+});
+
+test('emptying the draft set never touches the placements of the live version (it keeps its own screenshots)', async () => {
+  const size = { width: 1242, height: 2688 };
+  const { api, connector } = setup((a) => {
+    a.locs.set('loc-live', { versionId: 'v-live', locale: 'en-US', attributes: { locale: 'en-US' } });
+    a.addPlacements('loc-en', GROUP, [{ name: 'draft.png', bytes: new Uint8Array([1]), size }]);
+    a.addPlacements('loc-live', GROUP, [
+      { name: 'live1.png', bytes: new Uint8Array([2]), size },
+      { name: 'live2.png', bytes: new Uint8Array([3]), size },
+    ]);
+  });
+  const result = await connector.applyDraft(input({ assets: [{ ...SLOT, files: [] }] }));
+  assert.equal(result.steps[0]?.removed, 1);
+  assert.deepEqual(api.groupFiles('loc-en', GROUP), []);
+  assert.deepEqual(api.groupFiles('loc-live', GROUP), ['live1.png', 'live2.png']);
 });

@@ -86,11 +86,16 @@ export function clearStoreImageCaches(): void {
   thumbBytes = 0;
 }
 
-const viewKey = (workspaceId: string, appId: string) => `${workspaceId}|${appId}`;
+/** App Store: `editable` is the version a push edits (else the live one), `live` the live version only. Google Play has one listing. */
+export type StoreChannel = 'editable' | 'live';
 
-/** Drops the cached store read of an app (a staged change, a publish or a refresh makes it stale). */
+const viewKey = (workspaceId: string, appId: string, channel: StoreChannel = 'editable') =>
+  channel === 'live' ? `${workspaceId}|${appId}|live` : `${workspaceId}|${appId}`;
+
+/** Drops the cached store reads of an app, of both channels (a staged change, a publish or a refresh makes them stale). */
 export function invalidateStoreImages(workspaceId: string, appId: string): void {
   views.delete(viewKey(workspaceId, appId));
+  views.delete(viewKey(workspaceId, appId, 'live'));
 }
 
 onDraftPushed(invalidateStoreImages);
@@ -290,8 +295,9 @@ export function peekStoreImages(
   workspaceId: string,
   appId: string,
   now: number,
+  channel: StoreChannel = 'editable',
 ): StoreImagesView | undefined {
-  const hit = views.get(viewKey(workspaceId, appId));
+  const hit = views.get(viewKey(workspaceId, appId, channel));
   return hit && now - hit.at < STORE_VIEW_TTL_SECONDS * 1000 ? hit.view : undefined;
 }
 
@@ -319,11 +325,18 @@ export const storeSideOf = (view: StoreImagesView): StoreSide => ({
  */
 export async function getStoreImages(
   ctx: StoreImagesContext,
-  input: { workspaceId: string; app: ManagedApp; actor: Actor; fresh?: boolean },
+  input: {
+    workspaceId: string;
+    app: ManagedApp;
+    actor: Actor;
+    fresh?: boolean;
+    channel?: StoreChannel;
+  },
 ): Promise<{ ok: true; view: StoreImagesView; cached: boolean } | Failure> {
   const now = ctx.draft.now();
+  const channel = input.channel ?? 'editable';
   if (!input.fresh) {
-    const hit = peekStoreImages(input.workspaceId, input.app.id, now);
+    const hit = peekStoreImages(input.workspaceId, input.app.id, now, channel);
     if (hit) return { ok: true, view: hit, cached: true };
   }
   const wait = ctx.limiter.take(input.workspaceId);
@@ -341,11 +354,12 @@ export async function getStoreImages(
     workspaceId: input.workspaceId,
     app: input.app,
     actor: input.actor,
+    channel,
   });
   if (!done.ok) return done;
   await probeMissingSizes(ctx, input.workspaceId, input.app.id, done.read.images);
   const view = build(ctx, input.workspaceId, input.app, done.read, now);
-  views.set(viewKey(input.workspaceId, input.app.id), { at: now, view });
+  views.set(viewKey(input.workspaceId, input.app.id, channel), { at: now, view });
   while (views.size > 64) {
     const oldest = views.keys().next().value;
     if (oldest === undefined) break;
