@@ -51,8 +51,23 @@ came from) and, for a CI hit, `ci { runNumber, branch, commit, url }`. In order:
    never a date: `builtAt` is never a release date.
 
 `version` comes from the first source that has one; `builtAt` from `ci`, else `store`. A code Kiln has never seen elsewhere
-has `null` for all of them. Open the app's Test builds page once to fill the cache. An App Store build has its own `version` and
-`uploadedDate` from Apple and needs no join.
+has `null` for all of them. Open the app's Test builds page once, or press "Read build info from CI" in Prepare release (it calls
+`POST .../builds/artifacts/:id/inspect` one file at a time for the latest eight unread Android artifacts; needs `builds.download` and
+`KILN_BUILDS_DOWNLOAD_ENABLED`), to fill the cache. An App Store build has its own `version` and `uploadedDate` from Apple and needs
+no join.
+
+The date and the run are PERSISTED (migration 73: `artifact_created_at`, `artifact_expires_at`, `run_id`, `run_number`, `branch`,
+`head_sha`, `run_url`, `artifact_name` on `ci_artifact_meta`) when the file is read, and filled in lazily from GitHub's artifact list
+for a row that lacks them, so the date outlives the artifact (GitHub keeps one 90 days at most). The join uses the persisted columns
+first and asks GitHub only when a read file has no date. The list asked is the raw one, not the Test builds rows: an artifact whose run
+is not among the last hundred still gives its date.
+
+When `builtAt` is `null` the code says why, so the page never shows a bare "not known": `builtGap` is `not_read` (Kiln has not read a
+CI file with this code), `file_gone` (read, but GitHub no longer has the file and no date was kept; `ciExpiredAt` is when it expired,
+if known), `github_unreachable` / `github_no_access` (the artifact list could not be read) or `no_repository` (no CI repository is
+linked). `matchedBy` is `package` or, when the file's package is not the app's but it is the only file of the app with this code,
+`build_number_only`. `firstSeenAt` is when Kiln's store sync first saw the code (`app_builds.first_seen_at`): NOT a build date, never
+used as one (Google Play gives none).
 
 **Is this build eligible?** Every build and every code has `eligibility: { eligible, severity, code, message }`: `eligible`
 says whether it can be chosen for the draft now, `severity` is `ok`, `warning` (it can be chosen, read the message) or `blocked`,

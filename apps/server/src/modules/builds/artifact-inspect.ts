@@ -7,11 +7,16 @@ import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { coded } from '../../i18n/problem.ts';
 import type { Failure } from '../../services/repositories.ts';
-import { loadOneArtifactMeta, saveArtifactMeta } from './artifact-meta-store.ts';
+import {
+  loadOneArtifactMeta,
+  rememberArtifactOrigin,
+  saveArtifactMeta,
+} from './artifact-meta-store.ts';
 import { inspectBuildArtifact } from './artifact-meta/inspect.ts';
 import {
   type ArtifactItem,
   artifactItem,
+  artifactOriginOf,
   type BuildsContext,
   type BuildsFailure,
   fail,
@@ -109,8 +114,22 @@ export async function inspectArtifact(
       ok: true as const,
       artifact: artifactItem(artifact, run, app, ctx.builds.maxDownloadBytes, meta),
     });
+    const origin = artifactOriginOf(artifact, run);
     const known = await loadOneArtifactMeta(ctx.db, input.workspaceId, app.id, artifact.id);
-    if (known) return item(known);
+    if (known) {
+      // A file read before its date was kept (migration 73): the list has it now, so keep it (the date outlives the artifact).
+      const filled = await rememberArtifactOrigin(ctx.db, {
+        workspaceId: input.workspaceId,
+        appId: app.id,
+        artifactId: artifact.id,
+        origin,
+      });
+      return item(
+        filled
+          ? ((await loadOneArtifactMeta(ctx.db, input.workspaceId, app.id, artifact.id)) ?? known)
+          : known,
+      );
+    }
 
     const opened = await openArtifactDownload(ctx, { ...input, via: 'inspect' }, actor);
     if (!opened.ok) return opened;
@@ -136,6 +155,7 @@ export async function inspectArtifact(
         artifactId: artifact.id,
         meta,
         at: ctx.now(),
+        origin,
       });
       return item(saved);
     } finally {

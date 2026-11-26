@@ -3246,6 +3246,15 @@ export const ciArtifactMeta = sqliteTable(
     packageId: text('package_id'),
     format: text('format'),
     readAt: integer('read_at').notNull(),
+    /** Migration 73: the artifact's name, when GitHub made it (epoch ms), when it expires, and the run it came from; all nullable. */
+    artifactName: text('artifact_name'),
+    artifactCreatedAt: integer('artifact_created_at'),
+    artifactExpiresAt: integer('artifact_expires_at'),
+    runId: text('run_id'),
+    runNumber: integer('run_number'),
+    branch: text('branch'),
+    headSha: text('head_sha'),
+    runUrl: text('run_url'),
   },
   (t) => [
     primaryKey({ columns: [t.appId, t.artifactId] }),

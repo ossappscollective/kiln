@@ -36,6 +36,10 @@ test('a cache hit gives the version, the artifact date and the run', () => {
     origin: 'ci',
     builtFrom: 'ci',
     ci: RUN,
+    builtGap: null,
+    ciExpiredAt: null,
+    matchedBy: 'package',
+    firstSeenAt: null,
   });
 });
 
@@ -46,6 +50,10 @@ test('a store build gives the version, and its upload time only when the store r
     builtAt: null,
     origin: 'store',
     builtFrom: null,
+    builtGap: 'not_read',
+    ciExpiredAt: null,
+    matchedBy: null,
+    firstSeenAt: null,
   });
   const dated = [{ buildNumber: '89', version: '2.00.0', uploadedAt: T0 - HOUR }];
   const o = originOfCode(code('89'), sources({ store: dated }), PKG);
@@ -59,6 +67,10 @@ test('nothing known: everything is null, and a release name is a version hint, n
     builtAt: null,
     origin: null,
     builtFrom: null,
+    builtGap: 'not_read',
+    ciExpiredAt: null,
+    matchedBy: null,
+    firstSeenAt: null,
   });
   const named = originOfCode(code('88', [null, ' 1.15.2 ']), NO_ORIGIN_SOURCES, PKG);
   assert.equal(named.version, '1.15.2');
@@ -92,8 +104,12 @@ test('several artifacts with one code: the earliest one; another package never m
   const o = originOfCode(code('90'), sources({ artifacts: [later, art('90')] }), PKG);
   assert.equal(o.builtAt, T0);
   assert.equal(o.version, '2.00.1');
-  const other = art('90', { packageId: 'com.other' });
-  assert.equal(originOfCode(code('90'), sources({ artifacts: [other] }), PKG).version, null);
+  // Two files of another package: ambiguous, so neither is taken (a single one is the build-number fallback, below).
+  const others = [
+    art('90', { packageId: 'com.other' }),
+    art('90', { artifactId: 'z', packageId: 'com.other.beta' }),
+  ];
+  assert.equal(originOfCode(code('90'), sources({ artifacts: others }), PKG).version, null);
   const unknownPkg = art('90', { packageId: null });
   assert.equal(originOfCode(code('90'), sources({ artifacts: [unknownPkg] }), PKG).version, '2.00.1');
   // another build number never matches
@@ -121,4 +137,46 @@ test('withOrigins adds the fields to every Google Play code and leaves an App St
   assert.equal(b?.ci, undefined);
   const apple = { store: 'appstoreconnect', platform: 'ios', builds: [] } as unknown as ReleaseCandidates;
   assert.equal(withOrigins(apple, NO_ORIGIN_SOURCES, PKG), apple);
+});
+
+test('a package that differs only by case still matches; a flavor suffix falls back to the build number, said so', () => {
+  const upper = art('90', { packageId: 'COM.Acme.Android' });
+  const a = originOfCode(code('90'), sources({ artifacts: [upper] }), PKG);
+  assert.equal(a.matchedBy, 'package');
+  const beta = art('90', { packageId: 'com.acme.android.beta' });
+  const b = originOfCode(code('90'), sources({ artifacts: [beta] }), PKG);
+  assert.equal(b.matchedBy, 'build_number_only');
+  assert.equal(b.version, '2.00.1');
+  assert.equal(b.builtAt, T0);
+  // A strict match wins over a mismatching file with the same code.
+  const both = originOfCode(code('90'), sources({ artifacts: [beta, art('90', { artifactId: 'x', version: '3.0.0' })] }), PKG);
+  assert.equal(both.matchedBy, 'package');
+  assert.equal(both.version, '3.0.0');
+});
+
+test('why a date is missing: not read, file gone, GitHub unreachable or without access, no repository', () => {
+  const noDate = art('90', { createdAt: null, run: null, expiresAt: T0 - HOUR });
+  const gone = originOfCode(code('90'), sources({ artifacts: [noDate], listing: 'ok' }), PKG);
+  assert.equal(gone.builtGap, 'file_gone');
+  assert.equal(gone.ciExpiredAt, T0 - HOUR);
+  assert.equal(gone.version, '2.00.1');
+  for (const [listing, gap] of [
+    ['unreachable', 'github_unreachable'],
+    ['no_access', 'github_no_access'],
+    ['no_repository', 'no_repository'],
+  ] as const)
+    assert.equal(originOfCode(code('90'), sources({ artifacts: [noDate], listing }), PKG).builtGap, gap);
+  assert.equal(originOfCode(code('88'), sources({ artifacts: [noDate] }), PKG).builtGap, 'not_read');
+  assert.equal(originOfCode(code('88'), sources({ ciLinked: false }), PKG).builtGap, 'no_repository');
+  // A known date has no gap.
+  assert.equal(originOfCode(code('90'), sources({ artifacts: [art('90')] }), PKG).builtGap, null);
+});
+
+test('first seen by the sync is kept apart from the build date', () => {
+  const store = [{ buildNumber: '89', version: null, uploadedAt: null, firstSeenAt: T0 - HOUR }];
+  const o = originOfCode(code('89'), sources({ store }), PKG);
+  assert.equal(o.firstSeenAt, T0 - HOUR);
+  assert.equal(o.builtAt, null);
+  assert.equal(o.builtFrom, null);
+  assert.equal(o.builtGap, 'not_read');
 });

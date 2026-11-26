@@ -3258,6 +3258,15 @@ export const ciArtifactMeta = pgTable(
     packageId: text('package_id'),
     format: text('format'),
     readAt: epochMs('read_at').notNull(),
+    /** Migration 73: the artifact's name, when GitHub made it (epoch ms), when it expires, and the run it came from; all nullable. */
+    artifactName: text('artifact_name'),
+    artifactCreatedAt: epochMs('artifact_created_at'),
+    artifactExpiresAt: epochMs('artifact_expires_at'),
+    runId: text('run_id'),
+    runNumber: epochMs('run_number'),
+    branch: text('branch'),
+    headSha: text('head_sha'),
+    runUrl: text('run_url'),
   },
   (t) => [
     primaryKey({ columns: [t.appId, t.artifactId] }),

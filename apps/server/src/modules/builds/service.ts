@@ -25,7 +25,12 @@ import { timedCache } from '../../services/timed-cache.ts';
 import { listConventions } from '../ci/conventions.ts';
 import { listRuns, runCountsForApp, type WorkflowRunView } from '../ci/runs.ts';
 import { type CiContext, guarded, openCi } from '../ci/service.ts';
-import { type ArtifactBuild, type ArtifactMeta, loadArtifactMeta } from './artifact-meta-store.ts';
+import {
+  type ArtifactBuild,
+  type ArtifactMeta,
+  type ArtifactOrigin,
+  loadArtifactMeta,
+} from './artifact-meta-store.ts';
 
 /**
  * Builds you can test before publishing (docs/api/builds.md, docs/research/test-builds.md): the zips that CI runs
@@ -491,6 +496,48 @@ export function artifactItem(
       conclusion: run.conclusion,
       url: run.url,
     },
+  };
+}
+
+/** What the artifact list says about when an artifact was made and its run, in the shape `ci_artifact_meta` keeps (migration 73). */
+export function artifactOriginOf(a: CiArtifact, run: WorkflowRunView | undefined): ArtifactOrigin {
+  return {
+    name: a.name,
+    createdAt: a.createdAt,
+    expiresAt: a.expiresAt,
+    runId: a.runId,
+    runNumber: run?.runNumber ?? null,
+    branch: run?.branch ?? a.headBranch,
+    headSha: shortSha(run?.headSha ?? a.headSha),
+    runUrl: run?.url ?? null,
+  };
+}
+
+/**
+ * Every artifact GitHub lists for the repository of an app (the same read as the list, kept 30 seconds), each with its run when the
+ * last hundred runs hold it. Unlike the list this does not drop an artifact whose run is not known or that belongs to another platform: it
+ * is for the date and the run of a build whose file was read. `reason` is the fixed vocabulary of a list that could not be read.
+ */
+export async function listRawArtifacts(
+  ctx: BuildsContext,
+  input: { workspaceId: string; appId: string },
+  actor: Actor,
+): Promise<
+  | { ok: true; artifacts: CiArtifact[]; runs: Map<string, WorkflowRunView>; truncated: boolean }
+  | { ok: false; reason: ArtifactProblemReason }
+> {
+  const app = await getApp(ctx.db, input.workspaceId, input.appId);
+  if (!app?.repositoryId) return { ok: false, reason: 'no_repository' };
+  const repository = await getRepository(ctx.db, input.workspaceId, app.repositoryId);
+  if (!repository || repository.localOnly) return { ok: false, reason: 'no_repository' };
+  const read = await readRepoArtifacts(ctx, input.workspaceId, repository, actor);
+  if (!read.ok) return { ok: false, reason: reasonOf(read) };
+  const runs = await listRuns(ctx.db, input.workspaceId, repository.id, { limit: 100 });
+  return {
+    ok: true,
+    artifacts: read.value.artifacts,
+    runs: new Map(runs.map((r) => [r.id, r])),
+    truncated: read.value.truncated,
   };
 }
 

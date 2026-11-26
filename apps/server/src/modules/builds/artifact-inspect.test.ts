@@ -147,6 +147,53 @@ dbTest('inspect: reads the build number once, keeps it, and the list carries it'
   }
 });
 
+dbTest('inspect: keeps when and by which run the artifact was made, and fills a row that lacks them', async (db) => {
+  const t = await boot(db);
+  try {
+    // A real-looking AAB: versionName 2.00.1, versionCode 90; the version is the manifest's, not the artifact's name.
+    t.serve(
+      '1',
+      zipOf([
+        {
+          name: 'base/manifest/AndroidManifest.xml',
+          data: protoManifest({ versionCode: 90, versionName: '2.00.1', packageName: 'com.acme.android' }),
+        },
+      ]),
+    );
+    const res = await t.inspect('1');
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.equal(res.body.artifact.build.version, '2.00.1');
+    assert.notEqual(res.body.artifact.build.version, res.body.artifact.name);
+    const read = () =>
+      db.query(
+        'SELECT artifact_name, artifact_created_at, artifact_expires_at, run_id, run_number, branch, head_sha, run_url FROM ci_artifact_meta WHERE app_id = ? AND artifact_id = ?',
+        [t.appId, '1'],
+      );
+    const [row] = await read();
+    assert.equal(row?.artifact_name, 'android-release');
+    assert.equal(Number(row?.artifact_created_at), T0 - 1);
+    assert.equal(Number(row?.artifact_expires_at), T0 + 30 * DAY);
+    assert.equal(row?.run_id, '102');
+    assert.equal(row?.branch, 'main');
+    assert.equal(row?.head_sha, '1111111');
+    assert.ok(String(row?.run_url).includes('/102'));
+    // A row kept before migration 73 has none of it: the next inspect of the listed artifact fills it, without a new download.
+    await db.execute(
+      'UPDATE ci_artifact_meta SET artifact_created_at = NULL, run_number = NULL, branch = NULL, artifact_expires_at = NULL, artifact_name = NULL, run_url = NULL WHERE app_id = ?',
+      [t.appId],
+    );
+    clearBuildCaches();
+    const again = await t.inspect('1');
+    assert.equal(again.status, 200);
+    assert.equal(t.fake.count('openArtifactDownload'), 1);
+    const [filled] = await read();
+    assert.equal(Number(filled?.artifact_created_at), T0 - 1);
+    assert.equal(filled?.branch, 'main');
+  } finally {
+    await t.done();
+  }
+});
+
 dbTest('inspect: a file with no build number is kept as unreadable and not downloaded again', async (db) => {
   const t = await boot(db);
   try {
