@@ -111,6 +111,16 @@ test('the scope filters the count and says where the rest is', () => {
   assert.equal(quiet.elsewhere.pendingCount, 3);
 });
 
+test('a publish on the OTHER platform of the app still holds every write back (one batch writes the app), and the card says where', () => {
+  const f = facts({ releases: { [ANDROID.id]: [internalTesting()] }, publishing: { [IOS.id]: running() } });
+  const s = deriveAppState(f, 'android');
+  assert.equal(s.phase, 'ready_to_release', 'the scope is Android: its card is not "publishing"');
+  assert.equal(s.elsewhere.publishing, true);
+  assert.equal(s.promotion?.offer.enabled, false);
+  assert.equal(s.primaryAction.enabled, false);
+  assert.match(s.primaryAction.disabledReason ?? '', /A publish of this app is running/);
+});
+
 test('promote while a publish runs is off, with the reason; with no run it is on', () => {
   const f = facts({ records: [ANDROID], releases: { [ANDROID.id]: [internalTesting()] } });
   assert.equal(deriveAppState(f, 'android').promotion?.offer.enabled, true);

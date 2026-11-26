@@ -51,8 +51,6 @@ export type AppFacts = {
   attention: readonly AttentionItem[];
   /** The server's switch for publishing in one go; null when not known. */
   publishBatchEnabled: boolean | null;
-  /** The workspace asks for a step-up before a store write (the action then asks for a confirmation; it is not off). */
-  stepUp: boolean;
   /** The time of the snapshot (the words say "started 3 minutes ago"). */
   now: number;
 };

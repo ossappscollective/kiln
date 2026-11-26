@@ -109,11 +109,11 @@ type RecordContext = {
   /** The failure of this record. */
   failure: LastPublish | null;
   /**
-   * What the app as seen in scope is doing: the first publish that runs, and whether a failure waits. A record's actions are held back
-   * by its own state AND by its siblings' in scope (one publish writes one app's store state; the card speaks for the whole scope).
+   * The first publish that runs on ANY record of the app, in scope or not: a record's actions are held back by its own publish and by
+   * its siblings' (one batch writes the app's store state; nothing may write beside it, whatever platform the page shows). A failure
+   * holds back its own record only: the staged content it left half written is per record.
    */
   appPublishing: Publishing | null;
-  appFailure: LastPublish | null;
   pending: PendingFacts;
   publishBatchEnabled: boolean | null;
   now: number;
@@ -140,11 +140,11 @@ export function verdictOf(action: GuardedAction, c: RecordContext): Verdict {
   if (!can(c.role, RIGHT[action])) return no('role', t('state:verdict.role'));
   if (action === 'start_release' && !can(c.role, 'repositories.read'))
     return no('role', t('state:verdict.role'));
-  if ((c.failure !== null || c.appFailure !== null) && HELD_BY_FAILURE.has(action))
+  if (c.failure !== null && HELD_BY_FAILURE.has(action))
     return no('publish_failed', t('state:verdict.publishFailed'));
   if (action === 'publish') {
     if (c.publishBatchEnabled === false) return no('switch_off', t('state:verdict.switchOff'));
-    if (c.pending.count <= 0 && c.failure === null && c.appFailure === null)
+    if (c.pending.count <= 0 && c.failure === null)
       return no('nothing_to_publish', t('state:verdict.nothingToPublish'));
   }
   return ok;
@@ -227,7 +227,7 @@ const whole = (n: unknown): number =>
 const failureOf = (run: LastPublish | null | undefined, publishing: Publishing | null): LastPublish | null =>
   run != null && !run.completed && !run.dismissed && publishing === null ? run : null;
 
-function recordContext(facts: AppFacts, record: AppSummary, app: { publishing: Publishing | null; failure: LastPublish | null } = { publishing: null, failure: null }): RecordContext {
+function recordContext(facts: AppFacts, record: AppSummary, appPublishing: Publishing | null = null): RecordContext {
   const publishing = facts.publishing[record.id] ?? null;
   const p = facts.pending[record.id] ?? noPending;
   return {
@@ -235,8 +235,7 @@ function recordContext(facts: AppFacts, record: AppSummary, app: { publishing: P
     record,
     publishing,
     failure: failureOf(facts.lastRun[record.id], publishing),
-    appPublishing: app.publishing,
-    appFailure: app.failure,
+    appPublishing,
     pending: { count: whole(p.count), blocking: whole(p.blocking) },
     publishBatchEnabled: facts.publishBatchEnabled,
     now: facts.now,
@@ -267,12 +266,8 @@ const toneOf = (phase: Phase, step: { tone: 'bad' | 'warn' | 'info' | 'neutral' 
 export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState {
   const scoped = scopeRecords(facts.records, scope);
   const outside = facts.records.filter((r) => scoped.indexOf(r) < 0);
-  const own = scoped.map((r) => recordContext(facts, r));
-  const appState = {
-    publishing: own.reduce<Publishing | null>((found, c) => found ?? c.publishing, null),
-    failure: own.reduce<LastPublish | null>((found, c) => found ?? c.failure, null),
-  };
-  const contexts = scoped.map((r) => recordContext(facts, r, appState));
+  const appPublishing = facts.records.reduce<Publishing | null>((found, r) => found ?? facts.publishing[r.id] ?? null, null);
+  const contexts = scoped.map((r) => recordContext(facts, r, appPublishing));
   const byApp: Record<string, RecordContext> = {};
   for (const c of contexts) byApp[c.record.id] = c;
 

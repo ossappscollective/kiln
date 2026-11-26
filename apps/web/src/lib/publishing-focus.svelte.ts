@@ -8,6 +8,8 @@ import { panelTarget } from './publishing.ts';
  * at once when it already is). One request at a time; it is answered once.
  */
 let requested = $state<string | null>(null);
+/** The app whose FAILURE block should come into view (the top bar's "Publish failed", the card's "Show pending changes"). */
+let failureRequested = $state<string | null>(null);
 
 export const publishingFocus = {
   /** The app whose status row should come into view, or null. Reactive. */
@@ -20,6 +22,17 @@ export const publishingFocus = {
   /** The row of `appId` was shown: the request is answered. */
   done(appId: string): void {
     if (requested === appId) requested = null;
+  },
+  /** The app whose failure block should come into view, or null. Reactive. */
+  get failureRequested(): string | null {
+    return failureRequested;
+  },
+  askFailure(appId: string): void {
+    failureRequested = appId;
+  },
+  /** The failure block of `appId` was shown: the request is answered. */
+  doneFailure(appId: string): void {
+    if (failureRequested === appId) failureRequested = null;
   },
 };
 

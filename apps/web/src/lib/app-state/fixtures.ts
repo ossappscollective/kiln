@@ -127,7 +127,6 @@ export const facts = (over: Partial<AppFacts> = {}): AppFacts => ({
   pipelines: {},
   attention: [],
   publishBatchEnabled: true,
-  stepUp: false,
   now: NOW,
   ...over,
 });

@@ -139,17 +139,24 @@ function check(c: Combo, s: AppState): void {
     for (const p of s.platforms) {
       if (p.failure === null) continue;
       for (const a of HELD) if (p.verdicts[a].enabled) fail(`failure: ${a} must be off for ${p.platform}`);
-      for (const a of HELD) if (p.verdicts[a].code !== 'publish_failed' && p.verdicts[a].code !== 'role' && p.verdicts[a].code !== 'unsupported') fail(`failure: ${a} off for another reason`);
+      for (const a of HELD) if (['publish_failed', 'publishing', 'role', 'unsupported'].indexOf(p.verdicts[a].code) < 0) fail(`failure: ${a} off for another reason`);
     }
     const promo = s.promotion;
     if (promo && promo.offer.enabled && s.platforms.some((p) => p.failure !== null && p.appId === promo.option.appId)) fail('promote on a failed app');
     if (s.flow !== null) fail('failure: the release flow must not speak over it');
   }
 
-  // A failure holds the same actions back on every record in scope (the card speaks for the scope).
-  if (s.phase === 'publish_failed') {
-    for (const p of s.platforms) for (const a of HELD) if (p.verdicts[a].enabled) fail(`failure: ${a} on for ${p.platform} while the scope has a failed publish`);
-    for (const a of HELD) if (s.verdicts[a].enabled) fail(`failure: ${a} on over the scope`);
+  // Over the scope, a failure of one record holds the held actions back (the card speaks for the scope).
+  if (s.phase === 'publish_failed')
+    for (const a of HELD)
+      if (s.platforms.some((p) => p.failure !== null && p.verdicts[a].code !== 'unsupported') && s.verdicts[a].enabled) fail(`failure: ${a} on over the scope`);
+
+  // A publish on ANY record of the app, in scope or not: no guarded action is on for any record in scope, and no offer that writes is on.
+  if (c.publishingIos || c.publishingAndroid) {
+    for (const p of s.platforms) for (const a of GUARDED_ACTIONS) if (p.verdicts[a].enabled) fail(`${a} on for ${p.platform} while the app publishes`);
+    for (const a of GUARDED_ACTIONS) if (s.verdicts[a].enabled) fail(`${a} on over the scope while the app publishes`);
+    const writing = [s.primaryAction, ...s.secondaryActions, ...(s.flow ? s.flow.rows.map((r) => r.offer) : []), ...(s.promotion ? [s.promotion.offer] : [])];
+    for (const o of writing) if (GUARD[o.action] !== undefined && o.enabled) fail(`offer ${o.action} on while the app publishes`);
   }
 
   // Publishing: nothing mutates, anywhere.
