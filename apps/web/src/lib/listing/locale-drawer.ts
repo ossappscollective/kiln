@@ -128,7 +128,9 @@ export function blockingLines(field: DriftField): string[] {
 }
 
 /** What the top of the drawer says about this locale, from the fields of every platform. */
-export function localeLead(platforms: readonly { fields: readonly DriftField[] }[]): {
+export function localeLead(
+  platforms: readonly { fields: readonly DriftField[]; empty?: readonly string[] | undefined }[],
+): {
   headline: string;
   hint: string;
   tone: LeadTone;
@@ -136,6 +138,15 @@ export function localeLead(platforms: readonly { fields: readonly DriftField[] }
   over: number;
 } {
   const all = platforms.flatMap((p) => p.fields);
+  // A language the store holds with nothing in it has no fields: say what is wrong, not that there is nothing to see.
+  if (all.length === 0 && platforms.some((p) => (p.empty ?? []).length > 0))
+    return {
+      headline: t('listing:drawer.lead.emptyLocale'),
+      hint: t('listing:drawer.lead.emptyLocaleHint'),
+      tone: 'warn',
+      differ: 0,
+      over: 0,
+    };
   if (all.length === 0)
     return {
       headline: t('listing:drawer.lead.noFields'),

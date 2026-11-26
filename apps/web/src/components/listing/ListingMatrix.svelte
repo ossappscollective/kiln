@@ -55,6 +55,7 @@
     modeCounts,
     type MatrixCell,
   } from '../../lib/listing/matrix.ts';
+  import { emptyChip, emptyLine } from '../../lib/listing/empty-locale.ts';
   import { fieldInfo } from '../../lib/listing/edit.ts';
   import { pullDisabledReason, pullableFields, summarizePull } from '../../lib/listing/pull.ts';
   import { warningCountOf, warningGroups } from '../../lib/listing/warnings.ts';
@@ -738,6 +739,14 @@
                       <span class="code">{row.locale}</span>
                       {#if row.name !== row.locale}<span class="name muted">{row.name}</span>{/if}
                     </button>
+                    {#each row.platforms as emptyPlatform (emptyPlatform)}
+                      {#if (row.empty[emptyPlatform] ?? []).length > 0}
+                        <button type="button" class="bare empty-chip" aria-label={emptyLine(row.locale, row.empty[emptyPlatform] ?? [])} title={emptyLine(row.locale, row.empty[emptyPlatform] ?? [])} onclick={() => openLocale(row.locale)}>{emptyChip(row.empty[emptyPlatform] ?? [])}</button>
+                      {/if}
+                    {/each}
+                    {#if row.draftOnly}
+                      <span class="draft-chip muted" title={t('listing:empty.draftOnlyHint')}>{t('listing:empty.draftOnly')}</span>
+                    {/if}
                     {#if stagedInLocale(row.locale) > 0}
                       {@const n = stagedInLocale(row.locale)}
                       <button type="button" class="bare staged-chip" aria-label={t('listing:matrixView.localeStagedAria', { count: n, locale: row.locale })} onclick={() => announceCartOpen(row.locale)}>{t('listing:matrixView.localeStaged', { count: n })}</button>
@@ -837,6 +846,7 @@
   locked={lockedPlatforms}
   asoKeywords={canReadAso ? asoKeywords : undefined}
   allLocales={matrix.rows.map((r) => r.locale)}
+  allRows={matrix.rows}
   {api}
   {workspaceId}
   onedit={openEditor}
@@ -1190,6 +1200,30 @@
   button.bare.staged-chip:focus-visible {
     outline: var(--ring);
     outline-offset: 2px;
+  }
+
+  /* "Empty: description, keywords": a language the store holds with required texts left empty. Opens the locale panel with the fixes. */
+  button.bare.empty-chip {
+    flex: none;
+    padding: 0 var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    color: var(--warn-ink);
+    cursor: pointer;
+    background: var(--warn-bg);
+    border-radius: var(--radius-full);
+    box-shadow: inset 0 0 0 1px var(--warn-line);
+  }
+
+  button.bare.empty-chip:focus-visible {
+    outline: var(--ring);
+    outline-offset: 2px;
+  }
+
+  .draft-chip {
+    flex: none;
+    font-size: var(--text-xs);
+    white-space: nowrap;
   }
 
   .dots.dim {

@@ -66,15 +66,19 @@ async function readBase(
     platform: app.platform,
     identifier: app.identifier,
   });
-  const channel =
-    live.channels.find((c) => c.channel === 'live') ??
-    live.channels.find((c) => c.channel === 'editable');
-  const locales: CheckLocaleText[] = channel
-    ? Object.keys(channel.locales).map((locale) => ({
-        locale,
-        fields: { ...(channel.locales[locale] ?? {}) },
-      }))
-    : [];
+  // The live copy first; a language only the draft holds (App Store Connect adds one to the draft) is
+  // taken from the draft, so its empty texts can be fixed too.
+  const locales: CheckLocaleText[] = [];
+  const seen = new Set<string>();
+  for (const name of ['live', 'editable'] as const) {
+    const channel = live.channels.find((c) => c.channel === name);
+    if (!channel) continue;
+    for (const locale of Object.keys(channel.locales)) {
+      if (seen.has(locale)) continue;
+      seen.add(locale);
+      locales.push({ locale, fields: { ...(channel.locales[locale] ?? {}) } });
+    }
+  }
   const rows = await ctx.db.query(
     "SELECT id, locale, target, value_text FROM staged_changes WHERE app_id = ? AND kind = 'listing_text' AND ordinal = 0",
     [app.id],

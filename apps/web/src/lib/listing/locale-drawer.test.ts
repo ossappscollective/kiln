@@ -178,3 +178,11 @@ test('leadAction: names the platform when several are in the locale', () => {
   ]);
   assert.equal(a?.label, 'Stage Android promo from the repository');
 });
+
+test('localeLead: a language the store holds with nothing in it says it is empty, not that it has no fields', () => {
+  const lead = localeLead([{ fields: [], empty: ['description', 'keywords', 'support_url'] }]);
+  assert.equal(lead.headline, 'Empty in the store');
+  assert.equal(lead.tone, 'warn');
+  // Without anything flagged the old line stays.
+  assert.equal(localeLead([{ fields: [], empty: [] }]).headline, 'This locale has no fields');
+});

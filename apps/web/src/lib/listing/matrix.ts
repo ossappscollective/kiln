@@ -184,6 +184,10 @@ export type MatrixRow = {
   fields: Partial<Record<Platform, DriftField[]>>;
   /** Number of cells per status (`na` not counted). */
   counts: Record<CellStatus, number>;
+  /** The required texts the store leaves empty in this locale, by platform (only the platforms that have some). */
+  empty: Partial<Record<Platform, string[]>>;
+  /** True when the store holds this locale on the draft only: the live version does not have it yet. */
+  draftOnly: boolean;
 };
 
 export type Matrix = {
@@ -268,9 +272,19 @@ export function buildMatrix(sources: readonly MatrixSource[]): Matrix {
 
   const rows: MatrixRow[] = codes.map((code) => {
     const fields: Partial<Record<Platform, DriftField[]>> = {};
+    const empty: Partial<Record<Platform, string[]>> = {};
+    let draftHeld = false;
+    let liveHeld = false;
     for (const source of loaded) {
       const locale = source.drift.locales.find((l) => l.locale === code);
-      if (locale) fields[source.platform] = locale.fields;
+      if (!locale) continue;
+      fields[source.platform] = locale.fields;
+      if (locale.emptyRequired && locale.emptyRequired.length > 0)
+        empty[source.platform] = locale.emptyRequired;
+      for (const store of locale.stores ?? []) {
+        if (store === 'editable') draftHeld = true;
+        else liveHeld = true;
+      }
     }
     const counts = emptyCounts();
     const cells: Record<string, MatrixCell[]> = {};
@@ -299,6 +313,8 @@ export function buildMatrix(sources: readonly MatrixSource[]): Matrix {
       cells,
       fields,
       counts,
+      empty,
+      draftOnly: draftHeld && !liveHeld,
     };
   });
 

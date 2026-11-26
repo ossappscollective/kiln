@@ -39,6 +39,7 @@
   import Icon from '../ui/Icon.svelte';
   import AsoBudget from '../aso/AsoBudget.svelte';
   import ImproveField from '../ai/ImproveField.svelte';
+  import EmptyLocaleFix from './EmptyLocaleFix.svelte';
   import FieldCompare from './FieldCompare.svelte';
   import FixBar from './FixBar.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
@@ -62,6 +63,7 @@
     locked = [],
     asoKeywords,
     allLocales = [],
+    allRows = [],
     api,
     workspaceId,
     onedit,
@@ -83,6 +85,8 @@
     locked?: Platform[] | undefined;
     asoKeywords?: Record<string, AsoKeyword[] | undefined> | undefined;
     allLocales?: string[] | undefined;
+    /** Every row of the grid: where an empty locale takes its texts from. */
+    allRows?: MatrixRow[] | undefined;
     api?: Api | undefined;
     workspaceId?: string | undefined;
     onedit?: ((app: AppSummary, field: DriftField) => void) | undefined;
@@ -141,7 +145,7 @@
   /** What the drawer opens on: how many fields differ in this locale, and what to do about it. */
   const lead = $derived.by(() => {
     const r = row;
-    return r ? localeLead(r.platforms.map((p) => ({ fields: r.fields[p] ?? [] }))) : null;
+    return r ? localeLead(r.platforms.map((p) => ({ fields: r.fields[p] ?? [], empty: r.empty[p] }))) : null;
   });
 
   /** The ONE primary action, from the actions the drawer already has (shorten, pull, stage). */
@@ -225,6 +229,12 @@
         {/if}
 
         {#if api && workspaceId}
+          {#each row.platforms as emptyPlatform (emptyPlatform)}
+            {@const emptyApp = appOf(emptyPlatform)}
+            {#if emptyApp && (row.empty[emptyPlatform] ?? []).length > 0}
+              <EmptyLocaleFix {api} {workspaceId} {role} app={emptyApp} {row} {allRows} locked={locked.indexOf(emptyPlatform) >= 0} />
+            {/if}
+          {/each}
           {#each row.platforms as fixPlatform (fixPlatform)}
             {@const fixApp = appOf(fixPlatform)}
             {#if fixApp}

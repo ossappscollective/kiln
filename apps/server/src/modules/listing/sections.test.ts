@@ -19,8 +19,9 @@ import {
 
 const KEY_LINE = 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDTOPSECRETKEYBODY';
 
+// The `locales` section (the store's language list, recorded with every read) has its own tests in live.test.ts.
 const sectionRows = (t: ListingBoot, id: string, where = '') =>
-  t.rows(id, `AND locale = '_app' ${where}`);
+  t.rows(id, `AND locale = '_app' AND field <> 'section:locales' ${where}`);
 const textRows = (t: ListingBoot, id: string, where = '') =>
   t.rows(id, `AND locale <> '_app' ${where}`);
 const names = (rows: Record<string, unknown>[]) =>
@@ -169,10 +170,10 @@ dbTest(
       'the store has no section row yet',
     );
     const liveOld = (await t.live(id)).body;
-    assert.equal(
-      'sections' in liveOld.channels[0],
-      false,
-      'a channel that never had sections does not claim any',
+    assert.deepEqual(
+      Object.keys(liveOld.channels[0].sections ?? {}),
+      ['locales'],
+      'a channel that never had sections claims none but the language list every read records',
     );
     for (const s of old.sections) {
       assert.equal(s.store, null);
@@ -231,7 +232,10 @@ dbTest('a channel that disappears marks its sections removed, once', async (db) 
     body.channels.map((c: { channel: string }) => c.channel),
     ['editable'],
   );
-  assert.deepEqual(body.channels[0].sections, { privacy: { choicesUrls: {} } });
+  assert.deepEqual(body.channels[0].sections, {
+    privacy: { choicesUrls: {} },
+    locales: { codes: ['en-US'] },
+  });
 });
 
 dbTest(
@@ -262,6 +266,7 @@ dbTest(
     const live = (await t.live(id)).body;
     assert.deepEqual(Object.keys(live.channels[0].sections).sort(), [
       'details',
+      'locales',
       'media',
       'releaseNotes',
     ]);

@@ -86,6 +86,7 @@ export const SECTION_TITLES: Record<ListingSectionName, string> = {
   details: k('listing:sections.title.details'),
   media: k('listing:sections.title.media'),
   releaseNotes: k('listing:sections.title.releaseNotes'),
+  locales: k('listing:sections.title.locales'),
 };
 
 export const sectionTitle = (name: ListingSectionName): string =>

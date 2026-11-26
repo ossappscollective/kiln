@@ -683,7 +683,16 @@ export type DriftField = {
   problems: { repo: SideProblem[]; live: SideProblem[] };
 };
 
-export type DriftLocale = { locale: string; fields: DriftField[] };
+export type DriftLocale = {
+  locale: string;
+  fields: DriftField[];
+  /** Where the store holds this localization: `live`, `editable` (the draft), both, or neither (a repository-only locale). Absent from an older server. */
+  stores?: ('live' | 'editable')[];
+  /** The store copy the values of `fields` were read from. */
+  valuesFrom?: 'live' | 'editable';
+  /** Required texts a person can fill that the store copy leaves empty (`description`, `keywords`, `support_url`). */
+  emptyRequired?: string[];
+};
 
 /** Per app: compare the repository with the store (texts) and its graphics with the store's. Both default to false. */
 export type AppListingSettings = { compareRepo: boolean; compareMedia: boolean };
