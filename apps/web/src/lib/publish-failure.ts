@@ -8,11 +8,12 @@ import {
   type LastPublish,
   outcomeSentence,
   type PublishStepType,
+  type RunBlocker,
   type RunStep,
   STEP_NAME,
   skippedSentence,
 } from './pending.ts';
-import { PLAY_CONSOLE_URL } from './store-links.ts';
+import { APP_STORE_CONNECT_APPS_URL, PLAY_CONSOLE_URL } from './store-links.ts';
 
 /**
  * Why a publish failed, as a person reads it (docs/api/pending.md "Why a publish failed"). Pure: from the run the server kept
@@ -102,6 +103,102 @@ export function reasonOf(step: RunStep): FailureReason {
   };
 }
 
+// ---------------------------------------------------------------------------------------------
+// Blockers: why a submit was not run
+
+/** What to do about each check of a submit that can block it (`store-submit.ts` `evaluateChecks`). An unknown code gets the generic sentence. */
+const BLOCKER_FIX: Readonly<Record<string, string>> = {
+  push_in_progress: k('publish:failure.blocked.fix.pushInProgress'),
+  push_outcome_unknown: k('publish:failure.blocked.fix.pushOutcomeUnknown'),
+  already_submitted: k('publish:failure.blocked.fix.alreadySubmitted'),
+  no_version: k('publish:failure.blocked.fix.noVersion'),
+  version_changed: k('publish:failure.blocked.fix.versionChanged'),
+  release_not_manual: k('publish:failure.blocked.fix.releaseNotManual'),
+  no_build: k('publish:failure.blocked.fix.noBuild'),
+  build_expired: k('publish:failure.blocked.fix.buildExpired'),
+  build_not_valid: k('publish:failure.blocked.fix.buildNotValid'),
+  draft_unreadable: k('publish:failure.blocked.fix.draftUnreadable'),
+  draft_differs: k('publish:failure.blocked.fix.draftDiffers'),
+  no_locales: k('publish:failure.blocked.fix.noLocales'),
+  missing_text: k('publish:failure.blocked.fix.missingText'),
+  image_not_ready: k('publish:failure.blocked.fix.imageNotReady'),
+  no_screenshots: k('publish:failure.blocked.fix.noScreenshots'),
+  asset_spec: k('publish:failure.blocked.fix.assetSpec'),
+  generic: k('publish:failure.blocked.fix.generic'),
+};
+
+/** The blockers that are fixed in App Store Connect itself (the others are fixed in Kiln, then the draft is pushed again). */
+const FIXED_IN_STORE: readonly string[] = [
+  'already_submitted',
+  'no_version',
+  'release_not_manual',
+  'no_build',
+  'build_expired',
+  'build_not_valid',
+  'push_outcome_unknown',
+];
+
+/** How to fix the blocker of this code: the sentence of a known code, else the generic one. */
+const fixOf = (code: string): string => {
+  const known = BLOCKER_FIX[code] === undefined ? 'generic' : code;
+  return t(BLOCKER_FIX[known]);
+};
+
+/** The most blockers listed on one line (the sentence of the headline, the top bar): the rest is counted. */
+export const BLOCKERS_SHOWN = 3;
+
+export type BlockerLine = {
+  code: string;
+  /** The server's sentence, cleaned and cut. */
+  message: string;
+  /** How to fix it, in the person's words. */
+  fix: string;
+  /** Where it is fixed when that is a store page (App Store Connect), else null. */
+  url: string | null;
+};
+
+/** The blockers a skipped step carries, ready to show. Pure; an older run has none. */
+export function blockerLines(step: Pick<RunStep, 'blockers'>): BlockerLine[] {
+  return (step.blockers ?? []).map((b: RunBlocker) => ({
+    code: safeCode(b.code),
+    message: clip(cleanText(b.message), 300).text,
+    fix: fixOf(b.code),
+    url: FIXED_IN_STORE.indexOf(b.code) >= 0 ? APP_STORE_CONNECT_APPS_URL : null,
+  }));
+}
+
+/** The step of a run that was not run because something stood in the way, with what it was; null when no step was. */
+export function blockedStep(
+  run: Pick<LastPublish, 'results'>,
+): { type: PublishStepType; blockers: BlockerLine[] } | null {
+  const step = run.results.find((r) => r.status === 'skipped' && r.reason === 'blocked');
+  return step ? { type: step.type, blockers: blockerLines(step) } : null;
+}
+
+/**
+ * The run pushed the draft and only the submit did not run, because of blockers (nothing failed): the app is not broken, the draft is
+ * in the store and waits for the blockers to be fixed. Then the submit is not held back by this run (it checks the store itself), and
+ * the next step is "Fix the blockers, then submit". Pure.
+ */
+export function submitBlockedOnly(run: Pick<LastPublish, 'results'>): boolean {
+  const blocked = blockedStep(run);
+  return (
+    blocked !== null &&
+    blocked.blockers.length > 0 &&
+    run.results.some((r) => r.type === 'push_draft' && r.status === 'applied') &&
+    !run.results.some((r) => r.status === 'failed')
+  );
+}
+
+/** `a; b; c; and 2 more` for a line with little room: the first three messages, the rest counted. */
+export function blockersSentence(blockers: readonly BlockerLine[]): string {
+  const shown = blockers.slice(0, BLOCKERS_SHOWN).map((b) => b.message.replace(/[.]$/, ''));
+  const more = blockers.length - shown.length;
+  return more > 0
+    ? `${shown.join('; ')}; ${t('publish:failure.blocked.more', { count: more })}`
+    : shown.join('; ');
+}
+
 export type StepLine = {
   key: string;
   type: RunStep['type'];
@@ -115,6 +212,8 @@ export type StepLine = {
   reason: FailureReason | null;
   /** Skipped: why it was not run (one sentence). */
   note: string;
+  /** Skipped for `blocked`: what stood in the way, each with how to fix it. */
+  blockers: BlockerLine[];
 };
 
 /** Every step of a run as a line: done, failed with its reason, or not run with its reason. */
@@ -133,7 +232,13 @@ export function stepLines(run: Pick<LastPublish, 'results'>): StepLine[] {
           : t('app:pending.result.notRun'),
     tone: step.status === 'applied' ? 'ok' : step.status === 'failed' ? 'bad' : 'neutral',
     reason: step.status === 'failed' ? reasonOf(step) : null,
-    note: step.status === 'skipped' ? skippedSentence(step.reason) : '',
+    note:
+      step.status === 'skipped'
+        ? step.reason === 'blocked' && (step.blockers ?? []).length > 0
+          ? t('publish:failure.blocked.note', { count: step.blockers?.length ?? 0 })
+          : skippedSentence(step.reason)
+        : '',
+    blockers: step.status === 'skipped' && step.reason === 'blocked' ? blockerLines(step) : [],
   }));
 }
 
@@ -191,7 +296,15 @@ export function failureReport(input: {
     const head = `${i + 1}. ${step.type}: ${step.status === 'skipped' ? 'not run' : step.status}`;
     lines.push('', `${head} (${iso(step.startedAt)} to ${iso(step.finishedAt)})`);
     if (step.status === 'skipped') {
-      if (step.reason) lines.push(`   Reason: ${safeCode(step.reason)}`);
+      const blockers = blockerLines(step);
+      if (step.reason) {
+        const why = blockers.length > 0 ? ` - ${blockersSentence(blockers)}` : '';
+        lines.push(`   Reason: ${safeCode(step.reason)}${why}`);
+      }
+      blockers.forEach((b) => {
+        lines.push(`   Blocker: ${b.code}: ${b.message}`);
+        lines.push(`      Fix: ${b.fix}${b.url ? ` (${b.url})` : ''}`);
+      });
       return;
     }
     if (step.status === 'applied') return;
@@ -265,6 +378,8 @@ export type PartlyPublished = {
   notDone: PublishStepType[];
   /** `Partly published: the texts and graphics were sent to Google Play for review; the release was not.` */
   sentence: string;
+  /** The step that did not run because something stood in the way, with what it was (the draft was pushed, the submit is blocked). */
+  blocked: { type: PublishStepType; blockers: BlockerLine[] } | null;
 };
 
 /**
@@ -280,6 +395,20 @@ export function partlyPublished(
   const notDone = run.results.filter((r) => r.status !== 'applied').map((r) => r.type);
   if (applied.length === 0 || notDone.length === 0) return null;
   const store = platformMeta(platform).storeName;
+  const blocked = blockedStep(run);
+  // The draft was pushed and the submit was blocked: say which blockers, in one sentence, not the generic "the submit was not".
+  if (blocked && blocked.blockers.length > 0 && applied.indexOf('push_draft') >= 0) {
+    return {
+      applied,
+      notDone,
+      blocked,
+      sentence: t('publish:failure.partly.blocked', {
+        store,
+        step: STEP_NAME[blocked.type],
+        blockers: blockersSentence(blocked.blockers),
+      }),
+    };
+  }
   // The release was carried by the push (ONE commit) when both are in the run and the push applied: a release row is not a second fact.
   const done = formatList(
     applied.map((type) => t(DONE[type], { store })),
@@ -297,7 +426,7 @@ export function partlyPublished(
     notDone.indexOf('release') >= 0
   )
     sentence = `${sentence} ${t('publish:failure.partly.releaseDraft', { store })}`;
-  return { applied, notDone, sentence };
+  return { applied, notDone, sentence, blocked };
 }
 
 /** The failed step of a run was refused because changes were already in review (`changes_in_review`). */

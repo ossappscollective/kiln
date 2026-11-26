@@ -97,6 +97,38 @@ export const partlyRun = (platform: Platform = 'android'): LastPublish =>
     ],
   });
 
+/**
+ * The user's case (an incident of 2026-11-26, OSS Document Scanner on iOS): the draft push applied (3 minutes 16 seconds), then the
+ * submit was not run because the store's checks blocked it. The run keeps what blocked it.
+ */
+export const blockedRun = (
+  platform: Platform = 'ios',
+  blockers: NonNullable<RunStep['blockers']> = [
+    { code: 'no_build', message: 'No build is attached to the App Store version.' },
+    { code: 'missing_text', message: 'Description is empty in fr-FR.', locale: 'fr-FR' },
+  ],
+): LastPublish =>
+  failedRun(platform, {
+    outcome: 'partial',
+    steps: ['push_draft', 'submit'],
+    results: [
+      {
+        type: 'push_draft',
+        status: 'applied',
+        startedAt: NOW - 600_000,
+        finishedAt: NOW - 404_000,
+      },
+      {
+        type: 'submit',
+        status: 'skipped',
+        reason: 'blocked',
+        startedAt: NOW - 404_000,
+        finishedAt: NOW - 400_000,
+        blockers,
+      },
+    ],
+  });
+
 export const dismissedRun = (platform: Platform = 'android'): LastPublish =>
   failedRun(platform, { dismissed: true });
 export const unknownRun = (platform: Platform = 'android'): LastPublish =>

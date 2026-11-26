@@ -244,6 +244,8 @@ export type StepResult =
       code?: string;
       message?: string;
       checks?: string[];
+      /** `blocked`: what stood in the way (an older server sends none). */
+      blockers?: RunBlocker[];
     }
   | {
       type: PublishStepType;
@@ -262,6 +264,9 @@ export type StoreFacts = {
   details?: { code?: string; title?: string; detail?: string }[];
 };
 
+/** One thing that stood in the way of a step that was not run: the code of the check, the server's sentence, where it is about. */
+export type RunBlocker = { code: string; message: string; locale?: string; item?: string };
+
 /** One step of a kept run: its status and, for a failure, the code, the HTTP status and what the store said. */
 export type RunStep = {
   type: PublishStepType;
@@ -272,6 +277,8 @@ export type RunStep = {
   httpStatus?: number;
   outcome?: 'refused' | 'not_applied' | 'unknown' | 'partial';
   reason?: string;
+  /** Skipped for `blocked`: what stood in the way (absent from a run kept by an older server). */
+  blockers?: RunBlocker[];
   message?: string;
   /** The catalogue code of the sentence or of the store's cause (`store.google.draftApp`), with its parameters. */
   code?: string;
@@ -1367,6 +1374,27 @@ export const askedFractionOf = (plan: PublishPlan | null): number | null => {
   return r && typeof r.userFraction === 'number' ? r.userFraction : null;
 };
 
+/**
+ * "Not run: Apple reports 2 blockers: A build is missing; The version has no text." for a step skipped as `blocked` that carries its
+ * blockers (the first three sentences of the server, cleaned, the rest counted); the plain sentence of the reason when it carries none.
+ */
+export function blockedText(blockers: readonly RunBlocker[] | undefined): string {
+  const list = (blockers ?? []).map((b) =>
+    b.message
+      .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/[.]$/, ''),
+  );
+  if (list.length === 0) return skippedSentence('blocked');
+  const shown = list.slice(0, 3).join('; ');
+  const more = list.length - 3;
+  return t('app:pending.skipped.blockedList', {
+    count: list.length,
+    blockers: more > 0 ? `${shown}; ${t('publish:failure.blocked.more', { count: more })}` : shown,
+  });
+}
+
 export function resultRow(step: StepResult, askedFraction: number | null = null): ResultRow {
   const label = STEP_NAME[step.type];
   if (step.status === 'applied') {
@@ -1389,7 +1417,10 @@ export function resultRow(step: StepResult, askedFraction: number | null = null)
       status: 'skipped',
       word: t('app:pending.result.notRun'),
       tone: 'neutral',
-      text: said(SKIPPED_TEXT, step.reason, t('app:pending.skipped.default')),
+      text:
+        step.reason === 'blocked'
+          ? blockedText(step.blockers)
+          : said(SKIPPED_TEXT, step.reason, t('app:pending.skipped.default')),
       review: step.reason !== 'previous_step_not_applied',
     };
   }

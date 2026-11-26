@@ -3,12 +3,15 @@ import { test } from 'node:test';
 import { deriveAppState, deriveTopBar, scopeFor } from './derive.ts';
 import {
   ANDROID,
+  blockedRun,
   dismissedRun,
   facts,
   failedRun,
+  failedStep,
   failingAndroid,
   IOS,
   internalTesting,
+  iosRelease,
   partlyRun,
   pipelineOf,
   running,
@@ -268,4 +271,69 @@ test('texts and graphics in review, the release in draft (the partly published i
   // A plain failure (nothing applied) keeps its own words.
   const plain = deriveAppState(failingAndroid(), 'android');
   assert.equal(plain.headline, 'The last publish failed');
+});
+
+test('the draft was pushed and the submit is blocked (OSS Document Scanner, 2026-11-26): said plainly, the way forward is to fix the blockers and submit', () => {
+  const draft = iosRelease({ version: '2.0.1', status: 'draft', rawState: 'PREPARE_FOR_SUBMISSION' });
+  const input = facts({
+    records: [IOS],
+    pending: { [IOS.id]: { count: 0, blocking: 0 } },
+    lastRun: { [IOS.id]: blockedRun('ios') },
+    releases: { [IOS.id]: [draft] },
+  });
+  const s = deriveAppState(input, 'ios');
+  assert.equal(s.phase, 'publish_failed');
+  assert.equal(s.headline, 'Draft pushed, submit blocked');
+  // The reason names the blockers, in the server's words: never just "blocked".
+  assert.match(
+    s.reason,
+    /Partly published: the draft was pushed to App Store\. Submit for review did not run because: No build is attached to the App Store version; Description is empty in fr-FR\./,
+  );
+  assert.doesNotMatch(s.reason, /The store did not accept it/);
+  // The next step: fix the 2 blockers, then submit 2.0.1. The primary opens the submit checklist; the other way in is the pending changes.
+  assert.equal(s.primaryAction.action, 'fix_blockers');
+  assert.equal(s.primaryAction.label, 'Fix 2 blockers, then submit 2.0.1 for review');
+  assert.equal(s.primaryAction.enabled, true);
+  assert.equal(s.primaryAction.appId, IOS.id);
+  assert.deepEqual(
+    s.secondaryActions.map((a) => [a.action, a.enabled]),
+    [['show_pending', true]],
+  );
+  // The top bar says the same thing as the card.
+  assert.deepEqual(s.badge, { kind: 'failed', count: 0, appId: IOS.id, blocked: true });
+  // Nothing is half written: the submit is the way out and is not held back by this run; the actions that really wait for a failure still do.
+  assert.equal(s.canDo('submit', 'ios').enabled, true);
+  for (const a of ['release', 'create_version', 'start_release'] as const)
+    assert.equal(s.canDo(a, 'ios').enabled, false, a);
+  // One blocker, no version known: the words follow.
+  const one = deriveAppState(
+    facts({
+      records: [IOS],
+      lastRun: { [IOS.id]: blockedRun('ios', [{ code: 'no_build', message: 'No build.' }]) },
+    }),
+    'ios',
+  );
+  assert.equal(one.primaryAction.label, 'Fix 1 blocker, then submit for review');
+  // Dismissing the run returns the model to the rest.
+  const dismissed = deriveAppState(
+    facts({
+      records: [IOS],
+      lastRun: { [IOS.id]: { ...blockedRun('ios'), dismissed: true } },
+    }),
+    'ios',
+  );
+  assert.notEqual(dismissed.phase, 'publish_failed');
+});
+
+test('a run that failed AND skipped for blockers is a plain failure, not "submit blocked"', () => {
+  const run = failedRun('ios', {
+    outcome: 'partial',
+    steps: ['push_draft', 'submit'],
+    results: [failedStep({ type: 'push_draft' }), { ...blockedRun().results[1]!, reason: 'previous_step_not_applied' }],
+  });
+  const s = deriveAppState(facts({ records: [IOS], lastRun: { [IOS.id]: run } }), 'ios');
+  assert.equal(s.phase, 'publish_failed');
+  assert.notEqual(s.headline, 'Draft pushed, submit blocked');
+  assert.equal(s.primaryAction.action, 'show_pending');
+  assert.equal(s.badge.kind === 'failed' && s.badge.blocked === true, false);
 });

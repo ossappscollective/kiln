@@ -19,6 +19,8 @@ import {
   changesInReviewBefore,
   draftRefusedBefore,
   type LastPublish,
+  MAX_BLOCKERS,
+  type RunBlocker,
   type RunOutcome,
   type RunStep,
   recordRun,
@@ -66,8 +68,10 @@ import {
 } from './store-rollout.ts';
 import {
   applySubmit,
+  BUILD_CODES,
   confirmationPhrase,
   previewSubmit,
+  previewSubmitReadiness,
   SUBMIT_ENV,
   type SubmitContext,
 } from './store-submit.ts';
@@ -956,6 +960,18 @@ export async function buildPlan(
       const after = await recordAfterPush(ctx.db, app, pushPreview);
       if (supports(app.platform, 'releaseTracks') && after.texts + after.assetSets === 0)
         return unavailable('nothing_to_do', ONLY_RELEASE_FIELDS);
+      // What is already known to stand in the way of the submit (a version that cannot be submitted, a build that is missing, expired or
+      // not processed) is said NOW, not after a push that can take minutes. A push of the staged build field attaches the build, so the
+      // build checks are left out then. Never a reason to refuse the plan: the push is still worth making. A failed read says nothing.
+      const early = await previewSubmitReadiness(ctx.submit, {
+        workspaceId,
+        appId: app.id,
+        actor,
+      }).catch(() => null);
+      const pushesBuild = pushPreview.release.some((r) => r.field === 'build');
+      const willBlock = (early?.ok ? early.blocking : []).filter(
+        (c) => !(pushesBuild && BUILD_CODES.includes(c.code)),
+      );
       return {
         availability: 'available',
         reason: null,
@@ -975,6 +991,14 @@ export async function buildPlan(
             message:
               'The submit is previewed again after the draft was pushed, and runs only if it matches this summary.',
           },
+          ...willBlock.slice(0, 10).map(
+            (c): PlanProblem => ({
+              code: `submit_will_block_${c.code}`,
+              severity: 'warning',
+              message: `The submit will not run after the push: ${c.message}`,
+              ...(c.item !== undefined ? { item: c.item } : {}),
+            }),
+          ),
         ],
       };
     }
@@ -1612,6 +1636,8 @@ export type StepResult =
       message: string;
       /** For `blocked`: the codes of the blocking checks. */
       checks?: string[];
+      /** For `blocked`: the checks themselves (code, sentence, where), so the person is told WHAT stands in the way. */
+      blockers?: RunBlocker[];
     }
   | {
       type: PublishStep;
@@ -1686,6 +1712,9 @@ export function runStepOf(result: StepResult, startedAt: number, finishedAt: num
       reason: result.reason,
       message: sanitiseStoreText(result.message, '', MESSAGE_MAX),
       ...(result.code !== undefined ? { code: sanitiseStoreText(result.code, '', 80) } : {}),
+      ...(result.blockers !== undefined && result.blockers.length > 0
+        ? { blockers: blockersOf(result.blockers) }
+        : {}),
     };
   }
   const detail = result.detail ?? {};
@@ -1705,11 +1734,32 @@ export function runStepOf(result: StepResult, startedAt: number, finishedAt: num
   };
 }
 
+/** The log words after `blocked`: which checks stood in the way (codes and where, no sentence of a store). */
+const skippedWhy = (result: StepResult & { status: 'skipped' }): string =>
+  result.blockers !== undefined && result.blockers.length > 0
+    ? `: ${result.blockers
+        .slice(0, 8)
+        .map((b) => `${b.code}${b.locale ? ` ${b.locale}` : ''}${b.item ? ` ${b.item}` : ''}`)
+        .join(', ')}`
+    : '';
+
 /** The line a failed step adds to the server log: its code, outcome and HTTP status, and the words of the store (sanitised, 200 characters). */
 export function failureLogText(result: StepResult & { status: 'failed' }): string {
   const store = isStoreFacts(result.detail?.store) ? result.detail.store : null;
   const said = store?.details?.find((d) => d.detail !== undefined)?.detail ?? result.message;
   return `(${result.error}, ${result.outcome}, http ${result.httpStatus}${store?.details?.[0]?.code ? `, ${store.details[0].code}` : ''}): ${sanitiseStoreText(said, '', 200)}`;
+}
+
+/** The blocking checks of a preview as a run keeps them: code, sanitised sentence, where (locale and field names). */
+export function blockersOf(
+  checks: readonly { code: string; message: string; locale?: string | undefined; item?: string | undefined }[],
+): RunBlocker[] {
+  return checks.slice(0, MAX_BLOCKERS).map((c) => ({
+    code: sanitiseStoreText(c.code, '', 80),
+    message: sanitiseStoreText(c.message, '', 240),
+    ...(c.locale !== undefined ? { locale: sanitiseStoreText(c.locale, '', 40) } : {}),
+    ...(c.item !== undefined ? { item: sanitiseStoreText(c.item, '', 80) } : {}),
+  }));
 }
 
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -1749,7 +1799,7 @@ async function runStep(
   const skip = (
     reason: 'plan_drifted' | 'blocked' | 'preview_failed',
     message: string,
-    extra: { code?: string; checks?: string[] } = {},
+    extra: { code?: string; checks?: string[]; blockers?: RunBlocker[] } = {},
   ): StepResult => ({ type, status: 'skipped', reason, message, ...extra });
   const drifted = () =>
     skip(
@@ -1822,7 +1872,10 @@ async function runStep(
         return skip(
           'blocked',
           'Something stands in the way of submitting now that the draft was pushed, so nothing was submitted.',
-          { checks: pre.checks.blocking.map((c) => c.code).slice(0, 20) },
+          {
+            checks: pre.checks.blocking.map((c) => c.code).slice(0, 20),
+            blockers: blockersOf(pre.checks.blocking),
+          },
         );
       }
       const promised = step.summary as {
@@ -1875,7 +1928,10 @@ async function runStep(
         return skip(
           'blocked',
           'Something stands in the way of releasing now that the draft was pushed, so nothing was released.',
-          { checks: pre.checks.blocking.map((c) => c.code).slice(0, 20) },
+          {
+            checks: pre.checks.blocking.map((c) => c.code).slice(0, 20),
+            blockers: blockersOf(pre.checks.blocking),
+          },
         );
       }
       if (
@@ -2190,7 +2246,7 @@ export async function applyPublish(
       times.push({ startedAt: stepStarted, finishedAt: ctx.now() });
       await note(() => recordStep(db, claim, null, ctx.now(), result.status === 'applied'));
       log(
-        `step ${position}/${included.length} ${step.type} ${result.status}${result.status === 'failed' ? ` ${failureLogText(result)}` : result.status === 'skipped' ? ` (${result.reason})` : ''} after ${ctx.now() - stepStarted}ms`,
+        `step ${position}/${included.length} ${step.type} ${result.status}${result.status === 'failed' ? ` ${failureLogText(result)}` : result.status === 'skipped' ? ` (${result.reason}${skippedWhy(result)})` : ''} after ${ctx.now() - stepStarted}ms`,
       );
       if (result.status !== 'applied') stopped = step.type;
     }

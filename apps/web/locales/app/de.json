@@ -581,6 +581,7 @@
   "pending.run.noAnswer": "Keine Antwort nach {{minutes}} Minuten. Es ist nicht bekannt, ob die Schritte den Store erreicht haben: Sie laufen vielleicht noch oder sind fertig. Sieh dir die App im Store an und prüfe dann erneut. Es wurde nichts noch einmal gesendet.",
   "pending.run.slow": "Das dauert länger als üblich. Google Play kann langsam sein, wenn eine App viele Sprachen oder Grafiken hat. Warten schadet nicht; dieses Fenster hört nach {{minutes}} Minuten auf zu warten.",
   "pending.skipped.blocked": "Nicht ausgeführt: Dem Schritt steht jetzt etwas im Weg. Prüfen Sie erneut.",
+  "pending.skipped.blockedList": "Nicht ausgeführt, weil: {{blockers}}.",
   "pending.skipped.default": "Nicht ausgeführt.",
   "pending.skipped.planDrifted": "Nicht ausgeführt: Er stimmte nicht mehr mit dem überein, was Sie geprüft hatten. Prüfen Sie erneut.",
   "pending.skipped.previewFailed": "Nicht ausgeführt: Der Store konnte für diesen Schritt nicht gelesen werden. Prüfen Sie erneut.",

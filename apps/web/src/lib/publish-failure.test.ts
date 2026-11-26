@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { LastPublish, RunStep } from './pending.ts';
+import { resultRow } from './pending.ts';
 import {
+  blockedStep,
+  blockerLines,
+  blockersSentence,
   cleanText,
   clip,
   failureActions,
@@ -14,6 +18,7 @@ import {
   runSummary,
   SAID_SHOWN,
   stepLines,
+  submitBlockedOnly,
 } from './publish-failure.ts';
 
 const GOOGLE = 'Only releases with status draft may be created on draft app.';
@@ -369,4 +374,97 @@ test('a step that took too long has its own sentence, not "did not finish (step_
   };
   assert.match(reasonOf(slow).title, /took too long/);
   assert.doesNotMatch(reasonOf(slow).title, /step_timeout/);
+});
+
+const pushed: RunStep = { type: 'push_draft', status: 'applied', startedAt: 1_000, finishedAt: 196_000 };
+const blockedSubmit = (blockers: NonNullable<RunStep['blockers']>): RunStep => ({
+  type: 'submit',
+  status: 'skipped',
+  reason: 'blocked',
+  startedAt: 196_000,
+  finishedAt: 197_000,
+  blockers,
+});
+const TWO = [
+  { code: 'no_build', message: 'No build is attached to the App Store version.' },
+  { code: 'missing_text', message: 'Description is empty in fr-FR.', locale: 'fr-FR' },
+];
+
+test('a submit that did not run because of blockers: each blocker has its sentence, how to fix it, and where (App Store Connect) when it is fixed there', () => {
+  const r = run([pushed, blockedSubmit(TWO)], { platform: 'ios', steps: ['push_draft', 'submit'] });
+  const lines = stepLines(r);
+  const submit = lines[1]!;
+  assert.equal(submit.word, 'Not run');
+  assert.equal(submit.note, 'Not run: 2 things stand in the way.');
+  assert.deepEqual(
+    submit.blockers.map((b) => [b.code, b.message]),
+    [
+      ['no_build', 'No build is attached to the App Store version.'],
+      ['missing_text', 'Description is empty in fr-FR.'],
+    ],
+  );
+  assert.match(submit.blockers[0]!.fix, /Attach a processed build/);
+  assert.equal(submit.blockers[0]!.url, 'https://appstoreconnect.apple.com/apps');
+  assert.match(submit.blockers[1]!.fix, /Listing page/);
+  assert.equal(submit.blockers[1]!.url, null);
+  assert.equal(lines[0]!.blockers.length, 0);
+  // An older run has no blockers: the plain sentence stands.
+  const old = stepLines(run([pushed, { ...blockedSubmit([]), blockers: undefined }]))[1]!;
+  assert.equal(old.blockers.length, 0);
+  assert.match(old.note, /something now stands in the way/);
+});
+
+test('a blocker code this app has no sentence for gets the generic advice, and its message is cleaned', () => {
+  const [b] = blockerLines({
+    blockers: [{ code: 'brand_new', message: `Needs\u0007 a thing ${'x'.repeat(60)}` }],
+  });
+  assert.match(b!.fix, /Fix what the message says/);
+  assert.equal(b!.url, null);
+  assert.doesNotMatch(b!.message, /\u0007/);
+  // A token-shaped string is redacted again here, as in every text of a store.
+  assert.equal(b!.message, 'Needs a thing [redacted]');
+});
+
+test('partly published, submit blocked: "the draft was pushed. Submit for review did not run because: ..." with the blockers, three at most and the rest counted', () => {
+  const r = run([pushed, blockedSubmit(TWO)], { platform: 'ios' });
+  const partly = partlyPublished(r, 'ios');
+  assert.equal(
+    partly?.sentence,
+    'Partly published: the draft was pushed to App Store. Submit for review did not run because: No build is attached to the App Store version; Description is empty in fr-FR.',
+  );
+  assert.equal(partly?.blocked?.type, 'submit');
+  assert.equal(submitBlockedOnly(r), true);
+  const many = Array.from({ length: 5 }, (_, i) => ({ code: 'missing_text', message: `Field ${i} is empty.` }));
+  assert.equal(
+    blockersSentence(blockerLines({ blockers: many })),
+    'Field 0 is empty; Field 1 is empty; Field 2 is empty; and 2 more',
+  );
+  // Not "only blocked" when a step failed, or when no push was applied.
+  assert.equal(submitBlockedOnly(run([failedPush, blockedSubmit(TWO)])), false);
+  assert.equal(submitBlockedOnly(run([blockedSubmit(TWO)])), false);
+  assert.equal(blockedStep(run([pushed])), null);
+});
+
+test('the copied report of a blocked submit says why: reason blocked, each blocker with how to fix it', () => {
+  const text = failureReport({
+    appName: 'OSS Document Scanner',
+    platform: 'ios',
+    run: run([pushed, blockedSubmit(TWO)], { platform: 'ios', steps: ['push_draft', 'submit'] }),
+  });
+  assert.match(text, /2\. submit: not run/);
+  assert.match(text, /Reason: blocked - No build is attached to the App Store version; Description is empty in fr-FR/);
+  assert.match(text, /Blocker: no_build: No build is attached to the App Store version\./);
+  assert.match(text, /Fix: Attach a processed build to the version in App Store Connect, then submit\. \(https:\/\/appstoreconnect\.apple\.com\/apps\)/);
+  assert.match(text, /Blocker: missing_text: Description is empty in fr-FR\./);
+});
+
+test('the result row of the publish dialog names the blockers of a skipped step, not only "blocked"', () => {
+  const row = resultRow({ type: 'submit', status: 'skipped', reason: 'blocked', blockers: TWO });
+  assert.equal(
+    row.text,
+    'Not run, because: No build is attached to the App Store version; Description is empty in fr-FR.',
+  );
+  assert.equal(row.review, true);
+  const bare = resultRow({ type: 'submit', status: 'skipped', reason: 'blocked' });
+  assert.match(bare.text, /something now stands in the way/);
 });

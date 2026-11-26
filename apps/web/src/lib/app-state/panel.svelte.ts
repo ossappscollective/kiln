@@ -1,7 +1,8 @@
-import type { PlatformScope } from '../app-scope.ts';
+import { appAddress, type PlatformScope } from '../app-scope.ts';
 import { cartButton } from '../cart-button.svelte.ts';
 import { panelTarget } from '../publishing.ts';
 import { openPublishingPanel, publishingFocus } from '../publishing-focus.svelte.ts';
+import { submitFocus } from '../submit-focus.svelte.ts';
 
 /**
  * Opens the pending panel on the FAILURE of an app's last publish (the top bar's "Publish failed", the Next step card's "Show pending
@@ -36,4 +37,14 @@ export function openPendingPanel(
   });
   if (target.kind === 'drawer') cartButton.press?.();
   else location.hash = target.href;
+}
+
+/**
+ * Opens the submit checklist of an app (the preview with its blockers) for the "Fix the blockers, then submit" action: where a SubmitReady
+ * of the app is already drawn it answers at once; otherwise the Listing page, where the pushed draft waits, is opened and its
+ * SubmitReady answers when it is drawn.
+ */
+export function openSubmitChecklist(appId: string, scope: PlatformScope | null = null): void {
+  submitFocus.ask(appId);
+  if (!submitFocus.isDrawn(appId)) location.hash = appAddress(appId, 'listing', scope);
 }

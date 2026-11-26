@@ -93,6 +93,19 @@ const runStepSchema = z.object({
   httpStatus: z.number().int().optional(),
   outcome: z.enum(['refused', 'not_applied', 'unknown', 'partial']).optional(),
   reason: z.string().optional().describe('Skipped: why.'),
+  blockers: z
+    .array(
+      z.object({
+        code: z.string(),
+        message: z.string(),
+        locale: z.string().optional(),
+        item: z.string().optional(),
+      }),
+    )
+    .optional()
+    .describe(
+      'Skipped as `blocked`: what stood in the way (the check code, its sentence, the locale and field it is about; at most 20). Absent from runs kept before this was added.',
+    ),
   message: z
     .string()
     .optional()
@@ -472,6 +485,7 @@ const publishStepResultSchema = z.object({
     .array(z.string())
     .optional()
     .describe('Skipped as `blocked`: the codes of the blocking checks.'),
+  blockers: runStepSchema.shape.blockers,
   error: z
     .string()
     .optional()

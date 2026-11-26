@@ -20,6 +20,16 @@ export const MAX_RUNS_PER_APP = 5;
 
 export type RunOutcome = 'completed' | 'partial' | 'failed';
 
+/**
+ * One thing that stood in the way of a step that did not run (`blocked`): the code of the check (`no_build`, `missing_text`, ...), the
+ * sentence of this server (ids, version and build numbers, locale and field names only) sanitised, and where it is about. Kept with the
+ * skipped step so "blocked" is never the whole explanation.
+ */
+export type RunBlocker = { code: string; message: string; locale?: string; item?: string };
+
+/** The most blockers kept per step. */
+export const MAX_BLOCKERS = 20;
+
 /** One step of a run, as kept: enough to say what happened and why, small enough to keep. */
 export type RunStep = {
   type: PublishStep;
@@ -33,6 +43,8 @@ export type RunStep = {
   outcome?: 'refused' | 'not_applied' | 'unknown' | 'partial';
   /** Skipped: `previous_step_not_applied`, `plan_drifted`, `blocked`, `preview_failed`. */
   reason?: string;
+  /** Skipped for `blocked`: what stood in the way (at most `MAX_BLOCKERS`). Added after the first runs were kept: absent from older ones. */
+  blockers?: RunBlocker[];
   /** The sentence of this server, sanitised. */
   message?: string;
   /** The catalogue code of that sentence or of the store's cause (`store.google.draftApp`), with its parameters. */

@@ -14,6 +14,7 @@
   import type { Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import { announcePublished } from '../../lib/app-page.ts';
+  import { submitFocus } from '../../lib/submit-focus.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { timeAgo } from '../../lib/format.ts';
@@ -113,6 +114,20 @@ import { byFamily } from '@kiln/core';
 
   /** Whether the app state allows a submit now (not while a publish of the app runs, nor while its last publish failed). */
   const verdict = $derived(appStateStore.verdict(workspaceId, role, app, 'submit'));
+
+  // Drawn: the "Fix the blockers, then submit" action knows a checklist is here (else it opens the Listing page, where this is drawn).
+  $effect(() => submitFocus.mount(app.id));
+
+  // "Fix the blockers, then submit" asked for this app's checklist: read the store and open it (the blockers are the preview's). Answered
+  // once, as soon as the line can act (the state is read, the switch is on, the app state allows a submit).
+  $effect(() => {
+    if (submitFocus.requested !== app.id) return;
+    if (busy || line.kind !== 'ready' || line.disabled || !verdict.enabled) return;
+    untrack(() => {
+      submitFocus.done(app.id);
+      void startPreview();
+    });
+  });
 
   async function startPreview() {
     if (busy || line.kind !== 'ready' || line.disabled || !verdict.enabled) return;

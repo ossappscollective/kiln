@@ -565,6 +565,24 @@ server's sentence is cut to 500 characters and the store's to 600. A request bod
   releases with status draft ...` (code, outcome, HTTP status, Google's reason, the store's sentence cut to 200 characters). The audit
   entry `pending.published` carries, per failed step, `code`, `outcome`, `httpStatus` and `cause` (the catalogue code), never a text.
 
+### A submit that did not run: `blocked` with its blockers
+
+A deferred `submit` (or `release`) is previewed again right after the push; when the store's checks block it, the step is `skipped` with
+`reason: 'blocked'`. The step now keeps WHAT blocked it: `blockers: [{ code, message, locale?, item? }]` (at most 20; the `message` is this
+server's sentence, sanitised), in the answer, in the kept run (`store_publish_runs`, `lastPublish`) and in the server log line
+(`publish: step 2/2 submit skipped (blocked: no_build, missing_text fr-FR) after 812ms`: the codes and where, never a store's sentence). A run kept before this existed has none.
+
+The codes of the App Store checks (`store-submit.ts` `evaluateChecks`): `push_in_progress`, `push_outcome_unknown`, `already_submitted`,
+`no_version`, `version_changed`, `release_not_manual`, `no_build`, `build_expired`, `build_not_valid`, `draft_unreadable`, `draft_differs`,
+`no_locales`, `missing_text`, `image_not_ready`, `no_screenshots`, `asset_spec`. Kiln does NOT check what Apple also needs for a review
+(contact details of the reviewer, age rating, export compliance, pricing, privacy answers): a submit that passes Kiln's checks can still be
+refused by Apple, and then says so as a store refusal.
+
+The plan (`POST .../publish/preview`) says BEFORE the push what is already known to block the submit: a version that cannot be submitted, a
+build that is missing, expired or not processed (from one read of the store; a push of the staged release fields attaches a build, so the
+build codes are not warned about when such a push is staged). These are `problems` of severity `warning` with the code `submit_will_block_<check code>` (they are not part of `planHash`);
+the checks that depend on the push (the draft, texts, screenshots) cannot be known yet and are not listed.
+
 ### Causes Kiln names for Google Play
 
 The Google connectors (draft, submit, release, rollout) read the error body (`error.message`, `error.errors[].reason`, `error.status`) and,

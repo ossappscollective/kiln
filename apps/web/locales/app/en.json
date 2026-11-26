@@ -581,6 +581,7 @@
   "pending.run.noAnswer": "No answer after {{minutes}} minutes. It is not known whether the steps reached the store: they may still be running or may be done. Look at the app in the store, then review again. Nothing was sent again.",
   "pending.run.slow": "This is taking longer than usual. Google Play can be slow when an app has many languages or graphics. Nothing is lost by waiting; this window stops waiting after {{minutes}} minutes.",
   "pending.skipped.blocked": "Not run: something now stands in the way of this step. Review again.",
+  "pending.skipped.blockedList": "Not run, because: {{blockers}}.",
   "pending.skipped.default": "Not run.",
   "pending.skipped.planDrifted": "Not run: it no longer matched what you reviewed. Review again.",
   "pending.skipped.previewFailed": "Not run: the store could not be read for this step. Review again.",

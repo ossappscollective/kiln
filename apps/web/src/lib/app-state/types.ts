@@ -92,6 +92,8 @@ export type Phase = (typeof PHASES)[number];
 export const PRIMARY_ACTIONS = [
   'show_pending',
   'publish_again',
+  /** The draft was pushed and its submit is blocked: opens the submit checklist (SubmitReady) with the blockers, to fix them and submit. */
+  'fix_blockers',
   'attach_build',
   'open_release',
   'prepare_release',
@@ -151,7 +153,7 @@ export type TopBarBadge =
   | { kind: 'idle' }
   | { kind: 'pending'; count: number; blocking: boolean }
   | { kind: 'publishing'; count: number; appId: string; elsewhere: boolean }
-  | { kind: 'failed'; count: number; appId: string };
+  | { kind: 'failed'; count: number; appId: string; blocked?: boolean };
 
 export type PlatformState = {
   platform: Platform;

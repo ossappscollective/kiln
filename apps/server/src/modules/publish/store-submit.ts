@@ -33,6 +33,7 @@ import { storeFor } from '../reviews/sync.ts';
 import { mapStoreError } from './store-draft.ts';
 import {
   deletePush,
+  emptyManifest,
   loadPush,
   manifestMismatches,
   type PushRecord,
@@ -882,6 +883,61 @@ export async function previewSubmit(
       stepUpCovers: input.stepUpCovers,
     }),
   };
+}
+
+/** The checks that need no draft push to be known: the state of the version and of the build it carries now. */
+const EARLY_CODES: readonly string[] = [
+  'already_submitted',
+  'no_version',
+  'release_not_manual',
+  'no_build',
+  'build_expired',
+  'build_not_valid',
+];
+/** Of those, the ones a push of the staged release fields can fix (it attaches the build). */
+export const BUILD_CODES: readonly string[] = ['no_build', 'build_expired', 'build_not_valid'];
+
+/**
+ * App Store: what already stands in the way of a submit, before any draft is pushed (a version that cannot be submitted, a build that is
+ * missing, expired or not processed), from one read of the store. The checks that depend on the push (the draft, the texts, the
+ * screenshots) cannot be known yet and are not listed. Writes nothing; a failed read is just "nothing known" (the plan says so itself).
+ */
+export async function previewSubmitReadiness(
+  ctx: SubmitContext,
+  input: { workspaceId: string; appId: string; actor: Actor },
+): Promise<{ ok: true; blocking: SubmitCheck[] } | Failure> {
+  if (!ctx.submitEnabled) return submitDisabledFailure();
+  const app = await getApp(ctx.db, input.workspaceId, input.appId);
+  if (!app) return failure(404, 'not_found');
+  if (supports(app.platform, 'transactionalEdits')) return { ok: true, blocking: [] };
+  const connected = await connect(ctx, input.workspaceId, app, input.actor);
+  if (!connected.ok) return connected;
+  const { connection } = connected;
+  let state: SubmitState;
+  try {
+    state = await withConnector(ctx, connection.input, (connector) =>
+      connector.readSubmitState(requestOfManifest(emptyManifest())),
+    );
+  } catch (error) {
+    if (error instanceof SubmitTimeout)
+      return failure(504, 'timeout', 'The store did not answer in time. Nothing was changed.');
+    return mapStoreError(error, connection.secret).failure;
+  }
+  const record: PushRecord = {
+    appId: app.id,
+    platform: app.platform,
+    versionId: null,
+    versionString: null,
+    confirmHash: '',
+    manifest: emptyManifest(),
+    pushedBy: '',
+    pushedAt: 0,
+    updatedAt: 0,
+  };
+  const blocking = split(
+    evaluateChecks({ app, record, state, inFlight: { submit: null, push: null } }),
+  ).blocking.filter((c) => EARLY_CODES.includes(c.code));
+  return { ok: true, blocking };
 }
 
 // ---------------------------------------------------------------------------------------------

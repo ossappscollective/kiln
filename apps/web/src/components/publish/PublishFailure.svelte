@@ -64,6 +64,17 @@
             <Badge tone={line.tone === 'ok' ? 'ok' : line.tone === 'bad' ? 'bad' : 'neutral'}>{line.word}</Badge>
           </div>
           {#if line.note !== ''}<p class="small muted">{line.note}</p>{/if}
+          {#if line.blockers.length > 0}
+            <!-- The submit did not run because of these (the store's checks): what is wrong, how to fix it, and where. -->
+            <ul class="blockers" data-testid="publish-blockers" aria-label={t('publish:failure.blocked.aria')}>
+              {#each line.blockers as b, i (`${b.code}-${i}`)}
+                <li class="blocker" data-code={b.code}>
+                  <p class="blocker-message">{b.message}</p>
+                  <p class="small muted blocker-fix"><span class="said-label">{t('publish:failure.blocked.how')}</span> {b.fix}{#if b.url !== null} <a class="link-button" href={b.url} target="_blank" rel="noreferrer noopener">{t('publish:failure.blocked.openStore')}</a>{/if}</p>
+                </li>
+              {/each}
+            </ul>
+          {/if}
           {#if line.reason}
             {@const r = line.reason}
             {@const said = clip(r.said)}
@@ -177,6 +188,27 @@
 
   .reason p {
     margin: 0;
+  }
+
+  .blockers {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    margin: var(--space-1) 0 0;
+    list-style: none;
+    background: var(--surface);
+    border-left: 3px solid var(--warn, var(--bad));
+    border-radius: var(--radius-sm);
+  }
+
+  .blocker p {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .blocker-message {
+    font-weight: var(--weight-semibold);
   }
 
   .title {

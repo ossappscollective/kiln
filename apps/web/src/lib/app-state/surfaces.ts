@@ -29,6 +29,8 @@ export const OFFER_SURFACES: readonly {
       show_pending: /offer\.action === 'show_pending'/,
       // Opens the publish dialog with the same selection.
       publish_again: /offer\.action === 'publish_again'/,
+      // The draft was pushed and the submit is blocked: opens the submit checklist (SubmitReady) with the blockers.
+      fix_blockers: /offer\.action === 'fix_blockers'/,
       // A link to the step of the release that takes the build.
       attach_build: /href=\{offer\.href\}/,
       open_release: /href=\{offer\.href\}/,
@@ -51,6 +53,7 @@ export const OFFER_SURFACES: readonly {
     handlers: {
       show_pending: 'not_drawn',
       publish_again: 'not_drawn',
+      fix_blockers: 'not_drawn',
       attach_build: /data-action=\{c\.offer\.action\}/,
       open_release: 'not_drawn',
       prepare_release: /data-action=\{c\.offer\.action\}/,

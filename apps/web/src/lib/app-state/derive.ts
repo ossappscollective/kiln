@@ -11,7 +11,12 @@ import {
 } from '../next-step.ts';
 import type { LastPublish } from '../pending.ts';
 import { type PromoteOption, promoteHref } from '../play-promote.ts';
-import { headlineReason, partlyPublished } from '../publish-failure.ts';
+import {
+  blockedStep,
+  headlineReason,
+  partlyPublished,
+  submitBlockedOnly,
+} from '../publish-failure.ts';
 import type { Publishing } from '../publishing.ts';
 import { detailText, headlineText, disabledReason as publishingReason } from '../publishing.ts';
 import type { Train } from '../release-trains.ts';
@@ -169,7 +174,13 @@ export function verdictOf(action: GuardedAction, c: RecordContext): Verdict {
   if (!can(c.role, RIGHT[action])) return no('role', t('state:verdict.role'));
   if (action === 'start_release' && !can(c.role, 'repositories.read'))
     return no('role', t('state:verdict.role'));
-  if (c.failure !== null && HELD_BY_FAILURE.has(action))
+  // A run that pushed the draft and only had its submit blocked leaves nothing half written: the submit checks the store itself and
+  // is the way out ("Fix the blockers, then submit"), so it is not held.
+  if (
+    c.failure !== null &&
+    HELD_BY_FAILURE.has(action) &&
+    !(action === 'submit' && submitBlockedOnly(c.failure))
+  )
     return no('publish_failed', t('state:verdict.publishFailed'));
   if (action === 'publish') {
     if (c.publishBatchEnabled === false) return no('switch_off', t('state:verdict.switchOff'));
@@ -611,16 +622,35 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
   } else if (phase === 'publish_failed') {
     const lead = failures[0] as (typeof failures)[number];
     // A publish that was applied in part is said so: part of the app is in the store, part is not (not a plain failure where nothing changed).
-    headline = failures.some((f) => partlyPublished(f.run, f.platform) !== null)
-      ? t('state:failed.partlyHeadline')
-      : t('state:failed.headline');
+    const blocked = failures.find((f) => submitBlockedOnly(f.run));
+    headline = blocked
+      ? t('state:failed.blockedHeadline')
+      : failures.some((f) => partlyPublished(f.run, f.platform) !== null)
+        ? t('state:failed.partlyHeadline')
+        : t('state:failed.headline');
     reason = failureReason(failures, pendingCount);
-    primaryAction = showPending(t('publish:publishing.showPending'), lead.appId);
-    secondaryActions = [
-      offerOf('publish_again', t('state:action.publishAgain'), verdicts.publish, {
-        appId: lead.appId,
-      }),
-    ];
+    if (blocked) {
+      // The draft is in the store and the submit is blocked: the next step is to fix what blocks it, then submit that version. The
+      // primary action opens the submit checklist (SubmitReady) with the blockers; showing the pending changes is the other way in.
+      const count = blockedStep(blocked.run)?.blockers.length ?? 0;
+      const version = preparedVersion(facts.releases[blocked.appId]);
+      primaryAction = offerOf(
+        'fix_blockers',
+        version === null
+          ? t('state:action.fixBlockersNoVersion', { count })
+          : t('state:action.fixBlockers', { count, version }),
+        verdicts.submit,
+        { appId: blocked.appId },
+      );
+      secondaryActions = [showPending(t('publish:publishing.showPending'), blocked.appId)];
+    } else {
+      primaryAction = showPending(t('publish:publishing.showPending'), lead.appId);
+      secondaryActions = [
+        offerOf('publish_again', t('state:action.publishAgain'), verdicts.publish, {
+          appId: lead.appId,
+        }),
+      ];
+    }
   } else if (phase === 'changes_pending') {
     headline = t('state:pending.headline', { count: pendingCount });
     reason =
@@ -681,6 +711,8 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
       kind: 'failed',
       count: pendingCount,
       appId: (failures[0] as (typeof failures)[number]).appId,
+      // Only said when true: a plain failure keeps the badge it always had.
+      ...(failures.every((f) => submitBlockedOnly(f.run)) ? { blocked: true } : {}),
     };
   else if (pendingCount > 0)
     badge = { kind: 'pending', count: pendingCount, blocking: blockingCount > 0 };
@@ -748,6 +780,14 @@ export function promoteOfferFor(
   };
 }
 
+/** The version of the store version still in preparation (the one a draft push writes to and a submit sends), or null when unknown. */
+function preparedVersion(releases: readonly ReleaseSummary[] | undefined): string | null {
+  const found = (releases ?? []).find(
+    (r) => r.status === 'draft' || r.status === 'build_chosen' || r.status === 'ready',
+  );
+  return found ? found.version : null;
+}
+
 function failureReason(
   failures: readonly { platform: Platform; run: LastPublish }[],
   pendingCount: number,
@@ -755,7 +795,11 @@ function failureReason(
   const lines: string[] = [];
   for (const f of failures) {
     const partly = partlyPublished(f.run, f.platform);
-    const why = [partly?.sentence ?? '', headlineReason(f.run) || t('state:failed.reasonUnknown')]
+    // A run whose submit was blocked says which blockers (the sentence has them); the failure of a step is not "unknown" then.
+    const cause = partly?.blocked
+      ? ''
+      : headlineReason(f.run) || t('state:failed.reasonUnknown');
+    const why = [partly?.sentence ?? '', cause]
       .filter((x) => x !== '')
       .join(' ');
     lines.push(failures.length > 1 ? `${platformLabel(f.platform)}: ${why}` : why);

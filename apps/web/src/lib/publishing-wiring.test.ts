@@ -117,3 +117,21 @@ test('the dialog stops waiting for its request when the server ended the publish
   // A late answer is not ours any more (the sequence moved on).
   assert.match(dialog, /if \(!endedHere\) return;\n    \/\/ The request is not waited for any more[^\n]*\n    seq\+\+;/);
 });
+
+test('"Fix the blockers, then submit": the card and the top bar say it, the card opens the submit checklist, and SubmitReady answers the request once it can act', () => {
+  const card = read('../components/app/NextStep.svelte');
+  assert.match(card, /offer\.action === 'fix_blockers' && offer\.appId !== null\) openSubmitChecklist\(offer\.appId, stateScope\)/);
+  const btn = read('../components/app/PendingCartButton.svelte');
+  assert.match(btn, /state:topBar\.blocked/);
+  const panel = read('./app-state/panel.svelte.ts');
+  assert.match(panel, /export function openSubmitChecklist/);
+  assert.match(panel, /if \(!submitFocus\.isDrawn\(appId\)\) location\.hash = appAddress\(appId, 'listing', scope\)/);
+  const ready = read('../components/listing/SubmitReady.svelte');
+  assert.match(ready, /\$effect\(\(\) => submitFocus\.mount\(app\.id\)\)/);
+  assert.match(ready, /submitFocus\.requested !== app\.id/);
+  assert.match(ready, /!verdict\.enabled\) return;\n    untrack\(\(\) => \{\n      submitFocus\.done\(app\.id\);\n      void startPreview\(\);/);
+  // The failure shown on every page lists the blockers with how to fix them.
+  const failure = read('../components/publish/PublishFailure.svelte');
+  assert.match(failure, /data-testid="publish-blockers"/);
+  assert.match(failure, /line\.blockers/);
+});

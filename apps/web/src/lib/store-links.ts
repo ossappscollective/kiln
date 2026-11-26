@@ -14,6 +14,9 @@ export const PLAY_CONSOLE_URL = 'https://play.google.com/console/';
 
 const APP_STORE_CONNECT = 'https://appstoreconnect.apple.com';
 
+/** App Store Connect's list of apps: where a blocker of a submit is fixed when the app's own page cannot be built. */
+export const APP_STORE_CONNECT_APPS_URL = `${APP_STORE_CONNECT}/apps`;
+
 /** The address where the review of the version in progress can be followed, or null when none can be built. */
 export function reviewUrl(app: { platform: Platform; storeAppId: string | null }): string | null {
   if (supports(app.platform, 'releaseTracks')) return PLAY_CONSOLE_URL;

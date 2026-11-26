@@ -28,7 +28,7 @@
   import { requestPublishAgain } from '../../lib/app-state/actions.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
   import { scopeFor } from '../../lib/app-state/derive.ts';
-  import { openPendingPanel } from '../../lib/app-state/panel.svelte.ts';
+  import { openPendingPanel, openSubmitChecklist } from '../../lib/app-state/panel.svelte.ts';
   import type { ActionOffer } from '../../lib/app-state/types.ts';
   import { releaseStepHref } from '../../lib/release-stepper.ts';
   import type { StartedRun } from '../../lib/start-release.ts';
@@ -93,10 +93,11 @@
   function press(offer: ActionOffer) {
     if (offer.action === 'show_pending') openPendingPanel(kind, offer.appId ?? '', stateScope);
     else if (offer.action === 'publish_again' && offer.appId !== null) requestPublishAgain(offer.appId);
+    else if (offer.action === 'fix_blockers' && offer.appId !== null) openSubmitChecklist(offer.appId, stateScope);
     else if (offer.action === 'prepare_release') onprepare?.();
   }
   const opensPanel = (offer: ActionOffer) =>
-    offer.action === 'show_pending' || offer.action === 'publish_again' || (offer.action === 'prepare_release' && offer.href === null && onprepare !== undefined);
+    offer.action === 'show_pending' || offer.action === 'publish_again' || offer.action === 'fix_blockers' || (offer.action === 'prepare_release' && offer.href === null && onprepare !== undefined);
 
   $effect(() => {
     const rest = appState.rest;
