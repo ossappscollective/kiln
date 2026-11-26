@@ -42,9 +42,10 @@ export type StagedKind = (typeof STAGED_KINDS)[number];
  * clone roots of the app's listing target). `local`: typed in by a person. `store`: copied from the
  * store's own snapshot that the last sync stored. `ai`: proposed by an AI task and ACCEPTED by a person
  * (docs/adr/0016-ai-foundation.md); it is typed text for every other purpose and can only be set by the
- * server's accept step, never by a request. Staging never reads or writes a store.
+ * server's accept step, never by a request. Staging never reads or writes a store. `cleared`: the single marker row of an asset
+ * set that is staged EMPTY (every file was taken out: a push removes all images of that set); it is not a file and never shown as one.
  */
-export const STAGED_SOURCES = ['repo', 'local', 'store', 'ai'] as const;
+export const STAGED_SOURCES = ['repo', 'local', 'store', 'ai', 'cleared'] as const;
 export type StagedSource = (typeof STAGED_SOURCES)[number];
 
 export const STAGED_LIMITS = {
@@ -370,6 +371,8 @@ export type StagedAssetView = {
   source: StagedSource;
   /** The files of the set, in order. A push makes the store's set exactly these files. */
   files: StagedAssetFileView[];
+  /** The set is staged EMPTY: a push removes every image the store holds in it (`files` is then empty). */
+  cleared?: boolean;
   status: 'changed' | 'invalid';
   problems: StagedProblem[];
   pushedAt: number | null;

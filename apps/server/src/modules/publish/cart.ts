@@ -245,7 +245,7 @@ export async function loadCart(
         author: null,
         publishable: true,
         reason: null,
-        version: sha(['graphics', a.id, ...a.files.map((f) => f.oid)]),
+        version: sha(['graphics', a.id, ...(a.cleared ? ['cleared'] : []), ...a.files.map((f) => f.oid)]),
         counts: {
           files: a.files.length,
           uploads: a.files.filter((f) => f.upload).length,

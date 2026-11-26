@@ -628,6 +628,8 @@ type PreparedSet = {
   /** The store's own name of the set. */
   target: string;
   rows: StagedRow[];
+  /** The size of the images of the set (a cleared set has no file: the marker keeps the size of one it held). */
+  size: { width: number | null; height: number | null };
   files: DraftFile[];
 };
 type Prepared = {
@@ -720,7 +722,7 @@ async function prepare(
   let total = 0;
   let count = 0;
   for (const set of planned) {
-    const first = set.rows[0] as StagedRow;
+    const first = set.first;
     const target = storeTargetOf(app.platform, set.slot, {
       width: first.assetWidth,
       height: first.assetHeight,
@@ -736,6 +738,7 @@ async function prepare(
       key: slotKey(set.slot),
       target,
       rows: set.rows,
+      size: { width: first.assetWidth, height: first.assetHeight },
       files: [],
     });
     for (const r of set.rows) {
@@ -900,8 +903,8 @@ const writesOf = (
 
 /** The pixel size of the first file of a set: the App Store connector finds the asset library placement group from it. */
 const sizeOf = (s: PreparedSet): { width: number | null; height: number | null } => ({
-  width: s.rows[0]?.assetWidth ?? null,
-  height: s.rows[0]?.assetHeight ?? null,
+  width: s.size.width,
+  height: s.size.height,
 });
 
 /** The record of what a push wrote (hashes and ids only), for the submit step (docs/adr/0010-store-submit.md). */

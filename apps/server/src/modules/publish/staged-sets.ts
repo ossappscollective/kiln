@@ -32,6 +32,7 @@ import {
 } from './staged-asset-blobs.ts';
 import {
   buildStagedView,
+  isClearedRow,
   isStageableLocale,
   loadStagedRows,
   type StagedContext,
@@ -67,6 +68,8 @@ export type SetEntry = {
   alpha: boolean | null;
   /** The bytes to keep, for a file that is new here (an upload or the result of a fix). */
   blob?: { bytes: Uint8Array; mediaType: BlobMediaType };
+  /** A file taken from the store's view (`base=store`): the ref the store view gave it, so a removal can name it. Never stored. */
+  storeRef?: string;
 };
 
 export const entryOfRow = (r: StagedRow): SetEntry => ({
@@ -80,6 +83,9 @@ export const entryOfRow = (r: StagedRow): SetEntry => ({
   format: r.assetFormat,
   alpha: r.assetAlpha,
 });
+
+/** The value hash of the marker row of a cleared set (it is not the hash of any file). */
+export const CLEARED_HASH = 'cleared';
 
 const invalid = (code: string, message: string, extra: Record<string, unknown> = {}): Failure =>
   failure(422, code, message, extra);
@@ -257,6 +263,8 @@ export type EffectiveSet = {
   entries: SetEntry[];
   /** The set is not staged: its files are those of the repository. */
   fromRepo: boolean;
+  /** The files are the rows staged for the set (not the store's or the repository's). */
+  staged?: boolean;
   /** The set is not staged: its files are those the store holds (seeded through `seed`). */
   fromStore?: boolean;
   handle?: AssetHandle;
@@ -286,11 +294,22 @@ export async function loadEffectiveSet(
   const rows = (await loadStagedRows(ctx.db, input.workspaceId, input.app.id)).filter(
     (r) => r.kind === 'asset' && r.locale === input.locale && r.target === key,
   );
-  if (rows.length > 0)
+  // A set whose every row was already PUSHED is what the store was made to hold then, not what it holds now (it may have been
+  // changed since, or hold images the push did not touch). The Graphics tab shows the store's images for such a set, so an edit made
+  // from the store's side (`seed`) starts from the store, never from the rows of the last push: the same list the person is looking at.
+  const pushedOnly =
+    input.seed !== undefined &&
+    rows.length > 0 &&
+    rows.every((r) => r.pushedHash !== null && r.pushedHash === r.valueHash);
+  if (rows.length > 0 && !pushedOnly)
     return {
       ok: true,
-      entries: rows.sort((a, b) => a.ordinal - b.ordinal).map(entryOfRow),
+      entries: rows
+        .filter((r) => !isClearedRow(r))
+        .sort((a, b) => a.ordinal - b.ordinal)
+        .map(entryOfRow),
       fromRepo: false,
+      staged: true,
     };
   if (input.seed) {
     const seeded = await input.seed();
@@ -376,18 +395,17 @@ export async function replaceAssetSet(
     actor: Actor;
     action: string;
     detail: Record<string, unknown>;
+    /**
+     * With no `entries` the set is staged EMPTY: one marker row (`source = 'cleared'`) keeps the size of an image the set held, so a
+     * push finds the store's set (App Store display type) and removes every image in it.
+     */
+    clearedLike?: { width: number | null; height: number | null } | undefined;
   },
 ): Promise<{ ok: true; staged: StagedChangesView } | Failure> {
   const { app, entries } = input;
+  const cleared = entries.length === 0;
   const locked = await metadataLockedFailure(ctx.db, input.workspaceId, app);
   if (locked) return locked;
-  if (entries.length === 0) {
-    return invalid(
-      'empty_set',
-      'A set cannot be emptied here: a push replaces a store set with the files it holds and cannot clear it. Stage at least one file, or remove the images in the store console.',
-      coded('staged.setEmpty'),
-    );
-  }
   const tooMany = setTooLargeFailure(app.platform, input.slot, entries.length);
   if (tooMany) return tooMany;
   const key = slotKey(input.slot);
@@ -397,7 +415,7 @@ export async function replaceAssetSet(
     const others = all.filter(
       (r) => r.kind === 'asset' && !(r.locale === input.locale && r.target === key),
     );
-    const files = others.length + entries.length;
+    const files = others.length + Math.max(entries.length, 1);
     const bytes =
       others.reduce((n, r) => n + (r.assetBytes ?? 0), 0) +
       entries.reduce((n, e) => n + (e.bytes ?? 0), 0);
@@ -427,7 +445,7 @@ export async function replaceAssetSet(
     const mine = all.filter(
       (r) => r.kind === 'asset' && r.locale === input.locale && r.target === key,
     ).length;
-    if (all.length - mine + entries.length > STAGED_LIMITS.maxItems)
+    if (all.length - mine + Math.max(entries.length, 1) > STAGED_LIMITS.maxItems)
       return invalid(
         'too_many_items',
         `At most ${STAGED_LIMITS.maxItems} items can be staged for an app.`,
@@ -489,6 +507,27 @@ export async function replaceAssetSet(
         ],
       );
     }
+    if (cleared) {
+      await tx.execute(
+        `INSERT INTO staged_changes
+           (id, workspace_id, app_id, platform, kind, locale, target, ordinal, source, value_hash, asset_path, asset_commit, asset_bytes, asset_width, asset_height, asset_format, asset_alpha, created_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'asset', ?, ?, 0, 'cleared', ?, NULL, NULL, NULL, ?, ?, NULL, NULL, ?, ?, ?)`,
+        [
+          randomUUID(),
+          input.workspaceId,
+          app.id,
+          app.platform,
+          input.locale,
+          key,
+          CLEARED_HASH,
+          input.clearedLike?.width ?? null,
+          input.clearedLike?.height ?? null,
+          first ? first.createdBy : input.actor.id,
+          first ? first.createdAt : at,
+          at,
+        ],
+      );
+    }
     await deleteUnreferencedBlobs(tx, input.workspaceId, app.id);
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
@@ -502,6 +541,7 @@ export async function replaceAssetSet(
         locale: input.locale,
         slot: key,
         files: entries.length,
+        ...(cleared ? { cleared: true } : {}),
         oids: entries.map((e) => e.valueHash),
         ...input.detail,
       },

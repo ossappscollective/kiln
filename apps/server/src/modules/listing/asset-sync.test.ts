@@ -638,7 +638,7 @@ dbTest('uploads are held to magic bytes, the size cap, the type and the slot', a
 });
 
 dbTest(
-  'replace a file, take one out, the last one cannot be removed, and unstaging drops the kept bytes',
+  'replace a file, take one out, the last one can be removed (the set is staged empty), and unstaging drops the kept bytes',
   async (db) => {
     const t = await bootStaged(db);
     const app = await t.addApp('ios');
@@ -665,14 +665,21 @@ dbTest(
     const rm = await raw(t, 'DELETE', `/apps/${app}/staged/assets/file?${slot}&position=2`);
     assert.equal(rm.status, 200, rm.text);
     assert.equal(rm.body.staged.assets[0].files.length, 1);
-    const last = await raw(t, 'DELETE', `/apps/${app}/staged/assets/file?${slot}&position=1`);
-    assert.equal(last.status, 422);
-    assert.equal(last.body.error, 'empty_set');
     assert.equal(
       (await raw(t, 'DELETE', `/apps/${app}/staged/assets/file?${slot}&position=0`)).status,
       400,
     );
     assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM staged_asset_blobs'))[0]?.n), 1);
+    const last = await raw(t, 'DELETE', `/apps/${app}/staged/assets/file?${slot}&position=1`);
+    assert.equal(last.status, 200, last.text);
+    assert.equal(last.body.staged.assets[0].files.length, 0);
+    assert.equal(last.body.staged.assets[0].cleared, true, 'the set is staged empty');
+    assert.equal(last.body.staged.totals.assetFiles, 0);
+    assert.equal(
+      Number((await db.query('SELECT COUNT(*) AS n FROM staged_asset_blobs'))[0]?.n),
+      0,
+      'the removed upload is not kept',
+    );
     assert.equal((await t.unstage(app, 'en-US/screenshot:iphone_6_5')).status, 200);
     assert.equal(
       Number((await db.query('SELECT COUNT(*) AS n FROM staged_asset_blobs'))[0]?.n),
@@ -952,3 +959,160 @@ dbTest(
     assert.equal(view.assets[0]?.files.length, 10);
   },
 );
+
+// ----- taking several files out in one request, each answered for itself -----------------------------
+
+const SLOT = { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5' };
+const remove = (t: Awaited<ReturnType<typeof boot>>, app: string, files: unknown[], base?: 'store') =>
+  t.call(t.owner, 'POST', `/apps/${app}/staged/assets/remove`, {
+    ...SLOT,
+    files,
+    ...(base ? { base } : {}),
+  });
+const storeRefs = async (t: Awaited<ReturnType<typeof boot>>, app: string): Promise<string[]> => {
+  const read = await t.call(t.owner, 'GET', `/apps/${app}/assets/store?fresh=1`);
+  assert.equal(read.status, 200, read.text);
+  return read.body.store.sets
+    .filter((s: { device: string }) => s.device === 'iphone_6_5')
+    .flatMap((s: { files: { ref: string }[] }) => s.files.map((f) => f.ref));
+};
+const threeStoreImages = () => {
+  const bodies: Record<string, Uint8Array> = {};
+  for (const n of [1, 2, 3])
+    bodies[`/image/thumb/Pic${n}/1242x2688bb.png`] = rgbPng(1242, 2688, () => [n, n, n]);
+  return cdn(bodies);
+};
+
+dbTest('removing images the store holds: by ref, one answer each, one staged change', async (db) => {
+  const t = await boot(db, threeStoreImages());
+  const app = await t.addApp('ios');
+  t.stores.ios.imageRecords = [apple(1), apple(2), apple(3)];
+  const refs = await storeRefs(t, app);
+  assert.equal(refs.length, 3);
+  const done = await remove(t, app, [{ ref: refs[1] }, { ref: 'nope' }, { ref: refs[1] }, {}, { ref: refs[2] }], 'store');
+  assert.equal(done.status, 200, done.text);
+  assert.deepEqual(
+    done.body.results.map((r: { outcome: string; reason?: string }) => [r.outcome, r.reason ?? null]),
+    [
+      ['removed', null],
+      ['not_found', 'stale_store_ref'],
+      ['already_removed', 'duplicate_in_request'],
+      ['not_found', 'no_identifier'],
+      ['removed', null],
+    ],
+  );
+  assert.deepEqual(done.body.results.map((r: { index: number }) => r.index), [0, 1, 2, 3, 4]);
+  assert.deepEqual(done.body.summary, { removed: 2, alreadyRemoved: 1, notFound: 2 });
+  assert.equal(done.body.emptied, false);
+  assert.equal(done.body.remaining, 1);
+  assert.equal(done.body.staged.assets[0].files.length, 1);
+  assert.equal((await t.audit('staged.asset_removed')).length, 1, 'ONE change, one audit entry');
+  // The same ref again: the staged set no longer keeps it, and the store still lists it.
+  const again = await remove(t, app, [{ ref: refs[1] }], 'store');
+  assert.equal(again.status, 200, again.text);
+  assert.equal(again.body.results[0].outcome, 'already_removed');
+  assert.equal(again.body.results[0].reason, 'not_in_staged_set');
+  assert.equal((await t.audit('staged.asset_removed')).length, 1, 'nothing was removed, nothing was staged');
+});
+
+dbTest('removing every file of a set stages it empty, and a push removes the images of the store', async (db) => {
+  const t = await boot(db, threeStoreImages());
+  const app = await t.addApp('ios');
+  t.stores.ios.imageRecords = [apple(1), apple(2)];
+  t.stores.ios.seedSet('en-US', 'APP_IPHONE_65', [
+    { name: 's1.png', bytes: new Uint8Array([1]) },
+    { name: 's2.png', bytes: new Uint8Array([2]) },
+  ]);
+  const refs = await storeRefs(t, app);
+  const done = await remove(t, app, refs.map((ref) => ({ ref })), 'store');
+  assert.equal(done.status, 200, done.text);
+  assert.equal(done.body.emptied, true);
+  assert.equal(done.body.remaining, 0);
+  const set = done.body.staged.assets[0];
+  assert.equal(set.cleared, true);
+  assert.deepEqual(set.files, []);
+  assert.equal(done.body.staged.totals.assetSets, 1, 'it is one staged change');
+  const rows = await t.rows(app);
+  assert.equal(rows.length, 1, 'one marker row, no file');
+  const pushed = await t.previewAndPush(app);
+  assert.equal(pushed.preview.status, 200, pushed.preview.text);
+  assert.equal(pushed.push.status, 200, pushed.push.text);
+  const sent = t.stores.ios.lastInput?.assets ?? [];
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]?.target, 'APP_IPHONE_65');
+  assert.deepEqual(sent[0]?.files, [], 'the push carries an empty set');
+  assert.equal(t.stores.ios.sets.get('en-US\u0000APP_IPHONE_65')?.length ?? 0, 0, 'the store holds none');
+});
+
+dbTest('removing a file that was only staged (an upload) by its blob id', async (db) => {
+  const t = await bootStaged(db);
+  const app = await t.addApp('ios');
+  const up = await raw(t, 'PUT', `/apps/${app}/staged/assets/upload?${slot}&name=new.png`, SHOT);
+  assert.equal(up.status, 200, up.text);
+  const files = up.body.staged.assets[0].files;
+  assert.equal(files.length, 3);
+  const added = files[2];
+  const gone = await remove(t, app, [{ oid: added.oid }, { oid: added.oid }, { oid: 'f'.repeat(40) }]);
+  assert.equal(gone.status, 200, gone.text);
+  assert.deepEqual(
+    gone.body.results.map((r: { outcome: string; reason?: string }) => [r.outcome, r.reason ?? null]),
+    [
+      ['removed', null],
+      ['already_removed', 'duplicate_in_request'],
+      ['not_found', 'unknown_file'],
+    ],
+  );
+  assert.equal(gone.body.staged.assets[0].files.length, 2);
+  assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM staged_asset_blobs'))[0]?.n), 0);
+});
+
+dbTest('removing files of a repository set that is not staged, by place', async (db) => {
+  const t2 = await bootStaged(db);
+  const app2 = await t2.addApp('ios');
+  const out = await remove(t2, app2, [{ position: 9 }, { position: 2 }]);
+  assert.equal(out.status, 200, out.text);
+  assert.deepEqual(
+    out.body.results.map((r: { outcome: string; reason?: string }) => [r.outcome, r.reason ?? null]),
+    [
+      ['not_found', 'position_out_of_range'],
+      ['removed', null],
+    ],
+  );
+  assert.deepEqual(
+    out.body.staged.assets[0].files.map((f: { path: string }) => f.path),
+    [`${SHOTS}/1_iphone65.png`],
+  );
+});
+
+dbTest('a set that was pushed is edited from what the store holds now, not from the rows of the push', async (db) => {
+  const t = await boot(db, threeStoreImages());
+  const app = await t.addApp('ios');
+  t.stores.ios.imageRecords = [apple(1), apple(2), apple(3)];
+  // The set was staged and pushed with ONE file; the store holds three images (two were never replaced).
+  const up = await raw(t, 'PUT', `/apps/${app}/staged/assets/upload?${slot}&name=new.png`, SHOT);
+  assert.equal(up.status, 200, up.text);
+  await db.execute(
+    "UPDATE staged_changes SET pushed_at = ?, pushed_hash = value_hash WHERE app_id = ? AND kind = 'asset'",
+    [Date.now(), app],
+  );
+  const refs = await storeRefs(t, app);
+  // The Graphics tab shows the store's 3 images for a pushed set; image 3 is a store image the rows of the push do not have.
+  const legacy = await raw(t, 'DELETE', `/apps/${app}/staged/assets/file?${slot}&position=3&base=store`);
+  assert.equal(legacy.status, 200, legacy.text);
+  assert.equal(legacy.body.staged.assets[0].files.length, 2);
+  assert.equal(legacy.body.staged.assets[0].pushed, false, 'a new change, not the pushed one');
+  const next = await remove(t, app, [{ ref: refs[0] }], 'store');
+  assert.equal(next.status, 200, next.text);
+  assert.equal(next.body.results[0].outcome, 'already_removed', 'already out of the staged set');
+});
+
+dbTest('a viewer cannot remove files, and bad bodies are refused with the field named', async (db) => {
+  const t = await bootStaged(db);
+  const app = await t.addApp('ios');
+  const viewer = await t.addMember('viewer');
+  const body = { ...SLOT, files: [{ position: 1 }] };
+  assert.equal((await t.call(viewer, 'POST', `/apps/${app}/staged/assets/remove`, body)).status, 403);
+  assert.equal((await remove(t, app, [])).status, 400);
+  assert.equal((await t.call(t.owner, 'POST', `/apps/${app}/staged/assets/remove`, { ...SLOT, files: [{ position: 0 }] })).status, 400);
+  assert.equal((await t.rows(app)).length, 0);
+});

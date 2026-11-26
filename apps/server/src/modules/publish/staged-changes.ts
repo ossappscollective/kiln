@@ -181,7 +181,23 @@ export function storeTargetOf(
   return playImageType(slot);
 }
 
-export type AssetSet = { locale: string; slot: AssetSlot; key: string; rows: StagedRow[] };
+/** The marker row of an asset set that is staged EMPTY (`source = 'cleared'`): not a file, it only says "a push empties this set". */
+export const isClearedRow = (r: Pick<StagedRow, 'kind' | 'source'>): boolean =>
+  r.kind === 'asset' && r.source === 'cleared';
+
+export type AssetSet = {
+  locale: string;
+  slot: AssetSlot;
+  key: string;
+  /** The FILES of the set (never the marker of a cleared set). */
+  rows: StagedRow[];
+  /** Every row of the set, the marker included: for what is about the rows as records (pushed, created, updated). */
+  all: StagedRow[];
+  /** The set is staged empty: a push removes every image the store holds in it. */
+  cleared: boolean;
+  /** The row that tells the size of the set's images: the first file, or the marker (it keeps the size of the first removed file). */
+  first: StagedRow;
+};
 
 /** The rows of the assets grouped into sets (rows must be ordered as `loadStagedRows` does). */
 export function assetSetsOf(rows: readonly StagedRow[]): AssetSet[] {
@@ -191,11 +207,24 @@ export function assetSetsOf(rows: readonly StagedRow[]): AssetSet[] {
     const slot = parseSlotKey(row.target);
     if (!slot) continue;
     const key = `${row.locale}/${row.target}`;
-    const set = sets.get(key) ?? { locale: row.locale, slot, key, rows: [] };
-    set.rows.push(row);
+    const set = sets.get(key) ?? {
+      locale: row.locale,
+      slot,
+      key,
+      rows: [],
+      all: [],
+      cleared: false,
+      first: row,
+    };
+    set.all.push(row);
+    if (isClearedRow(row)) set.cleared = true;
+    else set.rows.push(row);
     sets.set(key, set);
   }
-  for (const set of sets.values()) set.rows.sort((a, b) => a.ordinal - b.ordinal);
+  for (const set of sets.values()) {
+    set.rows.sort((a, b) => a.ordinal - b.ordinal);
+    set.first = set.rows[0] ?? (set.all[0] as StagedRow);
+  }
   return [...sets.values()];
 }
 
@@ -479,8 +508,8 @@ export async function buildStagedView(
       hasAlpha: r.assetAlpha,
       ...(r.source === 'local' ? { upload: true } : {}),
     }));
-    const pushedAt = set.rows.every((r) => r.pushedHash !== null && r.pushedHash === r.valueHash)
-      ? Math.max(...set.rows.map((r) => r.pushedAt ?? 0))
+    const pushedAt = set.all.every((r) => r.pushedHash !== null && r.pushedHash === r.valueHash)
+      ? Math.max(...set.all.map((r) => r.pushedAt ?? 0))
       : null;
     return {
       id: set.key,
@@ -491,14 +520,15 @@ export async function buildStagedView(
       label: setLabel(app.platform, set.locale, set.slot),
       source: set.rows.some((r) => r.source === 'local')
         ? 'local'
-        : (set.rows[0]?.source ?? 'repo'),
+        : (set.rows[0]?.source ?? (set.cleared ? 'local' : 'repo')),
       files,
+      ...(set.cleared ? { cleared: true } : {}),
       status: hasError(mine) ? 'invalid' : 'changed',
       problems: mine,
       pushedAt,
       pushed: pushedAt !== null,
-      createdAt: Math.min(...set.rows.map((r) => r.createdAt)),
-      updatedAt: Math.max(...set.rows.map((r) => r.updatedAt)),
+      createdAt: Math.min(...set.all.map((r) => r.createdAt)),
+      updatedAt: Math.max(...set.all.map((r) => r.updatedAt)),
     };
   });
   const release = releaseViewsOf(app.platform, all, ctx.now ? ctx.now() : Date.now());
@@ -1090,7 +1120,11 @@ export function stagedKey(rows: readonly StagedRow[]): {
     .sort((a, b) => (a.join('\u0000') < b.join('\u0000') ? -1 : 1));
   const assets = assetSetsOf(rows)
     .map(
-      (s) => [s.locale, slotKey(s.slot), s.rows.map((r) => r.valueHash)] as (string | string[])[],
+      (s) =>
+        [s.locale, slotKey(s.slot), s.cleared ? ['cleared'] : s.rows.map((r) => r.valueHash)] as (
+          | string
+          | string[]
+        )[],
     )
     .sort((a, b) =>
       (a[0] as string) + (a[1] as string) < (b[0] as string) + (b[1] as string) ? -1 : 1,

@@ -71,6 +71,7 @@ export function storeSeed(
         );
       const oid = gitBlobOid(got.image.bytes);
       entries.push({
+        storeRef: file.ref,
         source: 'local',
         valueHash: oid,
         assetPath: uploadPathOf(oid, safeUploadName(file.name ?? undefined, format)),

@@ -181,8 +181,24 @@ own database, no store is called):
   the raw bytes as the body (at most 8 MiB, PNG or JPEG by magic bytes). A set that is not staged yet starts from the
   repository's files, so a replace or a remove keeps the others as they are. A file with a spec error answers
   `422 spec_errors` (`problems[]`, `fix`) and is not staged.
-- `DELETE /apps/{id}/staged/assets/file?locale=&kind=&device=&position=`: removing the last file is refused
-  (`empty_set`). The store keeps the image until the set is pushed, and a push replaces the store's whole set.
+- `DELETE /apps/{id}/staged/assets/file?locale=&kind=&device=&position=`: removes one file by its 1-based place (the older route;
+  prefer the batch route below, which names files by what identifies them). Removing the LAST file is allowed: the set is
+  staged **empty** (see "Emptying a set"). The store keeps the image until the set is pushed, and a push replaces the store's
+  whole set.
+- `POST /apps/{id}/staged/assets/remove` `{ locale, kind, device?, base?, files: [{ ref?, oid?, position? }] }` (1 to 100 files):
+  takes several files out of ONE set in ONE change and answers for each of them. A file is named by `ref` (an image the
+  store holds, as `GET /assets/store` lists it), by `oid` (the git blob id of a staged or repository file) or, last, by
+  `position` (1-based, in the set as it is now); `ref` wins over `oid`, `oid` over `position`. The set is the one a push would now
+  write: the staged rows; else, with `base: "store"`, the images the store holds; else the repository's files. A set whose files
+  were all pushed counts as not staged with `base: "store"` (the store may hold other images than the push wrote: the Graphics tab
+  shows the store's). The answer (`200`) is
+  `{ results: [{ index, id, outcome, reason?, position? }], summary: { removed, alreadyRemoved, notFound }, emptied, remaining, staged }`:
+  `outcome` is `removed`, `already_removed` (taken out by an earlier entry of the same request: `duplicate_in_request`; or the
+  staged set no longer keeps a file the store still lists: `not_in_staged_set`) or `not_found` with a `reason`
+  (`unknown_file`, `stale_store_ref` (read the store again), `position_out_of_range`, `no_identifier`). A file that is not found
+  never fails the others; everything removed is staged as one change (one audit entry `staged.asset_removed` with `count`,
+  `positions`, `removedOids`), and nothing is staged when nothing was removed. A request that is wrong as a whole is refused
+  (`400 invalid_request`, `403`, `409` metadata locked, a store that cannot be read).
 - `base=store` (query of the upload and the remove, `base` in the body of the move): a set that is not staged yet starts from the
   images the store holds, not from the repository: each is downloaded once from the store's CDN (the original size, checked
   against Google's SHA-256 where there is one) and kept as a staged upload, so the push, which replaces the store's set, keeps the
@@ -195,7 +211,16 @@ own database, no store is called):
 - In the staged view a file has `upload: true` when this server keeps its bytes; the set's `source` is `local` when any
   file is.
 
-Errors added: `spec_errors`, `empty_set`, `invalid_position`, `too_large` (413), `too_many_bytes`, `too_many_files`,
+**Emptying a set.** Taking out every file of a set stages the set *empty*: the staged view shows it with `files: []` and
+`cleared: true` (one marker row of source `cleared` keeps the size of an image the set held, so a push finds the store's
+display type). A push then removes every image the store holds in that set (App Store Connect: the placements of the display
+type; Google Play: `images.deleteall` of the image type). The App Store requires screenshots for the largest iPhone and iPad
+display types (and Google Play for phones): emptying one of those is allowed, and `predictDraft` / the plan readiness say that a
+submit would be blocked (`no_screenshots`, `locale_without_screenshots`); the web shows "This display type will have no
+screenshots: the App Store needs at least one" before the change is made. Legacy sizes (iPhone 5.5" and smaller) are optional.
+A set that was staged only to add files and is then emptied pushes as `already_same` when the store holds none.
+
+Errors added: `spec_errors`, `invalid_position`, `too_large` (413), `too_many_bytes`, `too_many_files`,
 `ref_expired`, `image_blocked`, `binary_change_set` (a change set with binary files cannot be refreshed or fixed up
 yet), and `fix_*` (`fix_not_png`, `fix_nothing_to_fix`, `fix_no_target_size`, ...).
 

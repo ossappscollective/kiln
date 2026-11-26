@@ -26,6 +26,7 @@ export * from './listing/fixes.ts';
 export * from './listing/image-header.ts';
 export * from './listing/listing.ts';
 export * from './listing/listing-sections.ts';
+export * from './listing/set-removal.ts';
 export * from './listing/staged-changes.ts';
 export * from './listing/store-asset-specs.ts';
 export * from './members.ts';

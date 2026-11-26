@@ -23,6 +23,7 @@ import {
   fixFile,
   inspectForSlot,
   moveInSet,
+  removeFiles,
   removeFromSet,
   stagedSetsToRepo,
   stageUpload,
@@ -152,6 +153,26 @@ const moveBody = z
     device: z.string().min(1).max(60).nullable().optional(),
     from: z.number().int().min(1).max(200),
     to: z.number().int().min(1).max(200),
+    base: z.enum(['store']).optional(),
+  })
+  .strict();
+const removeBody = z
+  .object({
+    locale: z.string().min(2).max(35),
+    kind: kinds,
+    device: z.string().min(1).max(60).nullable().optional(),
+    files: z
+      .array(
+        z
+          .object({
+            ref: z.string().min(1).max(400).optional(),
+            oid: z.string().min(1).max(64).optional(),
+            position: z.number().int().min(1).max(100_000).optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
     base: z.enum(['store']).optional(),
   })
   .strict();
@@ -484,6 +505,51 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
         position,
       });
       return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
+    },
+  );
+
+  routes.post(
+    '/:workspaceId/apps/:id/staged/assets/remove',
+    needs('changesets.write'),
+    async (c) => {
+      const body = await parseBody(c, removeBody);
+      if (!body.ok) return body.response;
+      const { base, device, files, ...rest } = body.data;
+      const slot = { locale: rest.locale, kind: rest.kind as string, device: device ?? null };
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      const done = await removeFiles(staged, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        ...rest,
+        device: slot.device,
+        actor: actor(c),
+        gate: gate(c),
+        seed: await seedOf(c, slot, base),
+        files,
+        knownStoreRefs: async () => {
+          if (!app) return undefined;
+          const read = await getStoreImages(store, { workspaceId: ws(c), app, actor: actor(c) });
+          if (!read.ok) return undefined;
+          const refs = new Set<string>();
+          for (const set of read.view.sets)
+            if (
+              set.locale === slot.locale &&
+              set.kind === slot.kind &&
+              set.device === slot.device
+            )
+              for (const f of set.files) refs.add(f.ref);
+          return refs;
+        },
+      });
+      return done.ok
+        ? c.json({
+            results: done.results,
+            summary: done.summary,
+            emptied: done.emptied,
+            remaining: done.remaining,
+            staged: done.staged,
+          })
+        : respond(c, done);
     },
   );
 

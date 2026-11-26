@@ -2,10 +2,15 @@ import {
   ASSET_SYNC_LIMITS,
   type AssetProblem,
   type FileChange,
+  type FileId,
   type FixAdvice,
   type FixKind,
+  MAX_REMOVALS_PER_REQUEST,
+  type RemovalResult,
+  type RemovalSummary,
   type StagedChangesView,
   slotKey,
+  summarizeRemoval,
 } from '@kiln/core';
 import { coded } from '../../i18n/problem.ts';
 import { getApp } from '../../services/apps.ts';
@@ -19,7 +24,12 @@ import { layoutFor, planSet, type Wanted } from '../listing/asset-repo-plan.ts';
 import { stepsToChanges } from '../listing/asset-repo-write.ts';
 import { metadataLockedFailure } from './metadata-lock.ts';
 import { getBlob } from './staged-asset-blobs.ts';
-import { assetSetsOf, loadStagedRows, type StagedContext } from './staged-changes.ts';
+import {
+  assetSetsOf,
+  buildStagedView,
+  loadStagedRows,
+  type StagedContext,
+} from './staged-changes.ts';
 import {
   entryOfInspected,
   entryOfRow,
@@ -216,6 +226,7 @@ export async function removeFromSet(
     locale: input.locale,
     slot: slot.slot,
     entries,
+    clearedLike: gone ? { width: gone.width, height: gone.height } : undefined,
     actor: input.actor,
     action: 'staged.asset_removed',
     detail: {
@@ -225,6 +236,149 @@ export async function removeFromSet(
       ...(base.fromStore ? { fromStore: true } : {}),
     },
   });
+}
+
+export type RemoveFilesInput = SlotRequest & {
+  files: FileId[];
+  /** The refs of the images the store holds for this slot now (the store view), to tell a stale ref from a file already left out. */
+  knownStoreRefs?: (() => Promise<ReadonlySet<string> | undefined>) | undefined;
+};
+
+export type RemoveFilesDone = {
+  ok: true;
+  staged: StagedChangesView;
+  results: RemovalResult[];
+  summary: RemovalSummary;
+  /** The set holds no file any more: a push removes every image of it. */
+  emptied: boolean;
+  /** Files the set holds now. */
+  remaining: number;
+};
+
+/**
+ * Takes several files out of a set in ONE change. Each identifier is resolved against the set as a push would now write it (the
+ * staged rows; else, from the store's side, the images the store holds; else the repository's files), and answers for itself:
+ * `removed`, `already_removed` or `not_found` with a reason. A file that is not found never fails the others, and nothing is staged
+ * when nothing was removed. The set may end up empty (a push then removes every image of it).
+ */
+export async function removeFiles(
+  ctx: StagedContext,
+  input: RemoveFilesInput,
+): Promise<RemoveFilesDone | Failure> {
+  if (input.files.length === 0 || input.files.length > MAX_REMOVALS_PER_REQUEST)
+    return failure(
+      422,
+      'invalid_request',
+      `Name between 1 and ${MAX_REMOVALS_PER_REQUEST} files.`,
+      { field: 'files' },
+    );
+  const app = await getApp(ctx.db, input.workspaceId, input.appId);
+  if (!app) return failure(404, 'not_found');
+  const locked = await metadataLockedFailure(ctx.db, input.workspaceId, app);
+  if (locked) return locked;
+  const slot = slotOf(app, input.locale, input.kind, input.device);
+  if (!slot.ok) return slot;
+  const base = await loadEffectiveSet(ctx, {
+    workspaceId: input.workspaceId,
+    app,
+    locale: input.locale,
+    slot: slot.slot,
+    actor: input.actor,
+    gate: input.gate,
+    seed: input.seed,
+  });
+  if (!base.ok) return base;
+  const slots = base.entries.map((entry, i) => ({ entry, position: i + 1, taken: false }));
+  const results: RemovalResult[] = [];
+  let known: ReadonlySet<string> | undefined;
+  let knownRead = false;
+  for (const [index, id] of input.files.entries()) {
+    const done = (r: Omit<RemovalResult, 'index' | 'id'>) => results.push({ index, id, ...r });
+    const hasRef = typeof id.ref === 'string' && id.ref !== '';
+    const hasOid = typeof id.oid === 'string' && id.oid !== '';
+    const hasPos = typeof id.position === 'number';
+    if (!hasRef && !hasOid && !hasPos) {
+      done({ outcome: 'not_found', reason: 'no_identifier' });
+      continue;
+    }
+    const matches = (s: (typeof slots)[number]) =>
+      hasRef
+        ? s.entry.storeRef === id.ref
+        : hasOid
+          ? s.entry.valueHash === id.oid
+          : s.position === id.position;
+    const free = slots.find((s) => !s.taken && matches(s));
+    if (free) {
+      free.taken = true;
+      done({ outcome: 'removed', position: free.position });
+      continue;
+    }
+    const gone = slots.find((s) => s.taken && matches(s));
+    if (gone) {
+      done({ outcome: 'already_removed', reason: 'duplicate_in_request', position: gone.position });
+      continue;
+    }
+    if (hasRef) {
+      if (base.staged) {
+        // The set is staged and holds no such file: the ref names a store image that the staged set does not keep. If the store
+        // still lists it, the person (or another tab) already took it out of the set, and a push removes it.
+        if (!knownRead) {
+          knownRead = true;
+          known = await input.knownStoreRefs?.();
+        }
+        if (known?.has(id.ref as string))
+          done({ outcome: 'already_removed', reason: 'not_in_staged_set' });
+        else done({ outcome: 'not_found', reason: 'stale_store_ref' });
+      } else done({ outcome: 'not_found', reason: 'stale_store_ref' });
+      continue;
+    }
+    if (hasOid) {
+      done({ outcome: 'not_found', reason: 'unknown_file' });
+      continue;
+    }
+    done({ outcome: 'not_found', reason: 'position_out_of_range' });
+  }
+  const summary = summarizeRemoval(results);
+  const remaining = slots.filter((s) => !s.taken);
+  if (summary.removed === 0)
+    return {
+      ok: true,
+      staged: await buildStagedView(ctx, input.workspaceId, app),
+      results,
+      summary,
+      emptied: false,
+      remaining: base.entries.length,
+    };
+  const removed = slots.filter((s) => s.taken);
+  const entries = remaining.map((s) => s.entry);
+  const done = await replaceAssetSet(ctx, {
+    workspaceId: input.workspaceId,
+    app,
+    locale: input.locale,
+    slot: slot.slot,
+    entries,
+    clearedLike: removed[0]
+      ? { width: removed[0].entry.width, height: removed[0].entry.height }
+      : undefined,
+    actor: input.actor,
+    action: 'staged.asset_removed',
+    detail: {
+      count: removed.length,
+      positions: removed.map((s) => s.position),
+      removedOids: removed.map((s) => s.entry.valueHash),
+      fromRepo: base.fromRepo,
+      ...(base.fromStore ? { fromStore: true } : {}),
+    },
+  });
+  if (!done.ok) return done;
+  return {
+    ok: true,
+    staged: done.staged,
+    results,
+    summary,
+    emptied: entries.length === 0,
+    remaining: entries.length,
+  };
 }
 
 /** Moves one file of a set to another place in it (the store shows the images in this order). Stages the whole set. */

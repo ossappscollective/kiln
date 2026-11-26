@@ -278,7 +278,7 @@ function itemsOf(
         kind: 'asset_set',
         platform,
         id: a.id,
-        label: `${a.label}${a.locale ? ` (${a.locale})` : ''}: ${plural(a.files.length, 'file', 'files')}`,
+        label: `${a.label}${a.locale ? ` (${a.locale})` : ''}: ${a.cleared ? 'every file removed' : plural(a.files.length, 'file', 'files')}`,
         state: a.status === 'invalid' ? 'invalid' : 'staged',
         problems: problemsOf(a.problems, a.id),
         nextStep: 'push_draft',

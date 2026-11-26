@@ -78,6 +78,10 @@ const stagedAssetSchema = z.object({
       }),
     )
     .describe('The set, in order. A push makes the store’s set exactly these files.'),
+  cleared: z
+    .boolean()
+    .optional()
+    .describe('True when every file was taken out: the set is staged EMPTY and a push removes every image the store holds in it.'),
   status: z.enum(['changed', 'invalid']),
   problems: z.array(stagedProblemSchema),
   pushedAt: timestamp.nullable(),
@@ -549,7 +553,7 @@ export const stagedChangesOperations: Draft[] = [
     tags: ['staged-changes'],
     summary: 'Take one file out of a staged set',
     description:
-      'The set is composed as for an upload. A push replaces the store\u2019s set with the files that remain; the last file cannot be removed (`422 empty_set`): a push cannot clear a set.',
+      'One file by its 1-based place; prefer `removeStagedAssetFiles`, which names files by what identifies them (store ref or blob id) and answers for each. The set is composed as for an upload (a set whose files were all pushed is composed from the store when `base` is `store`). A push replaces the store\u2019s set with the files that remain; taking out the last file stages the set EMPTY (`cleared`): a push then removes every image of it.',
     risk: 'destructive',
     access: { action: 'changesets.write' },
     appScope: { kind: 'param', name: 'id' },
@@ -571,6 +575,71 @@ export const stagedChangesOperations: Draft[] = [
       '200': {
         description: 'The staged changes after the change.',
         schema: z.object({ staged: stagedChangesSchema }),
+      },
+    },
+  },
+  {
+    id: 'removeStagedAssetFiles',
+    method: 'post',
+    path: `${W}/apps/{id}/staged/assets/remove`,
+    tags: ['staged-changes'],
+    summary: 'Take several files out of a staged set in one change, with an answer for each',
+    description:
+      'Each entry of `files` names ONE file by `ref` (an image the store holds, as `getStoreImages` lists it), `oid` (the git blob id of a staged or repository file) or, last, `position` (1-based, in the set as it is now); `ref` wins over `oid`, `oid` over `position`. The set is composed as for an upload (`base: "store"` starts an unstaged set, or one whose files were all pushed, from the images the store holds) and each entry is resolved against it. The answer has one result per entry, in request order: `removed`, `already_removed` (the file is not in the set any more: taken out by an earlier entry of this request, or the staged set no longer keeps it) or `not_found` with a `reason` (`unknown_file`, `stale_store_ref`, `position_out_of_range`, `no_identifier`). A file that is not found never fails the others; everything removed is staged as ONE change, and nothing is staged when nothing was removed. Taking out every file stages the set EMPTY (`cleared`, `emptied: true`): a push then removes every image of it (the App Store may then refuse a submit for a size it requires: see the readiness of the plan). Nothing is written to a store or a repository.',
+    risk: 'destructive',
+    access: { action: 'changesets.write' },
+    appScope: { kind: 'param', name: 'id' },
+        body: z.object({
+      locale: z.string().min(2).max(35),
+      kind: z.string(),
+      device: z.string().max(60).nullable().optional(),
+      files: z
+        .array(
+          z.object({
+            ref: z.string().max(400).optional().describe('An image the store holds (store view).'),
+            oid: z.string().max(64).optional().describe('The git blob id of a staged or repository file.'),
+            position: z.number().int().min(1).optional().describe('1-based place in the set as it is now.'),
+          }),
+        )
+        .min(1)
+        .max(100),
+      base: z.literal('store').optional(),
+    }),
+    responses: {
+      '200': {
+        description: 'One result per entry, the counts, and the staged changes after the change.',
+        schema: z.object({
+          results: z.array(
+            z.object({
+              index: z.number().int().describe('Place of the entry in the request, from 0.'),
+              id: z.object({
+                ref: z.string().optional(),
+                oid: z.string().optional(),
+                position: z.number().int().optional(),
+              }),
+              outcome: z.enum(['removed', 'already_removed', 'not_found']),
+              reason: z
+                .enum([
+                  'unknown_file',
+                  'stale_store_ref',
+                  'position_out_of_range',
+                  'not_in_staged_set',
+                  'duplicate_in_request',
+                  'no_identifier',
+                ])
+                .optional(),
+              position: z.number().int().optional().describe('The place the file had in the set (1-based), when found.'),
+            }),
+          ),
+          summary: z.object({
+            removed: z.number().int(),
+            alreadyRemoved: z.number().int(),
+            notFound: z.number().int(),
+          }),
+          emptied: z.boolean().describe('The set holds no file now (it is staged empty).'),
+          remaining: z.number().int().describe('Files the set holds now.'),
+          staged: stagedChangesSchema,
+        }),
       },
     },
   },

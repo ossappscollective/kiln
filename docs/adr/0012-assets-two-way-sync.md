@@ -36,8 +36,8 @@ changing the repository. Users asked for the full set: pull, diff, add, replace,
    to without a change set, and the database layer already backs up and deletes per app. The price is size (base64) and
    the caps. Rows are removed when no staged row refers to them and when the app is deleted.
 6. **Staged like text.** Add, replace, remove and fix change the staged set (`staged_changes`, kind `asset`), and the
-   existing gated push writes the whole set to the store's draft: nothing in this ADR adds a store write. A set cannot
-   be emptied, because a push cannot clear a store's set. "Put into the repository" makes a change set from the staged
+   existing gated push writes the whole set to the store's draft: nothing in this ADR adds a store write. A set can
+   be emptied (a marker row; a push then removes every image of the set). "Put into the repository" makes a change set from the staged
    sets. Both are previewed in the UI with before and after thumbnails.
 7. **Fixes are copies.** A fix makes a corrected file and stages it; the original is never overwritten. The PNG codec is
    pure TypeScript (`node:zlib`, no packages): 8 bit gray, RGB, palette with tRNS, gray alpha and RGBA, non interlaced;
