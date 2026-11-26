@@ -22,6 +22,7 @@ export const LISTING_SECTIONS = [
   'media',
   'details',
   'releaseNotes',
+  'locales',
 ] as const;
 export type ListingSectionName = (typeof LISTING_SECTIONS)[number];
 
@@ -106,6 +107,16 @@ export type ListingReleaseNotes = {
   >;
 };
 
+/**
+ * Every localization the store holds for one version, by the store's own code (`fr-FR`, `fr-CA`, `zh-Hans`),
+ * INCLUDING the ones whose texts are all empty. A localization with nothing set (App Store Connect creates
+ * one when a language is added) has no text rows, so without this it would not exist for the listing: not in
+ * the grid, not in the language list, not in the checks.
+ */
+export type ListingLocales = {
+  codes: string[];
+};
+
 export type ListingSections = {
   categories?: ListingCategories;
   ageRating?: ListingAgeRating;
@@ -113,6 +124,7 @@ export type ListingSections = {
   media?: ListingMedia;
   details?: ListingDetails;
   releaseNotes?: ListingReleaseNotes;
+  locales?: ListingLocales;
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -277,6 +289,10 @@ export function cleanSection<N extends ListingSectionName>(
           }
         }
         return { tracks };
+      }
+      case 'locales': {
+        const codes = strings(value.codes, MAX_KEYS) ?? [];
+        return { codes: [...new Set(codes)].sort() };
       }
     }
   })();

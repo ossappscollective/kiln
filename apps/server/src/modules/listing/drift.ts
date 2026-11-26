@@ -12,6 +12,7 @@ import {
   PLAY_FIELD_SPECS,
   PLAY_FIELDS,
   type Platform,
+  isStageableTextField,
   validateListing,
 } from '@kiln/core';
 
@@ -77,6 +78,34 @@ export function flattenListing(listing: Listing, platform: Platform): FieldValue
     }
   }
   return out;
+}
+
+/**
+ * The codes of every localization the listing holds for the platform's store, the empty ones included
+ * (`flattenListing` leaves those out, because it only has fields). Undefined: the listing has no such store.
+ */
+export function listingLocaleCodes(listing: Listing, platform: Platform): string[] | undefined {
+  const locales: Record<string, LocaleText<string>> | undefined =
+    listingStoreOf(platform) === 'app_store'
+      ? listing.appStore?.locales
+      : listing.googlePlay?.locales;
+  return locales === undefined ? undefined : Object.keys(locales).sort();
+}
+
+/**
+ * The required fields of a locale that a person can write (a staged text) and that `values` leaves empty or
+ * blank. The App Store name and the privacy policy URL belong to the app information, which a draft does
+ * not write, so they are not named here.
+ */
+export function emptyRequiredFields(
+  platform: Platform,
+  values: Readonly<Record<string, string | undefined>>,
+): string[] {
+  return listingFieldsFor(platform).filter((field) => {
+    if (!fieldSpec(platform, field)?.required || !isStageableTextField(platform, field)) return false;
+    const value = values[field];
+    return value === undefined || value.trim() === '';
+  });
 }
 
 /** True when the listing has the store of this platform at all. */
@@ -182,7 +211,20 @@ export type DriftField = {
   problems: { repo: SideProblem[]; live: SideProblem[] };
 };
 
-export type DriftLocale = { locale: string; fields: DriftField[] };
+/**
+ * One locale of the drift view. `stores` is where the store holds this localization: `live` (the version on
+ * sale), `editable` (the draft), both, or neither (a locale only the repository has). `valuesFrom` is the copy the
+ * store values of `fields` were read from: the live one when it has the locale, else the draft. `emptyRequired`
+ * names the required fields a person can fill (description, keywords, support URL, ...) that the store copy
+ * leaves empty: an empty localization (App Store Connect creates one when a language is added) has no fields at all.
+ */
+export type DriftLocale = {
+  locale: string;
+  fields: DriftField[];
+  stores?: ('live' | 'editable')[];
+  valuesFrom?: 'live' | 'editable';
+  emptyRequired?: string[];
+};
 
 /** A flat set of values as a listing of the platform's store, so `validateListing` can check it. */
 export function toListing(platform: Platform, values: ReadonlyMap<string, string>): Listing {

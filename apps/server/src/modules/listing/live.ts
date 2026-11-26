@@ -34,6 +34,7 @@ import {
   type DriftLocale,
   type DriftSide,
   type DriftSummary,
+  emptyRequiredFields,
   emptySide,
   fieldKey,
   fieldSpec,
@@ -41,6 +42,7 @@ import {
   hashListingValue,
   isListingField,
   type ListingSource,
+  listingLocaleCodes,
   listingDueAt,
   listingFieldsFor,
   sideProblems,
@@ -369,12 +371,17 @@ function describeFailure(error: unknown, secret: string): string {
 
 /** The values of one channel, as flat rows. */
 const channelValues = (read: StoreListing, platform: Platform) =>
-  read.channels.map((c) => ({
-    channel: c.channel,
-    ref: c.versionString ?? null,
-    values: flattenListing(c.listing, platform),
-    sections: c.sections,
-  }));
+  read.channels.map((c) => {
+    // Every localization the store holds, the empty ones too: they have no text rows, so this is the only
+    // record that the language exists (a read without the store's locales leaves the section "not read").
+    const codes = listingLocaleCodes(c.listing, platform);
+    return {
+      channel: c.channel,
+      ref: c.versionString ?? null,
+      values: flattenListing(c.listing, platform),
+      sections: codes === undefined ? c.sections : { ...c.sections, locales: { codes } },
+    };
+  });
 
 /** The sections of every kind, so a channel that is gone can mark each of them removed. */
 const GONE: Record<ListingSectionName, null> = {
@@ -384,6 +391,7 @@ const GONE: Record<ListingSectionName, null> = {
   media: null,
   details: null,
   releaseNotes: null,
+  locales: null,
 };
 
 /** One failed read: the message, the time of the attempt and one more failure in a row. */
@@ -649,6 +657,7 @@ function sectionsOf(
     'media',
     'details',
     'releaseNotes',
+    'locales',
   ] as const) {
     const row = all.get(sectionKey(source, channel, name));
     if (row) out[name] = row.value;
@@ -752,6 +761,8 @@ export async function getLiveListing(
     }
     const newest = rows.reduce((a, b) => (b.observedAt >= a.observedAt ? b : a));
     const sections = sectionsOf(sectionRows, 'store', name);
+    // A localization the store holds with nothing set has no rows: it is listed, with no fields.
+    for (const code of sections.locales?.codes ?? []) locales[code] ??= {};
     return {
       channel: name,
       sourceRef: newest.sourceRef,
@@ -765,7 +776,9 @@ export async function getLiveListing(
     if (out.some((c) => c.channel === name)) continue;
     const sections = sectionsOf(sectionRows, 'store', name);
     if (Object.keys(sections).length === 0) continue;
-    out.push({ channel: name, sourceRef: null, observedAt: null, locales: {}, sections });
+    const empty: Record<string, Record<string, string>> = {};
+    for (const code of sections.locales?.codes ?? []) empty[code] = {};
+    out.push({ channel: name, sourceRef: null, observedAt: null, locales: empty, sections });
   }
   out.sort((a, b) => (a.channel === b.channel ? 0 : a.channel === 'live' ? -1 : 1));
   return {
@@ -846,6 +859,9 @@ export function compareSection(
               "Release notes of the tracks are shown as the store has them; the repository's changelogs are not compared.",
             ],
           };
+    case 'locales':
+      // Which localizations exist is shown by the locale list itself; there is nothing to compare.
+      return { status: 'not-comparable', details: [] };
   }
 }
 
@@ -891,9 +907,12 @@ export async function getDrift(
       : null;
   const storeLatest = channel === 'editable' ? storeEditable : storeLive;
 
-  // Histories of hashes, per field.
+  // Histories of hashes, per field (the store's per channel: a locale only the draft has is read from the draft).
   const repoHistory = new Map<string, string[]>();
-  const storeHistory = new Map<string, Set<string>>();
+  const storeHistories: Record<'live' | 'editable', Map<string, Set<string>>> = {
+    live: new Map(),
+    editable: new Map(),
+  };
   for (let i = index.length - 1; i >= 0; i--) {
     const r = index[i] as IndexRow;
     const key = fieldKey(r.locale, r.field);
@@ -901,17 +920,43 @@ export async function getDrift(
       const list = repoHistory.get(key) ?? [];
       if (!list.includes(r.hash)) list.push(r.hash);
       repoHistory.set(key, list);
-    } else if (r.source === 'store' && r.channel === (channel ?? 'live')) {
-      const set = storeHistory.get(key) ?? new Set<string>();
+    } else if (r.source === 'store' && (r.channel === 'live' || r.channel === 'editable')) {
+      const set = storeHistories[r.channel].get(key) ?? new Set<string>();
       set.add(r.hash);
-      storeHistory.set(key, set);
+      storeHistories[r.channel].set(key, set);
     }
+  }
+
+  // The localizations each store copy holds: every one it has a text for, and every one the last read listed,
+  // the empty ones included (they have no text rows).
+  const storeLocales: Record<'live' | 'editable', Set<string>> = {
+    live: new Set(),
+    editable: new Set(),
+  };
+  for (const name of ['live', 'editable'] as const) {
+    const rows = name === 'live' ? storeLive : storeEditable;
+    for (const r of rows.values()) if (isPresent(r)) storeLocales[name].add(r.locale);
+    const listed = sectionRows.get(sectionKey('store', name, 'locales'))?.value as
+      | ListingSections['locales']
+      | undefined;
+    for (const code of listed?.codes ?? []) storeLocales[name].add(code);
   }
 
   const locales = new Set<string>();
   for (const r of [...repoLatest.values(), ...storeLatest.values(), ...changeSetLatest.values()]) {
     if (isPresent(r) && r.locale !== DEFAULT_FALLBACK_LOCALE) locales.add(r.locale);
   }
+  for (const set of [storeLocales.live, storeLocales.editable]) {
+    for (const code of set) if (code !== DEFAULT_FALLBACK_LOCALE) locales.add(code);
+  }
+  const chosen = channel ?? 'live';
+  const storesOf = (locale: string): ('live' | 'editable')[] =>
+    (['live', 'editable'] as const).filter((name) => storeLocales[name].has(locale));
+  /** The copy a locale's store values are read from: the chosen one, else the other one that has the locale. */
+  const copyOf = (locale: string): 'live' | 'editable' => {
+    const held = storesOf(locale);
+    return held.includes(chosen) ? chosen : (held[0] ?? chosen);
+  };
 
   type Picked = {
     locale: string;
@@ -920,6 +965,7 @@ export async function getDrift(
     db?: IndexRow;
     live?: IndexRow;
     repoKey: string;
+    from: 'live' | 'editable';
   };
   const picked: Picked[] = [];
   for (const locale of [...locales].sort((a, b) => a.localeCompare(b))) {
@@ -934,7 +980,8 @@ export async function getDrift(
           repoKey = fieldKey(DEFAULT_FALLBACK_LOCALE, field);
         }
       }
-      const live = storeLatest.get(key);
+      const from = copyOf(locale);
+      const live = (from === 'editable' ? storeEditable : storeLive).get(key);
       const db = later(changeSetLatest.get(key), live);
       if (!isPresent(repo) && !isPresent(live) && !isPresent(db)) continue;
       picked.push({
@@ -944,6 +991,7 @@ export async function getDrift(
         ...(db ? { db } : {}),
         ...(live ? { live } : {}),
         repoKey,
+        from,
       });
     }
   }
@@ -981,7 +1029,7 @@ export async function getDrift(
           repo: repo.value,
           live: live.value,
           repoHistory: repoHistory.get(p.repoKey) ?? [],
-          liveHistory: storeHistory.get(key) ?? new Set<string>(),
+          liveHistory: storeHistories[p.from].get(key) ?? new Set<string>(),
         });
     const spec = fieldSpec(platform, p.field);
     const field: DriftField = {
@@ -1001,7 +1049,24 @@ export async function getDrift(
     list.push(field);
     byLocale.set(p.locale, list);
   }
-  const result: DriftLocale[] = [...byLocale].map(([locale, fields]) => ({ locale, fields }));
+  const result: DriftLocale[] = [];
+  for (const locale of [...locales].sort((a, b) => a.localeCompare(b))) {
+    const held = storesOf(locale);
+    const fields = byLocale.get(locale);
+    // A localization the store holds with no text at all is a locale with no fields, not a missing one.
+    if (fields === undefined && held.length === 0) continue;
+    const entry: DriftLocale = { locale, fields: fields ?? [] };
+    if (held.length > 0) {
+      const values: Record<string, string | undefined> = {};
+      for (const field of listingFieldsFor(platform))
+        values[field] = liveValues.get(fieldKey(locale, field));
+      entry.stores = held;
+      entry.valuesFrom = copyOf(locale);
+      const empty = emptyRequiredFields(platform, values);
+      if (empty.length > 0) entry.emptyRequired = empty;
+    }
+    result.push(entry);
+  }
   const sectionChannel = channel ?? 'live';
   const sections: SectionDrift[] = SECTIONS_OF[platform].map((name) => {
     const store = sectionRows.get(sectionKey('store', sectionChannel, name));

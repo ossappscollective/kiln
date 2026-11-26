@@ -225,6 +225,69 @@ test('App Store: localizations follow links.next', async () => {
   assert.deepEqual(fake.unexpected, []);
 });
 
+test('App Store: a localization with every attribute null is kept (fr-FR on the draft), next to fr-CA, and the live version keeps its own list', async () => {
+  const { fake, connector } = appleSetup(1);
+  const loc = (id: string, attributes: Record<string, unknown>) => ({
+    type: 'appStoreVersionLocalizations',
+    id,
+    attributes,
+  });
+  const base = `${fx.APPLE_BASE}/v1/appStoreVersions/v-next/appStoreVersionLocalizations`;
+  fake
+    .on({
+      method: 'GET',
+      match: `/v1/apps/${APP}/appStoreVersions?limit=1`,
+      json: lx.appleListingVersions,
+    })
+    .on({ method: 'GET', match: `/v1/apps/${APP}/appInfos?limit=1`, json: lx.appleAppInfos })
+    .on({ method: 'GET', match: /appInfoLocalizations/, json: { data: [] } })
+    .on({
+      method: 'GET',
+      match: '/v1/appStoreVersions/v-live/appStoreVersionLocalizations?limit=1',
+      json: { data: [loc('l-en', { locale: 'en-US', description: 'Live' })] },
+    })
+    // Page 1 of the draft: en-US; page 2: fr-FR with nothing set; page 3: fr-CA (a distinct language).
+    .on({
+      method: 'GET',
+      match: '/v1/appStoreVersions/v-next/appStoreVersionLocalizations?limit=1',
+      json: {
+        data: [loc('n-en', { locale: 'en-US', description: 'Draft' })],
+        links: { next: `${base}?cursor=p2&limit=1` },
+      },
+    })
+    .on({
+      method: 'GET',
+      match: '/v1/appStoreVersions/v-next/appStoreVersionLocalizations?cursor=p2&limit=1',
+      json: {
+        data: [
+          loc('n-fr', {
+            locale: 'fr-FR',
+            description: null,
+            keywords: null,
+            supportUrl: null,
+            marketingUrl: null,
+            promotionalText: null,
+            whatsNew: null,
+          }),
+        ],
+        links: { next: `${base}?cursor=p3&limit=1` },
+      },
+    })
+    .on({
+      method: 'GET',
+      match: '/v1/appStoreVersions/v-next/appStoreVersionLocalizations?cursor=p3&limit=1',
+      json: { data: [loc('n-ca', { locale: 'fr-CA', description: 'Texte' })] },
+    });
+  const read = await connector.readListing(APP);
+  const live = read.channels.find((c) => c.channel === 'live')?.listing.appStore?.locales;
+  const draft = read.channels.find((c) => c.channel === 'editable')?.listing.appStore?.locales;
+  assert.deepEqual(Object.keys(live ?? {}), ['en-US'], 'the live version has no French');
+  assert.deepEqual(Object.keys(draft ?? {}).sort(), ['en-US', 'fr-CA', 'fr-FR']);
+  assert.deepEqual(draft?.['fr-FR'], {}, 'Apple sends null: the locale exists with no field');
+  assert.deepEqual(draft?.['fr-CA'], { description: 'Texte' });
+  assert.deepEqual(fake.unexpected, []);
+});
+
 test('App Store: only parameters that Apple documents for each endpoint are sent', async () => {
   // From the "Query Parameters" of each page, read 2026-11-18 (docs/spikes/store-api-conventions.md).
   const documented: Record<string, { params: string[]; include?: string[] }> = {
