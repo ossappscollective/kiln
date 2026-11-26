@@ -540,6 +540,7 @@
   "staged.result.alreadySame_many": "{{count}} ya son iguales",
   "staged.result.alreadySame_one": "{{count}} ya es igual",
   "staged.result.alreadySame_other": "{{count}} ya son iguales",
+  "staged.result.removedFromDraft": "Quitado del borrador {{version}}. La versión publicada conserva sus capturas hasta que se publique {{version}}.",
   "staged.result.removed_many": "{{count}} de archivos quitados",
   "staged.result.removed_one": "{{count}} archivo quitado",
   "staged.result.removed_other": "{{count}} archivos quitados",

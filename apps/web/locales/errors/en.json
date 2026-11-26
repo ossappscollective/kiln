@@ -368,6 +368,7 @@
   "prices.tooManyTerritories": "Too many territories in one change.",
   "prices.unknownState": "It is not known whether the last price change of this app reached the store. Run a dry run: it reads the store and shows where it stands. Nothing was sent.",
   "prices.unknownTerritory": "The product has no price in that territory.",
+  "publish.appliedWithDifferences": "The store accepted the requests, but reading it back shows that some of the pushed graphics are not there as asked (images still listed: {{images}}). Those changes stay staged and nothing was submitted. Check the draft in App Store Connect, then push again.",
   "publish.blocked.draft": "Something stands in the way of writing the release fields, so nothing was written. See `checks`.",
   "publish.blocked.publish": "Something stands in the way of one of the steps, so nothing was published. Review the new plan.",
   "publish.blocked.release": "Something stands in the way of releasing, so nothing was released. See `checks`.",

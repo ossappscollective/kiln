@@ -368,6 +368,7 @@
   "prices.tooManyTerritories": "Zu viele Länder oder Regionen in einer Änderung.",
   "prices.unknownState": "Es ist nicht bekannt, ob die letzte Preisänderung dieser App den Store erreicht hat. Starten Sie einen Testlauf: Er liest den Store und zeigt den Stand. Es wurde nichts gesendet.",
   "prices.unknownTerritory": "Das Produkt hat in diesem Land oder dieser Region keinen Preis.",
+  "publish.appliedWithDifferences": "Der Store hat die Anfragen akzeptiert, aber das erneute Lesen zeigt, dass einige gesendete Grafiken nicht wie gewünscht vorhanden sind (noch gelistete Bilder: {{images}}). Diese Änderungen bleiben vorgemerkt, und es wurde nichts eingereicht. Prüfen Sie den Entwurf in App Store Connect und senden Sie erneut.",
   "publish.blocked.draft": "Etwas steht dem Schreiben der Release-Felder im Weg, daher wurde nichts geschrieben. Siehe `checks`.",
   "publish.blocked.publish": "Etwas steht einem der Schritte im Weg, daher wurde nichts veröffentlicht. Prüfen Sie den neuen Plan.",
   "publish.blocked.release": "Etwas steht der Veröffentlichung im Weg, daher wurde nichts veröffentlicht. Siehe `checks`.",

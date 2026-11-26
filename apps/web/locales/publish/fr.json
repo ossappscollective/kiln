@@ -540,6 +540,7 @@
   "staged.result.alreadySame_many": "{{count}} déjà identiques",
   "staged.result.alreadySame_one": "{{count}} déjà identique",
   "staged.result.alreadySame_other": "{{count}} déjà identiques",
+  "staged.result.removedFromDraft": "Retiré du brouillon {{version}}. La version en ligne garde ses captures jusqu’à la publication de {{version}}.",
   "staged.result.removed_many": "{{count}} de fichiers retirés",
   "staged.result.removed_one": "{{count}} fichier retiré",
   "staged.result.removed_other": "{{count}} fichiers retirés",

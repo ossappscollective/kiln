@@ -1293,6 +1293,7 @@ const FAILED_TEXT: Readonly<Record<string, string>> = {
   outcome_unknown: k('app:pending.failed.outcomeUnknown'),
   write_in_progress: k('app:pending.failed.writeInProgress'),
   draft_partial: k('app:pending.failed.draftPartial'),
+  applied_with_differences: k('app:pending.failed.appliedWithDifferences'),
   changes_in_review: k('app:pending.failed.changesInReview'),
   confirmation_mismatch: k('app:pending.failed.confirmationMismatch'),
   rate_limited: k('app:pending.failed.rateLimited'),

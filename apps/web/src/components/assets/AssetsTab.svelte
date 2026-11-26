@@ -126,13 +126,23 @@
   let storeReloading = $state(false);
   let compareMedia = $state(false);
   let storeGeneration = 0;
+  /** App Store: the draft version (default, what Kiln edits) or the live version (read only). Google Play ignores it. */
+  let storeChannel = $state<'editable' | 'live'>('editable');
+  const channelKey = (platform: string) => (storeChannel === 'live' ? `${platform}:live` : platform);
+  function pickChannel(next: 'editable' | 'live') {
+    if (next === storeChannel) return;
+    storeChannel = next;
+    storeView = storeMediaCache.get(storeCacheKey(workspaceId, app.id, channelKey(app.platform)))?.view ?? null;
+    void loadStore(false);
+  }
 
   // Stale while revalidate: the last read of this app and platform is kept for the session (lib/assets/store-cache.ts), so coming back
   // shows it at once and asks again in the background; a failed read keeps what is shown. A publish drops it.
   async function loadStore(fresh: boolean) {
     if (!allowed) return;
     const mine = ++storeGeneration;
-    const key = storeCacheKey(workspaceId, app.id, app.platform);
+    const channel = storeChannel;
+    const key = storeCacheKey(workspaceId, app.id, channelKey(app.platform));
     const hit = storeMediaCache.get(key);
     if (hit && storeView !== hit.view) storeView = hit.view;
     const recent = !fresh && planFor(hit, Date.now()) === 'show';
@@ -140,11 +150,11 @@
     storeProblem = '';
     try {
       const [done, settings] = await Promise.all([
-        recent ? Promise.resolve(null) : api.appStoreImages(workspaceId, app.id, fresh),
+        recent ? Promise.resolve(null) : api.appStoreImages(workspaceId, app.id, fresh, channel),
         api.appListingSettings(workspaceId, app.id).catch(() => null),
       ]);
       if (mine !== storeGeneration) return;
-      if (done) {
+      if (done && channel === storeChannel) {
         storeView = done.store;
         storeMediaCache.set(key, done.store);
       }
@@ -213,6 +223,7 @@
     const key = `${workspaceId}/${app.id}`;
     if (key !== shownFor) {
       shownFor = key;
+      storeChannel = 'editable';
       storeView = storeMediaCache.get(storeCacheKey(workspaceId, app.id, app.platform))?.view ?? null;
       index = null;
       filter = { ...NO_FILTER };
@@ -464,7 +475,7 @@
   <p class="visually-hidden" role="status">{announcement}</p>
 
   {#if allowed}
-    <StoreGraphics {api} {workspaceId} {role} {app} {now} {locked} view={storeView} problem={storeProblem} reloading={storeReloading} onreload={() => loadStore(true)} />
+    <StoreGraphics {api} {workspaceId} {role} {app} {now} {locked} view={storeView} problem={storeProblem} reloading={storeReloading} onreload={() => loadStore(true)} channel={storeChannel} onchannel={pickChannel} />
   {/if}
 
   {#if !allowed}

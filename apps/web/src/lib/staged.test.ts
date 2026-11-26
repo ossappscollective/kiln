@@ -532,6 +532,18 @@ test('draft_partial in both shapes (502 completed and failed, 409 items)', () =>
   assert.equal(mayConfirmAgain(a), false);
 });
 
+test('applied_with_differences is a partial result: the staged view is read again, the same push is never confirmed again', () => {
+  const f = classifyPushFailure(
+    apiError('applied_with_differences', 409, {
+      completed: [{ type: 'text', locale: 'en-US', target: 'description', outcome: 'applied' }],
+      differences: [{ locale: 'en-US', target: 'APP_IPHONE_55', stillPresent: [{ id: 'pl-1', name: 'a.png' }] }],
+    }),
+  );
+  assert.equal(f.kind, 'partial');
+  assert.equal(shouldReloadStaged(f), true);
+  assert.equal(mayConfirmAgain(f), false);
+});
+
 test('write_failed with not_applied says nothing was written; without it the outcome is unknown', () => {
   assert.equal(
     classifyPushFailure(apiError('write_failed', 502, { outcome: 'not_applied' })).kind,
@@ -634,6 +646,24 @@ test('the summary and the result always say nothing was submitted', () => {
   });
   assert.match(r, /2 changes written to the draft, 1 already the same, 3 files uploaded/);
   assert.match(r, /Nothing is submitted/);
+});
+
+test('the result of an App Store push that removed screenshots says it removed them from the draft, not from the live version', () => {
+  const base = {
+    app: { ...preview().app, platform: 'ios' as const },
+    steps: [],
+    counts: { applied: 1, alreadySame: 0, filesUploaded: 0, filesRemoved: 3 },
+    commit: 'none' as const,
+    draft: true,
+    submitted: false,
+    confirmedByReread: false,
+    pushedAt: 1,
+    note: '',
+  };
+  const r = resultText({ ...base, version: { id: 'v', versionString: '2.00.1', state: 'PREPARE_FOR_SUBMISSION' } });
+  assert.match(r, /3 files removed/);
+  assert.match(r, /Removed from the draft 2\.00\.1\. The live version keeps its screenshots until 2\.00\.1 is released\./);
+  assert.doesNotMatch(resultText({ ...base, counts: { ...base.counts, filesRemoved: 0 }, version: { id: 'v', versionString: '2.00.1', state: 'X' } }), /live version keeps/);
 });
 
 test('release fields count in the tray, the preview text and the push gate', () => {

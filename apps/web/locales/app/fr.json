@@ -549,6 +549,7 @@
   "pending.fail.server": "Le serveur a rencontré un problème. Rien n’a été relancé. Vérifiez de nouveau pour connaître l’état des choses.",
   "pending.fail.stepDisabled": "Une étape de ce plan est désactivée sur ce serveur. Chaque étape a besoin de son propre commutateur. Rien n’a été fait. Vérifiez de nouveau.",
   "pending.fail.tooMany": "Trop de requêtes. Patientez un instant, puis vérifiez de nouveau.",
+  "pending.failed.appliedWithDifferences": "Le store a accepté les requêtes, mais sa relecture montre que des images à retirer y sont encore. Ces modifications restent en attente et rien n’a été soumis. Vérifiez le brouillon dans App Store Connect, puis publiez à nouveau.",
   "pending.failed.assetChanged": "Un fichier préparé a changé. Préparez-le de nouveau, puis vérifiez.",
   "pending.failed.assetUnreadable": "Un fichier préparé est illisible. Préparez-le de nouveau, puis vérifiez.",
   "pending.failed.blocked": "Rien n’a été écrit : une vérification bloque désormais cette étape. Vérifiez de nouveau.",

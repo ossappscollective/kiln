@@ -337,3 +337,30 @@ test('cart discard, cart publish, unstage and stage each announce the app once (
     else g.window = before;
   }
 });
+
+test('the publish dialog\'s publish announces the app as published whether it answered or failed, so the Graphics tab never keeps the picture from before', async () => {
+  const bus = new EventTarget();
+  const g = globalThis as unknown as { window?: EventTarget };
+  const before = g.window;
+  g.window = bus;
+  const seen: string[] = [];
+  bus.addEventListener('kiln:staged-changed', (e) => {
+    const d = (e as CustomEvent<{ appId: string; reason: string }>).detail;
+    seen.push(`${d.appId}:${d.reason}`);
+  });
+  try {
+    const body = { planHash: 'h', steps: [] };
+    const ok = createApi({ fetch: fake(() => jsonResponse({ result: { steps: [] } })).fetchImpl });
+    await ok.publishPending('w', 'a1', body);
+    const lost = createApi({
+      fetch: (async () => {
+        throw new TypeError('network down');
+      }) as unknown as typeof fetch,
+    });
+    await assert.rejects(lost.publishPending('w', 'a2', body));
+    assert.deepEqual(seen, ['a1:publish', 'a2:publish']);
+  } finally {
+    if (before === undefined) delete g.window;
+    else g.window = before;
+  }
+});

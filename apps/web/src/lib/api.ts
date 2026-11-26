@@ -1719,11 +1719,13 @@ export function createApi(options: ApiOptions = {}) {
     // Two way sync of the graphics (docs/api/assets.md, docs/api/staged-changes.md). Reading a store and the comparison
     // change nothing in it. A pull and "to repository" make a DRAFT change set; uploads, removals and fixes change only
     // the staged set in our own database. Nothing here writes to a store: that is `pushStagedDraft`.
-    appStoreImages: (workspaceId: string, appId: string, fresh = false) =>
-      request<{ store: StoreImagesView; cached: boolean }>(
+    appStoreImages: (workspaceId: string, appId: string, fresh = false, channel: 'editable' | 'live' = 'editable') => {
+      const query = [fresh ? 'fresh=1' : '', channel === 'live' ? 'channel=live' : ''].filter(Boolean).join('&');
+      return request<{ store: StoreImagesView; cached: boolean }>(
         'GET',
-        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/store${fresh ? '?fresh=1' : ''}`,
-      ),
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/store${query ? `?${query}` : ''}`,
+      );
+    },
     appAssetDiff: (workspaceId: string, appId: string, fresh = false, signal?: AbortSignal) =>
       request<{ diff: AssetDiffView; cachedStore: boolean }>(
         'GET',
@@ -2101,7 +2103,12 @@ export function createApi(options: ApiOptions = {}) {
         undefined,
         grantHeader(grant),
         signal,
-      ),
+      ).then(stagedChanged(appId, 'publish'), (error: unknown) => {
+        // A publish that stopped part way (or whose answer was lost) may still have written the store: whatever a screen keeps of
+        // what the store holds (the Graphics tab's last read) is dropped and read again, so it never shows the picture from before.
+        announceStagedChanged(appId, 'publish');
+        throw error;
+      }),
     // Customer reviews (docs/api/reviews.md): reads of our own database, a store read on sync, and
     // internal triage. Nothing in this group writes to a store; replying is the group below.
     appReviews: (workspaceId: string, appId: string, query = '') =>

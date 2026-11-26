@@ -510,6 +510,7 @@
   "pending.fail.server": "Der Server hatte ein Problem. Es wurde nichts wiederholt. Prüfen Sie erneut, um den aktuellen Stand zu sehen.",
   "pending.fail.stepDisabled": "Ein Schritt in diesem Plan ist auf diesem Server deaktiviert. Jeder Schritt braucht seinen eigenen Schalter. Es wurde nichts ausgeführt. Prüfen Sie erneut.",
   "pending.fail.tooMany": "Zu viele Anfragen. Warten Sie einen Moment und prüfen Sie dann erneut.",
+  "pending.failed.appliedWithDifferences": "Der Store hat die Anfragen akzeptiert, aber das erneute Lesen zeigt, dass zu entfernende Bilder noch vorhanden sind. Diese Änderungen bleiben ausstehend, und es wurde nichts eingereicht. Prüfen Sie den Entwurf in App Store Connect und veröffentlichen Sie erneut.",
   "pending.failed.assetChanged": "Eine vorgemerkte Datei hat sich geändert. Merken Sie sie erneut vor und prüfen Sie dann.",
   "pending.failed.assetUnreadable": "Eine vorgemerkte Datei kann nicht gelesen werden. Merken Sie sie erneut vor und prüfen Sie dann.",
   "pending.failed.blocked": "Es wurde nichts geschrieben: Eine Prüfung blockiert diesen Schritt jetzt. Prüfen Sie erneut.",

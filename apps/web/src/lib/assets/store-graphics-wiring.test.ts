@@ -64,3 +64,13 @@ test('the editor names a file by its blob id and reads the per-file answer', () 
   assert.match(editor, /files: \[fileIdOf\(r\)\]/);
   assert.match(editor, /result\.outcome === 'not_found'/);
 });
+
+test('the tab says which version it shows (draft or live), offers the switch, and keeps the live view read only', () => {
+  assert.match(graphics, /storeVersionLabel\(view, channel\)/);
+  assert.match(graphics, /assets:store\.version\.draft/);
+  assert.match(graphics, /assets:store\.version\.live'/);
+  assert.match(graphics, /assets:store\.version\.draftNote/, 'a removal is explained: it changes the draft only');
+  assert.match(graphics, /offersChannelSwitch\(view\)/);
+  assert.match(graphics, /channel === 'live' \? null : stagedStore\.view\(app\.id\)/, 'staged changes are for the draft, not shown on the live view');
+  assert.match(graphics, /!versionLabel\.editable/, 'the live view cannot be edited');
+});

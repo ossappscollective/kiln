@@ -549,6 +549,7 @@
   "pending.fail.server": "El servidor tuvo un problema. No se reintentó nada. Revisa de nuevo para ver en qué punto está todo.",
   "pending.fail.stepDisabled": "Un paso de este plan está desactivado en este servidor. Cada paso necesita su propio interruptor. No se hizo nada. Revisa de nuevo.",
   "pending.fail.tooMany": "Demasiadas solicitudes. Espera un momento y vuelve a revisar.",
+  "pending.failed.appliedWithDifferences": "La tienda aceptó las solicitudes, pero al leerla de nuevo siguen apareciendo imágenes que debían eliminarse. Esos cambios siguen pendientes y no se envió nada a revisión. Revisa el borrador en App Store Connect y publica de nuevo.",
   "pending.failed.assetChanged": "Un archivo preparado cambió. Vuelve a prepararlo y luego revisa.",
   "pending.failed.assetUnreadable": "No se puede leer un archivo preparado. Vuelve a prepararlo y luego revisa.",
   "pending.failed.blocked": "No se escribió nada: una comprobación bloquea ahora este paso. Revisa de nuevo.",

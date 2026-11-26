@@ -56,7 +56,7 @@ export type DraftStep = {
   type: 'text' | 'asset' | 'locale';
   locale: string;
   target: string;
-  outcome: 'applied' | 'already_same';
+  outcome: 'applied' | 'already_same' | 'applied_with_differences';
   uploaded?: number;
   removed?: number;
 };
@@ -606,6 +606,7 @@ export function classifyPushFailure(
         kind: 'outcome_unknown',
         message: t('publish:staged.fail.outcomeUnknown', { message }),
       };
+    case 'applied_with_differences':
     case 'draft_partial': {
       const completed = Array.isArray(body.completed) ? (body.completed as DraftStep[]) : [];
       const failed = isObject(body.failed)
@@ -834,8 +835,16 @@ export function resultText(result: DraftPushResult): string {
     parts.push(t('publish:staged.result.uploaded', { count: result.counts.filesUploaded }));
   if (result.counts.filesRemoved > 0)
     parts.push(t('publish:staged.result.removed', { count: result.counts.filesRemoved }));
+  // App Store: a removal changes the draft version only; the live version keeps its own screenshots until the draft is released.
+  const appleRemoval =
+    result.counts.filesRemoved > 0 &&
+    (result.app.platform === 'ios' || result.app.platform === 'macos') &&
+    !!result.version?.versionString;
+  const note = appleRemoval
+    ? `${t('publish:staged.result.removedFromDraft', { version: result.version?.versionString ?? '' })} ${notSubmittedNote()}`
+    : notSubmittedNote();
   return t('publish:staged.result.sentence', {
     parts: formatList(parts, { type: 'unit' }),
-    note: notSubmittedNote(),
+    note,
   });
 }

@@ -516,6 +516,7 @@
   "staged.pushRoleReason": "Pushing a draft to a store needs the admin or owner role.",
   "staged.result.alreadySame_one": "{{count}} already the same",
   "staged.result.alreadySame_other": "{{count}} already the same",
+  "staged.result.removedFromDraft": "Removed from the draft {{version}}. The live version keeps its screenshots until {{version}} is released.",
   "staged.result.removed_one": "{{count}} file removed",
   "staged.result.removed_other": "{{count}} files removed",
   "staged.result.sentence": "{{parts}}. {{note}}",

@@ -13,8 +13,11 @@
   Undo link discards the staged change it made. Counts and the staged tray come from the staged view the answer carries (the app state).
   The images come through the server's thumbnail route; the read is the cached one of the last minute, and the last read is kept in
   the browser (lib/assets/store-cache.ts), so coming back shows it at once while it is read again.
+  App Store: the header says WHICH VERSION the images belong to ("Draft 2.00.1", the version Kiln edits and shows by default, or "Live
+  1.19.0") with a switch between them (lib/assets/store-version.ts), and one sentence says what a removal touches: it changes the draft
+  only, the live version keeps its screenshots until the draft is released. The live view is read only.
   Props: api, workspaceId, role, app, now (ms), view (the answer, or null while reading), problem (why it could not be read, or ''),
-  reloading, onreload, locked (the version in the store locks its listing and graphics).
+  reloading, onreload, locked (the version in the store locks its listing and graphics), channel ('editable' | 'live') and onchannel.
 -->
 <script lang="ts">
   import { ASSET_KIND_LABELS, type Role, assetStoreOf, checkStoreImages, setNeedsAnImage } from '@kiln/core';
@@ -39,6 +42,7 @@
   import { t } from '../../lib/i18n/t.ts';
   import { stagingError } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { offersChannelSwitch, storeVersionLabel } from '../../lib/assets/store-version.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -62,6 +66,8 @@
     reloading = false,
     onreload,
     locked = false,
+    channel = 'editable',
+    onchannel,
   }: {
     api: Api;
     workspaceId: string;
@@ -73,6 +79,8 @@
     reloading?: boolean | undefined;
     onreload: () => void;
     locked?: boolean | undefined;
+    channel?: 'editable' | 'live' | undefined;
+    onchannel?: ((channel: 'editable' | 'live') => void) | undefined;
   } = $props();
 
   type StoreImagesView = import('@kiln/core').StoreImagesView;
@@ -83,7 +91,8 @@
     buildGraphicSets({
       platform: app.platform,
       view,
-      staged: stagedStore.view(app.id),
+      // The live version is shown as the store holds it: what is staged is for the draft.
+      staged: channel === 'live' ? null : stagedStore.view(app.id),
       urls: {
         thumb: (ref) => storeThumbUrl(workspaceId, app.id, ref, 160),
         file: (ref) => storeFileUrl(workspaceId, app.id, ref),
@@ -96,7 +105,16 @@
   const setName = (set: GraphicSet) => (set.deviceLabel ? `${ASSET_KIND_LABELS[set.kind]} · ${set.deviceLabel}` : ASSET_KIND_LABELS[set.kind]);
 
   const may = $derived(canChangeAssets(role));
-  const editReason = $derived(!may ? t(SYNC_ROLE_REASON) : locked ? t('assets:store.lockedReason') : '');
+  const versionLabel = $derived(storeVersionLabel(view, channel));
+  const editReason = $derived(
+    !may
+      ? t(SYNC_ROLE_REASON)
+      : versionLabel !== null && !versionLabel.editable
+        ? t('assets:store.version.readOnly')
+        : locked
+          ? t('assets:store.lockedReason')
+          : '',
+  );
   const editable = $derived(editReason === '');
 
   let working = $state('');
@@ -276,8 +294,26 @@
         {#if reloading}<Spinner size={14} label="" /> {t('assets:store.refreshing')}{:else}{t('assets:store.updatedAt', { when: timeAgo(view.readAt, now) })}{/if}
       </span>
     {/if}
+    {#if versionLabel}
+      <Badge tone={versionLabel.kind === 'draft' ? 'accent' : 'neutral'}>
+        {versionLabel.kind === 'draft' ? t('assets:store.version.draft', { version: versionLabel.version }) : t('assets:store.version.live', { version: versionLabel.version })}
+      </Badge>
+    {/if}
+    {#if view && offersChannelSwitch(view) && onchannel}
+      <div class="channels" role="group" aria-label={t('assets:store.channel.label')}>
+        <Button size="sm" variant={channel === 'editable' ? 'primary' : 'secondary'} aria-pressed={channel === 'editable'} onclick={() => onchannel('editable')}>{t('assets:store.channel.editable')}</Button>
+        <Button size="sm" variant={channel === 'live' ? 'primary' : 'secondary'} aria-pressed={channel === 'live'} onclick={() => onchannel('live')}>{t('assets:store.channel.live')}</Button>
+      </div>
+    {/if}
     <Button size="sm" icon="refresh" loading={reloading} onclick={onreload}>{t('assets:store.reread')}</Button>
   </header>
+  {#if versionLabel}
+    <p class="muted version-note">
+      {#if versionLabel.kind === 'draft'}{t('assets:store.version.draftNote', { version: versionLabel.version })}
+      {:else if versionLabel.kind === 'live'}{t('assets:store.version.liveNote', { version: versionLabel.version })}
+      {:else}{t('assets:store.version.liveOnlyNote', { version: versionLabel.version })}{/if}
+    </p>
+  {/if}
   <p class="visually-hidden" role="status">{announce}</p>
 
   {#if problem && !view}
@@ -469,6 +505,15 @@
   .head h3 {
     margin: 0;
     margin-right: auto;
+  }
+
+  .channels {
+    display: inline-flex;
+    gap: var(--space-1);
+  }
+
+  .version-note {
+    margin: 0;
   }
 
   .muted {

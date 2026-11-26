@@ -516,6 +516,7 @@
   "staged.pushRoleReason": "Zum Übertragen eines Entwurfs an einen Store ist die Rolle Administrator oder Inhaber nötig.",
   "staged.result.alreadySame_one": "{{count}} bereits gleich",
   "staged.result.alreadySame_other": "{{count}} bereits gleich",
+  "staged.result.removedFromDraft": "Aus dem Entwurf {{version}} entfernt. Die Live-Version behält ihre Screenshots, bis {{version}} veröffentlicht wird.",
   "staged.result.removed_one": "{{count}} Datei entfernt",
   "staged.result.removed_other": "{{count}} Dateien entfernt",
   "staged.result.sentence": "{{parts}}. {{note}}",

@@ -510,6 +510,7 @@
   "pending.fail.server": "The server had a problem. Nothing was retried. Review again to see where things stand.",
   "pending.fail.stepDisabled": "A step in this plan is switched off on this server. Each step needs its own switch. Nothing was done. Review again.",
   "pending.fail.tooMany": "Too many requests. Wait a moment, then review again.",
+  "pending.failed.appliedWithDifferences": "The store accepted the requests, but reading it back shows images that were to be removed are still there. Those changes stay pending and nothing was submitted. Check the draft in App Store Connect, then publish again.",
   "pending.failed.assetChanged": "A staged file changed. Stage it again, then review.",
   "pending.failed.assetUnreadable": "A staged file cannot be read. Stage it again, then review.",
   "pending.failed.blocked": "Nothing was written: a check blocks this step now. Review again.",
