@@ -84,6 +84,9 @@ test('verdict: every reason has a code, a severity and a plain sentence', () => 
     [{ processingState: 'SOMETHING_NEW' }, draft, 'state_unknown', false, 'blocked'],
     [{ expired: true }, draft, 'expired', false, 'blocked'],
     [{ version: '2.0' }, draft, 'wrong_version', true, 'warning'],
+    // The same version written another way is no warning (the one comparison of @kiln/core).
+    [{ version: '2.00.1' }, { versionString: '2.0.1' }, 'ok', true, 'ok'],
+    [{ version: '2.1' }, { versionString: '2.1.0' }, 'ok', true, 'ok'],
     [{}, null, 'no_editable_version', false, 'blocked'],
     [{ attached: true }, draft, 'already_attached', false, 'ok'],
     [{ exportCompliance: 'missing' }, draft, 'export_compliance_missing', true, 'warning'],

@@ -1,4 +1,4 @@
-import { supports } from '@kiln/core';
+import { liveOf, type PromoteFact, promoteOptionsOf, supports } from '@kiln/core';
 import { parseViewPath } from './app-scope.ts';
 import { currentLocale, t } from './i18n/t.ts';
 import { trackLabel } from './portfolio.ts';
@@ -44,52 +44,46 @@ export const defaultTarget = (_from: string): string => PRODUCTION;
 const inSentence = (label: string): string =>
   currentLocale() === 'de' ? label : label.toLowerCase();
 
-const sameTrack = (a: string | null, b: string) => (a ?? '').toLowerCase() === b.toLowerCase();
-
-const SERVING = ['live', 'rolling_out'];
-const isServing = (r: Pick<ReleaseSummary, 'status'>) =>
-  r.status !== null && SERVING.indexOf(r.status) >= 0;
+/** The words of one promotable release of the core's rule (`promoteOptionsOf` of @kiln/core: the ONE rule of what can go to production). */
+export const promoteOptionOf = (fact: PromoteFact): PromoteOption => ({
+  appId: fact.appId,
+  from: fact.from,
+  to: fact.to,
+  codes: fact.codes.slice(),
+  version: fact.version,
+  label: t('release-store:promote.label', { track: inSentence(trackLabel(fact.to)) }),
+  fromLabel: inSentence(trackLabel(fact.from)),
+});
 
 /**
- * Whether this release can be promoted: Android, a track that is not production, serving users (live or rolling out), with version
- * codes, and not already in production with the same codes in any state (a draft, in review, approved, rolling out or live) (`siblings` are the releases to look at, for example the same version).
+ * Whether this release can be promoted: the core's rule (a track that is not production, serving its testers, with version codes, not
+ * already in production with those codes in any state, and with codes ABOVE what production serves). `siblings` are the releases of the
+ * same app to look at.
  */
 export function promoteOption(
   release: ReleaseSummary,
   siblings: readonly ReleaseSummary[] = [],
 ): PromoteOption | null {
   if (!supports(release.platform, 'releaseTracks') || release.track === null) return null;
-  if (sameTrack(release.track, PRODUCTION)) return null;
-  const codes = release.versionCodes ?? [];
-  if (codes.length === 0 || !isServing(release)) return null;
-  const done = siblings.some(
-    (s) =>
-      s.appId === release.appId &&
-      sameTrack(s.track, PRODUCTION) &&
-      codes.every((c) => (s.versionCodes ?? []).indexOf(c) >= 0),
-  );
-  if (done) return null;
-  const to = defaultTarget(release.track);
-  return {
+  const pool = [release, ...siblings.filter((s) => s !== release && s.appId === release.appId)];
+  const codes = (release.versionCodes ?? []).join(',');
+  const hit = promoteOptionsOf(pool, {
     appId: release.appId,
-    from: release.track,
-    to,
-    codes: [...codes],
-    version: release.version,
-    label: t('release-store:promote.label', { track: inSentence(trackLabel(to)) }),
-    fromLabel: inSentence(trackLabel(release.track)),
-  };
+    live: liveOf(pool, { platform: release.platform }).ref,
+  }).filter(
+    (o) => o.from === release.track && o.version === release.version && o.codes.join(',') === codes,
+  )[0];
+  return hit === undefined ? null : promoteOptionOf(hit);
 }
 
 /** The releases of an app that can be promoted, the newest version codes first. */
 export function promoteOptions(releases: readonly ReleaseSummary[]): PromoteOption[] {
-  const out: PromoteOption[] = [];
-  for (const r of releases) {
-    const option = promoteOption(r, releases);
-    if (option !== null) out.push(option);
-  }
-  const top = (o: PromoteOption) => Math.max(0, ...o.codes.map((c) => Number(c) || 0));
-  return out.sort((a, b) => top(b) - top(a));
+  const first = releases[0];
+  if (first === undefined || !supports(first.platform, 'releaseTracks')) return [];
+  return promoteOptionsOf(releases, {
+    appId: first.appId,
+    live: liveOf(releases, { platform: first.platform }).ref,
+  }).map(promoteOptionOf);
 }
 
 /** The address of "Prepare release" for the Android record, with the track, the codes and the target filled in. */

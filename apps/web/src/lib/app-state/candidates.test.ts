@@ -1,11 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import {
-  analyzeCandidates,
-  compareBuildNumbers,
-  compareVersionStrings,
-  type StoreBuildFact,
-} from './candidates.ts';
+import { compareBuildNumbers, tryCompareBuildNumbers, tryCompareVersions } from '@kiln/core';
+import { analyzeCandidates, type StoreBuildFact } from './candidates.ts';
 import { deriveAppState } from './derive.ts';
 import {
   ANDROID,
@@ -27,26 +23,23 @@ import type { AppFacts } from './types.ts';
  * says for each, with the publish, failure, pending and scope dimensions on top.
  */
 
-test('versions compare as dotted numbers: 2.00.1 is 2.0.1, 1.0 is 1.0.0, 4-part versions are longer, anything else is unknown', () => {
+test('versions compare with the ONE comparator of @kiln/core: 2.00.1 is 2.0.1, 1.0 is 1.0.0, a fifth part or a word is unreadable', () => {
   const cases: [string, string, -1 | 0 | 1 | null][] = [
     ['1.11.6', '1.19.0', -1],
     ['2.00.1', '1.19.0', 1],
     ['2.00.1', '2.0.1', 0],
     ['1.0', '1.0.0', 0],
     ['1.26.2', '1.26.10', -1],
-    ['2.00.1.90', '2.00.1', 1],
-    ['2.00.1.90', '2.00.2', -1],
     ['v1.2.0', '1.2.0', 0],
-    ['2.0.0-beta', '1.0.0', null],
     ['', '1.0.0', null],
     ['next', '1.0.0', null],
   ];
   for (const [a, b, want] of cases) {
-    assert.equal(compareVersionStrings(a, b), want, `${a} vs ${b}`);
-    if (want !== null) assert.equal(compareVersionStrings(b, a), want === 0 ? 0 : -want);
+    assert.equal(tryCompareVersions(a, b), want, `${a} vs ${b}`);
+    if (want !== null) assert.equal(tryCompareVersions(b, a), want === 0 ? 0 : -want);
   }
   assert.equal(compareBuildNumbers('95', '88'), 1);
-  assert.equal(compareBuildNumbers('95', null), null);
+  assert.equal(tryCompareBuildNumbers('95', null), null);
   assert.equal(compareBuildNumbers('100', '99'), 1);
 });
 
@@ -168,7 +161,7 @@ test('candidates over every combination: never an old build, never an obsolete v
           assert.equal(a.best.ready, true, where);
           assert.notEqual(a.best.obsolete, true, where);
           if (live === '1.19.0') {
-            const cmp = compareVersionStrings(a.best.version, '1.19.0');
+            const cmp = tryCompareVersions(a.best.version, '1.19.0');
             assert.ok(
               cmp === 1 || (cmp === 0 && Number(a.best.buildNumber) > 88),
               `${where}: ${a.best.version}`,
@@ -177,7 +170,10 @@ test('candidates over every combination: never an old build, never an obsolete v
         }
         // Which flights produce a candidate at all.
         const withLive =
-          flight === 'newer' || (flight === 'same_version_higher_build' && live === '1.19.0');
+          flight === 'newer' ||
+          // A pre-release (2.0.0-beta) is judged by the shared comparator: newer than 1.19.0, so a candidate (its create is refused below).
+          flight === 'unreadable' ||
+          (flight === 'same_version_higher_build' && live === '1.19.0');
         const withoutLive =
           live === 'none' &&
           (flight === 'older' ||
@@ -192,8 +188,9 @@ test('candidates over every combination: never an old build, never an obsolete v
           assert.ok(a.processing !== null, where);
         }
         if (flight === 'expired' || flight === 'invalid') assert.equal(a.best, null, where);
-        // A version that is not numbers is unknown: never newer than what is live, a candidate only when nothing is live.
-        if (flight === 'unreadable' && live !== 'none') assert.equal(a.best, null, where);
+        // A pre-release is a candidate, but the store cannot create it (invalid_version): the plan is `blocked`, never offered.
+        if (flight === 'unreadable' && a.plan !== null && prepared === 'none')
+          assert.equal(a.plan.kind, 'blocked', where);
         // The plan.
         if (a.best === null) assert.equal(a.plan, null, where);
         else {
@@ -214,9 +211,17 @@ test('candidates over every combination: never an old build, never an obsolete v
                     ? '1.11.6'
                     : null;
           const prepares =
-            draftVersion !== null && compareVersionStrings(draftVersion, a.best.version) === 0;
+            draftVersion !== null && tryCompareVersions(draftVersion, a.best.version) === 0;
+          // The store refuses to create a version while another is editable, or one that is not 1-3 numbers: said (`blocked`), never offered.
+          // A new build of the version that is live cannot become a version either (it exists already).
+          const refused =
+            prepared !== 'none' ||
+            flight === 'unreadable' ||
+            (flight === 'same_version_higher_build' && live === '1.19.0');
           const want = !prepares
-            ? 'create_release'
+            ? refused
+              ? 'blocked'
+              : 'create_release'
             : prepared === 'candidate_build_attached'
               ? 'submit'
               : 'attach_build';
@@ -304,30 +309,47 @@ test('Google Play: a testing-track release is a candidate only when its codes ar
 // ---------------------------------------------------------------------------------------------
 // The model: the exact scenario of the report, and the priority around it
 
-test('the report: 1.19.0 (88) is live, 1.11.6 is still in Prepare, TestFlight has 2.00.1 (95): the headline is to create the release, 1.11.6 is outdated and never the headline', () => {
+test('the report: 1.19.0 (88) is live, 1.11.6 is still in Prepare, TestFlight has 2.00.1 (95): the store would refuse the create, so the card says why and links to the store instead of a button that ends in a refusal', () => {
   const s = deriveAppState(reportedIos(), 'ios');
-  assert.equal(s.phase, 'candidate_ready');
-  assert.equal(s.headline, 'Create release 2.00.1 from TestFlight build 95');
-  assert.equal(s.primaryAction.action, 'create_release');
-  assert.equal(s.primaryAction.enabled, true);
-  assert.match(s.primaryAction.href ?? '', /version=2\.00\.1/);
-  assert.match(s.primaryAction.href ?? '', /build=95/);
-  assert.match(s.primaryAction.href ?? '', /step=build/);
-  assert.doesNotMatch(`${s.headline} ${s.reason}`, /1\.11\.6/);
+  assert.equal(s.phase, 'candidate_blocked');
+  assert.equal(s.headline, 'Build 95 (2.00.1) cannot start a release');
+  assert.match(s.reason, /1\.11\.6/);
+  assert.match(s.reason, /Edit or remove it in App Store Connect/);
+  assert.equal(s.primaryAction.action, 'follow_review');
+  assert.equal(s.primaryAction.label, 'Open App Store Connect');
+  assert.match(s.primaryAction.href ?? '', /appstoreconnect\.apple\.com/);
+  assert.equal(s.primaryAction.external, true);
   assert.doesNotMatch(`${s.headline} ${s.reason}`, /build 92/);
+  assert.ok(![s.primaryAction, ...s.secondaryActions].some((a) => a.action === 'create_release'));
   assert.deepEqual(
     s.obsolete.map((o) => [o.version, o.liveVersion]),
     [['1.11.6', '1.19.0']],
   );
   assert.equal(s.candidates.length, 1);
   assert.equal(s.candidates[0]?.plan.candidate.buildNumber, '95');
-  // The old version is a quiet notice with advice, not an action of the model.
+  assert.equal(s.candidates[0]?.plan.kind, 'blocked');
+  // The old version is also a quiet notice with advice.
   const notice = s.notices.find((x) => x.kind === 'obsolete_version');
   assert.match(notice?.text ?? '', /unused older version 1\.11\.6/);
   assert.match(notice?.href ?? '', /appstoreconnect\.apple\.com/);
   assert.ok(![s.primaryAction, ...s.secondaryActions].some((a) => /1\.11\.6/.test(a.label)));
-  // Nothing about the version left behind in the flow.
-  assert.equal(JSON.stringify(s.flow).includes('1.11.6'), false);
+});
+
+test('the same report with the draft ahead of live (2.0.0, not left behind): the right action is to attach the build THERE', () => {
+  const s = deriveAppState(
+    reportedIos({
+      releases: {
+        [IOS.id]: [
+          iosRelease({ id: 'live', version: '1.19.0', build: '88', status: 'live' }),
+          iosRelease({ id: 'd', version: '2.0.0', build: null, status: 'draft', rawState: 'PREPARE_FOR_SUBMISSION' }),
+        ],
+      },
+    }),
+    'ios',
+  );
+  assert.equal(s.phase, 'version_in_prep');
+  assert.equal(s.primaryAction.action, 'attach_build');
+  assert.match(s.headline, /2\.0\.0/);
 });
 
 test('the report, without the TestFlight build: the old draft says nothing, the card is quiet and offers Start release', () => {
@@ -393,9 +415,19 @@ test('a version already in preparation for the candidate: attach the build, then
   assert.match(submit.primaryAction.href ?? '', /step=confirm/);
 });
 
+/** The report without the old draft: nothing is in preparation, so creating 2.00.1 is allowed and the card offers it. */
+const cleanIos = (over: Partial<AppFacts> = {}): AppFacts =>
+  reportedIos({
+    releases: {
+      [IOS.id]: [iosRelease({ id: 'rel-1.19.0', version: '1.19.0', build: '88', status: 'live' })],
+    },
+    pipelines: { [IOS.id]: null },
+    ...over,
+  });
+
 test('priority: publishing, a failed publish and pending changes stay above the candidate; it returns when they are gone', () => {
   const pending = deriveAppState(
-    reportedIos({ pending: { [IOS.id]: { count: 4, blocking: 0 } } }),
+    cleanIos({ pending: { [IOS.id]: { count: 4, blocking: 0 } } }),
     'ios',
   );
   assert.equal(pending.phase, 'changes_pending');
@@ -405,23 +437,23 @@ test('priority: publishing, a failed publish and pending changes stay above the 
     'create_release',
     'the candidate is the quiet second button',
   );
-  const publishing = deriveAppState(reportedIos({ publishing: { [IOS.id]: running() } }), 'ios');
+  const publishing = deriveAppState(cleanIos({ publishing: { [IOS.id]: running() } }), 'ios');
   assert.equal(publishing.phase, 'publishing');
   assert.equal(
     publishing.candidates[0]?.offer.enabled,
     false,
     'nothing writes while a publish runs',
   );
-  const failed = deriveAppState(reportedIos({ lastRun: { [IOS.id]: failedRun('ios') } }), 'ios');
+  const failed = deriveAppState(cleanIos({ lastRun: { [IOS.id]: failedRun('ios') } }), 'ios');
   assert.equal(failed.phase, 'publish_failed');
   assert.equal(failed.candidates[0]?.offer.enabled, false);
   assert.equal(failed.candidates[0]?.offer.disabledReason, 'Resolve the failed publish first.');
 });
 
 test('scope: Android never shows the iOS candidate; Both names the platform; Android keeps its promote', () => {
-  const f = reportedIos({
+  const f = cleanIos({
     records: [IOS, ANDROID],
-    releases: { ...reportedIos().releases, [ANDROID.id]: [internalTesting()] },
+    releases: { ...cleanIos().releases, [ANDROID.id]: [internalTesting()] },
   });
   const android = deriveAppState(f, 'android');
   assert.equal(android.candidates.length, 0);
@@ -437,7 +469,7 @@ test('scope: Android never shows the iOS candidate; Both names the platform; And
 });
 
 test('the viewer cannot create a release: the offer is there, off, with the reason', () => {
-  const s = deriveAppState(reportedIos({ role: 'viewer' }), 'ios');
+  const s = deriveAppState(cleanIos({ role: 'viewer' }), 'ios');
   assert.equal(s.primaryAction.action, 'create_release');
   assert.equal(s.primaryAction.enabled, false);
   assert.equal(s.primaryAction.disabledReason, 'Your role cannot do this.');
@@ -471,7 +503,14 @@ test('every combination of the table, through the model: the card never names a 
               const where = `live=${live} prepared=${prepared} flight=${flight} publishing=${publishing} failed=${failed} pending=${pending}`;
               const s = deriveAppState(f, 'ios');
               // 1.11.6 is left behind only relative to a live 1.19.0 (with nothing live it is a plain draft).
+              // The headline never names it; only a refused create may name it, as the reason (an editable version is in the way).
               if (live === '1.19.0' || prepared !== 'lower')
+                assert.doesNotMatch(
+                  s.headline,
+                  /1\.11\.6/,
+                  where,
+                );
+              if ((live === '1.19.0' || prepared !== 'lower') && s.phase !== 'candidate_blocked')
                 assert.doesNotMatch(`${s.headline} ${s.reason}`, /1\.11\.6/, where);
               if (publishing) assert.equal(s.phase, 'publishing', where);
               else if (failed) assert.equal(s.phase, 'publish_failed', where);

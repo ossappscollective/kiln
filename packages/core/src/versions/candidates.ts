@@ -127,7 +127,18 @@ export type CandidatePlan<R extends ReleaseFact = ReleaseFact> =
   | { kind: 'attach_build'; candidate: ReleaseCandidate; release: R }
   | { kind: 'submit'; candidate: ReleaseCandidate; release: R }
   /** The next step would be to create the version, but the store refuses it (see `createReleaseRules`): said, never offered. */
-  | { kind: 'blocked'; candidate: ReleaseCandidate; release: null; refusal: CreateRefusal[] };
+  | {
+      kind: 'blocked';
+      candidate: ReleaseCandidate;
+      release: null;
+      refusal: CreateRefusal[];
+      /** `editable_version_exists`: the version that can still be edited (put the build there instead). */
+      editableVersion: string | null;
+      /** The editable version is itself left behind (not newer than live): the build must NOT be attached to it. */
+      editableObsolete: boolean;
+      /** `not_higher`: the newest version that cannot be edited (the new one has to be higher). */
+      newestFixed: string | null;
+    };
 
 export type CandidateAnalysis<R extends ReleaseFact = ReleaseFact> = {
   appId: string;
@@ -352,7 +363,17 @@ export function analyzeCandidates<R extends ReleaseFact & { id: string }>(
       const check = createReleaseRules(best.version, storeVersionsOf(releases));
       plan = check.ok
         ? { kind: 'create_release', candidate: best, release: null }
-        : { kind: 'blocked', candidate: best, release: null, refusal: check.reasons };
+        : {
+            kind: 'blocked',
+            candidate: best,
+            release: null,
+            refusal: check.reasons,
+            editableVersion: check.editableVersion ?? null,
+            editableObsolete:
+              check.editableVersion != null &&
+              obsolete.some((o) => o.version === check.editableVersion),
+            newestFixed: check.newestFixed ?? null,
+          };
     } else if (!sameBuild(prepared.build, best.buildNumber))
       plan = { kind: 'attach_build', candidate: best, release: prepared };
     else plan = { kind: 'submit', candidate: best, release: prepared };

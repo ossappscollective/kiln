@@ -77,7 +77,20 @@ test('an obsolete draft blocks creating the next version: the plan says why, it 
   const a = ios([rel('l', '1.19.0', 'live', '88'), rel('o', '1.11.6', 'draft')], [flight('95', '2.0.1')]);
   assert.equal(a.best?.version, '2.0.1');
   assert.equal(a.plan?.kind, 'blocked');
-  if (a.plan?.kind === 'blocked') assert.deepEqual(a.plan.refusal, ['editable_version_exists']);
+  if (a.plan?.kind === 'blocked') {
+    assert.deepEqual(a.plan.refusal, ['editable_version_exists']);
+    assert.equal(a.plan.editableVersion, '1.11.6');
+    assert.equal(a.plan.editableObsolete, true, 'the build must not be attached to a version that is left behind');
+  }
+});
+
+test('an editable version that is not behind live is the one to attach to: blocked, but not obsolete', () => {
+  const a = ios([rel('l', '1.19.0', 'live', '88'), rel('d', '2.0.0', 'draft')], [flight('95', '2.0.1')]);
+  assert.equal(a.plan?.kind, 'blocked');
+  if (a.plan?.kind === 'blocked') {
+    assert.equal(a.plan.editableVersion, '2.0.0');
+    assert.equal(a.plan.editableObsolete, false);
+  }
 });
 
 test('a candidate lower than an in-review version is blocked not_higher (newer than live, refused by the server)', () => {

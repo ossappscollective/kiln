@@ -86,6 +86,17 @@ says whether it can be chosen for the draft now, `severity` is `ok`, `warning` (
 | `export_compliance_missing` | `warning`               | Apple holds no export compliance answer for it; it can be chosen, App Store Connect may ask later.              |
 | `already_in_draft`          | `ok` (`eligible` false) | Google Play: the draft release of the track holds the code already.                                             |
 | `already_live`              | `blocked`               | Google Play: a release of the track that is live or rolling out holds the code.                                 |
+| `in_flight`                 | `blocked`               | App Store: a version that is in review or waiting to be released already uses the build. Upload a new build.    |
+| `older_than_live`           | `warning`               | App Store: the build is not newer than what is live (a lower version, or the live version with no higher build number). |
+
+**Can the version be created? (App Store)** Every build with a marketing version also has `create: { version, creatable, refusal,
+reasons[], editableVersion, newestFixed }`, the answer of `createReleaseRules` of `@kiln/core` (the rule the create call and the
+web both use) for a version named like the build, from the versions Kiln synced (the create call stays the authority and refuses
+with the same codes). `refusal` is `invalid_version` (not one to three numbers), `editable_version_exists` (`editableVersion` can
+still be edited: attach the build there, or edit or remove it in App Store Connect when it is behind what is live),
+`version_exists` or `not_higher` (`newestFixed`: the newest version that cannot be edited). `in_flight` and `older_than_live` come
+from `analyzeCandidates` of core over the same versions and builds; every other verdict is the connector's and is judged first.
+A build with no version to attach to is no longer a dead end: `create` says whether the version can be made from the app.
 
 New codes may be added: a client should fall back to `severity`. `selectable` and `reason` stay for older clients and ignore
 the version.

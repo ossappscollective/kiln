@@ -7,6 +7,8 @@ import {
   type CodeCandidate,
   codeRows,
   codesInTrack,
+  createRefusalText,
+  createVerdictFor,
   type Eligibility,
   eligibilityView,
   hasTestNotes,
@@ -255,4 +257,34 @@ test('the build number of a picker row is the structured one: a Spanish title ("
   }
   const unknown = buildRows([build('x', undefined, { buildNumber: null as never })], [], Date.now());
   assert.equal(unknown[0]?.buildNumber, null);
+});
+
+test('a create the store would refuse is said in words, never offered: the verdict of the server, per version the person typed', () => {
+  const ok = { version: '2.0.1', creatable: true, refusal: null, reasons: [], editableVersion: null, newestFixed: null } as const;
+  const exists = { ...ok, version: '1.19.0', creatable: false, refusal: 'version_exists', reasons: ['version_exists'] } as const;
+  const low = { ...ok, version: '2.0.0', creatable: false, refusal: 'not_higher', reasons: ['not_higher'], newestFixed: '2.5.0' } as const;
+  assert.equal(createRefusalText(ok), null);
+  assert.equal(createRefusalText(undefined), null);
+  assert.match(createRefusalText(exists) ?? '', /1\.19\.0 already exists in App Store Connect/);
+  assert.match(createRefusalText(low) ?? '', /2\.0\.0 must be higher than 2\.5\.0/);
+  assert.match(
+    createRefusalText({ ...ok, creatable: false, refusal: 'editable_version_exists', editableVersion: '1.11.6' }) ?? '',
+    /Version 1\.11\.6 can still be edited/,
+  );
+  const builds = [{ create: exists }, { create: ok }, {}];
+  // "1.19" and "1.19.0" are one version: the typed spelling does not hide the refusal.
+  assert.equal(createVerdictFor(builds, ' 1.19 ')?.refusal, 'version_exists');
+  assert.equal(createVerdictFor(builds, '2.0.1')?.creatable, true);
+  assert.equal(createVerdictFor(builds, '3.0.0'), null, 'a version no build has: nothing is claimed');
+  assert.equal(createVerdictFor(builds, ''), null);
+});
+
+test('the new eligibility codes read like the others: in flight blocks, older than live is a warning', () => {
+  const inFlight = eligibilityView({ eligibility: elig('in_flight', false, 'blocked', '') });
+  assert.equal(inFlight.selectable, false);
+  assert.match(inFlight.sentence, /in review or waiting to be released already uses this build/);
+  const old = eligibilityView({ eligibility: elig('older_than_live', true, 'warning', '') });
+  assert.equal(old.selectable, true);
+  assert.equal(old.tone, 'warn');
+  assert.match(old.sentence, /not newer than what is live/);
 });

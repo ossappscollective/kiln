@@ -95,7 +95,7 @@ export type Train = {
   /** The one thing to do now. */
   button: TrainButton;
   /** Set when the train comes from a release candidate (a newer build) and not from the release pipeline: what it asks for. */
-  candidate?: 'create_release' | 'attach_build' | 'submit';
+  candidate?: 'create_release' | 'attach_build' | 'submit' | 'blocked';
 };
 
 const RANK: Readonly<Record<PipelineStepStatus, number>> = {

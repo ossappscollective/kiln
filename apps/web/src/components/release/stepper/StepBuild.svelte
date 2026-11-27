@@ -262,7 +262,7 @@
   {#if apple}
     {#if editableState.state === 'none'}
       <Alert tone="warn" title={t('release-stepper:build.noVersionApple')}>
-        <CreateVersion {api} {workspaceId} {role} {app} {onread} prefill={prefill?.version ?? null} />
+        <CreateVersion {api} {workspaceId} {role} {app} {onread} prefill={prefill?.version ?? null} verdicts={applePart ? applePart.builds : []} />
       </Alert>
     {:else if editableState.state === 'error'}
       <Alert tone="error" title={t('release-stepper:sb.readVersionFailed')}>{editableState.message}</Alert>

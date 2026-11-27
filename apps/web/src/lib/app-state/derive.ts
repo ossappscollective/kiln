@@ -309,6 +309,7 @@ function flowPhase(step: NextStep, known: boolean): Phase {
   // A step that comes from a release candidate (a newer build in the store) has its own phases.
   const asked = step.kind === 'train' ? step.train?.candidate : undefined;
   if (asked === 'create_release') return 'candidate_ready';
+  if (asked === 'blocked') return 'candidate_blocked';
   if (asked === 'attach_build' || asked === 'submit') return 'version_in_prep';
   if (step.kind === 'start' || step.kind === 'prepare')
     return known ? 'ready_to_release' : 'unknown';
@@ -582,7 +583,7 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
     if (plan !== null) {
       const train = planTrains.find((x) => x.appIds[0] === r.id);
       const dest = train === undefined ? null : trainDest(train, { scope, reviewUrlOf: undefined });
-      const kind = train === undefined ? null : trainAction(train, false);
+      const kind = train === undefined ? null : trainAction(train, dest?.external === true);
       if (train !== undefined && kind !== null && dest !== null)
         candidates.push({
           plan,

@@ -151,6 +151,8 @@ const eligibilitySchema = z.object({
       'export_compliance_missing',
       'already_in_draft',
       'already_live',
+      'in_flight',
+      'older_than_live',
     ])
     .describe('A machine reason. New codes may be added: treat an unknown one as its `severity`.'),
   message: z
@@ -201,6 +203,32 @@ const buildCandidateSchema = z.object({
   reason: z.string().nullable().describe('Why it cannot be selected.'),
   attached: z.boolean().describe('It is the build attached to the editable version now.'),
   eligibility: eligibilitySchema,
+  create: z
+    .object({
+      version: z.string().describe('The version of the build: what the verdict is about.'),
+      creatable: z
+        .boolean()
+        .describe(
+          'A version with this name may be created now (`createReleaseRules` of @kiln/core, the rule the create call itself applies). From the versions Kiln synced: the create call stays the authority.',
+        ),
+      refusal: z
+        .enum(['invalid_version', 'editable_version_exists', 'version_exists', 'not_higher'])
+        .nullable()
+        .describe('The first refusal; null when creatable.'),
+      reasons: z
+        .array(z.enum(['invalid_version', 'editable_version_exists', 'version_exists', 'not_higher']))
+        .describe('Every refusal that applies.'),
+      editableVersion: z
+        .string()
+        .nullable()
+        .describe('`editable_version_exists`: the version that can still be edited (attach the build there).'),
+      newestFixed: z
+        .string()
+        .nullable()
+        .describe('`not_higher`: the newest version that cannot be edited; the new one has to be higher.'),
+    })
+    .nullable()
+    .describe('Null when the build has no marketing version.'),
   exportCompliance: z
     .enum(['answered', 'missing', 'unknown'])
     .describe(

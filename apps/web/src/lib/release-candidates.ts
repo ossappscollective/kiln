@@ -5,6 +5,7 @@ import {
   type OriginOptions,
   type OriginView,
   originView,
+  sameVersion,
   versionMismatch,
 } from './build-origin.ts';
 import { formatDateTime, formatList, formatRelativeTime } from './i18n/format.ts';
@@ -31,6 +32,45 @@ export type Eligibility = {
   message: string;
 };
 
+/**
+ * Whether a version named like the build may be CREATED now: the server's answer (`createReleaseRules` of @kiln/core, from the versions
+ * it synced), so no screen offers a create that the store refuses. Absent from an older server: nothing is claimed.
+ */
+export type CreateVerdict = {
+  version: string;
+  creatable: boolean;
+  refusal: 'invalid_version' | 'editable_version_exists' | 'version_exists' | 'not_higher' | null;
+  reasons: string[];
+  editableVersion: string | null;
+  newestFixed: string | null;
+};
+
+/** The refusal of a create in words (never empty for a refusal). Null when it can be created. */
+export function createRefusalText(v: CreateVerdict | null | undefined): string | null {
+  if (v === null || v === undefined || v.creatable) return null;
+  switch (v.refusal) {
+    case 'editable_version_exists':
+      return t('release-stepper:cv.refused.editable', { editable: v.editableVersion ?? '' });
+    case 'version_exists':
+      return t('release-stepper:cv.refused.exists', { version: v.version });
+    case 'not_higher':
+      return t('release-stepper:cv.refused.notHigher', { version: v.version, newest: v.newestFixed ?? '' });
+    default:
+      return t('release-stepper:cv.refused.invalid', { version: v.version });
+  }
+}
+
+/** The verdict for the version the person typed: the build of that version in the read says whether the store would take it. */
+export function createVerdictFor(
+  builds: readonly { create?: CreateVerdict | null | undefined }[],
+  version: string,
+): CreateVerdict | null {
+  const wanted = version.trim();
+  if (wanted === '') return null;
+  for (const b of builds) if (b.create && sameVersion(b.create.version, wanted)) return b.create;
+  return null;
+}
+
 export type TestNote = { locale: string; text: string; truncated: boolean };
 export type TestNotes = {
   /** False: not asked for this build, or the read failed (`error`). */
@@ -52,6 +92,8 @@ export type BuildCandidate = {
   attached: boolean;
   /** Missing on an older server: the fallbacks read `selectable` and `reason`. */
   eligibility?: Eligibility;
+  /** Whether a version named like this build can be created (App Store; absent from an older server). */
+  create?: CreateVerdict | null;
   exportCompliance?: 'answered' | 'missing' | 'unknown';
   testNotes?: TestNotes;
 };
@@ -144,6 +186,8 @@ const CODE_SENTENCES: Record<string, string> = {
   export_compliance_missing: k('release-stepper:cand.code.exportMissing'),
   already_in_draft: k('release-stepper:cand.code.alreadyInDraft'),
   already_live: k('release-stepper:cand.code.alreadyLive'),
+  in_flight: k('release-stepper:cand.code.inFlight'),
+  older_than_live: k('release-stepper:cand.code.olderThanLive'),
 };
 const codeSentence = (code: string): string | null => {
   const key = CODE_SENTENCES[code];

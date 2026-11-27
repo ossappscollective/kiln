@@ -61,7 +61,11 @@ export type EligibilityCode =
   | 'already_attached'
   | 'export_compliance_missing'
   | 'already_in_draft'
-  | 'already_live';
+  | 'already_live'
+  /** App Store: the build is already used by a version in review or waiting to be released (`blocked`). Added by the server from the synced versions. */
+  | 'in_flight'
+  /** App Store: the build is not newer than what is live (`warning`). Added by the server from the synced versions. */
+  | 'older_than_live';
 export type EligibilitySeverity = 'ok' | 'warning' | 'blocked';
 export type Eligibility = {
   /** It can be chosen for the draft now. */

@@ -10,13 +10,14 @@ import {
   getAppReleaseSettings,
   updateAppReleaseSettings,
 } from '../../services/app-release-settings.ts';
-import { getApp, type ManagedApp } from '../../services/apps.ts';
+import { getApp, listAppReleases, type ManagedApp } from '../../services/apps.ts';
 import { createTestLimiter } from '../../services/credential-tests.ts';
 import { MAX_NOTES_HISTORY_LIMIT, notesHistory } from '../../services/notes-history.ts';
 import { checkPlayReleaseOf } from '../../services/play-release-check.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { requireStepUp, stepUpCovers } from '../../services/step-up.ts';
 import { NO_ORIGIN_SOURCES, type OriginSources, withOrigins } from './candidate-origin.ts';
+import { withReleaseRules } from './candidate-rules.ts';
 import { notWhilePublishing } from './publishing.ts';
 import {
   type DraftConnectorFactory,
@@ -219,7 +220,10 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
         ORIGINS_TIMEOUT_MS,
       ).catch(() => NO_ORIGIN_SOURCES);
     }
-    return c.json({ candidates: withOrigins(done.read, sources, app.identifier) });
+    // The same rules the web and the create call use (`createReleaseRules`, `analyzeCandidates` of @kiln/core), once, on the server.
+    const releases = await listAppReleases(db, ws(c), app.id);
+    const ruled = withReleaseRules(done.read, { appId: app.id, releases });
+    return c.json({ candidates: withOrigins(ruled, sources, app.identifier) });
   });
 
   // The texts earlier releases used for "what is new": the store's (cached, one read per ten minutes) and this app's plans.

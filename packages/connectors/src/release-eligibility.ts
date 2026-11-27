@@ -1,3 +1,4 @@
+import { sameVersion } from '@kiln/core';
 import type { BuildEligibility, CodeEligibility } from './release-types.ts';
 
 /**
@@ -69,10 +70,11 @@ export function appleBuildEligibility(
   // The name of a version in App Store Connect is only a label that can no longer be changed once it
   // is made, and App Store Connect lets a build of another marketing version be attached. So a
   // difference is a warning to read, never a block (found by trying it on a real app).
+  // `2.00.1` and `2.0.1` are one version (`sameVersion` of @kiln/core, the one comparison the web uses too).
   const mismatch =
     build.version !== null &&
     editable.versionString !== null &&
-    build.version !== editable.versionString;
+    !sameVersion(build.version, editable.versionString);
   if (build.attached) {
     return {
       eligible: false,

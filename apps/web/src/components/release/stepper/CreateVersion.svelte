@@ -16,6 +16,7 @@
   import type { Api } from '../../../lib/api.ts';
   import { invalidate } from '../../../lib/facts/invalidate.ts';
   import { carryLine } from '../../../lib/review-information.ts';
+  import { type CreateVerdict, createRefusalText, createVerdictFor } from '../../../lib/release-candidates.ts';
   import { confirmed } from '../../../lib/step-up-prompt.svelte.ts';
   import { stagedStore } from '../../../lib/staged-store.svelte.ts';
   import {
@@ -43,6 +44,7 @@
     app,
     onread,
     prefill = null,
+    verdicts = [],
   }: {
     api: Api;
     workspaceId: string;
@@ -51,9 +53,12 @@
     onread: () => void;
     /** The version the form starts with ("Create release 2.0.1 from TestFlight build 95"); null: the next patch of the newest version. */
     prefill?: string | null;
+    /** The builds of the read, each with the server's `create` verdict: a version the store would refuse is said, never offered. */
+    verdicts?: readonly { create?: CreateVerdict | null | undefined }[];
   } = $props();
 
   const mayCreate = $derived(can(role, 'store.push_draft'));
+  const refusal = $derived(createRefusalText(createVerdictFor(verdicts, versionText)));
   const config = $derived(stagedStore.config(workspaceId));
   const off = $derived(config !== null && !config.enabled);
 
@@ -87,7 +92,7 @@
 
   async function create() {
     const wanted = versionText.trim();
-    if (wanted === '' || busy || !verdict.enabled) return;
+    if (wanted === '' || busy || !verdict.enabled || refusal !== null) return;
     busy = true;
     problem = '';
     announcement = '';
@@ -148,10 +153,11 @@
       inputmode="decimal"
       maxlength={40}
     />
-    <Button type="submit" variant="primary" loading={busy} disabled={versionText.trim() === '' || !verdict.enabled} title={!verdict.enabled ? (verdict.reason ?? undefined) : undefined}>
+    <Button type="submit" variant="primary" loading={busy} disabled={versionText.trim() === '' || !verdict.enabled || refusal !== null} title={!verdict.enabled ? (verdict.reason ?? undefined) : (refusal ?? undefined)}>
       {t('release-stepper:cv.create', { version: versionText.trim() })}
     </Button>
   </form>
+  {#if refusal !== null}<p class="small bad" role="status" data-testid="create-version-refused">{refusal}</p>{/if}
   <PublishingNote {verdict} appId={app.id} />
   <p class="small muted">{t(VERSION_NOTE)}</p>
   {#if reviewNote !== ''}<p class="small muted" data-testid="create-version-review-info">{reviewNote}</p>{/if}

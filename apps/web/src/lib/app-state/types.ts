@@ -98,6 +98,8 @@ export const PHASES = [
   'version_in_prep',
   /** A newer build is in the store (TestFlight) and no version takes it yet: create the release. */
   'candidate_ready',
+  /** A newer build is in the store but the store would refuse to create its version (a version is being prepared, the name is taken): said, with the way out. */
+  'candidate_blocked',
   'in_review',
   'release_running',
   'ready_to_release',

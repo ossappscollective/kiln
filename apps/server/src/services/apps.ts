@@ -795,15 +795,22 @@ type ReleaseInput = {
   storeUpdatedAt: number | null;
 };
 
+/** States of a version that can still be edited: its build is whatever Apple says is attached, never a guess. */
+const EDITABLE_LIFECYCLE: readonly string[] = ['draft', 'build_chosen', 'ready', 'rejected'];
+
 /**
- * The build of a version. Apple's own link (the build attached to the version) wins; when it is not
- * known, the newest build of the same version string is a heuristic, preferring processed builds.
+ * The build of a version. Apple's own link (the build attached to the version) wins. When it is not known, the newest build of the same
+ * version string is a heuristic, preferring processed builds, for a version that is past editing (in review, approved, live) only: an
+ * EDITABLE version with no attached build has NO build. Guessing one made the plan say "submit" for a draft that still needed
+ * "attach the build" (a dead end: Apple refused the submit).
  */
-function pickBuild(version: StoreVersion, builds: StoreBuild[]): StoreBuild | undefined {
+export function pickBuild(version: StoreVersion, builds: StoreBuild[]): StoreBuild | undefined {
   if (version.buildStoreId !== undefined) {
     const linked = builds.find((b) => b.storeId === version.buildStoreId);
     if (linked) return linked;
   }
+  if (version.lifecycleState !== undefined && EDITABLE_LIFECYCLE.indexOf(version.lifecycleState) >= 0)
+    return undefined;
   const candidates = builds.filter((b) => b.versionString === version.versionString);
   const usable = candidates.filter((b) => b.processing === 'processed' && b.expired !== true);
   const pool = usable.length > 0 ? usable : candidates;
