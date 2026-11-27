@@ -26,6 +26,7 @@ import { type Database, mapOrNull, oneOf, type Param, type Row, type Sql } from 
 import { coded } from '../../i18n/problem.ts';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
+import { emitCacheEvent } from '../../services/cache-registry.ts';
 import { type Failure, failure, type Outcome } from '../../services/repositories.ts';
 import {
   loadRolloutSteps,
@@ -511,7 +512,7 @@ export async function createPlan(
   input: CreatePlanInput,
   actor: Actor,
 ): Promise<Outcome<{ plan: PlanDetail }>> {
-  return ctx.db.transaction(async (tx) => {
+  const done = await ctx.db.transaction(async (tx) => {
     const app = await getApp(tx, input.workspaceId, input.appId);
     if (!app) return notFound();
     const platform = input.platform ?? null;
@@ -585,6 +586,10 @@ export async function createPlan(
     const plan = (await getPlan(tx, at, input.workspaceId, app.id, id)) as PlanDetail;
     return { ok: true as const, plan };
   });
+  // A plan is a release in the pipeline: what the caches of the app's releases hold is old.
+  if (done.ok)
+    emitCacheEvent('release_changed', { workspaceId: input.workspaceId, appId: input.appId });
+  return done;
 }
 
 export type PlanPatch = {
@@ -600,7 +605,7 @@ export async function updatePlan(
   input: { workspaceId: string; appId: string; planId: string; patch: PlanPatch },
   actor: Actor,
 ): Promise<Outcome<{ plan: PlanDetail }>> {
-  return ctx.db.transaction(async (tx) => {
+  const done = await ctx.db.transaction(async (tx) => {
     const current = await getPlan(tx, ctx.now(), input.workspaceId, input.appId, input.planId);
     if (!current) return notFound();
     const { patch } = input;
@@ -656,6 +661,10 @@ export async function updatePlan(
     )) as PlanDetail;
     return { ok: true as const, plan };
   });
+  // A plan is a release in the pipeline: what the caches of the app's releases hold is old.
+  if (done.ok)
+    emitCacheEvent('release_changed', { workspaceId: input.workspaceId, appId: input.appId });
+  return done;
 }
 
 export async function deletePlan(
@@ -663,7 +672,7 @@ export async function deletePlan(
   input: { workspaceId: string; appId: string; planId: string },
   actor: Actor,
 ): Promise<boolean> {
-  return ctx.db.transaction(async (tx) => {
+  const done = await ctx.db.transaction(async (tx) => {
     const plan = await getPlan(tx, ctx.now(), input.workspaceId, input.appId, input.planId);
     if (!plan) return false;
     for (const table of ['checklist_items', 'release_notes']) {
@@ -692,6 +701,9 @@ export async function deletePlan(
     });
     return true;
   });
+  if (done)
+    emitCacheEvent('release_changed', { workspaceId: input.workspaceId, appId: input.appId });
+  return done;
 }
 
 // ---------------------------------------------------------------------------------------------

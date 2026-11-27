@@ -26,6 +26,7 @@ import type { Database, Sql } from '@kiln/db';
 import { coded } from '../../i18n/problem.ts';
 import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
+import { emitCacheEvent } from '../../services/cache-registry.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
@@ -958,6 +959,8 @@ async function succeed(
   },
 ): Promise<{ ok: true; result: SubmitResult }> {
   const at = ctx.now();
+  // The review now holds what was pushed: what the store shows and what blocks a submit are different from a moment ago.
+  emitCacheEvent('publish', { workspaceId: input.workspaceId, appId: s.app.id });
   const store = storeFor(s.app.platform);
   const version =
     s.before.version === null

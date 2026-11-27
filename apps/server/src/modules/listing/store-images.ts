@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { StoreImageRecord, StoreImagesRead } from '@kiln/connectors';
 import {
-  ASSET_SYNC_LIMITS,
   type AssetPlatform,
   type AssetStore,
   assetStoreOf,
@@ -9,14 +8,16 @@ import {
   primaryStoreSet,
   type StoreImageSet,
   type StoreImagesView,
+  STORE_VIEW_TTL_MS,
+  IMAGE_REF_TTL_MS,
   storeImageKey,
 } from '@kiln/core';
 import { coded } from '../../i18n/problem.ts';
 import type { ManagedApp } from '../../services/apps.ts';
+import { emitCacheEvent, registerCache, registerMapCache } from '../../services/cache-registry.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
-import { type DraftContext, onDraftPushed, readStoreImagesOf } from '../publish/store-draft.ts';
-import { dropStoreReadCaches } from '../publish/store-read-events.ts';
+import { type DraftContext, readStoreImagesOf } from '../publish/store-draft.ts';
 import {
   type Downloaded,
   type DownloadFailure,
@@ -32,8 +33,10 @@ import {
  * The images a store holds for an app, as this server shows them (docs/adr/0012-assets-two-way-sync.md): read through the
  * connector (never a write), kept for `storeCacheSeconds`, and served as thumbnails by a proxy that only fetches from the
  * stores' CDN hosts (store-image-net.ts). A client never receives a store address: each image has an opaque `ref`, a hash of the
- * app, the image and its checksum, that this module maps back to the address it read. The map is bounded and forgets after
- * `REF_TTL_MS`; a ref that is not known any more is a `404 ref_expired` and the client reads the diff again.
+ * app, the image and its checksum, that this module maps back to the address it read. The map is bounded, forgets after
+ * `REF_TTL_MS` and is dropped together with the view that produced it (the cache registry events `store_read`, `sync`, `publish`,
+ * `release_changed`: a ref never outlives a read the server threw away, and the browser reads again on the same events); a ref that is not
+ * known any more is a `404 ref_expired` and the client reads the diff again.
  */
 
 type Actor = { type: 'user' | 'token' | 'system'; id: string };
@@ -47,7 +50,7 @@ export type StoreImagesContext = {
   fetchLimiter: TestLimiter;
 };
 
-const REF_TTL_MS = 15 * 60 * 1000;
+const REF_TTL_MS = IMAGE_REF_TTL_MS;
 const REF_MAX = 4000;
 
 export type RefEntry = {
@@ -70,14 +73,57 @@ let thumbBytes = 0;
 const THUMB_MAX_BYTES = 24 * 1024 * 1024;
 const THUMB_MAX_ENTRIES = 400;
 
-/** The seconds a store read is reused (`ASSET_SYNC_LIMITS.storeCacheSeconds`); a staged change, a publish or a fresh read drops it. */
-export const STORE_VIEW_TTL_SECONDS = ASSET_SYNC_LIMITS.storeCacheSeconds;
+/** The seconds a store read is reused (`STORE_VIEW_TTL_MS` of `@kiln/core`, also `ASSET_SYNC_LIMITS.storeCacheSeconds`); a publish, a sync, a new version or a fresh read drops it (a staged change does not). */
+export const STORE_VIEW_TTL_SECONDS = STORE_VIEW_TTL_MS / 1000;
 
 /** Header probes (pixel size and length of images whose store gives neither): at most this many per read, this many at once. */
 export const PROBE_MAX_PER_READ = 80;
 const PROBE_CONCURRENCY = 4;
 const PROBE_CACHE_MAX = 4000;
 const probes = new Map<string, ImageProbe>();
+
+const STORE_EVENTS = ['store_read', 'sync', 'publish', 'release_changed'] as const;
+registerCache({
+  name: 'listing.image_refs',
+  owner: 'modules/listing/store-images.ts',
+  ttlMs: IMAGE_REF_TTL_MS,
+  invalidatedBy: STORE_EVENTS,
+  drop(scope) {
+    for (const [ref, entry] of Array.from(refs))
+      if (
+        scope.workspaceId === undefined ||
+        (entry.workspaceId === scope.workspaceId &&
+          (scope.appId === undefined || entry.appId === scope.appId))
+      )
+        refs.delete(ref);
+  },
+});
+registerMapCache(views, {
+  name: 'listing.store_images_view',
+  owner: 'modules/listing/store-images.ts',
+  ttlMs: STORE_VIEW_TTL_MS,
+  invalidatedBy: STORE_EVENTS,
+  keys: 'workspace_app',
+});
+registerCache({
+  name: 'listing.image_thumbs',
+  owner: 'modules/listing/store-images.ts',
+  ttlMs: null,
+  invalidatedBy: [],
+  why: 'Keyed by ref and size, and a ref hashes the image checksum: the bytes of one image never change. Bounded by entries and bytes.',
+  drop() {
+    thumbs.clear();
+    thumbBytes = 0;
+  },
+});
+registerMapCache(probes, {
+  name: 'listing.image_probes',
+  owner: 'modules/listing/store-images.ts',
+  ttlMs: null,
+  invalidatedBy: [],
+  why: 'Keyed by image id and checksum: the pixel size of one image never changes. Bounded by PROBE_CACHE_MAX.',
+  keys: 'workspace_app',
+});
 
 /** For tests. */
 export function clearStoreImageCaches(): void {
@@ -94,13 +140,6 @@ export type StoreChannel = 'editable' | 'live';
 const viewKey = (workspaceId: string, appId: string, channel: StoreChannel = 'editable') =>
   channel === 'live' ? `${workspaceId}|${appId}|live` : `${workspaceId}|${appId}`;
 
-/** Drops the cached store reads of an app, of both channels (a staged change, a publish or a refresh makes them stale). */
-export function invalidateStoreImages(workspaceId: string, appId: string): void {
-  views.delete(viewKey(workspaceId, appId));
-  views.delete(viewKey(workspaceId, appId, 'live'));
-}
-
-onDraftPushed(invalidateStoreImages);
 
 /**
  * Fills in the pixel size and length of images the store does not state (Google Play gives only an address) by reading the first
@@ -300,7 +339,7 @@ export function peekStoreImages(
   channel: StoreChannel = 'editable',
 ): StoreImagesView | undefined {
   const hit = views.get(viewKey(workspaceId, appId, channel));
-  return hit && now - hit.at < STORE_VIEW_TTL_SECONDS * 1000 ? hit.view : undefined;
+  return hit && now - hit.at < STORE_VIEW_TTL_MS ? hit.view : undefined;
 }
 
 /** The last store read of an app whatever its age (the cart's "before" count; never reads a store). */
@@ -369,7 +408,7 @@ export async function getStoreImages(
   } else {
     // "Read again": the person asked the store, so no cache of what it holds for this app may answer for it afterwards (the current
     // readiness behind a blocked submit reads the same store and is dropped with the images).
-    dropStoreReadCaches(input.workspaceId, input.app.id);
+    emitCacheEvent('store_read', { workspaceId: input.workspaceId, appId: input.app.id });
   }
   const wait = ctx.limiter.take(input.workspaceId);
   if (wait > 0)

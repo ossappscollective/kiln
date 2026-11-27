@@ -215,10 +215,17 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
     play: createTestLimiter({ limit: options.playCallsPerMinute, now: options.now }),
   };
   const cooldown: Record<'apple' | 'play', number> = { apple: 0, play: 0 };
-  const searches = timedCache<SearchOutcome>(options.cacheMs, 500);
-  const lookups = timedCache<PublicApp | null>(options.cacheMs, 500);
-  const appSearches = timedCache<PublicApp[]>(options.cacheMs, 200);
-  const hintLists = timedCache<string[]>(options.cacheMs, 500);
+  const publicRead = (name: string) => ({
+    name: `aso.${name}`,
+    owner: 'modules/aso/net.ts',
+    invalidatedBy: [] as const,
+    why: 'A read of the stores\' PUBLIC search and listing pages (keyed by query, country and store): nothing about an app of ours changes it; it expires after `cacheMs`.',
+    keys: 'all' as const,
+  });
+  const searches = timedCache<SearchOutcome>(options.cacheMs, 500, publicRead('searches'));
+  const lookups = timedCache<PublicApp | null>(options.cacheMs, 500, publicRead('lookups'));
+  const appSearches = timedCache<PublicApp[]>(options.cacheMs, 200, publicRead('app_searches'));
+  const hintLists = timedCache<string[]>(options.cacheMs, 500, publicRead('hint_lists'));
   const inflight = new Map<string, Promise<unknown>>();
 
   /** One outbound call: the cool-down and the local limit first, the cool-down set when the store itself says to slow down. */

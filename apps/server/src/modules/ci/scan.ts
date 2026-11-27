@@ -86,8 +86,20 @@ export type ReadTagData = TagData & {
   releasesError: string | null;
 };
 
-const tagDataCache = timedCache<ReadTagData>(TAG_DATA_TTL_MS, 50);
-const commitCache = timedCache<CommitFacts | null>(COMMIT_TTL_MS, 2000);
+const tagDataCache = timedCache<ReadTagData>(TAG_DATA_TTL_MS, 50, {
+  name: 'ci.tag_data',
+  owner: 'modules/ci/scan.ts',
+  invalidatedBy: [],
+  why: 'The tags and releases of one repository as the host answers (keyed by repository id): no app event changes them; a new tag is seen after the short TTL.',
+  keys: 'all',
+});
+const commitCache = timedCache<CommitFacts | null>(COMMIT_TTL_MS, 2000, {
+  name: 'ci.commit_facts',
+  owner: 'modules/ci/scan.ts',
+  invalidatedBy: [],
+  why: 'Facts of one commit sha: a commit never changes.',
+  keys: 'all',
+});
 
 /** For tests. */
 export function clearScanCaches(): void {

@@ -1,6 +1,6 @@
 import type { NotesHistoryRead } from '@kiln/connectors';
 import type { StoreId } from '@kiln/core';
-import { storeOf } from '@kiln/core';
+import { NOTES_HISTORY_TTL_MS as TTL, storeOf } from '@kiln/core';
 import type { Sql } from '@kiln/db';
 import { readNotesHistoryOf, type StoreConnectContext } from '../modules/publish/store-draft.ts';
 import type { ManagedApp } from './apps.ts';
@@ -14,7 +14,8 @@ import { timedCache } from './timed-cache.ts';
  * The texts are the answer and nothing else: they are never written to a log or to the audit trail.
  */
 
-export const NOTES_HISTORY_TTL_MS = 10 * 60_000;
+/** `NOTES_HISTORY_TTL_MS` of `@kiln/core`'s timings. */
+export const NOTES_HISTORY_TTL_MS = TTL;
 export const DEFAULT_NOTES_HISTORY_LIMIT = 30;
 export const MAX_NOTES_HISTORY_LIMIT = 100;
 /** The most places listed per text. */
@@ -65,7 +66,14 @@ export type NotesHistory = {
   generatedAt: number;
 };
 
-const cache = timedCache<NotesHistoryRead>(NOTES_HISTORY_TTL_MS, 200);
+const cache = timedCache<NotesHistoryRead>(NOTES_HISTORY_TTL_MS, 200, {
+  name: 'notes.history',
+  owner: 'services/notes-history.ts',
+  // The store's last notes change with a publish, a sync or a version; "Read again" asks the store afresh.
+  invalidatedBy: ['store_read', 'sync', 'publish', 'release_changed'],
+  keys: 'workspace_app',
+  separator: '\u0000',
+});
 export const clearNotesHistoryCache = () => cache.clear();
 
 const norm = (locale: string) => locale.toLowerCase().replace(/_/g, '-');

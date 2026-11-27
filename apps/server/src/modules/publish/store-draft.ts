@@ -53,6 +53,7 @@ import type { Database, Sql } from '@kiln/db';
 import { coded, codingOf, messageCoding } from '../../i18n/problem.ts';
 import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
+import { emitCacheEvent } from '../../services/cache-registry.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
@@ -79,7 +80,6 @@ import {
   textEntry,
 } from './store-draft-record.ts';
 import { storeBody } from './store-failure.ts';
-import { dropStoreReadCaches, onStoreMayHaveChanged } from './store-read-events.ts';
 
 /**
  * Writing staged listing text and graphics into a store as a DRAFT: a STORE WRITE. The design copies
@@ -164,9 +164,6 @@ export const defaultDraftConnectorFactory: DraftConnectorFactory =
       }),
   });
 
-/** Called with (workspaceId, appId) when a draft push succeeded, so caches of what the store holds can be dropped (`store-read-events.ts`). */
-export const onDraftPushed = onStoreMayHaveChanged;
-export { dropStoreReadCaches };
 export type DraftContext = {
   db: Database;
   masterKey: Buffer;
@@ -1414,8 +1411,8 @@ async function succeed(
     s.prepared.fields.find((f) => f.field === 'version_codes')?.value ?? '',
   );
   const counts = countsOf(s.steps);
-  // The store changed: whoever caches a read of it (the store graphics) drops it.
-  dropStoreReadCaches(input.workspaceId, s.app.id);
+  // The store changed: every cache that declared `publish` (the store graphics, the current readiness, the notes history...) drops it.
+  emitCacheEvent('publish', { workspaceId: input.workspaceId, appId: s.app.id });
   await ctx.db.transaction(async (tx) => {
     await markPushed(tx, input.workspaceId, s.app.id, s.prepared, s.steps, at);
     if (released && s.release && track && codes.length > 0) {
@@ -1776,8 +1773,8 @@ export async function applyDraftPush(
     }
     if (error instanceof DraftPartialError) {
       const at = ctx.now();
-      // Part of the store changed: whoever caches a read of it (the store graphics) drops it.
-      dropStoreReadCaches(input.workspaceId, app.id);
+      // Part of the store changed: every cache that declared `publish` drops it.
+      emitCacheEvent('publish', { workspaceId: input.workspaceId, appId: app.id });
       await markPushed(db, input.workspaceId, app.id, p, error.completed, at);
       const mapped = mapStoreError(error.cause, connection.secret);
       await audit(ctx, input, app, accepted, {
@@ -1825,7 +1822,7 @@ export async function applyDraftPush(
       // Every request was accepted but the store, read back, does not hold what was asked (a removal that did not happen, or shows late).
       // That is not "applied": the sets that differ stay staged (markPushed skips them), the rest is marked done, and nothing is submitted.
       const at = ctx.now();
-      dropStoreReadCaches(input.workspaceId, app.id);
+      emitCacheEvent('publish', { workspaceId: input.workspaceId, appId: app.id });
       await markPushed(db, input.workspaceId, app.id, p, done.steps, at);
       const items = differing.map((st) => ({
         locale: st.locale,
@@ -1892,6 +1889,8 @@ export async function applyDraftPush(
     current = undefined;
   }
   const cause = unknown?.cause ?? 'unknown';
+  // Whether the store holds the push or not is not known: whatever was cached about it is not to be trusted either way.
+  emitCacheEvent('publish', { workspaceId: input.workspaceId, appId: app.id });
   if (current === undefined || before === undefined) {
     await markUnknown(db, claim);
     await audit(ctx, input, app, before, {

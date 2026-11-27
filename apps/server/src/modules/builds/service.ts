@@ -8,7 +8,13 @@ import {
   type TestFlightGroup,
   type TestFlightLinksConnector,
 } from '@kiln/connectors';
-import { can, type Platform, supports } from '@kiln/core';
+import {
+  BUILD_LIST_TTL_MS,
+  BUILD_PROBLEM_TTL_MS,
+  can,
+  type Platform,
+  supports,
+} from '@kiln/core';
 import { coded } from '../../i18n/problem.ts';
 import { memberRole } from '../../services/accounts.ts';
 import {
@@ -18,6 +24,7 @@ import {
   type StoreConnectorFactory,
 } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
+import { registerMapCache } from '../../services/cache-registry.ts';
 import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { type Failure, getRepository, withTimeout } from '../../services/repositories.ts';
@@ -44,8 +51,9 @@ type Actor = { type: 'user' | 'token' | 'assistant' | 'system'; id: string };
 export const DEFAULT_MAX_DOWNLOAD_BYTES = 500 * 1024 * 1024;
 export const DOWNLOAD_TIMEOUT_MS = 10 * 60_000;
 export const LINK_TTL_MS = 10 * 60_000;
-export const LIST_CACHE_TTL_MS = 30_000;
-export const PROBLEM_CACHE_TTL_MS = 60_000;
+/** `BUILD_LIST_TTL_MS` / `BUILD_PROBLEM_TTL_MS` of `@kiln/core`'s timings (the browser's build read derives its own from them). */
+export const LIST_CACHE_TTL_MS = BUILD_LIST_TTL_MS;
+export const PROBLEM_CACHE_TTL_MS = BUILD_PROBLEM_TTL_MS;
 export const DOWNLOADS_PER_MINUTE = 20;
 export const LISTS_PER_MINUTE = 60;
 export const MAX_PARALLEL_DOWNLOADS = 3;
@@ -325,16 +333,45 @@ export type BuildsList = {
 };
 
 type RepoArtifacts = { at: number; artifacts: CiArtifact[]; truncated: boolean; etag?: string };
-const repoCache = timedCache<RepoArtifacts>(LIST_CACHE_TTL_MS, 100);
+const BUILD_EVENTS = ['sync', 'build_changed'] as const;
+const repoCache = timedCache<RepoArtifacts>(LIST_CACHE_TTL_MS, 100, {
+  name: 'builds.repo_artifacts',
+  owner: 'modules/builds/service.ts',
+  invalidatedBy: BUILD_EVENTS,
+  keys: 'workspace', // `workspace|repository`
+});
 const stale = new Map<string, RepoArtifacts>();
-const troubleCache = timedCache<ArtifactProblemReason>(PROBLEM_CACHE_TTL_MS, 100);
+registerMapCache(stale, {
+  name: 'builds.repo_artifacts_etag',
+  owner: 'modules/builds/service.ts',
+  ttlMs: null,
+  invalidatedBy: [],
+  why: 'The last list with its ETag, kept only to ask the host conditionally: a 304 revalidates it, it is never served without asking (the 30 second list above is what is served).',
+  keys: 'workspace',
+});
+const troubleCache = timedCache<ArtifactProblemReason>(PROBLEM_CACHE_TTL_MS, 100, {
+  name: 'builds.artifact_trouble',
+  owner: 'modules/builds/service.ts',
+  invalidatedBy: BUILD_EVENTS,
+  keys: 'workspace',
+});
 const inFlight = new Map<
   string,
   Promise<{ ok: true; value: RepoArtifacts; cached: boolean } | Failure>
 >();
 /** The TestFlight groups of an app (30 seconds), and why a read failed (60 seconds, so a missing role is not asked again every click). */
-const flightCache = timedCache<{ at: number; groups: TestFlightGroup[] }>(LIST_CACHE_TTL_MS, 100);
-const flightTrouble = timedCache<TestFlightProblemReason>(PROBLEM_CACHE_TTL_MS, 100);
+const flightCache = timedCache<{ at: number; groups: TestFlightGroup[] }>(LIST_CACHE_TTL_MS, 100, {
+  name: 'builds.testflight_groups',
+  owner: 'modules/builds/service.ts',
+  invalidatedBy: BUILD_EVENTS,
+  keys: 'workspace_app',
+});
+const flightTrouble = timedCache<TestFlightProblemReason>(PROBLEM_CACHE_TTL_MS, 100, {
+  name: 'builds.testflight_trouble',
+  owner: 'modules/builds/service.ts',
+  invalidatedBy: BUILD_EVENTS,
+  keys: 'workspace_app',
+});
 
 /** For tests. */
 export function clearBuildCaches(): void {

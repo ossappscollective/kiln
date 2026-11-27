@@ -4,6 +4,7 @@ import type { Database, Sql } from '@kiln/db';
 import { cleanParams, coded, codingOf } from '../../i18n/problem.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
+import { emitCacheEvent } from '../../services/cache-registry.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { storeFor } from '../reviews/sync.ts';
@@ -2407,5 +2408,7 @@ export async function applyPublish(
   } finally {
     clearInterval(beat);
     await releaseClaim(db, claim);
+    // Whatever the outcome, the store may hold some of the batch: every cache that declared `publish` drops this app's entries.
+    emitCacheEvent('publish', { workspaceId: input.workspaceId, appId: app.id });
   }
 }

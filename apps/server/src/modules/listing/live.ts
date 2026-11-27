@@ -26,6 +26,7 @@ import {
   supports,
 } from '@kiln/core';
 import { type Database, nullableNumber, nullableString, type Sql } from '@kiln/db';
+import { emitCacheEvent } from '../../services/cache-registry.ts';
 import {
   ABSENT_HASH,
   classifyDrift,
@@ -516,6 +517,8 @@ export async function syncListing(
       });
       return count;
     });
+    // The snapshots changed (a scheduled read comes here without a release sync): whatever was cached about this app's store is old.
+    emitCacheEvent('sync', { workspaceId, appId: app.id });
     return { ok: true, recorded };
   } catch (error) {
     const message = describeFailure(error, input.secret);

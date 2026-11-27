@@ -26,6 +26,7 @@ import type { Database, Sql } from '@kiln/db';
 import { coded } from '../../i18n/problem.ts';
 import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
+import { emitCacheEvent } from '../../services/cache-registry.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
@@ -1126,6 +1127,7 @@ async function succeed(
   },
 ): Promise<{ ok: true; result: ReleaseResult }> {
   const at = ctx.now();
+  emitCacheEvent('release_changed', { workspaceId: input.workspaceId, appId: s.app.id });
   const store = storeFor(s.app.platform);
   const apple = s.before.store === 'appstoreconnect';
   const version =

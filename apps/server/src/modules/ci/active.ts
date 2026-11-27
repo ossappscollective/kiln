@@ -1,5 +1,6 @@
 import type { CiJob } from '@kiln/connectors';
 import type { ActorType } from '@kiln/core';
+import { registerMapCache } from '../../services/cache-registry.ts';
 import { type Failure, listRepositories, type Repository } from '../../services/repositories.ts';
 import { ACTIVE_STATUSES, listWorkspaceRuns, type WorkflowRunView } from './runs.ts';
 import {
@@ -125,6 +126,13 @@ export function summarizeJobs(jobs: readonly CiJob[], readAt: number): ProgressV
 
 type Computed = Omit<ActiveRuns, 'cached'>;
 const answers = new Map<string, { at: number; value: Computed }>();
+registerMapCache(answers, {
+  name: 'ci.active_runs',
+  owner: 'modules/ci/active.ts',
+  ttlMs: ACTIVE_CACHE_TTL_MS,
+  invalidatedBy: ['build_changed'],
+  keys: 'workspace',
+});
 const inFlight = new Map<string, Promise<Computed>>();
 const trouble = new Map<string, { reason: ProblemReason; until: number }>();
 const MAX_ANSWERS = 200;

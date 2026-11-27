@@ -1,6 +1,7 @@
 import { isBlobReads } from '@kiln/connectors';
-import { type AssetKind, assetStoreOf } from '@kiln/core';
+import { ASSET_REPO_OPENED_TTL_MS, type AssetKind, assetStoreOf } from '@kiln/core';
 import type { ManagedApp } from '../../services/apps.ts';
+import { registerMapCache } from '../../services/cache-registry.ts';
 import { isCloneBacked } from '../../services/clone-reads.ts';
 import { openRepoSnapshot } from '../../services/repo-snapshot.ts';
 import {
@@ -62,6 +63,14 @@ export const isCommitSha = (value: string): boolean => SHA.test(value);
 
 const CACHE_MAX = 48;
 const cache = new Map<string, AssetIndexView>();
+registerMapCache(cache, {
+  name: 'listing.asset_index',
+  owner: 'modules/listing/asset-repo.ts',
+  ttlMs: null,
+  invalidatedBy: [],
+  why: 'Keyed by repository, COMMIT and the asset stamp: an index of one commit never changes; a new commit is a new key. Bounded by CACHE_MAX.',
+  keys: 'all',
+});
 
 /** For tests. */
 export function clearAssetIndexes(): void {
@@ -83,8 +92,16 @@ const remember = (key: string, view: AssetIndexView) => {
  * Opened connectors that are safe to share (the plain API connector takes its abort signal per
  * call), kept for a few seconds so a page of thumbnails is one credential use and not sixty.
  */
-const OPENED_TTL_MS = 30_000;
+const OPENED_TTL_MS = ASSET_REPO_OPENED_TTL_MS;
 const openedCache = new Map<string, { at: number; opened: Opened }>();
+registerMapCache(openedCache, {
+  name: 'listing.asset_repo_opened',
+  owner: 'modules/listing/asset-repo.ts',
+  ttlMs: OPENED_TTL_MS,
+  invalidatedBy: [],
+  why: 'An opened connector (a credential use), not a fact about an app: nothing an app event changes. Expires by itself and is bounded to 16.',
+  keys: 'workspace',
+});
 
 export type AssetsContext = { repo: RepoContext };
 

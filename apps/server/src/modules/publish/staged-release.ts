@@ -16,6 +16,7 @@ import {
 import { coded } from '../../i18n/problem.ts';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
+import { emitCacheEvent } from '../../services/cache-registry.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { hashListingValue } from '../listing/drift.ts';
 import { buildStagedView, isStageableLocale, type StagedContext } from './staged-changes.ts';
@@ -168,6 +169,7 @@ export async function stageReleaseField(
     return undefined;
   });
   if (refused) return refused;
+  emitCacheEvent('staged_changed', { workspaceId: input.workspaceId, appId: app.id });
   return { ok: true, staged: await buildStagedView(ctx, input.workspaceId, app) };
 }
 

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { PLATFORMS, type Platform, RELEASE_STATES, type ReleaseState, supports } from '@kiln/core';
 import { oneOf, type Row, type Sql } from '@kiln/db';
 import { type AppRelease, listAppReleases, type ManagedApp } from '../../services/apps.ts';
+import { emitCacheEvent } from '../../services/cache-registry.ts';
 import { RUN_COLUMNS, runCountsForApp, runViews, type WorkflowRunView } from './runs.ts';
 import type { Confidence, LinkEvidence } from './tags.ts';
 
@@ -420,7 +421,10 @@ export async function putBuildLink(sql: Sql, link: NewLink): Promise<void> {
       WHERE workspace_id = ? AND app_id = ? AND platform = ? AND build_number = ?`,
     [...values, link.workspaceId, link.appId, link.platform, link.buildNumber],
   );
-  if (changed > 0) return;
+  if (changed > 0) {
+    emitCacheEvent('build_changed', { workspaceId: link.workspaceId, appId: link.appId });
+    return;
+  }
   await sql.execute(
     `INSERT INTO build_links
        (id, workspace_id, app_id, platform, build_number, repository_id, run_id, head_sha, run_url,
@@ -428,6 +432,7 @@ export async function putBuildLink(sql: Sql, link: NewLink): Promise<void> {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [randomUUID(), link.workspaceId, link.appId, link.platform, link.buildNumber, ...values],
   );
+  emitCacheEvent('build_changed', { workspaceId: link.workspaceId, appId: link.appId });
 }
 
 /** Removes a link. With `onlyManual`, an automatic one is left alone. Returns whether one existed. */
@@ -447,6 +452,8 @@ export async function removeBuildLink(
         ${input.onlyManual ? "AND source = 'manual'" : ''}`,
     [input.workspaceId, input.appId, input.platform, input.buildNumber],
   );
+  if (changed > 0)
+    emitCacheEvent('build_changed', { workspaceId: input.workspaceId, appId: input.appId });
   return changed > 0;
 }
 

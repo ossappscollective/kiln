@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { CiRun } from '@kiln/connectors';
 import { type CiProviderId, ciProviderOf } from '@kiln/core';
 import { mapOrNull, type Row, type Sql } from '@kiln/db';
+import { emitCacheEvent } from '../../services/cache-registry.ts';
 import { emitEvent } from '../../services/events.ts';
 import { purgeConventionOrphans } from './conventions.ts';
 
@@ -212,6 +213,8 @@ export async function announce(
 ): Promise<void> {
   // One event per app of the run (an API token limited to some apps hears about its own apps), or one without an app.
   const subjects: (string | null)[] = run.appIds.length > 0 ? [...run.appIds] : [null];
+  // A run that finished may have produced an artifact: the build lists (30 s) of its workspace are old.
+  if (kind === 'finished') emitCacheEvent('build_changed', { workspaceId: run.workspaceId });
   for (const appId of subjects) {
     await emitEvent(sql, {
       workspaceId: run.workspaceId,

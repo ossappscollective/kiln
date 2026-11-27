@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { imageKey, type ListingChange } from '@kiln/core';
 import type { Sql } from '@kiln/db';
 import { coded } from '../../i18n/problem.ts';
+import { registerCache } from '../../services/cache-registry.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import {
@@ -73,6 +74,14 @@ const searchRefs = new Map<
   string,
   { workspaceId: string; appId: string; url: string; at: number }
 >();
+registerCache({
+  name: 'aso.competitor_search_refs',
+  owner: 'modules/aso/competitor-images.ts',
+  ttlMs: SEARCH_REF_TTL_MS,
+  invalidatedBy: [],
+  why: 'Opaque refs of the add-competitor search (public store pages of OTHER apps): nothing an app event changes. Expires by TTL and is bounded.',
+  drop: () => searchRefs.clear(),
+});
 
 export function clearCompetitorImageCaches(): void {
   searchRefs.clear();
@@ -159,6 +168,17 @@ export async function resolveStoredImage(
 type Thumb = { bytes: Uint8Array; format: 'png' | 'jpeg' | 'webp' | 'gif' };
 const thumbs = new Map<string, Thumb>();
 let thumbBytes = 0;
+registerCache({
+  name: 'aso.competitor_thumbs',
+  owner: 'modules/aso/competitor-images.ts',
+  ttlMs: null,
+  invalidatedBy: [],
+  why: 'Keyed by a competitor image ref (content of a public store image). Bounded by entries and bytes.',
+  drop() {
+    thumbs.clear();
+    thumbBytes = 0;
+  },
+});
 const THUMB_MAX_BYTES = 16 * 1024 * 1024;
 const THUMB_MAX_ENTRIES = 300;
 

@@ -1,5 +1,7 @@
+import { PROPOSAL_SUMMARY_TTL_MS } from '@kiln/core';
 import type { Sql } from '@kiln/db';
 import { getApp, listAppReleases, type ManagedApp } from '../../services/apps.ts';
+import { registerMapCache } from '../../services/cache-registry.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import {
   EDITABLE_STATES,
@@ -43,13 +45,22 @@ export type ProposalSummary = {
   computedAt: number;
 };
 
-export const SUMMARY_TTL_MS = 10 * 60_000;
+/** `PROPOSAL_SUMMARY_TTL_MS` of `@kiln/core`'s timings. */
+export const SUMMARY_TTL_MS = PROPOSAL_SUMMARY_TTL_MS;
 export const SUMMARY_TIMEOUT_MS = 8_000;
 export const SUMMARY_MAX_ENTRIES = 500;
 export const SUMMARY_MAX_CONCURRENT = 2;
 
 type Entry = { fingerprint: string; at: number; value: Omit<ProposalSummary, 'cached'> };
 const cache = new Map<string, Entry>();
+// Its fingerprint already covers our own tables (sync, staged, builds, releases); the events drop it at once instead of at the next read.
+registerMapCache(cache, {
+  name: 'listing.proposal_summary',
+  owner: 'modules/listing/asset-proposal-summary.ts',
+  ttlMs: SUMMARY_TTL_MS,
+  invalidatedBy: ['sync', 'staged_changed', 'release_changed', 'build_changed', 'publish'],
+  keys: 'workspace_app',
+});
 const inflight = new Map<string, Promise<Entry>>();
 let running = 0;
 

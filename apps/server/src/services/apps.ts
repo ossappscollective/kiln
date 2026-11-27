@@ -37,13 +37,13 @@ import { deleteProposalStates } from '../modules/listing/asset-proposal.ts';
 import { deleteListingData, syncListing } from '../modules/listing/live.ts';
 import { recordAppliedChangeSets } from '../modules/listing/repo.ts';
 import { deleteAppRuns } from '../modules/publish/publish-runs.ts';
-import { dropStoreReadCaches } from '../modules/publish/store-read-events.ts';
 import { deleteReviewData } from '../modules/reviews/service.ts';
 import { deleteAppAppearance } from './app-appearance.ts';
 import { deleteAppIcon } from './app-icon-store.ts';
 import { deleteAppListingSettings } from './app-listing-settings.ts';
 import { deleteAppReleaseSettings } from './app-release-settings.ts';
 import { recordAudit } from './audit.ts';
+import { emitCacheEvent } from './cache-registry.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { recordSyncEvents, releaseStatusChanges } from './events.ts';
 import { type Failure, failure, type Outcome } from './repositories.ts';
@@ -1104,8 +1104,8 @@ async function runSync(
 
   const at = ctx.now();
   // A sync is the person's "read the store again": whatever was cached about what the app's store holds (the graphics, the current readiness
-  // behind a blocked submit) is stale now, so the next reader asks the store instead of repeating an old answer.
-  dropStoreReadCaches(workspaceId, app.id);
+  // behind a blocked submit, the build lists) is stale now. It is told AFTER the rows are written (below), so a reader that refills a
+  // cache in between cannot keep the picture from before the sync.
   const outcome = await db.transaction(async (tx) => {
     // The app may have been deleted while the store was being read.
     const [still] = await tx.query('SELECT id FROM apps WHERE id = ? AND workspace_id = ?', [
@@ -1231,6 +1231,7 @@ async function runSync(
     return sync;
   });
   if (!outcome) return { ...failure(404, 'not_found'), transient: false } as SyncFailure;
+  emitCacheEvent('sync', { workspaceId, appId: app.id });
   // Best effort and read-only: the live listing (name, description, ...) is read and recorded as
   // snapshots. It never fails the sync; a failure is kept as the app's `listing_error`.
   if (connector) {

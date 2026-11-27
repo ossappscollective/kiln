@@ -24,6 +24,7 @@ import type { Database, Sql } from '@kiln/db';
 import { coded } from '../../i18n/problem.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
+import { emitCacheEvent } from '../../services/cache-registry.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { storeFor } from '../reviews/sync.ts';
 import { connect, DRAFT_ENV, mapStoreError } from './store-draft.ts';
@@ -601,6 +602,8 @@ export async function applyVersion(
       );
     });
     await releaseClaim(db, claim);
+    // A version now exists in the store: the readiness, the images view and the notes history read the editable version.
+    emitCacheEvent('release_changed', { workspaceId: input.workspaceId, appId: app.id });
     const warnings = evaluateChecks(request, before).warnings;
     if (review && (review.outcome === 'failed' || review.outcome === 'no_source'))
       warnings.push(reviewWarning(review));

@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import type { Platform } from '@kiln/core';
+import {
+  type Platform,
+  PUBLISH_CLAIM_TTL_MS,
+  PUBLISH_HEARTBEAT_MS,
+  PUBLISH_SILENT_AFTER_MS as SILENT_AFTER_MS,
+  PUBLISH_STUCK_AFTER_MS as STUCK_AFTER_MS,
+} from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
 import type { Context, Next } from 'hono';
 import type { AppEnv } from '../../http.ts';
@@ -27,13 +33,14 @@ import { type RunStep, recordRun } from './publish-runs.ts';
  */
 
 /** A batch that has not renewed its heartbeat for this long is a process that died. */
-export const DEFAULT_PUBLISH_CLAIM_TTL_MS = 120_000;
+export const DEFAULT_PUBLISH_CLAIM_TTL_MS = PUBLISH_CLAIM_TTL_MS;
 /** How often a running batch renews its heartbeat (also while one step waits for the store). */
-export const DEFAULT_PUBLISH_HEARTBEAT_MS = 20_000;
+export const DEFAULT_PUBLISH_HEARTBEAT_MS = PUBLISH_HEARTBEAT_MS;
 /** A person may end a claim that has been silent for this long, before the time to live ends it by itself. */
-export const PUBLISH_SILENT_AFTER_MS = 60_000;
+/** The one value of `@kiln/core` timings, shared with the browser's "the server has not reported" line. */
+export const PUBLISH_SILENT_AFTER_MS = SILENT_AFTER_MS;
 /** A person may end a claim that has run for this long even when it still beats: no batch is meant to take longer (a step is cut at 8 minutes). */
-export const PUBLISH_STUCK_AFTER_MS = 900_000;
+export const PUBLISH_STUCK_AFTER_MS = STUCK_AFTER_MS;
 /** The boot id of this server process: a claim of another one is the claim of a process that is gone. */
 export const PROCESS_ID = randomUUID();
 

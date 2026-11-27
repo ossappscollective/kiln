@@ -247,10 +247,26 @@ const rateLimited = (wait: number): Failure => ({
 
 type WorkflowInputs = WorkflowDispatchInfo & { workflow: CiWorkflow; ref: string };
 
-const workflowCache = timedCache<CiWorkflow[]>(WORKFLOW_CACHE_TTL_MS, 100);
-const inputsCache = timedCache<WorkflowInputs>(WORKFLOW_CACHE_TTL_MS, 200);
-const compareCache = timedCache<CommitComparison>(COMPARE_CACHE_TTL_MS, 200);
-const previewCache = timedCache<RepositoryTags>(WORKFLOW_CACHE_TTL_MS, 50);
+/** The reads of a repository's own files and workflows (keyed by repository id and ref): no app event changes them, they expire by TTL. */
+const hostRead = (name: string) => ({
+  name: `ci.${name}`,
+  owner: 'modules/ci/service.ts',
+  invalidatedBy: [] as const,
+  why: 'A read of the CI host keyed by repository (and ref or sha): no app event changes it; it expires by its short TTL.',
+  keys: 'all' as const,
+});
+const workflowCache = timedCache<CiWorkflow[]>(WORKFLOW_CACHE_TTL_MS, 100, hostRead('workflows'));
+const inputsCache = timedCache<WorkflowInputs>(
+  WORKFLOW_CACHE_TTL_MS,
+  200,
+  hostRead('workflow_inputs'),
+);
+const compareCache = timedCache<CommitComparison>(COMPARE_CACHE_TTL_MS, 200, hostRead('compare'));
+const previewCache = timedCache<RepositoryTags>(
+  WORKFLOW_CACHE_TTL_MS,
+  50,
+  hostRead('tags_preview'),
+);
 /** When the runs of a repository were last asked for (success or not), and last read successfully. */
 const lastAttempt = new Map<string, number>();
 const lastSuccess = new Map<string, number>();
@@ -263,8 +279,20 @@ const runEtags = new Map<string, string>();
 /** The run ids of that page, for a 304 (which carries no runs): an active run not among them is asked for one by one. */
 const runPageIds = new Map<string, Set<string>>();
 /** Who started a run on GitHub. The table has no column for it, so it is kept for a day in memory. */
-const actorCache = timedCache<string>(24 * 60 * 60_000, 2_000);
-const jobsStore = timedCache<JobsEntry>(30 * 60_000, 500);
+const actorCache = timedCache<string>(24 * 60 * 60_000, 2_000, {
+  name: 'ci.run_actor',
+  owner: 'modules/ci/service.ts',
+  invalidatedBy: [],
+  why: 'Who started one run: a run never changes hands.',
+  keys: 'all',
+});
+const jobsStore = timedCache<JobsEntry>(30 * 60_000, 500, {
+  name: 'ci.run_jobs',
+  owner: 'modules/ci/service.ts',
+  invalidatedBy: [],
+  why: 'The jobs of one run, read again by its own shorter TTL while the run is active (JOBS_TTL_ACTIVE_MS); a finished run never changes.',
+  keys: 'all',
+});
 const jobsInFlight = new Map<string, Promise<Outcome<{ jobs: RunJobs; cached: boolean }>>>();
 
 /** For tests. */

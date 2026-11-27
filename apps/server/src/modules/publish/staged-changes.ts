@@ -43,6 +43,7 @@ import { type Database, nullableNumber, nullableString, oneOf, type Row, type Sq
 import { coded } from '../../i18n/problem.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
+import { emitCacheEvent } from '../../services/cache-registry.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { type AssetsContext, isCommitSha, openAssets } from '../listing/asset-repo.ts';
 import {
@@ -761,6 +762,7 @@ export async function stageText(
     return undefined;
   });
   if (refused) return refused;
+  emitCacheEvent('staged_changed', { workspaceId: input.workspaceId, appId: app.id });
   return { ok: true, staged: await buildStagedView(ctx, input.workspaceId, app) };
 }
 
@@ -1015,6 +1017,7 @@ export async function stageAssets(
     return undefined;
   });
   if (refused) return refused;
+  emitCacheEvent('staged_changed', { workspaceId: input.workspaceId, appId: app.id });
   return { ok: true, staged: await buildStagedView(ctx, input.workspaceId, app) };
 }
 
@@ -1070,6 +1073,7 @@ export async function unstage(
     return true;
   });
   if (!removed) return failure(404, 'not_found');
+  emitCacheEvent('staged_changed', { workspaceId: input.workspaceId, appId: app.id });
   return { ok: true, staged: await buildStagedView(ctx, input.workspaceId, app) };
 }
 
@@ -1098,6 +1102,7 @@ export async function clearStaged(
       });
     }
   });
+  emitCacheEvent('staged_changed', { workspaceId: input.workspaceId, appId: app.id });
   return { ok: true, staged: await buildStagedView(ctx, input.workspaceId, app) };
 }
 

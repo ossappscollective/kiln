@@ -1,4 +1,5 @@
 import type { RepoConnector } from '@kiln/connectors';
+import { registerMapCache } from './cache-registry.ts';
 
 /**
  * One consistent view of a repository for one request, shared between requests for a short time.
@@ -36,6 +37,14 @@ type Entry = {
 };
 
 const cache = new Map<string, Entry>();
+registerMapCache(cache, {
+  name: 'repo.snapshot',
+  owner: 'services/repo-snapshot.ts',
+  ttlMs: SNAPSHOT_TTL_MS,
+  invalidatedBy: [],
+  why: 'The file listing and texts of one repository branch at the time it was opened (keyed by repository and branch): an app event does not change the repository; a commit is seen after the TTL.',
+  keys: 'all',
+});
 
 /** For tests. */
 export function clearRepoSnapshots(): void {

@@ -21,6 +21,7 @@ import {
 import { coded } from '../../i18n/problem.ts';
 import type { ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
+import { emitCacheEvent } from '../../services/cache-registry.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { type AssetHandle, isCommitSha, openAssets } from '../listing/asset-repo.ts';
 import { metadataLockedFailure } from './metadata-lock.ts';
@@ -550,5 +551,6 @@ export async function replaceAssetSet(
     return undefined;
   });
   if (refused) return refused;
+  emitCacheEvent('staged_changed', { workspaceId: input.workspaceId, appId: app.id });
   return { ok: true, staged: await buildStagedView(ctx, input.workspaceId, app) };
 }

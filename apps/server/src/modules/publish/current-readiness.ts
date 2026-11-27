@@ -1,8 +1,8 @@
-import type { SubmitBlocker } from '@kiln/core';
+import { CURRENT_READINESS_TTL_MS, type SubmitBlocker } from '@kiln/core';
 import { getApp } from '../../services/apps.ts';
+import { emitCacheEvent, registerMapCache } from '../../services/cache-registry.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { type DraftContext, previewDraftPush } from './store-draft.ts';
-import { dropStoreReadCaches, onStoreMayHaveChanged } from './store-read-events.ts';
 import { readStateForPlan, type SubmitContext } from './store-submit.ts';
 import { submitReadinessOf } from './submit-readiness.ts';
 
@@ -15,9 +15,11 @@ import { submitReadinessOf } from './submit-readiness.ts';
  * review information) plus the staged push (when something is staged, as `predictDraft` would leave the draft), judged by the same pure
  * rules as the submit and the plan (`submitReadinessOf`, `evaluateDraftContent` of `@kiln/core`). The browser owns no rule.
  *
- * Kept for `CURRENT_READINESS_TTL_MS` per app; a push, a sync, "Read again" of the graphics and `fresh` (the "Check again" button) drop it.
+ * Kept for `CURRENT_READINESS_TTL_MS` (`@kiln/core` timings: the browser's reading derives from the same value) per app. It declares the events
+ * that make it stale: `store_read` ("Read again", "Check again"), `sync`, `publish`, `release_changed` (a version was created),
+ * `build_changed` (the build to submit changed) and `staged_changed` (the staged push is judged as the push would leave the draft).
  */
-export const CURRENT_READINESS_TTL_MS = 30_000;
+export { CURRENT_READINESS_TTL_MS };
 
 export type CurrentReadiness = {
   appId: string;
@@ -37,11 +39,20 @@ export type CurrentReadiness = {
 const cache = new Map<string, { at: number; value: CurrentReadiness }>();
 const keyOf = (workspaceId: string, appId: string) => `${workspaceId}|${appId}`;
 
-/** Drops the cached answer of an app (a push, a sync, a fresh read of the store's graphics). */
-export function invalidateCurrentReadiness(workspaceId: string, appId: string): void {
-  cache.delete(keyOf(workspaceId, appId));
-}
-onStoreMayHaveChanged(invalidateCurrentReadiness);
+registerMapCache(cache, {
+  name: 'publish.current_readiness',
+  owner: 'modules/publish/current-readiness.ts',
+  ttlMs: CURRENT_READINESS_TTL_MS,
+  invalidatedBy: [
+    'store_read',
+    'sync',
+    'publish',
+    'release_changed',
+    'build_changed',
+    'staged_changed',
+  ],
+  keys: 'workspace_app',
+});
 
 /** For tests. */
 export const clearCurrentReadiness = (): void => cache.clear();
@@ -56,7 +67,7 @@ export async function readCurrentReadiness(
   const key = keyOf(input.workspaceId, input.appId);
   if (input.fresh === true) {
     // "Check again": whatever anybody cached about this store is stale for this person, the graphics view included.
-    dropStoreReadCaches(input.workspaceId, input.appId);
+    emitCacheEvent('store_read', { workspaceId: input.workspaceId, appId: input.appId });
   } else {
     const hit = cache.get(key);
     if (hit && now - hit.at < CURRENT_READINESS_TTL_MS)
