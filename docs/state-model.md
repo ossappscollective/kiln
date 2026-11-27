@@ -372,6 +372,101 @@ If the wiring test fails: read state with `appStateStore.of(...)` (`apps/web/src
 (`next-step.ts`, `release-trains.ts`, `play-promote.ts`, `candidates.ts`) is internal to the model: no file outside `lib/app-state/` may import
 them (wiring test, with the few address-parsing exceptions listed there with a reason).
 
+## 3b. Consistency contract (two surfaces that show one fact must show one value)
+
+The model (section 2) removes the disagreements; this section is what keeps them removed. It has five parts and they share one vocabulary: a
+FACT is a named value about an app (`pendingCount`, `liveVersion:<record>`, `imageCount:<locale>/<device>`, `blockerCount`, ...), a SURFACE is a
+place that shows facts, and a surface is described by a pure function `project(world)` that returns the facts it shows.
+
+### The parts
+
+| Part                    | Files                                                                                                                 | What it does                                                                                                                                                       |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Component guard (R1-R7) | `apps/web/scripts/component-guard/{scan,cli}.ts`, `app-state/component-guard.{test.ts,allowlist.json}`                | AST scan of every `.svelte` and component `.ts` file (script and template expressions); a violation that is not on the allowlist fails the test                     |
+| Server guard (S1-S2)    | `apps/server/src/server-guard{,-cli}.ts`, `server-guard.{test.ts,allowlist.json}`                                     | the same for the server: no literal limits or TTLs, no cache outside the registry                                                                                  |
+| Consistency harness     | `app-state/{consistency-world,projections,consistency-report}.ts`, `consistency.test.ts`, `consistency.expected.json` | one fixture world per scenario, every surface projected from it; two surfaces that show one fact with different values are a disagreement                           |
+| Server contract         | `apps/server/src/modules/publish/state-contract.{test.ts,expected.json}`                                              | the same stored state read through the cart, the summary, the per app view, the staged view, the alert evaluator, last publish and readiness                        |
+| Dev monitor             | `app-state/dev-assert.ts`                                                                                             | `reportShown(factKey, value, surfaceId)`: development only; `console.error` when two surfaces on screen show one fact differently; `window.__kilnConsistency()`    |
+
+Every list is SHRINK-ONLY. An allowlist entry or an expected disagreement can be removed at any time; adding one is a decision that needs a
+reason, and a stale entry (one that no longer matches) fails the test, so a fix cannot be forgotten.
+
+### Rules of the component guard
+
+| Rule | Name                          | What it flags                                                                                                                                                              |
+| ---- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1   | no-fact-read-in-component     | a component that calls a state-bearing endpoint of `api` (the list `READ_FACT_ENDPOINTS` in `scan.ts`): facts arrive through the model, not through a component's own fetch |
+| R2   | no-own-cache-or-clock         | `readCache`, `new Map`/`WeakMap`, module-level cache names, `Date.now()` and `setInterval` for freshness: caches and clocks belong to the registry (`facts/invalidate.ts`) |
+| R3   | no-literal-limits             | a count compared with a limit literal (8, 10, 30, 80, 100, 170, 500, 2000, 4000, 8192), `8 * MiB`, a `maxlength` that is a store limit, an import of a limit table         |
+| R4   | no-own-version-logic          | comparing, sorting or parsing versions, picking the live or latest release, computing obsolete versions: versions come from the one owner in `@kiln/core`                   |
+| R5   | no-own-counts-over-facts      | `.filter(...).length`, `.reduce` or `.length` in a template over a fact collection (items, locales, sets, releases, blockers); read the fact the model already counted    |
+| R6   | no-direct-listing-image-reads | `getLiveListing`, `getDrift`, `appListingLive`, `appListingDrift`, `checkStoreImages`, `stalledApps`: one owner reads these                                                  |
+| R7   | no-low-level-store-imports    | an import of a `*-store`, `nav-signals`, `cart-summary`, `cart-button`, `cart-preview` or `store-cache` module outside `lib/app-state/`                                     |
+
+Server: S1 no literal limit or TTL in a store-fact module (use `packages/core/src/timings.ts` or the owning limit table); S2 no module-level or
+cache-named `new Map`/`WeakMap` and no `timedCache(` outside `services/cache-registry.ts` and `timed-cache.ts` (every cache declares its events).
+
+An allowlist entry is keyed by file, rule and a hash of the whitespace-normalised snippet, and has a `count`. Name-based rules (R1, R4, R6,
+R7) count one per name per file. Moving code around does not make an entry stale; editing the flagged expression does (and that is when to
+migrate it).
+
+### The burn-down
+
+```
+cd apps/web
+node scripts/component-guard/cli.ts            # the allowlist grouped by domain (images | releases | listing | state) and rule, with counts
+node scripts/component-guard/cli.ts --files    # every file and snippet
+node scripts/component-guard/cli.ts --check    # what the test checks; exit 1 on a new violation or a stale entry
+node scripts/component-guard/cli.ts --prune    # after a migration: drop the entries that no longer match (never adds one)
+node --import ./src/lib/i18n/test-setup.ts scripts/consistency/cli.ts            # the disagreement table by domain
+node --import ./src/lib/i18n/test-setup.ts scripts/consistency/cli.ts --prune   # drop expected disagreements that are fixed
+cd ../server
+node --disable-warning=ExperimentalWarning src/server-guard-cli.ts --prune       # the same for S1 and S2
+```
+
+The domain of an entry is where its owner works: `images`, `releases`, `listing`, or `state` (counts, pending, caches, store imports). Migrating
+a component to read a model fact removes its entries: run `--prune` and commit the smaller JSON together with the change. In Wave 3 the
+allowlists are emptied and `"strict": true` is set in `component-guard.allowlist.json`: then any entry is ignored and every violation fails.
+Do not add an entry to make a test pass; if the code is right and the rule is wrong, change the rule in `scan.ts` and say why in the commit.
+
+`consistency.expected.json` and `state-contract.expected.json` work the same way: the test passes while the list is exactly the current
+disagreements. A NEW disagreement fails ("fix it, or add it with a note"), a disagreement that stops failing fails ("delete the entry"), and a
+changed value fails. Each entry has a `note` that says which definition is wrong.
+
+### How to add a surface
+
+A new screen that shows a fact from the model needs two things: it reads the fact from the model (`appStateStore.of(...)` or a function of
+`lib/app-state/`), and it is registered in `projections.ts`:
+
+1. Add an entry to `SURFACES` in `app-state/projections.ts`: `id`, `components` (the files), `mirrors` (`file:line` of each piece of logic that
+   the projection copies when it cannot call the component's function directly, so a reader knows what to replace), and `project(world)`,
+   which returns an object of fact keys to values using the same helpers the component uses. Where the component computes the value itself,
+   call the helper it calls, never a re-implementation.
+2. Run `consistency.test.ts`. A surface that shows a fact another surface shows differently makes the test list a new disagreement; that is the
+   point: the fix is in the model function both call, not in the projection.
+3. `consistency.test.ts` also fails for a surface that returns nothing in every scenario (a dead projection) and for a fact key that is not in
+   `FACTS`.
+
+### How to add a fact
+
+1. Add a family to `FACTS` in `projections.ts` (`pendingCount`, `liveVersion`, ...). A key with a suffix (`liveVersion:ios-1`,
+   `imageCount:en-US/ipad_13`) is one value per record; surfaces that show different records do not conflict. A list value is compared as a set.
+2. Return it from every `project(world)` that shows it; give the model ONE function that computes it.
+3. If the world fixture cannot express the situation, add a scenario to `SCENARIOS` in `consistency-world.ts`: plain data (`World`): apps,
+   releases, builds, pending views, staged views, store images, readiness. The 11 scenarios cover the reports so far (phased release over an
+   obsolete TestFlight build, iPad 10+2 and 8+4 sibling sets, a staged removal that is already pushed, a failed run with blockers that are
+   resolved now, a Google Play draft being promoted, a locale with empty texts, a cart against a view, release notes in five places).
+4. On the server, add the fact as a key of `read()` in `state-contract.test.ts` with one entry per endpoint that states it, and a scenario that
+   creates the stored state.
+
+### The dev monitor
+
+In a component that has just been migrated, `reportShown('pendingCount', n, 'topBar')` (in an `$effect`, or where the number is rendered) tells
+the monitor what this surface shows now. In production it is a no-op (`import.meta.env.DEV` is false). In development it compares, once per
+tick, every value shown under one fact key by different surfaces, logs `console.error` with both values and both surface ids once per distinct
+conflict, and exposes `window.__kilnConsistency()` (`{ latest, conflicts, disagreeingNow }`) to read in the console, in an e2e test or in a
+screenshot script. It is not wired into components yet: wire it as each one is migrated, with the same surface id as in `SURFACES`.
+
 ## 4. Migration status
 
 Migrated (they read `appStateStore` and decide nothing themselves): the top bar button, the Shell (sidebar badges, switcher chips, workspace
