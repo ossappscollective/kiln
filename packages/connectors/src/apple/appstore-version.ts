@@ -16,6 +16,10 @@ import {
   AppStoreConnectTokenProvider,
   parseAppStoreConnectSecret,
 } from './apple-auth.ts';
+import {
+  AppleReviewDetailConnector,
+  type ReviewCarryResult,
+} from './appstore-review-detail.ts';
 import { appleError } from './appstoreconnect.ts';
 
 /**
@@ -116,6 +120,7 @@ export class AppleVersionConnector {
   readonly #appId: string;
   readonly #pageSize: number;
   readonly #maxPages: number;
+  readonly #review: AppleReviewDetailConnector;
 
   constructor(options: AppleVersionConnectorOptions) {
     if (!/^[0-9]{1,20}$/.test(options.appStoreId)) {
@@ -148,6 +153,7 @@ export class AppleVersionConnector {
       }
     }
     this.#tokens = new AppStoreConnectTokenProvider(options.credential, this.#http.now);
+    this.#review = new AppleReviewDetailConnector(options);
   }
 
   static fromSecret(
@@ -220,6 +226,25 @@ export class AppleVersionConnector {
           }
         : null,
     };
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // App Review Information (appstore-review-detail.ts): carried over from the previous version, never over a filled value
+
+  /** What carrying over would do for a version about to be created (or this one when `targetId` is given): read only, masked. */
+  previewReviewInformation(
+    versions: readonly StoreVersionRow[],
+    targetId: string | null = null,
+  ): Promise<ReviewCarryResult> {
+    return this.#review.previewCarry(versions, targetId);
+  }
+
+  /** Copies the review information of the best previous version onto the version (blank attributes only). Never throws. */
+  carryOverReviewInformation(
+    versions: readonly StoreVersionRow[],
+    targetId: string,
+  ): Promise<ReviewCarryResult> {
+    return this.#review.carryOver(versions, targetId);
   }
 
   // -------------------------------------------------------------------------------------------

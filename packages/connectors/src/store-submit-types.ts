@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { AssetKind, Platform } from '@kiln/core';
+import type { AssetKind, Platform, ReviewDetailFacts } from '@kiln/core';
 import { StoreError, type StoreName } from './errors.ts';
 import { type DraftReadRequest, type DraftState, draftKey } from './store-draft-types.ts';
 
@@ -83,6 +83,13 @@ export type SubmitState = {
   locales: SubmitLocale[];
   /** The draft as `readDraft` would show it for the pushed items. Null while `alreadySubmitted` (the draft is no longer editable). */
   draft: DraftState | null;
+  /**
+   * App Store: which values of the version's App Review Information are there (presence only, never a value; `exists` false: the version
+   * has none). Null or absent: not read (a version already in review, Google Play, or the read failed): the review checks say nothing.
+   */
+  reviewDetail?: ReviewDetailFacts | null;
+  /** App Store: when the review information is missing, the previous version that holds some (it can be copied from), else null. */
+  reviewSource?: { id: string; versionString: string | null } | null;
 };
 
 export type SubmitApplyInput = {

@@ -1,4 +1,10 @@
-import { classifyAppleScreenshot, PLATFORM_META } from '@kiln/core';
+import {
+  classifyAppleScreenshot,
+  missingContactFields,
+  PLATFORM_META,
+  type ReviewDetailFacts,
+  type ReviewSourceCandidate,
+} from '@kiln/core';
 import { StoreError, type StoreErrorDetail } from '../errors.ts';
 import {
   APPLE_DRAFT_VERSION_STATES,
@@ -32,6 +38,7 @@ import {
   parseAppStoreConnectSecret,
 } from './apple-auth.ts';
 import { AppleDraftConnector } from './appstore-draft.ts';
+import { AppleReviewDetailConnector } from './appstore-review-detail.ts';
 import { appleError } from './appstoreconnect.ts';
 
 /**
@@ -88,6 +95,11 @@ type VersionRow = {
   releaseType: string | null;
 };
 
+/** The review information is missing something a check reports (so a source to copy from is worth looking for). */
+const reviewMissing = (facts: ReviewDetailFacts): boolean =>
+  missingContactFields(facts).length > 0 ||
+  (facts.demoAccountRequired === true && (!facts.demoAccountName || !facts.demoAccountPassword));
+
 export class AppleSubmitConnector implements StoreSubmitConnector {
   readonly store = 'appstoreconnect' as const;
   readonly platform: 'ios' | 'macos';
@@ -101,6 +113,7 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
   readonly #pageSize: number;
   readonly #maxPages: number;
   readonly #draft: AppleDraftConnector;
+  readonly #review: AppleReviewDetailConnector;
 
   constructor(options: AppleSubmitConnectorOptions) {
     if (!/^[0-9]{1,20}$/.test(options.appStoreId)) {
@@ -135,6 +148,8 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
     this.#tokens = new AppStoreConnectTokenProvider(options.credential, this.#http.now);
     // Reads only: the draft connector reads the listing and the draft; nothing here calls its `applyDraft`.
     this.#draft = new AppleDraftConnector(options);
+    // Reads the presence of the review information (never a value); nothing here writes it.
+    this.#review = new AppleReviewDetailConnector(options);
   }
 
   static fromSecret(
@@ -167,6 +182,10 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
       return { locale: l.locale, text: l.text, assets };
     });
     const draft = alreadySubmitted ? null : await this.#draft.readDraft(request);
+    // App Review Information: presence only. Not read for a version already in review (nothing to fix), and a failed read is "not known".
+    const reviewDetail = alreadySubmitted ? null : await this.#review.readFacts(version.id);
+    const reviewSource =
+      reviewDetail !== null && reviewMissing(reviewDetail) ? await this.#reviewSource(version.id) : null;
     return {
       store: 'appstoreconnect',
       platform: this.platform,
@@ -177,7 +196,46 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
       tracks: [],
       locales,
       draft,
+      reviewDetail,
+      reviewSource,
     };
+  }
+
+  /** The previous version whose review information could be copied (its id and version string), or null (none, or not found out). */
+  async #reviewSource(targetId: string): Promise<{ id: string; versionString: string | null } | null> {
+    try {
+      const found = await this.#review.findSource(await this.#candidates(), targetId);
+      return found ? found.from : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Every version of the platform, in the shape the carry-over reads. */
+  async #candidates(): Promise<ReviewSourceCandidate[]> {
+    const what = 'listing the App Store versions';
+    let url: string | undefined =
+      `${this.#base}/v1/apps/${enc(this.#appId)}/appStoreVersions?limit=${this.#pageSize}`;
+    const out: ReviewSourceCandidate[] = [];
+    for (let page = 0; url !== undefined && page < this.#maxPages; page++) {
+      const body = (await this.#get(url, what)).json;
+      for (const item of records(body.data)) {
+        const a = isRecord(item.attributes) ? item.attributes : {};
+        const id = text(item.id);
+        if (!id || text(a.platform) !== this.#apple) continue;
+        const state = (text(a.appVersionState) ?? text(a.appStoreState) ?? '').toUpperCase();
+        out.push({
+          id,
+          versionString: text(a.versionString) ?? null,
+          state,
+          editable: APPLE_DRAFT_VERSION_STATES.includes(state),
+        });
+      }
+      const links = isRecord(body.links) ? body.links : {};
+      const next = text(links.next);
+      url = next === undefined ? undefined : this.#checkNext(next, what);
+    }
+    return out;
   }
 
   /** The version that would go to review: the one editable version, else the one that is already in review (so a re-read after a submit can see it). */

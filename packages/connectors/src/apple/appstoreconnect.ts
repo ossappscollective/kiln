@@ -827,9 +827,11 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
    *   each with `include` of the assets, `limit[...]` 50 and sparse `fields[...]` (file name and
    *   delivery state only: no image asset, template URL or upload operation is requested).
    *
-   * Never read, on purpose: the app store review detail (`appStoreReviewDetails`: contact name,
+   * Never read here, on purpose: the app store review detail (`appStoreReviewDetails`: contact name,
    * email and phone number, demo-account user name and password): it is personal data and secrets,
-   * so the resource is not requested at all.
+   * so the listing read does not request the resource. Only `appstore-review-detail.ts` reads it, on
+   * the server, to carry it over to a new version and to check its presence before a submit
+   * (docs/api/review-information.md); it never gives a value to a log, an audit entry or the browser.
    *
    * A failure of an optional section is a warning and the section is left out ("not read"); only a
    * rate limit, a bad credential, a clock problem or the network stop the read.

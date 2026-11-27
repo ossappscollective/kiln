@@ -17,6 +17,7 @@ export * from './apple/appstore-price-write.ts';
 export * from './apple/appstore-product-write.ts';
 export * from './apple/appstore-products.ts';
 export * from './apple/appstore-release.ts';
+export * from './apple/appstore-review-detail.ts';
 export * from './apple/appstore-reviews.ts';
 export * from './apple/appstore-rollout.ts';
 export * from './apple/appstore-submit.ts';
