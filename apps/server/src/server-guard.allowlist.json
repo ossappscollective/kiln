@@ -44,7 +44,6 @@
     {"file":"modules/listing/asset-repo.ts","rule":"S2","hash":"b595049a","snippet":"new Map<string, AssetIndexView>()","count":1,"reason":"cache outside the registry: create it through services/cache-registry.ts"},
     {"file":"modules/listing/asset-repo.ts","rule":"S2","hash":"df4a982f","snippet":"new Map<string, { at: number; opened: Opened }>()","count":1,"reason":"cache outside the registry: create it through services/cache-registry.ts"},
     {"file":"modules/listing/live.ts","rule":"S1","hash":"7ed8e95f","snippet":"MAX_ERROR_LENGTH = 500","count":1,"reason":"literal limit/threshold: move to @kiln/core (limits, timings) and import it"},
-    {"file":"modules/listing/locales.ts","rule":"S2","hash":"31bbcc40","snippet":"new Map<string, readonly string[]>()","count":1,"reason":"cache outside the registry: create it through services/cache-registry.ts"},
     {"file":"modules/listing/operations.ts","rule":"S1","hash":"7e3e1042","snippet":"bodyLimit = 8 * 1024 * 1024","count":1,"reason":"literal limit/threshold: move to @kiln/core (limits, timings) and import it"},
     {"file":"modules/listing/routes.ts","rule":"S1","hash":"359c7dfb","snippet":"MAX_PULL_LOCALES = 100","count":1,"reason":"literal limit/threshold: move to @kiln/core (limits, timings) and import it"},
     {"file":"modules/listing/schedule.ts","rule":"S1","hash":"eab0dae0","snippet":"MAX_DEFERRALS = 10","count":1,"reason":"literal limit/threshold: move to @kiln/core (limits, timings) and import it"},
