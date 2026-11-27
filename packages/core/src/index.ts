@@ -41,6 +41,7 @@ export * from './release/play-rollout-offer.ts';
 export * from './release/release-fields.ts';
 export * from './release/release-pipeline.ts';
 export * from './release/release-plan.ts';
+export * from './release/review-information.ts';
 export * from './release/store-version.ts';
 export * from './report-figures.ts';
 export * from './roles.ts';

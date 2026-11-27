@@ -54,7 +54,11 @@ export type ReadinessCode =
   | 'locale_without_screenshots'
   | 'no_screenshots'
   | 'asset_spec'
-  | 'release_notes_too_long';
+  | 'release_notes_too_long'
+  /** App Store: the version's App Review contact (first and last name, phone, email) is missing or blank (`evaluateReviewInformation`). */
+  | 'no_review_contact'
+  /** App Store: a demo account is required by the review information and its user name or password is blank. */
+  | 'no_review_demo_account';
 
 export type ReadinessFinding = {
   code: ReadinessCode;
@@ -291,7 +295,15 @@ export function predictDraft(current: DraftContent, staged: StagedDraftChanges):
 // The answer a person reads: what blocks a submit, and where it is fixed
 
 /** Where a blocker is fixed: a screen of Kiln (`href` is its web address), the store's own console (`href` null: the web names the page), or a push. */
-export type ReadinessFixKind = 'listing' | 'screenshots' | 'notes' | 'build' | 'store' | 'push';
+export type ReadinessFixKind =
+  | 'listing'
+  | 'screenshots'
+  | 'notes'
+  | 'build'
+  | 'store'
+  | 'push'
+  /** The version's App Review Information: copied from the previous version in Kiln, or filled in App Store Connect (`href` null). */
+  | 'review';
 export type ReadinessFix = { kind: ReadinessFixKind; href: string | null };
 
 export type SubmitBlocker = {
@@ -316,6 +328,8 @@ export type SubmitReadiness = {
 
 const STORE_CODES = ['already_submitted', 'no_version', 'release_not_manual'];
 const BUILD_CODES = ['no_build', 'build_expired', 'build_not_valid'];
+/** The checks of the App Review Information (`evaluateReviewInformation`). */
+export const REVIEW_CODES: readonly string[] = ['no_review_contact', 'no_review_demo_account'];
 
 /** Which kind of fix a check code needs. An unknown code is a push (the draft is written again and read again). */
 export function fixKindOf(code: string): ReadinessFixKind {
@@ -323,6 +337,7 @@ export function fixKindOf(code: string): ReadinessFixKind {
   if (code === 'no_screenshots' || code === 'asset_spec') return 'screenshots';
   if (code === 'release_notes_too_long') return 'notes';
   if (BUILD_CODES.indexOf(code) >= 0) return 'build';
+  if (REVIEW_CODES.indexOf(code) >= 0) return 'review';
   if (STORE_CODES.indexOf(code) >= 0) return 'store';
   return 'push';
 }
