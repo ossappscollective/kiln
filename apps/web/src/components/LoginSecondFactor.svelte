@@ -27,6 +27,7 @@
   import Alert from './ui/Alert.svelte';
   import Button from './ui/Button.svelte';
   import TextField from './ui/TextField.svelte';
+  import { useNow } from '../lib/app-state/clock.svelte.ts';
 
   let { api, challenge, ondone, oncancel }: { api: Api; challenge: LoginChallenge; ondone: () => void; oncancel: () => void } = $props();
 
@@ -41,15 +42,11 @@
   let problem = $state('');
   let sent = $state<{ info: CodeSent; at: number } | null>(null);
   let begin = $state<TotpBegin | null>(null);
-  let now = $state(Date.now());
+  const clock = useNow({ everyMs: 1000, while: () => sent !== null });
+  const now = $derived(clock.value);
   // The challenge ends the sign-in when the server says so (expired, used up): then only the password step is left.
   let dead = $state(false);
 
-  $effect(() => {
-    if (!sent) return;
-    const timer = setInterval(() => (now = Date.now()), 1000);
-    return () => clearInterval(timer);
-  });
 
   function fail(e: unknown) {
     problem = twoFactorProblem(e);
@@ -70,8 +67,7 @@
     problem = '';
     try {
       const info = await (enrolling ? api.loginEnrollEmail(challenge.challenge) : api.loginEmailCode(challenge.challenge));
-      sent = { info, at: Date.now() };
-      now = Date.now();
+      sent = { info, at: clock.touch() };
       code = '';
     } catch (e) {
       fail(e);

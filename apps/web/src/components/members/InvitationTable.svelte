@@ -7,6 +7,7 @@
   import Button from '../ui/Button.svelte';
   import { expiresIn } from './expiry.ts';
   import { roleLabel } from './roles.ts';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     invitations,
@@ -18,7 +19,8 @@
     onrevoke: (invitation: Invitation) => void;
   } = $props();
 
-  const now = Date.now();
+  const clock = useNow();
+  const now = $derived(clock.value);
 </script>
 
 <div class="table-wrap">

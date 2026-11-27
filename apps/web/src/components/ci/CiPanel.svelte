@@ -7,7 +7,7 @@
 -->
 <script lang="ts">
   import { type Role, can } from '@kiln/core';
-  import { onMount, untrack } from 'svelte';
+  import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { POLL_MAX_MS, POLL_MS, canDispatchWorkflow, hasActiveRun } from '../../lib/ci/ci.ts';
   import { timeAgo } from '../../lib/format.ts';
@@ -24,6 +24,7 @@
   import DispatchDialog from './DispatchDialog.svelte';
   import RunDrawer from './RunDrawer.svelte';
   import RunsTable from './RunsTable.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -44,7 +45,8 @@
   let runsWarning = $state('');
   let refreshedAt = $state<number | null>(null);
   let refreshing = $state(false);
-  let now = $state(Date.now());
+  const clock = useNow({ everyMs: 30_000 });
+  const now = $derived(clock.value);
   let dispatchWorkflow = $state<CiWorkflow | null>(null);
   let announcement = $state('');
   /** The run whose panel is open (its id; the row is looked up in the list so the panel follows the list). */
@@ -67,7 +69,7 @@
       if (read.refreshedAt !== null) refreshedAt = read.refreshedAt;
       runsProblem = '';
       runsWarning = '';
-      now = Date.now();
+      clock.touch();
       return true;
     } catch (e) {
       if (mine !== generation) return true;
@@ -138,13 +140,6 @@
     });
     poller.start();
     return () => poller.stop();
-  });
-
-  onMount(() => {
-    const timer = setInterval(() => {
-      now = Date.now();
-    }, 30_000);
-    return () => clearInterval(timer);
   });
 
   function dispatched(run: WorkflowRun) {

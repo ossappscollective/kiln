@@ -12,6 +12,7 @@
   import CredentialIdentifiers from './CredentialIdentifiers.svelte';
   import ReplaceSecret from './ReplaceSecret.svelte';
   import Spinner from './Spinner.svelte';
+  import { readNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -56,7 +57,7 @@
       const result = await api.testCredential(workspaceId, item.id);
       const summary = summarizeTest(result);
       rowTests[item.id] = { busy: false, error: '', details: summary.details };
-      onTested(item.id, { at: Date.now(), ok: summary.ok, message: summary.message });
+      onTested(item.id, { at: readNow(), ok: summary.ok, message: summary.message });
       announcement = announceTest(item.label, result);
     } catch (e) {
       const message = testErrorMessage(e);

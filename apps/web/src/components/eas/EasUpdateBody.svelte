@@ -37,6 +37,7 @@
   import Skeleton from '../ui/Skeleton.svelte';
   import T from '../ui/T.svelte';
   import EasRolloutDialog from './EasRolloutDialog.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -55,7 +56,8 @@
   let view = $state<EasUpdateState | null>(null);
   let loading = $state(true);
   let problem = $state('');
-  let now = $state(Date.now());
+  const clock = useNow();
+  const now = $derived(clock.value);
   let generation = 0;
 
   type InsightsEntry = { loading: boolean; error: string; data: EasUpdateInsights | null };
@@ -73,7 +75,7 @@
       const read = await api.easUpdates(workspaceId, app.id);
       if (mine !== generation) return;
       view = read.state;
-      now = Date.now();
+      clock.touch();
       insights = {};
       onread?.(read.state, false);
     } catch (e) {

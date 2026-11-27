@@ -15,12 +15,14 @@
   import Skeleton from '../ui/Skeleton.svelte';
   import EasStatusNote from './EasStatusNote.svelte';
   import EasSubmissions from './EasSubmissions.svelte';
+  import { useNow, usePoll } from '../../lib/app-state/clock.svelte.ts';
 
   let { api, workspaceId, app }: { api: Api; workspaceId: string; app: AppSummary } = $props();
 
   let status = $state<EasStatusView | null>(null);
   let loaded = $state(false);
-  let now = $state(Date.now());
+  const clock = useNow();
+  const now = $derived(clock.value);
   let generation = 0;
 
   async function load() {
@@ -33,7 +35,7 @@
     } finally {
       if (mine === generation) {
         loaded = true;
-        now = Date.now();
+        clock.touch();
       }
     }
   }
@@ -47,11 +49,7 @@
     });
   });
 
-  $effect(() => {
-    if (!status?.active) return;
-    const timer = setInterval(() => void load(), 60_000);
-    return () => clearInterval(timer);
-  });
+  usePoll(() => void load(), 60_000, { while: () => status?.active === true });
 </script>
 
 {#if !loaded}

@@ -23,6 +23,7 @@
   import Skeleton from '../ui/Skeleton.svelte';
   import StatusPill from '../ui/StatusPill.svelte';
   import RunStatus from './RunStatus.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     open = $bindable(false),
@@ -54,16 +55,8 @@
 
   // The parent's clock may be slow (the runs table ticks every 30 seconds): while a run goes and the panel
   // is open this one ticks every second by itself.
-  let ticking = $state(Date.now());
-  const now = $derived(open && run.active ? Math.max(ticking, nowProp) : nowProp);
-  $effect(() => {
-    if (!open || !run.active) return;
-    ticking = Date.now();
-    const timer = setInterval(() => {
-      if (typeof document === 'undefined' || document.visibilityState !== 'hidden') ticking = Date.now();
-    }, 1000);
-    return () => clearInterval(timer);
-  });
+  const tickClock = useNow({ everyMs: 1000, visibleOnly: true, while: () => open && run.active });
+  const now = $derived(open && run.active ? Math.max(tickClock.value, nowProp) : nowProp);
 
   const pending = $derived(isPending(run));
   const elapsed = $derived(elapsedText(runElapsedMs(run, now)));

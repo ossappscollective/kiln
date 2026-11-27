@@ -11,7 +11,7 @@
 -->
 <script lang="ts">
   import { type Role, can } from '@kiln/core';
-  import { onMount, untrack } from 'svelte';
+  import { untrack } from 'svelte';
   import { ApiError, type Api } from '../lib/api.ts';
   import { t } from '../lib/i18n/t.ts';
     import { repositoryName } from '../lib/repositories.ts';
@@ -40,6 +40,7 @@
   import PageHeader from './ui/PageHeader.svelte';
   import Skeleton from './ui/Skeleton.svelte';
   import StatusPill from './ui/StatusPill.svelte';
+  import { useNow } from '../lib/app-state/clock.svelte.ts';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
@@ -67,7 +68,8 @@
   let actors = $state<Record<string, string | null | undefined>>({});
   let repositoryId = $state('');
   let status = $state<StatusFilter>('all');
-  let now = $state(Date.now());
+  const clock = useNow({ everyMs: 30_000 });
+  const now = $derived(clock.value);
   let refreshing = $state(false);
   let announcement = $state('');
   let dispatchRow = $state<WorkflowRow | null>(null);
@@ -151,7 +153,7 @@
       }
       apps = all;
       await inBatches(readable, (r) => readRepository(mine, r, all));
-      now = Date.now();
+      clock.touch();
     } catch (e) {
       if (mine !== generation) return;
       loadError = e instanceof ApiError ? e.message : t('builds:page.loadFailed');
@@ -172,7 +174,7 @@
         // The next change tries again.
       }
     });
-    if (mine === generation) now = Date.now();
+    if (mine === generation) clock.touch();
   }
 
   async function refresh() {
@@ -198,14 +200,6 @@
       if (canRead) void load();
       else loading = false;
     });
-  });
-
-  // The "x ago" times move on without a read.
-  onMount(() => {
-    const timer = setInterval(() => {
-      now = Date.now();
-    }, 30_000);
-    return () => clearInterval(timer);
   });
 
   function liveData(d: ActiveRuns) {

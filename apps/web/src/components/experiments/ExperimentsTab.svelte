@@ -42,6 +42,7 @@
   import PageLead from '../ui/PageLead.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import NoteDialog from './NoteDialog.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let { api, workspaceId, role, app, refreshKey }: { api: Api; workspaceId: string; role: Role; app: AppSummary; refreshKey: number } = $props();
 
@@ -56,7 +57,8 @@
   let problem = $state('');
   let syncing = $state(false);
   let syncProblem = $state('');
-  let now = $state(Date.now());
+  const clock = useNow();
+  const now = $derived(clock.value);
   let generation = 0;
   let dialogOpen = $state(false);
   let editing = $state<ExperimentNote | null>(null);
@@ -71,7 +73,7 @@
       const read = await api.appExperiments(workspaceId, app.id);
       if (mine !== generation) return;
       view = read;
-      now = Date.now();
+      clock.touch();
     } catch (e) {
       if (mine !== generation) return;
       view = null;

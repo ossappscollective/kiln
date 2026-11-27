@@ -44,6 +44,7 @@
   import { productName } from './ui/brand.ts';
   import { isIconName } from './ui/icons.ts';
   import { reportShown } from '../lib/app-state/dev-assert.ts';
+  import { readNow } from '../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -237,7 +238,7 @@
         typing: isTypingTarget(event.target as HTMLElement | null),
         dialogOpen: document.querySelector('dialog[open]') !== null,
       },
-      Date.now(),
+      readNow(),
       appAddr ? 'app' : 'workspace',
     );
     setChord(step.state);

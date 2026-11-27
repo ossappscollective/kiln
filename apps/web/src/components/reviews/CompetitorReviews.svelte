@@ -18,8 +18,11 @@
   import type { AppSummary, CompetitorReviewStats, CompetitorReviewsView } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let { api, workspaceId, role, app }: { api: Api; workspaceId: string; role: Role; app: AppSummary } = $props();
+
+  const clock = useNow();
 
   let days = $state(28);
   let view = $state<CompetitorReviewsView | null>(null);
@@ -106,7 +109,7 @@
             {/if}
             {#each view.competitors as c (c.competitorId)}
               <tr>
-                <th scope="row">{c.name}<span class="hint">{c.country.toUpperCase()}{#if c.checkedAt !== null} · {t('reviews:competitors.readAt', { time: timeAgo(c.checkedAt, Date.now()) })}{/if}</span></th>
+                <th scope="row">{c.name}<span class="hint">{c.country.toUpperCase()}{#if c.checkedAt !== null} · {t('reviews:competitors.readAt', { time: timeAgo(c.checkedAt, clock.value) })}{/if}</span></th>
                 {#if c.state === 'ok'}
                   <td class="num" data-label={t('reviews:competitors.count')}>{formatNumber(c.count)}</td>
                   <td class="num" data-label={t('reviews:competitors.average')}>{avg(c.average)}</td>

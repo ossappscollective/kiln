@@ -19,6 +19,7 @@
   import type { AppSummary } from '../../lib/types.ts';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
+  import { readNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -31,7 +32,7 @@
   }: { api: Api; workspaceId: string; role: Role; apps: AppSummary[]; kinds: SyncKind[]; now?: number | undefined; refreshKey?: number | undefined } = $props();
 
   /** The page's clock when it has one, else the time of the last read. */
-  let readAt = $state(Date.now());
+  let readAt = $state(readNow());
   const clock = $derived(now ?? readAt);
 
   let inputs = $state<SourceInput[] | null>(null);
@@ -48,7 +49,7 @@
       void loadReadings(api, workspaceId, role, apps, kinds).then((read) => {
         if (!scope.accepts(token)) return;
         inputs = read;
-        readAt = Date.now();
+        readAt = readNow();
       });
     });
   });

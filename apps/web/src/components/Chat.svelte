@@ -31,6 +31,7 @@
   import EmptyState from './ui/EmptyState.svelte';
   import Modal from './ui/Modal.svelte';
   import PageHeader from './ui/PageHeader.svelte';
+  import { useNow } from '../lib/app-state/clock.svelte.ts';
 
   /** `embedded`: drawn inside the Settings page, which already has the page title; the description and the new button stay. */
   let { api, workspaceId, role, embedded = false }: { api: Api; workspaceId: string; role: Role; embedded?: boolean } = $props();
@@ -54,7 +55,8 @@
   /** The line under a destination's buttons after "Send test message". */
   let testLines = $state<Record<string, { tone: 'ok' | 'bad' | 'info' | 'warn' | 'neutral'; text: string }>>({});
 
-  const now = $derived(Date.now());
+  const clock = useNow();
+  const now = $derived(clock.value);
   const languageName = (code: string) => availableLocales.find((l) => l.code === code)?.name ?? code;
 
   async function load() {

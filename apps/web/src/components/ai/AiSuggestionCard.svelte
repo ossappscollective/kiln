@@ -48,6 +48,7 @@
   import BudgetMeter from '../aso/BudgetMeter.svelte';
   import DiffText from '../listing/DiffText.svelte';
   import StageKeywordButton from './StageKeywordButton.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -70,6 +71,8 @@
     current?: Record<string, string> | undefined;
     onaccepted?: ((result: AiAcceptedRef) => void | Promise<void>) | undefined;
   } = $props();
+
+  const clock = useNow();
 
   const uid = $props.id();
 
@@ -188,11 +191,11 @@
     {#if !compact}
       <header class="head">
         <strong>{suggestionTitle(proposal)}</strong>
-        <span class="muted">{timeAgo(suggestion.createdAt, Date.now())}</span>
+        <span class="muted">{timeAgo(suggestion.createdAt, clock.value)}</span>
       </header>
       {#if proposal.kind === 'insight' && proposal.insight === 'review_summary'}
         <p class="muted small" data-testid="summary-meta">
-          {t('ai:insight.generatedFrom', { time: timeAgo(suggestion.createdAt, Date.now()), count: proposal.analysed })}
+          {t('ai:insight.generatedFrom', { time: timeAgo(suggestion.createdAt, clock.value), count: proposal.analysed })}
           · {t('ai:insight.madeWith', { provider: suggestion.provider, model: suggestion.model, tokens: formatNumber(suggestion.usage.inputTokens + suggestion.usage.outputTokens) })}
         </p>
       {/if}

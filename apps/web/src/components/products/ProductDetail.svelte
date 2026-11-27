@@ -42,6 +42,7 @@
   import RevenueCatDetail from '../revenuecat/RevenueCatDetail.svelte';
   import LocalizationEditor from './LocalizationEditor.svelte';
   import PriceEditor from './PriceEditor.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -75,6 +76,8 @@
     onclose: () => void;
     onswitchoff: () => void;
   } = $props();
+
+  const clock = useNow();
 
   let data = $state<ProductDetailView | null>(null);
   let loading = $state(true);
@@ -170,7 +173,7 @@
     {/if}
 
     {#if revenueCat}
-      <RevenueCatDetail view={revenueCat} {productId} now={Date.now()} />
+      <RevenueCatDetail view={revenueCat} {productId} now={clock.value} />
     {/if}
 
     <div class="stack">

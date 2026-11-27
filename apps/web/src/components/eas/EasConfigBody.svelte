@@ -32,6 +32,7 @@
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -48,7 +49,8 @@
   let view = $state<EasConfigView | null>(null);
   let loading = $state(true);
   let problem = $state('');
-  let now = $state(Date.now());
+  const clock = useNow();
+  const now = $derived(clock.value);
   let generation = 0;
 
   async function load() {
@@ -60,7 +62,7 @@
       const read = await api.easConfig(workspaceId, app.id);
       if (mine !== generation) return;
       view = read;
-      now = Date.now();
+      clock.touch();
       onread?.(read, 'idle');
     } catch (e) {
       if (mine !== generation) return;

@@ -53,6 +53,7 @@
   import AsoKeywordEstimates from './AsoKeywordEstimates.svelte';
   import Sparkline from './Sparkline.svelte';
   import SuggestKeywords from '../ai/SuggestKeywords.svelte';
+  import { readNow, useNow } from '../../lib/app-state/clock.svelte.ts';
 import { supports } from '@kiln/core';
 
   let {
@@ -130,19 +131,9 @@ import { supports } from '@kiln/core';
   // ----- Check now
   let checking = $state(false);
   let waitUntil = $state(0);
-  let tick = $state(Date.now());
-  const waiting = $derived(waitUntil > tick);
-  const waitLeft = $derived(Math.max(0, Math.ceil((waitUntil - tick) / 1000)));
-
-  $effect(() => {
-    if (waitUntil <= Date.now()) return;
-    tick = Date.now();
-    const timer = setInterval(() => {
-      tick = Date.now();
-      if (tick >= waitUntil) clearInterval(timer);
-    }, 1000);
-    return () => clearInterval(timer);
-  });
+  const clock = useNow({ everyMs: 1000, while: () => waitUntil > readNow() });
+  const waiting = $derived(waitUntil > clock.value);
+  const waitLeft = $derived(Math.max(0, Math.ceil((waitUntil - clock.value) / 1000)));
 
   /** Google Play is left out while its reading is off: the server would answer 409 and nothing is requested. */
   const targets = $derived(members.filter((m) => !supports(m.platform, 'unofficialSearch') || !playOff));
@@ -170,7 +161,7 @@ import { supports } from '@kiln/core';
     } finally {
       checking = false;
     }
-    if (wait > 0) waitUntil = Date.now() + wait * 1000;
+    if (wait > 0) waitUntil = clock.touch() + wait * 1000;
     if (done.length > 0) toast.success(done.join(' '));
     if (problems.length > 0) toast.error(problems.join(' '));
     await onchanged();

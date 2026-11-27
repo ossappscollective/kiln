@@ -8,6 +8,7 @@
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
   import T from '../ui/T.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     tokens,
@@ -21,7 +22,8 @@
     onrevoke: (token: ApiToken) => void;
   } = $props();
 
-  const now = $derived(Date.now());
+  const clock = useNow();
+  const now = $derived(clock.value);
   const ordered = $derived(orderTokens(tokens));
   /** The token whose revocation waits for confirmation in the dialog. */
   let confirming = $state<ApiToken | null>(null);

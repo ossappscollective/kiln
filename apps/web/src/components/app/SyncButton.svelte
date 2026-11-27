@@ -24,6 +24,7 @@
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
+  import { readNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -52,7 +53,7 @@
 
   const page = $derived(syncPageFor(section, view));
   let inputs = $state<SourceInput[]>([]);
-  let readAt = $state(Date.now());
+  let readAt = $state(readNow());
   /** The other kinds are read only once the menu was opened: most pages never need them. */
   let wide = $state(false);
   let open = $state(false);
@@ -77,7 +78,7 @@
       void loadReadings(api, workspaceId, role, members, kinds).then((read) => {
         if (!scope.accepts(token)) return;
         inputs = read;
-        readAt = Date.now();
+        readAt = readNow();
       });
     });
   });

@@ -33,6 +33,7 @@
   import TextField from '../ui/TextField.svelte';
   import TotpSetup from '../TotpSetup.svelte';
   import T from '../ui/T.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
@@ -52,7 +53,8 @@
   let sent = $state<{ info: CodeSent; at: number } | null>(null);
   let emailCode = $state('');
   let emailProblem = $state('');
-  let now = $state(Date.now());
+  const clock = useNow({ everyMs: 1000, while: () => sent !== null });
+  const now = $derived(clock.value);
 
   let mode = $state<LoginMode>('off');
 
@@ -74,12 +76,6 @@
     return () => {
       begin = null;
     };
-  });
-  // The "send again" button counts down while a code is waiting.
-  $effect(() => {
-    if (!sent) return;
-    const timer = setInterval(() => (now = Date.now()), 1000);
-    return () => clearInterval(timer);
   });
 
   async function run(task: () => Promise<void>) {
@@ -129,8 +125,7 @@
       emailProblem = '';
       const typed = status?.emailAddressEditable ? address.trim() : undefined;
       const info = await confirmed((grant) => api.twoFactorEmailBegin(workspaceId, typed, grant));
-      sent = { info, at: Date.now() };
-      now = Date.now();
+      sent = { info, at: clock.touch() };
       emailCode = '';
     });
 

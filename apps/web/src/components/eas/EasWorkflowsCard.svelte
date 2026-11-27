@@ -28,6 +28,7 @@
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
   import '../readable-card.css';
+  import { usePoll } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -72,13 +73,13 @@
   }
 
   // The server follows a run until it finishes; this only reads what it stored, every 15 seconds while one is going and the tab is shown.
-  onMount(() => {
-    void load();
-    const timer = setInterval(() => {
+  onMount(() => void load());
+  usePoll(
+    () => {
       if (document.visibilityState === 'visible' && runs !== null && activeRuns(runs).length > 0) void load();
-    }, 15_000);
-    return () => clearInterval(timer);
-  });
+    },
+    15_000,
+  );
 
   function review() {
     const checked = startForm({ workflow, ref, inputsText });

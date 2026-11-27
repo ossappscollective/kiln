@@ -13,7 +13,7 @@
   every answer, so a page that lists workflows can show the actor and notice when a run starts or ends).
 -->
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
+  import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { runProvider, runTitle } from '../../lib/ci/ci.ts';
   import { formatList } from '../../lib/i18n/format.ts';
@@ -40,6 +40,7 @@
   import RunDrawer from './RunDrawer.svelte';
   import RunProgress from './RunProgress.svelte';
   import RunStatus from './RunStatus.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -63,7 +64,10 @@
 
   let data = $state<ActiveRuns | null>(null);
   let problem = $state('');
-  let now = $state(Date.now());
+  // The rows tick once a second while any run is going (a hidden tab skips the work); the "updated ... ago" text moves on every 30 s.
+  const slow = useNow({ everyMs: 30_000 });
+  const fast = useNow({ everyMs: 1000, visibleOnly: true, while: () => rows.length > 0 });
+  const now = $derived(Math.max(slow.value, fast.value));
   let readAt = $state<number | null>(null);
   /** The run whose panel is open, by repository and run id; the last row seen is kept for when it leaves the list. */
   let selected = $state<{ repositoryId: string; id: string } | null>(null);
@@ -87,8 +91,7 @@
         if (!alive) return;
         data = d;
         problem = '';
-        now = Date.now();
-        readAt = now;
+        readAt = slow.touch();
         ondata?.(d);
       },
       onError: (e) => {
@@ -108,23 +111,6 @@
   const rows = $derived(sortActive(whole.runs));
   const recent = $derived<ActiveRun[]>(scope ? scope(data?.recent ?? []).runs : (data?.recent ?? []));
   const pill = $derived(data ? problemPill(data.problems, data.repositories) : null);
-
-  // The clock of the rows ticks once a second while any run is going; a hidden tab skips the work.
-  $effect(() => {
-    if (rows.length === 0) return;
-    const timer = setInterval(() => {
-      if (typeof document === 'undefined' || document.visibilityState !== 'hidden') now = Date.now();
-    }, 1000);
-    return () => clearInterval(timer);
-  });
-
-  // The "updated ... ago" text moves on without a new read.
-  onMount(() => {
-    const timer = setInterval(() => {
-      now = Date.now();
-    }, 30_000);
-    return () => clearInterval(timer);
-  });
 
   /** The names of the apps the run was started for (several for a workflow that builds more than one app), or null for none. */
   const appName = (run: ActiveRun): string | null => {

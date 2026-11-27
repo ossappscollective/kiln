@@ -57,6 +57,7 @@
   import T from '../ui/T.svelte';
   import DiffView from './DiffView.svelte';
   import StatusBadge from './StatusBadge.svelte';
+  import { usePoll } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -133,11 +134,7 @@
   });
 
   // Another apply may be running (a second tab, a colleague). Look again until it ends.
-  $effect(() => {
-    if (changeSet?.status !== 'applying') return;
-    const timer = setInterval(() => void load(true), 4000);
-    return () => clearInterval(timer);
-  });
+  usePoll(() => void load(true), 4000, { while: () => changeSet?.status === 'applying' });
 
   const applyContext = $derived({ localOnly, hasLocalClone: hasLocalClone || localOnly, write, signing });
   const actions = $derived(

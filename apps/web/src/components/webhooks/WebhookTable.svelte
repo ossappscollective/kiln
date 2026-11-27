@@ -8,6 +8,7 @@
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
   import T from '../ui/T.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   type Ask = { kind: 'delete' | 'rotate'; endpoint: WebhookEndpoint };
 
@@ -31,7 +32,8 @@
     ondelete: (endpoint: WebhookEndpoint) => void;
   } = $props();
 
-  const now = $derived(Date.now());
+  const clock = useNow();
+  const now = $derived(clock.value);
   let asking = $state<Ask | null>(null);
   let open = $state(false);
 

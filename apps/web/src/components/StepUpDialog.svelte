@@ -35,6 +35,7 @@
   import Button from './ui/Button.svelte';
   import Modal from './ui/Modal.svelte';
   import TextField from './ui/TextField.svelte';
+  import { useNow } from '../lib/app-state/clock.svelte.ts';
 
   let {
     open = $bindable(true),
@@ -75,12 +76,8 @@
   let totpCode = $state('');
   let emailCode = $state('');
   let emailSent = $state<{ to: string; at: number; wait: number } | null>(null);
-  let now = $state(Date.now());
-  $effect(() => {
-    if (!emailSent) return;
-    const timer = setInterval(() => (now = Date.now()), 1000);
-    return () => clearInterval(timer);
-  });
+  const clock = useNow({ everyMs: 1000, while: () => emailSent !== null });
+  const now = $derived(clock.value);
   let busy = $state(false);
   let problem = $state('');
   let settled = false;
@@ -192,8 +189,7 @@
     problem = '';
     try {
       const sent = await api.stepUpEmailCode(workspaceId, { action, target });
-      emailSent = { to: sent.to, at: Date.now(), wait: sent.resendAfterSeconds };
-      now = Date.now();
+      emailSent = { to: sent.to, at: clock.touch(), wait: sent.resendAfterSeconds };
       emailCode = '';
     } catch (error) {
       problem = twoFactorProblem(error);

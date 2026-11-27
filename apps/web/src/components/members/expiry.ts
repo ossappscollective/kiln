@@ -5,7 +5,7 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 /** "Expires in 6 days", "Expires in 5 hours", "Expires in 20 minutes" or "Expired". */
-export function expiresIn(expiresAt: number, now: number = Date.now()): string {
+export function expiresIn(expiresAt: number, now: number): string {
   const left = expiresAt - now;
   if (left <= 0) return t('workspace:members.expires.expired');
   if (left < HOUR)

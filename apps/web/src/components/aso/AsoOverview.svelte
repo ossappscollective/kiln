@@ -40,6 +40,7 @@
   import T from '../ui/T.svelte';
   import AsoHealthAi from './AsoHealthAi.svelte';
   import AsoStatus from './AsoStatus.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
@@ -54,7 +55,8 @@
   let coaches = $state<Record<string, CoachAction[] | undefined>>({});
   let error = $state('');
   let loading = $state(true);
-  let now = $state(Date.now());
+  const clock = useNow({ everyMs: 30_000 });
+  const now = $derived(clock.value);
   let generation = 0;
 
   const withData = $derived(rows.filter((r) => hasAsoData(r.summary)));
@@ -129,13 +131,6 @@
         })
         .catch(() => undefined);
     });
-  });
-
-  $effect(() => {
-    const timer = setInterval(() => {
-      now = Date.now();
-    }, 30_000);
-    return () => clearInterval(timer);
   });
 
   // ----- Check every app (admins): queues jobs, spaced by the server.

@@ -84,6 +84,7 @@
   import ReviewsAi from './ReviewsAi.svelte';
   import ReviewSplit from './ReviewSplit.svelte';
   import { isReviewsAddress, reviewFromHash, withReview } from '../../lib/reviews/split.ts';
+  import { readNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -247,7 +248,7 @@
   function setSince(id: string) {
     sinceChoice = id;
     const days = sinceChoices.find((c) => c.id === id)?.days ?? null;
-    change({ since: sinceFor(days, Date.now()) });
+    change({ since: sinceFor(days, readNow()) });
   }
 
   function search(event: SubmitEvent) {

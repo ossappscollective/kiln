@@ -44,6 +44,7 @@
   import PlatformBadge from './PlatformBadge.svelte';
   import ReleaseGroupCard from './ReleaseGroupCard.svelte';
   import ReleaseStatus from './ReleaseStatus.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let { api, workspaceId, role, id }: { api: Api; workspaceId: string; role: Role; id: string } = $props();
 
@@ -59,7 +60,8 @@
   /** What the latest sync from this screen said went wrong. Cleared by the next success. */
   let syncProblem = $state('');
   let announcement = $state('');
-  let now = $state(Date.now());
+  const clock = useNow({ everyMs: 30_000 });
+  const now = $derived(clock.value);
   /** The open section: the releases, the store listing (read-only), builds or customer reviews (read-only). */
   let tab = $state('releases');
   /** Counts finished syncs, so the listing tab reloads after one. */
@@ -107,13 +109,6 @@
     void load();
   });
 
-  $effect(() => {
-    const timer = setInterval(() => {
-      now = Date.now();
-    }, 30_000);
-    return () => clearInterval(timer);
-  });
-
   async function sync() {
     if (!app || syncing) return;
     const target = app;
@@ -124,7 +119,7 @@
     // The person went to another app meanwhile; this screen belongs to that one now.
     if (mine !== generation) return;
     syncing = false;
-    now = Date.now();
+    clock.touch();
     syncRuns += 1;
     if (outcome.ok) {
       app = outcome.app;

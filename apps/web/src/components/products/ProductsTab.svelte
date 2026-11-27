@@ -65,6 +65,7 @@
   import RevenueCatCell from '../revenuecat/RevenueCatCell.svelte';
   import RevenueCatWarnings from '../revenuecat/RevenueCatWarnings.svelte';
   import ProductDetail from './ProductDetail.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let { api, workspaceId, role, app, refreshKey }: { api: Api; workspaceId: string; role: Role; app: AppSummary; refreshKey: number } = $props();
 
@@ -77,7 +78,8 @@
   let syncProblem = $state('');
   let openId = $state<string | null>(null);
   let detailKey = $state(0);
-  let now = $state(Date.now());
+  const clock = useNow();
+  const now = $derived(clock.value);
   let generation = 0;
   let sales = $state<ProductSalesView | null>(null);
   let salesGeneration = 0;
@@ -126,7 +128,7 @@
       const read = await api.appProducts(workspaceId, app.id);
       if (mine !== generation) return;
       view = read;
-      now = Date.now();
+      clock.touch();
     } catch (e) {
       if (mine !== generation) return;
       view = null;

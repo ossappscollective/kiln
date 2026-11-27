@@ -78,6 +78,7 @@
   import StatChip from '../ui/StatChip.svelte';
   import ReviewCard from './ReviewCard.svelte';
   import ReviewSplit from './ReviewSplit.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
@@ -99,7 +100,8 @@
   let problem = $state('');
   let summaryProblem = $state('');
   let announcement = $state('');
-  let now = $state(Date.now());
+  const clock = useNow({ everyMs: 60_000 });
+  const now = $derived(clock.value);
   let focusId = $state('');
   let searchEl = $state<HTMLInputElement>();
   let cards = $state<Record<string, ReviewCard | undefined>>({});
@@ -136,9 +138,6 @@
   const chips = $derived(statusChips(summary ? { new: summary.totals.new } : {}, filters.statuses));
 
   onMount(() => {
-    const tick = setInterval(() => {
-      now = Date.now();
-    }, 60_000);
     // A link from elsewhere (an app's page, a bookmark) changes only the address.
     const onhash = () => {
       if (!/^#\/reviews(\?|$)/.test(location.hash)) return;
@@ -150,7 +149,6 @@
     };
     window.addEventListener('hashchange', onhash);
     return () => {
-      clearInterval(tick);
       window.removeEventListener('hashchange', onhash);
     };
   });
@@ -166,7 +164,7 @@
     try {
       const page = await api.workspaceReviews(
         workspaceId,
-        inboxFiltersToQuery(filters, Date.now(), { limit: PAGE, cursor: reset ? null : nextCursor }),
+        inboxFiltersToQuery(filters, clock.touch(), { limit: PAGE, cursor: reset ? null : nextCursor }),
       );
       if (mine !== listGeneration) return;
       reviews = reset ? page.reviews : appendInboxPage(reviews, page.reviews);

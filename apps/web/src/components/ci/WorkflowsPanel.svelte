@@ -18,7 +18,7 @@
 -->
 <script lang="ts">
   import { type Platform, type Role, can } from '@kiln/core';
-  import { type Snippet, onMount, untrack } from 'svelte';
+  import { type Snippet, untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { POLL_MAX_MS, POLL_MS, hasActiveRun } from '../../lib/ci/ci.ts';
   import { timeAgo } from '../../lib/format.ts';
@@ -49,6 +49,7 @@
   import RunDrawer from './RunDrawer.svelte';
   import RunsTable from './RunsTable.svelte';
   import WorkflowsList from './WorkflowsList.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -88,7 +89,8 @@
   let runsWarning = $state('');
   let refreshedAt = $state<number | null>(null);
   let refreshing = $state(false);
-  let now = $state(Date.now());
+  const clock = useNow({ everyMs: 30_000 });
+  const now = $derived(clock.value);
   let dispatchRow = $state<WorkflowRow | null>(null);
   let announcement = $state('');
   let followedId = $state<string | null>(null);
@@ -116,7 +118,7 @@
       if (read.refreshedAt !== null) refreshedAt = read.refreshedAt;
       runsProblem = null;
       runsWarning = '';
-      now = Date.now();
+      clock.touch();
       return true;
     } catch (e) {
       if (mine !== generation) return true;
@@ -190,13 +192,6 @@
     });
     poller.start();
     return () => poller.stop();
-  });
-
-  onMount(() => {
-    const timer = setInterval(() => {
-      now = Date.now();
-    }, 30_000);
-    return () => clearInterval(timer);
   });
 
   // What is listed: GitHub's workflows, or (without the right to ask) the workflows the stored runs came from.
