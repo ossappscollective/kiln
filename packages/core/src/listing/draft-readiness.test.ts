@@ -135,7 +135,7 @@ test('more screenshots than a device size allows blocks, with the documented sen
 test('a screenshot that is not a size of its display blocks; one whose size is unknown does not', () => {
   const wrong: DraftSet = { ...iphone(1), images: [{ width: 100, height: 100 }] };
   assert.deepEqual(codes(apple(locale('en-US', filled, [wrong]))), [
-    'asset_spec:en-US:en-US/group-iphone-65/1',
+    'asset_spec:en-US:en-US/screenshot/iphone_6_5#1',
   ]);
   const unknown: DraftSet = { ...iphone(1), images: [{ width: null, height: null }] };
   assert.deepEqual(codes(apple(locale('en-US', filled, [unknown]))), []);

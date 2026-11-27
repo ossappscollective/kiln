@@ -1,4 +1,5 @@
 import { PLATFORMS, type Platform, supports } from '../platform.ts';
+import { measuredPathsOf, storeImageFacts, validateImageFacts } from '../images/facts.ts';
 import { STORE_VIEW_TTL_MS } from '../timings.ts';
 import {
   APPLE_DISPLAY_TYPES,
@@ -13,7 +14,6 @@ import {
   type AssetStore,
   deviceLabel,
   PLAY_DEVICES,
-  validateAssets,
 } from './store-asset-specs.ts';
 
 /**
@@ -147,49 +147,9 @@ export function primaryStoreSet<T extends { device: string | null; target: strin
  * the same list `validateAssets` gives for repository files, with `path` = `locale/kind/device#position` so a message can name its image.
  */
 export function checkStoreImages(view: Pick<StoreImagesView, 'platform' | 'sets'>): AssetProblem[] {
-  const store = assetStoreOf(view.platform);
-  const facts = [];
-  const measured = new Set<string>();
-  for (const set of view.sets) {
-    for (const f of set.files) {
-      const ext = (f.name ?? '').split('.').pop()?.toLowerCase() ?? '';
-      const path = `${set.locale}/${set.kind}/${set.device ?? 'all'}#${f.position}`;
-      if (f.sizeFrom === 'header') measured.add(path);
-      facts.push({
-        path,
-        store,
-        locale: set.locale,
-        kind: set.kind,
-        device: set.device,
-        // The store's own group (the one rule of the count: per set, never summed across sibling display types; see `assetFactsOf`).
-        set: store === 'app_store' ? set.target : null,
-        order: f.position,
-        bytes: f.bytes,
-        width: f.width,
-        height: f.height,
-        format: null,
-        extension: ext === 'jpg' ? 'jpeg' : ext,
-        hasAlpha: null,
-        read: f.width !== null && f.height !== null ? ('read' as const) : ('not_read' as const),
-      });
-    }
-  }
-  const found = validateAssets(store, facts);
-  if (measured.size === 0) return found;
-  // A size this server measured itself (the store gave none) is a reading, not a fact of the store: whatever it finds is a note,
-  // never an error or a warning, so a wrong reading cannot block anything or frighten anyone.
-  const rank = { error: 0, warning: 1, info: 2 } as const;
-  return found
-    .map((p) =>
-      p.path !== undefined && measured.has(p.path) && p.severity !== 'info'
-        ? {
-            ...p,
-            severity: 'info' as const,
-            message: `${p.message} (The size was read from the file header, as the store gives none, so this is a note.)`,
-          }
-        : p,
-    )
-    .sort((a, b) => rank[a.severity] - rank[b.severity]);
+  // The one facts builder and the one judging (images/facts.ts): path `locale/kind/device#position`, the store's group per image, and a
+  // size read from a file header is only ever a note.
+  return validateImageFacts(assetStoreOf(view.platform), storeImageFacts(view), measuredPathsOf(view));
 }
 
 // ---------------------------------------------------------------------------------------------

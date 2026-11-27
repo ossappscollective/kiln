@@ -7,6 +7,7 @@ import {
   supports,
 } from '../platform.ts';
 import type { ReleaseFieldId, StagedReleaseFieldView } from '../release/release-fields.ts';
+import { limitOf } from '../images/limits.ts';
 import {
   ASSET_KIND_LABELS,
   ASSET_RULES,
@@ -252,8 +253,7 @@ export function assetSlotSupport(platform: Platform, slot: AssetSlot): SlotSuppo
 
 /** The most files one set can hold (a push replaces the whole set), from the stores' documented limits. */
 export function slotMaxFiles(platform: Platform, slot: AssetSlot): number {
-  if (slot.kind === 'screenshot') return byFamily(platform, { apple: 10, google: 8 });
-  return 1;
+  return limitOf(assetStoreOf(platform), slot.kind, slot.device).stagedMax;
 }
 
 export const assetStoreOf = (platform: Platform): AssetStore => listingStoreOf(platform);

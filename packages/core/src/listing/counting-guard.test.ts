@@ -41,7 +41,7 @@ test('only these modules call the validators; each builds its facts from the sam
     'apps/server/src/modules/listing/asset-index.ts', // the repository's files
     'apps/server/src/modules/publish/staged-changes.ts', // what a push would stage
     'apps/server/src/modules/publish/staged-sets.ts', // one staged set
-    'packages/core/src/listing/asset-sync.ts', // the store's own images (`checkStoreImages`)
+    'packages/core/src/images/facts.ts', // the store's own images (`checkStoreImages` -> `validateImageFacts`) and a prediction
     'packages/core/src/listing/draft-readiness.ts', // a draft read (`assetFactsOf`)
     'packages/core/src/listing/store-asset-specs.ts',
   ]);
@@ -51,11 +51,14 @@ test('only these modules call the validators; each builds its facts from the sam
   ]);
 });
 
-test('facts built from the store\'s sets carry the set (the key of the count), in both places that read a store', () => {
+test('facts built from the store\'s sets carry the set (the key of the count): ONE builder, used by both places that read a store', () => {
+  const builder = readFileSync(join(root, 'packages/core/src/images/facts.ts'), 'utf8');
   const asset = readFileSync(join(root, 'packages/core/src/listing/asset-sync.ts'), 'utf8');
   const draft = readFileSync(join(root, 'packages/core/src/listing/draft-readiness.ts'), 'utf8');
-  assert.match(asset, /set: store === 'app_store' \? set\.target : null/);
-  assert.match(draft, /set: content\.store === 'app_store' \? set\.target : null/);
+  assert.match(builder, /set: input\.store === 'app_store' \? \(input\.group \?\? null\) : null/);
+  assert.match(asset, /storeImageFacts\(view\)/);
+  assert.match(draft, /assetFact\(\{/);
+  assert.match(draft, /group: set\.target/);
 });
 
 test('no screen or server module counts the images of a store set against the limit itself', () => {

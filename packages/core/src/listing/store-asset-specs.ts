@@ -613,7 +613,15 @@ const rule = (id: string): AssetRule => ASSET_RULES[id] as AssetRule;
 const countKey = (a: Pick<AssetFacts, 'locale' | 'kind' | 'device' | 'set'>) =>
   `${a.locale}\u0000${a.kind}\u0000${a.device ?? ''}\u0000${a.set ?? ''}`;
 
-const maxFor = (store: AssetStore, kind: AssetKind): { max: number; rule: string } | null => {
+/**
+ * The count limit of one STORE set of a kind (screenshots, previews): the number and the id of its rule, or null for a kind with no
+ * documented count (icons, graphics). The one table; `limitOf` (images/limits.ts) is the API to use, and `slotMaxFiles` of staged-changes.ts
+ * reads it (it used to retype 10 and 8).
+ */
+export const assetCountLimit = (
+  store: AssetStore,
+  kind: AssetKind,
+): { max: number; rule: string } | null => {
   if (store === 'app_store') {
     if (kind === 'screenshot') return { max: 10, rule: 'apple.screenshot.count' };
     if (kind === 'preview') return { max: 3, rule: 'apple.preview.count' };
@@ -631,7 +639,7 @@ export function summarizeAssets(store: AssetStore, assets: readonly AssetFacts[]
     const key = countKey(a);
     let set = sets.get(key);
     if (!set) {
-      const limit = maxFor(store, a.kind);
+      const limit = assetCountLimit(store, a.kind);
       set = {
         locale: a.locale,
         kind: a.kind,

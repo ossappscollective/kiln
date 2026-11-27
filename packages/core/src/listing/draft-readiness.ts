@@ -1,3 +1,4 @@
+import { assetFact } from '../images/facts.ts';
 import {
   APP_STORE_FIELD_SPECS,
   type ListingFieldSpec,
@@ -90,29 +91,32 @@ const specsOf = (store: ListingStore): Record<string, ListingFieldSpec> =>
 export const draftTextFields = (store: ListingStore): string[] =>
   Object.keys(store === 'app_store' ? APPLE_VERSION_LOCALIZATION_ATTRIBUTES : PLAY_LISTING_MEMBERS);
 
-/** The assets of a draft as the facts `validateAssets` reads (sizes only: the bytes of a store image are never read). */
+/**
+ * The assets of a draft as the facts `validateAssets` reads (sizes only: the bytes of a store image are never read). Built by the one
+ * facts builder (images/facts.ts): the same path as every other screen (`locale/kind/device#position`, the position counting on across
+ * the sibling sets of one display) and the store's own set in `set`, so Apple's count is per set, not per display.
+ */
 export function assetFactsOf(content: DraftContent): AssetFacts[] {
   const out: AssetFacts[] = [];
   for (const locale of content.locales) {
+    const placed = new Map<string, number>();
     for (const set of locale.assets) {
-      set.images.forEach((image, index) => {
-        out.push({
-          path: `${locale.locale}/${set.target}/${index + 1}`,
-          store: content.store,
-          locale: locale.locale,
-          kind: set.kind,
-          device: set.device,
-          // The store's own set: App Store sets (placement groups) are counted one by one, Apple's limit is per set, not per display.
-          set: content.store === 'app_store' ? set.target : null,
-          order: index + 1,
-          bytes: null,
-          width: image.width,
-          height: image.height,
-          format: null,
-          extension: 'png',
-          hasAlpha: null,
-          read: image.width !== null && image.height !== null ? 'read' : 'not_read',
-        });
+      const display = `${set.kind}:${set.device ?? ''}`;
+      set.images.forEach((image) => {
+        const position = (placed.get(display) ?? 0) + 1;
+        placed.set(display, position);
+        out.push(
+          assetFact({
+            store: content.store,
+            locale: locale.locale,
+            kind: set.kind,
+            device: set.device,
+            group: set.target,
+            position,
+            width: image.width,
+            height: image.height,
+          }),
+        );
       });
     }
   }
