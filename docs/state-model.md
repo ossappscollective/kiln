@@ -318,7 +318,7 @@ Decisions to review:
 
 | Fact | Owner | Replaces |
 | ---- | ----- | -------- |
-| Count limit of a slot, saved and staged | `limitOf(store, kind, device?)` giving `{ max, rule, stagedMax }`; `assetCountLimit` in `listing/store-asset-specs.ts` | `maxFor` (`store-asset-specs.ts:616`), `slotMaxFiles` (`staged-changes.ts:254`, now a delegate), web `staged.ts:427`, `AssetSetEditor.svelte:95`, `over-limit.ts:324` |
+| Count limit of a slot, saved and staged | `limitOf(store, kind, device?)` giving `{ max, rule, stagedMax }`; `assetCountLimit` in `listing/store-asset-specs.ts` | `maxFor` (`store-asset-specs.ts:616`), `slotMaxFiles` (`staged-changes.ts:254`, deleted in Wave 2), web `staged.ts:427`, `AssetSetEditor.svelte:95`, `over-limit.ts:324` |
 | Display sets (an iPad 13" display spans several Apple placement groups, each with its own limit of 10) | `groupStoreImages`, `displayKeyOf`, `findDisplay`, `findStoreImage`, `refsOfDisplay` | `graphic-sets.ts:81-116,114,159,118`, `storeSideOf` (`store-images.ts:326`), `asset-diff.ts:141-157`, `staged-store-seed.ts:37-41`, `asset-sync-routes.ts:530-545`, `cart.ts:228-236,607-621,229`, `asset-pull.ts:138-148` |
 | One image fact for every check (path `locale/kind/device#position`) | `assetFact`, `storeImageFacts`, `displayImageFacts`, `validateImageFacts`, `measuredPathsOf`, `imagePathOf` | the four builders `checkStoreImages` (`asset-sync.ts`, now a delegate), `assetFactsOf` (`draft-readiness.ts`), `staged-changes.ts:263-280`, `asset-index.ts:331-351` |
 | Compare sentence and compare rows (carry `storeRef`, so a pull needs no second lookup) | `compareRows`, `compareDisplay`, `compareSentence`, `pullRefOf`, `pullRefsOfDisplay` | `compareSet` (`asset-sync.ts:287`), `pullableKeys` (`sync.ts:294`), `AssetCompareDialog:132`, `compareSummary` (`sync.ts:242`), `assetsLine` (`release-assets.ts:14`) |
@@ -365,10 +365,42 @@ Decisions to review:
 - **Notes order**: the first non-empty text in `staged` (unpushed only), `store`, `plan`, `repo`, `section` ships; texts that differ are
   reported as conflicts with every candidate, never merged or dropped.
 
+#### Store images in the web (Wave 2): ONE store, `apps/web/src/lib/app-state/store-images-store.svelte.ts`
+
+Every screen that shows what the store holds (the Graphics tab, the Assets tab, the comparison and pull dialogs, the Assets step of
+Prepare release, the staged tray, the attention list, the pending cart) reads it from `storeImagesStore` and from nothing else; nothing
+else calls `appStoreImages`, `appAssets`, `appAssetDiff` or the release asset proposal (`images-wiring.test.ts` pins it, and the component
+guard has no `images` entry left). The store keeps the last read per workspace, app and channel (the plain `storeMediaCache` behind it) and
+derives, in plain TypeScript (`store-images.ts`, called by the consistency harness too): `displays`, `problems` (the store as it IS,
+`checkStoreImages`), `predicted` and `problemsAfter` (the store AFTER the staged changes, `predictedImagesOf`), `side` (`storeSideOf`, from
+the view the browser holds), `graphicSets`, `overLimit` and `pullChoices`. `readAt` is the one read clock (`view.readAt`); `checking` says a
+read is on its way; `channel` (App Store draft or live) is chosen once for every surface. `invalidate()` events (`sync`, `publish`,
+`release_created`, `store_read`) make the kept view and comparison old; the screens that show them read again (`watchDiff`). A view older
+than `IMAGE_REF_TTL_MS` is dropped before it is drawn (its picture refs would answer `ref_expired`).
+
+Decisions made in Wave 2:
+
+- **Display vs group.** A display (iPad 13") spans several placement groups. The Graphics tab shows the display merged (12 = 10 + 2); the
+  Assets tab and the pull show the PRIMARY group (`primaryStoreSet`: what a push writes and what the repository is paired with) and say so
+  ("main group APP_IPAD_PRO_3GEN_129"). A staged set is one display and holds at most `limitOf(...).stagedMax`; a 10 + 2 display does not fit
+  one staged set and is trimmed in ONE step (one removal leaves 11 and gets `set_too_large`). Each store group is judged alone.
+- **Pull semantics (Apple).** A pull takes the primary group of a display: the group Apple shows for the device size. The legacy group is
+  a fallback the store keeps, not another set of screenshots, so it is never pulled (`primary: false` rows of the comparison have nothing
+  to pair with) and the dialog says how many images stay in the store. An image is named by its `storeRef` (the server finds it by ref) and
+  the key is `set#storePosition`; the row's place in the comparison is never an address. The store's positions are a running counter per
+  device across the sibling groups and are never used as a repository index.
+- **Counts of staged graphic sets** use the unpushed family (`stagedCountsOf(...).unpushedSets`) wherever they mean "what a push would
+  send": the tray's text, the Assets step, the stage marks per locale, the attention list. A tray that holds only sets that were pushed
+  already says "In the store draft". `itemCount` (what the tray lists) still counts every row.
+- **Version.** Images are judged and shown for the editable version, else the live one (the same rule on the Graphics tab, the readiness and
+  the push: a push can only edit an editable version).
+- **Unknown size** is an `unplaced` warning, never a count in a group; **`limitOf` is the only limit table** (`maxFor`, `slotMaxFiles`
+  and the `8 * MiB` literal are gone: `ASSET_UPLOAD_MAX_BYTES` is the upload cap).
+
 ### Old names kept
 
 The previous exports stay, as delegates, so nothing breaks before Wave 2: `compareDottedVersions`, `isDottedVersion`, `nextVersion`,
-`newestDottedVersion`, `sameLocale`, `normalizeLocale`, `isPlanLocale`, `slotMaxFiles`, `slotLimitProblem`, `checkStoreImages`,
+`newestDottedVersion`, `sameLocale`, `normalizeLocale`, `isPlanLocale`, `slotLimitProblem`, `checkStoreImages`,
 `assetFactsOf`, `validateAssets`, `summarizeAssets`, `validateListing`, `countCharacters`, `countBytes`, `compareText`, `compareSet`,
 `primaryStoreSet`, `releaseNotesLimit`, `releaseNotesLength`, and `insights/engine.ts` `compareVersions` (the same binding re-exported). Those
 with a `@deprecated` tag point at the owner; `facts-owners.test.ts` lists them under KEPT and checks that they answer as the owner does.

@@ -424,7 +424,7 @@ export function storeImagesViewOf(w: World, appId: string): StoreImagesView {
       };
     });
     return {
-      platform: 'apple' as const,
+      platform: rec.platform,
       locale: g.locale,
       kind: 'screenshot' as const,
       device: g.device,
@@ -435,7 +435,7 @@ export function storeImagesViewOf(w: World, appId: string): StoreImagesView {
   });
   return {
     appId,
-    platform: (rec.platform === 'android' ? 'google' : 'apple') as StoreImagesView['platform'],
+    platform: rec.platform,
     store: (rec.platform === 'android' ? 'google_play' : 'app_store') as StoreImagesView['store'],
     version: { id: 'v1', versionString: '1.19.0', state: 'PREPARE_FOR_SUBMISSION', editable: true },
     readAt: w.now,

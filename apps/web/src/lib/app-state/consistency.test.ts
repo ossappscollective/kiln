@@ -43,7 +43,8 @@ test('the surfaces named by the contract are all registered', () => {
     'fixBar',
   ])
     assert.ok(ids.includes(want), `surface ${want} is not registered in projections.ts`);
-  for (const s of SURFACES) assert.ok(s.mirrors.length > 0 && s.components.length > 0, `${s.id} must say its components and where its logic lives (mirrors)`);
+  // A surface says its components; `mirrors` lists the places that still compute the fact their own way (none once the surface calls the owner its components call).
+  for (const s of SURFACES) assert.ok(s.components.length > 0, `${s.id} must say its components`);
 });
 
 test('every projected fact key belongs to a registered fact family', () => {

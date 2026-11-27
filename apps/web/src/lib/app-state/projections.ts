@@ -1,9 +1,8 @@
-import { computeReadiness, primaryStoreSet, type StoreImagesView } from '@kiln/core';
+import { computeReadiness, findDisplay, groupStoreImages, stagedCountsOf } from '@kiln/core';
 import { groupApps } from '../app-groups.ts';
 import { stagedUnpushedCount } from '../app-attention.ts';
 import { buildOverviewRows } from '../app-overview.ts';
 import { platformStatusLines } from '../app-status.ts';
-import { buildGraphicSets } from '../assets/graphic-sets.ts';
 import { appNavCounts } from '../nav-badges.ts';
 import { platformGroups, blockingItems } from '../pending.ts';
 import { blockerLines, submitBlockedOnly } from '../publish-failure.ts';
@@ -25,6 +24,7 @@ import {
   stallLeftBehind,
 } from './candidates.ts';
 import { lineOfRecords } from './facts.ts';
+import { deriveImagesFacts } from './store-images.ts';
 import {
   cartItemCount,
   cartSummaryOf,
@@ -194,6 +194,32 @@ export const SURFACES: readonly Surface[] = [
       if (line !== null && line.count > 0) out.pendingCount = line.count;
       if (line !== null && line.blocking > 0) out.blockingCount = line.blocking;
       return out;
+    },
+  },
+  {
+    id: 'boardCard',
+    components: ['components/dashboard/Board.svelte', 'components/dashboard/BoardCard.svelte'],
+    mirrors: ['components/dashboard/Board.svelte:113 appStateStore.lineOf(workspaceId, [card.appId]) (the model line of the record)'],
+    project(w) {
+      const out: Facts = {};
+      // One card per record: each shows the model's line for its own record (a count of 0 is not drawn).
+      for (const r of w.records) {
+        const line = lineOf(w, [r.id]);
+        if (line !== null && line.count > 0) out[`pendingCount:${r.id}`] = line.count;
+      }
+      return out;
+    },
+  },
+  {
+    id: 'alertPendingStale',
+    components: ['components/alerts/AlertInbox.svelte'],
+    mirrors: [
+      'apps/server/src/modules/alerts/evaluator.ts pendingStaleFound (the staged ITEMS a push would write, modules/publish/staged-unpushed.ts: one per text, set and field)',
+    ],
+    project(w) {
+      // The alert says how many staged items wait (the cart rule, never a row per file); it names no count when none waits.
+      const n = w.records.reduce((sum, r) => sum + cartItemCount(w, r.id), 0);
+      return n > 0 ? { stagedUnpushed: n } : {};
     },
   },
   {
@@ -505,10 +531,11 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'stagedTray',
     components: ['components/listing/StagedTray.svelte', 'components/listing/StagedTrayApp.svelte'],
-    mirrors: ['lib/staged.ts:210 itemCount (pushed rows included)'],
+    mirrors: [],
     project(w) {
       const out: Facts = { stagedItems: inScope(w).reduce((n, m) => n + itemCount(stagedViewOf(w, m.id)), 0) };
-      const sets = inScope(w).reduce((n, m) => n + stagedViewOf(w, m.id).assets.length, 0);
+      // The graphic sets a push would send (core `stagedCountsOf`, the family the tray's text uses).
+      const sets = inScope(w).reduce((n, m) => n + stagedCountsOf(stagedViewOf(w, m.id)).unpushedSets, 0);
       if (sets > 0) out.stagedAssetSets = sets;
       return out;
     },
@@ -516,7 +543,7 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'releaseStepStaged',
     components: ['components/release/stepper/StepAssets.svelte', 'components/release/stepper/ReleaseStepper.svelte'],
-    mirrors: ['components/release/stepper/StepAssets.svelte:100 sets = view.assets.length (pushed included)', 'lib/release-stepper.ts:170 stagedFacts (assets/total include pushed; unpushed does not)'],
+    mirrors: [],
     project(w) {
       const out: Facts = {};
       let assets = 0;
@@ -524,7 +551,7 @@ export const SURFACES: readonly Surface[] = [
       let unpushed = 0;
       for (const m of inScope(w)) {
         const f = stagedFacts(stagedViewOf(w, m.id));
-        assets += f.assets;
+        assets += f.unpushedAssets;
         total += f.total;
         unpushed += f.unpushed;
       }
@@ -537,17 +564,16 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'pendingCartGraphics',
     components: ['components/app/PendingCart.svelte'],
-    mirrors: ['apps/server/src/modules/publish/cart.ts:228-236 `before` = the SUM of every sibling set of the last store view', 'apps/server/src/modules/publish/cart.ts:229 !x.pushed'],
+    mirrors: [],
     project(w) {
       const out: Facts = {};
       let sets = 0;
       for (const m of inScope(w)) {
-        const view = storeImagesViewOf(w, m.id);
+        // The cart's "before" is the display as the store holds it: every group of it (the cart reads `groupStoreImages` too).
+        const displays = groupStoreImages(storeImagesViewOf(w, m.id));
         for (const a of stagedViewOf(w, m.id).assets.filter((x) => !x.pushed)) {
           sets += 1;
-          const before = view.sets
-            .filter((s) => s.locale === a.locale && s.kind === a.slot.kind && s.device === a.slot.device)
-            .reduce((n, s) => n + s.files.length, 0);
+          const before = findDisplay(displays, { locale: a.locale, kind: a.slot.kind, device: a.slot.device })?.counts.merged ?? 0;
           if (before > 0) out[`imageCount:${displayKey(a.locale, a.slot.device)}`] = before;
           out[`stagedSetFiles:${displayKey(a.locale, a.slot.device)}`] = a.files.length;
         }
@@ -559,23 +585,20 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'graphicsTab',
     components: ['components/assets/StoreGraphics.svelte'],
-    mirrors: [
-      'components/assets/StoreGraphics.svelte:89 checkStoreImages(view) in the browser',
-      'components/assets/StoreGraphics.svelte:107 imageCount = sets.reduce(rows.length) (the display merged)',
-      'lib/assets/graphic-sets.ts:99-118 buildGraphicSets (rows of every sibling group; pushed staged sets skipped)',
-    ],
+    mirrors: [],
     project(w) {
       const out: Facts = {};
       let staged = 0;
       for (const m of inScope(w).filter((r) => r.platform !== 'android')) {
-        const view = storeImagesViewOf(w, m.id);
-        const locales = buildGraphicSets({
+        // What the tab draws: the web store's derivation (store-images.ts), from the view and the staged view.
+        const facts = deriveImagesFacts({
           platform: m.platform,
-          view,
+          channel: 'editable',
+          view: storeImagesViewOf(w, m.id),
           staged: stagedViewOf(w, m.id),
           urls: { thumb: () => '', file: () => '', blob: () => '', repo: () => '' },
         });
-        for (const l of locales)
+        for (const l of facts.graphicSets)
           for (const set of l.sets) {
             const key = displayKey(set.locale, set.device);
             if (set.staged) {
@@ -592,21 +615,22 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'assetsTab',
     components: ['components/assets/AssetsTab.svelte', 'components/assets/AssetGallery.svelte'],
-    mirrors: [
-      'apps/server/src/modules/listing/store-images.ts:365 storeSideOf (ONE primary set per display)',
-      'lib/assets/assets.ts:387 compareWithStore (entry.count next to the repository count)',
-    ],
+    mirrors: [],
     project(w) {
       const out: Facts = {};
       for (const m of inScope(w).filter((r) => r.platform !== 'android')) {
-        const view = storeImagesViewOf(w, m.id);
-        const by = new Map<string, StoreImagesView['sets']>();
-        for (const s of view.sets) by.set(displayKey(s.locale, s.device), [...(by.get(displayKey(s.locale, s.device)) ?? []), s]);
-        for (const [key, list] of by) {
-          const own = primaryStoreSet(list);
-          if (!own) continue;
-          out[`imageCount:${key}`] = own.files.length;
-          if (list.length > 1) for (const x of list) out[`imageGroupCount:${key}/${x.target}`] = x.files.length;
+        // The counts next to the repository's (`facts.side`, core `storeSideOf`): the PRIMARY group of a display, named as such.
+        const side = deriveImagesFacts({
+          platform: m.platform,
+          channel: 'editable',
+          view: storeImagesViewOf(w, m.id),
+          staged: null,
+          urls: { thumb: () => '', file: () => '', blob: () => '', repo: () => '' },
+        }).side;
+        for (const c of side?.counts ?? []) {
+          const key = displayKey(c.locale, c.device);
+          if (c.groups === undefined) out[`imageCount:${key}`] = c.count;
+          else out[`imageGroupCount:${key}/${c.target}`] = c.count;
         }
       }
       return out;
@@ -615,21 +639,16 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'releaseStepAssets',
     components: ['components/release/stepper/StepAssets.svelte'],
-    mirrors: [
-      'apps/server/src/modules/listing/asset-diff.ts:154-170 buildAssetDiff (the primary set per display, each sibling its own row)',
-      'lib/asset-compare.ts:93-115 compareState (one row per set, named by its group when several)',
-    ],
+    mirrors: [],
     project(w) {
       const out: Facts = {};
       for (const m of inScope(w).filter((r) => r.platform !== 'android')) {
-        const view = storeImagesViewOf(w, m.id);
-        const by = new Map<string, StoreImagesView['sets']>();
-        for (const s of view.sets) by.set(displayKey(s.locale, s.device), [...(by.get(displayKey(s.locale, s.device)) ?? []), s]);
-        for (const [key, list] of by) {
-          const own = primaryStoreSet(list);
-          if (!own) continue;
-          if (list.length > 1) for (const x of list) out[`imageGroupCount:${key}/${x.target}`] = x.files.length;
-          else out[`imageCount:${key}`] = own.files.length;
+        // The comparison pairs each display through core's `groupStoreImages` (the server's diff and the table of the step read the same
+        // groups): a display of several groups is one row per group, named by it; a display of one group is its count.
+        for (const d of groupStoreImages(storeImagesViewOf(w, m.id))) {
+          const key = displayKey(d.locale, d.device);
+          if (d.groups.length > 1) for (const g of d.groups) out[`imageGroupCount:${key}/${g.target}`] = g.count;
+          else out[`imageCount:${key}`] = d.counts.primary;
         }
       }
       return out;
