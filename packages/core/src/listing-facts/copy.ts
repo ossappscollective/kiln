@@ -36,6 +36,8 @@ export type CopyChannel = {
   observedAt?: number | null | undefined;
   /** The store version the values were read from (App Store), when known. */
   sourceRef?: string | null | undefined;
+  /** What the read said about the app as a whole; only the declared default language is looked at (`declaredLocaleOf`). */
+  sections?: { details?: { defaultLanguage?: string | undefined } | undefined } | undefined;
 };
 
 export type CopyIntent = 'shown' | 'editable' | 'live';
@@ -150,3 +152,27 @@ export function copyText(view: StoreCopyView, locale: string, field: string): st
   const value = copy.fields[field];
   return value === undefined ? null : value;
 }
+
+/** The `locale -> field -> text` record of a view: what a planner or a check takes as "the store's texts". A fresh copy. */
+export function copyTextsOf(view: StoreCopyView): Record<string, Record<string, string>> {
+  const out: Record<string, Record<string, string>> = {};
+  for (const l of view.locales) out[l.locale] = { ...l.fields };
+  return out;
+}
+
+/**
+ * The locale the STORE says is the app's base language, or null. Google Play: `edits.details.defaultLanguage`; App Store: the app's
+ * `primaryLocale` (the connector puts both in `sections.details.defaultLanguage`). Read from the live copy, else the editable one.
+ * `baseLocaleOf(locales, declared)` then finds it among the locales (equivalents count) or falls back to English and the first.
+ */
+export function declaredLocaleOf(channels: readonly CopyChannel[]): string | null {
+  for (const name of ['live', 'editable'] as const) {
+    const value = channelOf(channels, name)?.sections?.details?.defaultLanguage;
+    if (typeof value === 'string' && value.trim() !== '') return value.trim();
+  }
+  return null;
+}
+
+/** The channel (`from`) a locale of a view was read from, so a consumer can take that copy's sections (media) too. */
+export const channelOfLocale = (view: StoreCopyView, locale: string): CopyChannelName | null =>
+  pickCopy(view, locale)?.from ?? null;

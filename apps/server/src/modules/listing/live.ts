@@ -17,12 +17,14 @@ import {
   type ListingSectionName,
   type ListingSections,
   type Platform,
+  pickCopy,
   SECTION_LOCALE,
   type SectionCompare,
   sectionField,
   sectionFromText,
   sectionOfField,
   sectionToText,
+  storeCopyView,
   supports,
 } from '@kiln/core';
 import { type Database, nullableNumber, nullableString, type Sql } from '@kiln/db';
@@ -952,14 +954,22 @@ export async function getDrift(
   for (const set of [storeLocales.live, storeLocales.editable]) {
     for (const code of set) if (code !== DEFAULT_FALLBACK_LOCALE) locales.add(code);
   }
-  const chosen = channel ?? 'live';
+  // Which store copy holds a locale and which one its values are read from: `storeCopyView` (intent `shown`), the one pick of the
+  // channel every consumer shares (the live copy where it has the locale, else the draft).
+  const shownCopies = storeCopyView(
+    (['live', 'editable'] as const)
+      .filter((name) => storeLocales[name].size > 0)
+      .map((name) => ({
+        channel: name,
+        locales: Object.fromEntries([...storeLocales[name]].map((code) => [code, {}])),
+      })),
+    { intent: 'shown' },
+  );
   const storesOf = (locale: string): ('live' | 'editable')[] =>
-    (['live', 'editable'] as const).filter((name) => storeLocales[name].has(locale));
-  /** The copy a locale's store values are read from: the chosen one, else the other one that has the locale. */
-  const copyOf = (locale: string): 'live' | 'editable' => {
-    const held = storesOf(locale);
-    return held.includes(chosen) ? chosen : (held[0] ?? chosen);
-  };
+    pickCopy(shownCopies, locale)?.held ?? [];
+  /** The copy a locale's store values are read from. */
+  const copyOf = (locale: string): 'live' | 'editable' =>
+    pickCopy(shownCopies, locale)?.from ?? channel ?? 'live';
 
   type Picked = {
     locale: string;

@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { COPY_INTENT_CONSUMERS, type CopyChannel, copyText, pickCopy, storeCopyView } from './copy.ts';
+import {
+  channelOfLocale,
+  COPY_INTENT_CONSUMERS,
+  type CopyChannel,
+  copyTextsOf,
+  copyText,
+  declaredLocaleOf,
+  pickCopy,
+  storeCopyView,
+} from './copy.ts';
 
 /**
  * The channel intent, once (audit listing.md F1/F2). Scenario: iOS app, live 1.0 and a draft 1.1; fr-FR exists only in the draft; de-DE
@@ -91,4 +100,27 @@ test('every consumer is assigned to ONE intent', () => {
   assert.ok(COPY_INTENT_CONSUMERS.editable.includes('staged-baseline'));
   assert.ok(COPY_INTENT_CONSUMERS.shown.includes('listing-grid'));
   assert.ok(COPY_INTENT_CONSUMERS.live.includes('drift-store-column'));
+});
+
+test('declaredLocaleOf: the live copy says it, else the draft; blank is not a declaration', () => {
+  const live = { channel: 'live' as const, locales: {}, sections: { details: { defaultLanguage: 'de-DE' } } };
+  const draft = { channel: 'editable' as const, locales: {}, sections: { details: { defaultLanguage: 'fr-FR' } } };
+  assert.equal(declaredLocaleOf([live, draft]), 'de-DE');
+  assert.equal(declaredLocaleOf([draft]), 'fr-FR');
+  assert.equal(declaredLocaleOf([{ channel: 'live', locales: {}, sections: { details: { defaultLanguage: '  ' } } }]), null);
+  assert.equal(declaredLocaleOf([{ channel: 'live', locales: {} }]), null);
+});
+
+test('copyTextsOf and channelOfLocale: the planner record and the copy a locale was read from', () => {
+  const view = storeCopyView(
+    [
+      { channel: 'live', locales: { 'en-US': { name: 'A' } } },
+      { channel: 'editable', locales: { 'en-US': { name: 'B' }, 'fr-FR': { name: 'C' } } },
+    ],
+    { intent: 'shown' },
+  );
+  assert.deepEqual(copyTextsOf(view), { 'en-US': { name: 'A' }, 'fr-FR': { name: 'C' } });
+  assert.equal(channelOfLocale(view, 'fr-FR'), 'editable');
+  assert.equal(channelOfLocale(view, 'en-us'), 'live');
+  assert.equal(channelOfLocale(view, 'ja'), null);
 });

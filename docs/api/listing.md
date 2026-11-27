@@ -111,7 +111,7 @@ section name there is a `422 invalid_field`).
 | `categories`   | `primaryCategory`, `secondaryCategory`, `primarySubcategoryOne/Two`, `secondarySubcategoryOne/Two` of the live app info, as the category ids (`GAMES`, `GAMES_CARD`) | **Not in the API.** None of the Play resources has an app category; it is set in Play Console only, so there is no section                                            |
 | `ageRating`    | `ageRatingDeclaration` of the app info (its answers, such as `violenceCartoonOrFantasy: "NONE"`) and the label `AppInfo.appStoreAgeRating`                           | **Not read.** None of the `edits` resources this tool reads has one (as far as the reference pages say); the content rating questionnaire is answered in Play Console |
 | `privacy`      | `privacyChoicesUrl` per locale (`appInfoLocalizations`). The privacy **policy** URL is the text field `privacy_url`                                                  | none                                                                                                                                                                  |
-| `details`      | `copyright` of the version                                                                                                                                           | `edits.details`: default language, contact email and website. The contact **phone number is not read**                                                                |
+| `details`      | `copyright` of the version, and `defaultLanguage`: the app's `primaryLocale` (`GET /v1/apps/{id}`)                                                                  | `edits.details`: default language, contact email and website. The contact **phone number is not read**                                                                |
 | `media`        | screenshot sets and preview sets per locale and device type: **counts, file names and delivery states only**                                                         | `edits.images.list` per language and image type: **ids and counts only** (screenshots, icon, feature graphic, TV banner)                                              |
 | `releaseNotes` | none (`release_notes` is the text field `whatsNew`)                                                                                                                  | the release notes of the current release of each track, per language (`edits.tracks`)                                                                                 |
 
@@ -316,6 +316,38 @@ With `compareRepo` off, `GET .../listing/drift` answers `compare: { repo: false,
 answer, every field has status `identical` and `repo.value` null, nothing is `missing` or `differs`, and a field is still judged by the store
 value alone (`problems.live`: limits, required fields). With `compareMedia` off the `media` section is not compared. Nothing is written to a
 store or a repository either way.
+
+## `GET /apps/:id/listing/store`
+
+THE read of the store side of an app's listing (`listing.read`). The Listing page, the checks and fixes, Insights, ASO, the release stepper's
+notes and the publish summary read this one answer instead of reading `live` and `drift` side by side and each picking a channel by hand.
+Reads the database; nothing is sent to a store. Query: `fields` (field ids whose texts the copies carry, comma separated, or `all`; default
+none) and `drift=0` (leaves the drift view out).
+
+```json
+{
+  "appId": "6f1c…", "platform": "ios",
+  "readAt": 1790000000000, "error": null, "warnings": [], "schedule": { "enabled": false, "...": "as in live" },
+  "channels": [ "as in listing/live: the raw copies and their sections" ],
+  "locales": ["de-DE", "en-US", "fr-FR"],
+  "copies": {
+    "shown":    { "intent": "shown",    "codes": ["de-DE","en-US","fr-FR"], "channels": { "live": true, "editable": true }, "locales": [{ "locale": "fr-FR", "from": "editable", "held": ["editable"], "fields": {} }] },
+    "editable": { "...": "the draft a push writes into; the live copy stands in when the store has no draft" },
+    "live":     { "...": "only what users see: a locale only the draft has is absent" }
+  },
+  "defaultLocale": { "locale": "de-DE", "declared": "de-DE", "source": "declared", "reason": "declared" },
+  "drift": { "...": "the answer of listing/drift, or null with drift=0" }
+}
+```
+
+- **Intents.** `shown` is the union of both copies (each locale read from the live copy where it has it, else from the draft): what a person
+  looks at. `editable` is the draft (the live copy stands in when the store has none): the baseline of a staged text, the notes locales,
+  the fixes. `live` has no fallback: "currently live". `held` says which copies have a locale, so a screen can say "only in the draft".
+  Locales are matched through the equivalence table (App Store `zh-Hans` = Play `zh-CN`); the `default` fallback is never a locale.
+- **`defaultLocale`.** The base language: `declared` is what the store says (Google Play's default language; the App Store's `primaryLocale`
+  of the app, read by the connector from `GET /v1/apps/{id}` and kept as `sections.details.defaultLanguage`), `locale` is the one used (the
+  declared one when it is among the locales, else `en-US`, else another English, else the first), `source` is `declared`, `english` or `first`,
+  `reason` is `declared`, `not_declared` (the store did not say: read the listing again) or `no_locales`.
 
 ## `GET /apps/:id/listing/live`
 

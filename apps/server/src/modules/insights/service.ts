@@ -16,7 +16,6 @@ import {
   type InsightsResult,
   type ListingStore,
   languageCoverage,
-  languageKey,
   normalizeCountryCode,
   type Role,
 } from '@kiln/core';
@@ -25,7 +24,7 @@ import type { ManagedApp } from '../../services/apps.ts';
 import { rankMoveThresholdFor } from '../../services/workspace-settings.ts';
 import { readDaily } from '../analytics/store.ts';
 import { listKeywords } from '../aso/service.ts';
-import { getLiveListing } from '../listing/live.ts';
+import { getStoreListing, sectionsOfLocale } from '../listing/store-view.ts';
 import { listReviews } from '../reviews/service.ts';
 
 /**
@@ -176,30 +175,29 @@ export async function collectInputs(
   } else noAccess.push('keywords');
 
   if (allowed('listing.read')) {
-    const live = await getLiveListing(sql, workspaceId, {
+    // The `shown` copy (the union of the live page and the draft), like the Listing grid: a language only the draft has is checked too.
+    const store = await getStoreListing(sql, workspaceId, {
       id: app.id,
       platform: app.platform,
       identifier: app.identifier,
     });
-    const channel = live.channels.find((c) => c.channel === 'live');
-    if (channel) {
-      const media = channel.sections?.media;
-      const locales: CheckLocaleText[] = Object.keys(channel.locales)
-        .filter((l) => languageKey(l) !== null)
-        .map((locale) => {
-          const sets = media?.screenshots[locale];
-          return {
-            locale,
-            fields: channel.locales[locale] ?? {},
-            hasScreenshots: sets
-              ? sets.reduce((n, s) => n + s.count, 0) > 0
-              : media && !media.truncated
-                ? false
-                : null,
-          };
-        });
+    if (store.copies.shown.locales.length > 0) {
+      const locales: CheckLocaleText[] = store.copies.shown.locales.map(({ locale, fields }) => {
+        const media = sectionsOfLocale(store.live, store.copies.shown, locale)?.media;
+        const sets = media?.screenshots[locale];
+        return {
+          locale,
+          fields,
+          hasScreenshots: sets
+            ? sets.reduce((n, s) => n + s.count, 0) > 0
+            : media && !media.truncated
+              ? false
+              : null,
+        };
+      });
       input.storeLocales = locales.map((l) => l.locale);
-      const baseLocale = channel.sections?.details?.defaultLanguage;
+      // The base locale the store declares (Play `defaultLanguage`, the App Store's primary locale), else English, else the first.
+      const baseLocale = store.defaultLocale.locale;
       input.listing = { locales, ...(baseLocale ? { baseLocale } : {}) };
     }
   } else noAccess.push('listing');
@@ -346,6 +344,8 @@ export type ListingChecksView = {
   store: ListingStore;
   /** Why there are no checks, or null: `no_listing` (the live page was never read). */
   unavailable: 'no_listing' | null;
+  /** The base locale the others are compared with (declared by the store, else English, else the first), or null. */
+  baseLocale: string | null;
   score: number | null;
   issueCount: number;
   /** Problems (to fix), warnings (to review) and tips, across every locale: the numbers the card and the locale panel both say. */
@@ -365,6 +365,7 @@ export async function listingChecksFor(
       appId: ctx.app.id,
       store,
       unavailable: 'no_listing',
+      baseLocale: null,
       score: null,
       issueCount: 0,
       counts: { problems: 0, warnings: 0, tips: 0 },
@@ -379,6 +380,7 @@ export async function listingChecksFor(
     appId: ctx.app.id,
     store,
     unavailable: null,
+    baseLocale: input.listing.baseLocale ?? null,
     score: res.score,
     issueCount: res.issueCount,
     counts: res.counts,

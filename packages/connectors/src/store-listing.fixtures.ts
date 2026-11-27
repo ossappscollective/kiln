@@ -193,3 +193,9 @@ export const googleListingsFull = {
     { title: 'no language, skipped' },
   ],
 };
+
+/** `GET /v1/apps/{id}?fields[apps]=primaryLocale`: the app's base language (the App Store's "default language"). */
+export const applePrimaryLocale = (locale = 'en-US') => ({
+  data: { type: 'apps', id: '100', attributes: { primaryLocale: locale } },
+});
+export const APPLE_PRIMARY_LOCALE_PATH = '/v1/apps/100?fields[apps]=primaryLocale';

@@ -49,6 +49,7 @@ import {
   toListing,
 } from './drift.ts';
 import { getLiveListing, type LiveChannel } from './live.ts';
+import { storeListingOf, storeTextsOf } from './store-view.ts';
 import { canonicalLocale, matchRepoLocale, newRepoLocale } from './locales.ts';
 import { type ListingSourceKind, listingSources, mergedListing } from './sources.ts';
 import { type ListingSelection, type ListingTarget, listListingTargets } from './targets.ts';
@@ -538,7 +539,8 @@ type Prepared = {
   repository: Repository;
   channel: PullChannel;
   live: Awaited<ReturnType<typeof getLiveListing>>;
-  snapshot: LiveChannel;
+  /** The store's texts the pull plans against: the `shown` copy, or the one channel the request named. */
+  storeTexts: Record<string, Record<string, string>>;
   /** The folders the request chose (or the ones that were picked for it). */
   selection: ListingSelection | undefined;
   slot: 'appStore' | 'googlePlay';
@@ -595,7 +597,8 @@ async function preparePull(
     if (refusal) return refusal;
   }
 
-  // The store side: the stored snapshot of the channel.
+  // The store side: the stored snapshot. Without a named channel the pull reads the `shown` copy (every locale of the live page and of the
+  // draft, each from the live copy where it has it), like the Listing grid; a request that names a channel pulls from that copy alone.
   const live = await getLiveListing(db, workspaceId, app);
   const byName = new Map<PullChannel, LiveChannel>(live.channels.map((c) => [c.channel, c]));
   const channel: PullChannel = input.channel ?? (byName.has('live') ? 'live' : 'editable');
@@ -610,6 +613,10 @@ async function preparePull(
       { channels: [...byName.keys()] },
     );
   }
+  const storeTexts =
+    input.channel === undefined
+      ? storeTextsOf(storeListingOf(live).copies.shown)
+      : snapshot.locales;
 
   const chosen = await chooseSelection(ctx.repo, workspaceId, repository.id, app, input.selection);
   if (!chosen.ok) return chosen;
@@ -622,7 +629,7 @@ async function preparePull(
       repository,
       channel,
       live,
-      snapshot,
+      storeTexts,
       selection: chosen.selection,
       slot,
       history,
@@ -633,7 +640,7 @@ async function preparePull(
 
 /** The listing builder of a pull: plans the pull against the listings that `createChangeSet` just read. */
 function pullBuilder(prepared: Prepared, input: PullInput, state: PullState): ListingBuilder {
-  const { repository, snapshot, selection, slot, history } = prepared;
+  const { repository, storeTexts, selection, slot, history } = prepared;
   const { app } = input;
   const hasChoice = selection !== undefined;
   return ({ listings, custom }) => {
@@ -671,7 +678,7 @@ function pullBuilder(prepared: Prepared, input: PullInput, state: PullState): Li
     state.plan = planPull({
       platform: app.platform,
       source: source.source,
-      store: snapshot.locales,
+      store: storeTexts,
       repo: mergedListing(listings)[slot],
       history,
       selection: {

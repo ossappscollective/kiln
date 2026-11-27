@@ -12,6 +12,7 @@ const APP = '100';
 
 function appleSetup(pageSize?: number) {
   const fake = new fx.FakeFetch();
+  fake.on({ method: 'GET', match: lx.APPLE_PRIMARY_LOCALE_PATH, json: lx.applePrimaryLocale() });
   const connector = new AppStoreConnectConnector({
     credential: { keyId: fx.KEY_ID, issuerId: fx.ISSUER_ID, privateKey: appleKey.privateKey },
     fetch: fake.fetch,
@@ -334,11 +335,13 @@ test('App Store: only parameters that Apple documents for each endpoint are sent
       ],
       include: ['appStoreVersion', 'appScreenshotSets', 'appPreviewSets', 'searchKeywords'],
     },
+    // The app's primary locale: one attribute, asked with a sparse field set.
+    '/v1/apps/100': { params: ['fields[apps]'], include: [] },
   };
   const { fake, connector } = appleSetup(5000);
   routes(fake);
   await connector.readListing(APP);
-  assert.equal(fake.calls.length, 6);
+  assert.equal(fake.calls.length, 7);
   for (const call of fake.calls) {
     const rule = documented[call.url.pathname];
     assert.ok(rule, `no documented endpoint ${call.url.pathname}`);
@@ -405,7 +408,11 @@ test('App Store: ids are encoded into the paths', async () => {
   const { fake, connector } = appleSetup();
   fake.on({ method: 'GET', match: /.*/, json: { data: [] } });
   await connector.readListing('1/../2');
-  assert.ok(fake.calls.every((c) => c.url.pathname.startsWith('/v1/apps/1%2F..%2F2/')));
+  assert.ok(
+    fake.calls.every(
+      (c) => c.url.pathname.startsWith('/v1/apps/1%2F..%2F2/') || c.url.pathname === '/v1/apps/1%2F..%2F2',
+    ),
+  );
 });
 
 // ---------------------------------------------------------------------------------------------

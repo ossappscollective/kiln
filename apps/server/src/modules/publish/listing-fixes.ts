@@ -12,7 +12,7 @@ import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { hashListingValue } from '../listing/drift.ts';
-import { getLiveListing } from '../listing/live.ts';
+import { getStoreListing } from '../listing/store-view.ts';
 import { metadataLockedFailure } from './metadata-lock.ts';
 import { type StagedContext, type StageTextInput, stageText } from './staged-changes.ts';
 
@@ -34,6 +34,8 @@ export type LocaleFixes = {
 export type ListingFixesView = {
   appId: string;
   store: ListingStore;
+  /** The base locale the checks compare the others with (`null`: no locale). */
+  baseLocale: string | null;
   /** The checks of the values AFTER the staged texts: what the page would be if the cart were published as it is. Null when nothing is staged. */
   afterPending: {
     score: number;
@@ -49,6 +51,8 @@ type Base = {
   app: ManagedApp;
   store: ListingStore;
   locales: CheckLocaleText[];
+  /** The app's base locale (declared by the store, else English, else the first): the same one the Insights checks compare with. */
+  baseLocale: string | null;
   staged: Map<string, { id: string; value: string }>;
 };
 
@@ -61,24 +65,17 @@ async function readBase(
 ): Promise<Base | undefined> {
   const app = await getApp(ctx.db, workspaceId, appId);
   if (!app) return undefined;
-  const live = await getLiveListing(ctx.db, workspaceId, {
+  // The EDITABLE copy (what a push writes into; the live copy stands in when the store has no draft): the fixes are staged as text, so
+  // they are worked out on the text a push would overwrite, and a language only the draft holds can be fixed too.
+  const store = await getStoreListing(ctx.db, workspaceId, {
     id: app.id,
     platform: app.platform,
     identifier: app.identifier,
   });
-  // The live copy first; a language only the draft holds (App Store Connect adds one to the draft) is
-  // taken from the draft, so its empty texts can be fixed too.
-  const locales: CheckLocaleText[] = [];
-  const seen = new Set<string>();
-  for (const name of ['live', 'editable'] as const) {
-    const channel = live.channels.find((c) => c.channel === name);
-    if (!channel) continue;
-    for (const locale of Object.keys(channel.locales)) {
-      if (seen.has(locale)) continue;
-      seen.add(locale);
-      locales.push({ locale, fields: { ...(channel.locales[locale] ?? {}) } });
-    }
-  }
+  const locales: CheckLocaleText[] = store.copies.editable.locales.map((l) => ({
+    locale: l.locale,
+    fields: { ...l.fields },
+  }));
   const rows = await ctx.db.query(
     "SELECT id, locale, target, value_text FROM staged_changes WHERE app_id = ? AND kind = 'listing_text' AND ordinal = 0",
     [app.id],
@@ -89,7 +86,14 @@ async function readBase(
       id: String(r.id),
       value: String(r.value_text ?? ''),
     });
-  return { app, store: listingStoreOf(app.platform), locales, staged };
+  return {
+    app,
+    store: listingStoreOf(app.platform),
+    locales,
+    // Decided once over the `shown` locales, like the Insights checks, so the two never name different base languages.
+    baseLocale: store.defaultLocale.locale,
+    staged,
+  };
 }
 
 /** The values the fixes work on: the staged text of a field where there is one, else the store's. */
@@ -127,10 +131,15 @@ export async function getListingFixes(
   });
   let afterPending: ListingFixesView['afterPending'] = null;
   if (anyStaged) {
-    const before = checkListing({ store: base.store, locales: base.locales });
+    const before = checkListing({
+      store: base.store,
+      locales: base.locales,
+      baseLocale: base.baseLocale ?? undefined,
+    });
     const after = checkListing({
       store: base.store,
       locales: base.locales.map((l) => ({ ...l, fields: effective(base, l) })),
+      baseLocale: base.baseLocale ?? undefined,
     });
     const left = new Set(after.locales.flatMap((l) => l.issues.map((i) => i.id)));
     const resolved = before.locales
@@ -143,7 +152,7 @@ export async function getListingFixes(
       resolved,
     };
   }
-  return { ok: true, view: { appId: base.app.id, store: base.store, afterPending, locales } };
+  return { ok: true, view: { appId: base.app.id, store: base.store, baseLocale: base.baseLocale, afterPending, locales } };
 }
 
 export type StageFixInput = {

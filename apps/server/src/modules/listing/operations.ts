@@ -122,6 +122,24 @@ export const listingOperations: Draft[] = [
     responses: { '200': { description: 'The live listing.', schema: object } },
   },
   {
+    id: 'getStoreListing',
+    method: 'get',
+    path: `${W}/apps/{id}/listing/store`,
+    tags: ['listing'],
+    summary: 'The store listing in one read: locales, copies, base locale, read time, drift',
+    description:
+      'The ONE read of the stored listing (it replaces reading `listing/live` and `listing/drift` side by side). Reads the database. Nothing is sent to a store. `locales` are the locales to show (the union of the live page and the draft). `copies` has the store copy of each intent: `shown` (every locale of both copies, each read from the live copy where it has it), `editable` (the draft a push writes into; the live copy stands in when the store has no draft) and `live` (only what users see); each locale says which copy it was read from (`from`) and which copies hold it (`held`). Texts are left out unless `fields` names them (`fields=release_notes,keywords`) or is `all`. `defaultLocale` is the base language: `declared` is what the store says (Google Play default language; the App Store primary locale), `locale` is the one used (the declared one when it is among the locales, else en-US, else another English, else the first) and `source` says which. `readAt`, `error`, `warnings` and `schedule` are those of `listing/live`; `drift` is the answer of `listing/drift` (`drift=0` leaves it out). Read-only.',
+    risk: 'read',
+    access: { action: 'listing.read' },
+    appScope: { kind: 'param', name: 'id' },
+    query: z.object({
+      fields: z.string().max(400).optional().describe('Field ids whose texts the copies carry, comma separated, or `all`. Default: no texts.'),
+      drift: z.enum(['0', '1']).optional().describe('`0` leaves the drift view out.'),
+    }),
+    partial: true,
+    responses: { '200': { description: 'The store listing.', schema: object } },
+  },
+  {
     id: 'getListingDrift',
     method: 'get',
     path: `${W}/apps/{id}/listing/drift`,

@@ -13,12 +13,14 @@ import {
   type IdeaSource,
   type ListingFit,
   type ListingStore,
-  languageOf,
+  localeKey,
+  localesMatch,
   listingFit,
   listingStoreOf,
   type MarketKeyword,
   mineIdeas,
   normalizeLocale,
+  pickCopy,
   type SuggestedCompetitor,
   storeSideId,
   suggestCompetitors,
@@ -29,7 +31,7 @@ import {
 import type { Sql } from '@kiln/db';
 import type { ManagedApp } from '../../services/apps.ts';
 import { rankMoveThresholdFor } from '../../services/workspace-settings.ts';
-import { getLiveListing } from '../listing/live.ts';
+import { getStoreListing } from '../listing/store-view.ts';
 import {
   type AsoAppState,
   type AsoCompetitor,
@@ -61,8 +63,6 @@ type ListingChannel = {
   observedAt: number | null;
 };
 
-const tag = (locale: string): string => locale.replace(/_/g, '-').toLowerCase();
-
 /** The stored text of one locale, under the names the fit logic uses. */
 function fitFieldsOf(
   platform: ManagedApp['platform'],
@@ -82,7 +82,7 @@ function fitFieldsOf(
   return fields;
 }
 
-/** Every locale of the stored listing (the live copy when there is one) with its text. */
+/** Every locale of the stored listing (the `shown` copy: both the live page and the draft) with its text. */
 export async function listingLocalesFor(
   sql: Sql,
   workspaceId: string,
@@ -92,52 +92,46 @@ export async function listingLocalesFor(
   readAt: number | null;
   error: string | null;
 }> {
-  const listing = await getLiveListing(sql, workspaceId, {
+  const store = await getStoreListing(sql, workspaceId, {
     id: app.id,
     platform: app.platform,
     identifier: app.identifier,
   });
-  const channel =
-    listing.channels.find((c) => c.channel === 'live' && Object.keys(c.locales).length > 0) ??
-    listing.channels.find((c) => Object.keys(c.locales).length > 0);
-  const locales = channel
-    ? Object.keys(channel.locales)
-        .sort()
-        .map((locale) => ({
-          locale,
-          fields: fitFieldsOf(app.platform, channel.locales[locale] ?? {}),
-        }))
-    : [];
-  return { locales, readAt: listing.readAt, error: listing.error };
+  const locales = store.copies.shown.locales.map((l) => ({
+    locale: l.locale,
+    fields: fitFieldsOf(app.platform, l.fields),
+  }));
+  return { locales, readAt: store.live.readAt, error: store.live.error };
 }
 
-/** The own listing text for a locale: the exact locale, else another locale of the same language. */
+/** The own listing text for a locale: the exact locale (or its other store's spelling), else another locale of the same language. */
 export async function ownFields(
   sql: Sql,
   workspaceId: string,
   app: ManagedApp,
   locale: string,
 ): Promise<{ found: ListingChannel | null; readAt: number | null; error: string | null }> {
-  const listing = await getLiveListing(sql, workspaceId, {
+  const store = await getStoreListing(sql, workspaceId, {
     id: app.id,
     platform: app.platform,
     identifier: app.identifier,
   });
-  const channel =
-    listing.channels.find((c) => c.channel === 'live' && Object.keys(c.locales).length > 0) ??
-    listing.channels.find((c) => Object.keys(c.locales).length > 0);
-  if (!channel) return { found: null, readAt: listing.readAt, error: listing.error };
-  const names = Object.keys(channel.locales);
-  const wanted = tag(locale);
-  const exact = names.find((n) => tag(n) === wanted);
-  const sameLanguage = names.find((n) => languageOf(n) === languageOf(locale));
-  const chosen = exact ?? sameLanguage;
-  if (!chosen) return { found: null, readAt: listing.readAt, error: listing.error };
-  const fields = fitFieldsOf(app.platform, channel.locales[chosen] ?? {});
+  const readAt = store.live.readAt;
+  const error = store.live.error;
+  const view = store.copies.shown;
+  const chosen =
+    pickCopy(view, locale) ?? view.locales.find((l) => localesMatch(l.locale, locale, { mode: 'language' }));
+  if (!chosen) return { found: null, readAt, error };
+  const channel = store.live.channels.find((c) => c.channel === chosen.from);
   return {
-    found: { channel: channel.channel, locale: chosen, fields, observedAt: channel.observedAt },
-    readAt: listing.readAt,
-    error: listing.error,
+    found: {
+      channel: chosen.from,
+      locale: chosen.locale,
+      fields: fitFieldsOf(app.platform, chosen.fields),
+      observedAt: channel?.observedAt ?? null,
+    },
+    readAt,
+    error,
   };
 }
 
@@ -192,7 +186,7 @@ export async function listingFitFor(
   const keywords = await listKeywords(sql, workspaceId, app.id);
   const byLocale = new Map<string, AsoKeyword[]>();
   for (const k of keywords) {
-    if (filter.locale && tag(k.locale) !== tag(filter.locale)) continue;
+    if (filter.locale && localeKey(k.locale) !== localeKey(filter.locale)) continue;
     const list = byLocale.get(k.locale) ?? [];
     list.push(k);
     byLocale.set(k.locale, list);
@@ -329,7 +323,7 @@ export async function gapsFor(
 ): Promise<{ locale: string; competitors: number; gaps: CoverageGap[]; notes: string[] }> {
   const locale = options.locale ?? (await defaultLocale(sql, workspaceId, app.id));
   const keywords = (await listKeywords(sql, workspaceId, app.id)).filter(
-    (k) => tag(k.locale) === tag(locale),
+    (k) => localeKey(k.locale) === localeKey(locale),
   );
   const texts = competitorTexts(await listCompetitors(sql, workspaceId, app.id));
   const own = await ownFields(sql, workspaceId, app, locale);

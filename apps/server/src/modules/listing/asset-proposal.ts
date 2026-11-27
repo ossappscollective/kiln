@@ -60,7 +60,7 @@ import {
   sideProblems,
   splitKey,
 } from './drift.ts';
-import { getLiveListing } from './live.ts';
+import { getStoreListing, storeTextsOf } from './store-view.ts';
 import { mergedListing } from './sources.ts';
 import { listListingTargets } from './targets.ts';
 
@@ -543,8 +543,10 @@ export function planGraphics(input: {
       plan.notStageable += 1;
       continue;
     }
+    // The set a push writes and the repository is compared with (`primary`), never a sibling placement group of the display.
     const diff = input.storeSets?.find(
       (s) =>
+        s.primary &&
         s.locale === g.locale && s.kind === g.slot.kind && (s.device ?? null) === g.slot.device,
     );
     if (diff?.inSync) {
@@ -758,15 +760,13 @@ export async function getAssetProposal(
   }
 
   // The store's texts (the editable version's where there are any) and what the cart holds.
-  const live = await getLiveListing(db, workspaceId, {
+  const store = await getStoreListing(db, workspaceId, {
     id: app.id,
     platform: app.platform,
     identifier: app.identifier,
   });
-  const channel =
-    live.channels.find((c) => c.channel === 'editable') ??
-    live.channels.find((c) => c.channel === 'live');
-  const storeTexts: Record<string, Record<string, string>> = channel ? channel.locales : {};
+  // The EDITABLE copy (the draft's texts; the live copy stands in when the store has no draft).
+  const storeTexts = storeTextsOf(store.copies.editable);
   const rows = await loadStagedRows(db, workspaceId, app.id);
   const stagedTexts = new Map<string, string>();
   for (const r of rows)

@@ -26,6 +26,7 @@ import {
 } from './live.ts';
 import { pullStoreListing } from './pull.ts';
 import { recordAppliedChangeSets, refreshRepoListing } from './repo.ts';
+import { getStoreListingAnswer } from './store-view.ts';
 export type ListingRoutesContext = {
   db: Database;
   now: () => number;
@@ -112,6 +113,49 @@ export function listingRoutes(ctx: ListingRoutesContext) {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return notFound(c);
     return c.json(await getLiveListing(db, ws(c), app, { intervalMs: ctx.listingIntervalMs ?? 0 }));
+  });
+
+  // THE read of the store side of the listing (docs/api/listing.md): the locales, the copy of each intent, the base locale, the read time and
+  // error, and (unless `drift=0`) the drift view. The Listing page, the checks, the release stepper and the publish summary read this only.
+  routes.get('/:workspaceId/apps/:id/listing/store', needs('listing.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    const rawFields = c.req.query('fields');
+    const fields =
+      rawFields === undefined || rawFields === ''
+        ? ([] as string[])
+        : rawFields === 'all'
+          ? ('all' as const)
+          : rawFields.split(',').map((f) => f.trim());
+    if (fields !== 'all') {
+      const bad = fields.filter((f) => !isListingField(app.platform, f));
+      if (bad.length > 0) {
+        return c.json(
+          {
+            error: 'invalid_request',
+            issues: bad.map((f) => ({
+              path: 'fields',
+              message: `${f} is not a listing field of an ${app.platform} app.`,
+            })),
+          },
+          400,
+        );
+      }
+    }
+    const withDrift = c.req.query('drift') !== '0';
+    if (withDrift) await recordAppliedChangeSets(db, ws(c), app, ctx.now()).catch(() => 0);
+    const settings = withDrift ? await readAppListingSettings(db, ws(c), app.id) : null;
+    c.header('Cache-Control', 'no-store');
+    return c.json(
+      await getStoreListingAnswer(db, ws(c), app, {
+        intervalMs: ctx.listingIntervalMs ?? 0,
+        fields,
+        drift:
+          settings === null
+            ? null
+            : { compareRepo: settings.compareRepo, compareMedia: settings.compareMedia },
+      }),
+    );
   });
 
   routes.get('/:workspaceId/apps/:id/listing/drift', needs('listing.read'), async (c) => {

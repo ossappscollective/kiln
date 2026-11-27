@@ -914,6 +914,19 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
       infoIncluded = read.included;
     }
 
+    // The app's PRIMARY locale (its base language: what the other localizations are translations of). `GET /v1/apps/{id}` carries it as the
+    // `primaryLocale` attribute. It is exposed as `sections.details.defaultLanguage`, the same place Google Play's default language goes, so a
+    // consumer reads one field for both stores. A failure is a warning: the texts do not depend on it.
+    let primaryLocale: string | undefined;
+    try {
+      const reply = (await this.#get(`/v1/apps/${id}?fields[apps]=primaryLocale`, what)) as Json;
+      const data = isRecord(reply?.data) ? reply.data : {};
+      const attrs = isRecord(data.attributes) ? data.attributes : {};
+      primaryLocale = text(attrs.primaryLocale);
+    } catch (error) {
+      warnings.push(sectionWarning(error, 'The primary locale of the app'));
+    }
+
     const liveVersion = newest(versions.filter((v) => LIVE_VERSION_STATES.has(v.rawState)));
     const editableVersion = newest(versions.filter((v) => EDITABLE_VERSION_STATES.has(v.rawState)));
     const liveInfo = newest(infos.filter((i) => LIVE_INFO_STATES.has(i.rawState)));
@@ -1029,12 +1042,17 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
         }
       }
       if (version) {
-        sections.details = version.copyright !== undefined ? { copyright: version.copyright } : {};
+        sections.details = {
+          ...(version.copyright !== undefined ? { copyright: version.copyright } : {}),
+          ...(primaryLocale !== undefined ? { defaultLanguage: primaryLocale } : {}),
+        };
         if (extended) {
           const media = await readMedia(version, channel);
           if (media) sections.media = media;
         }
       }
+      // A channel with an app info but no version (nothing editable yet) still says which locale is primary.
+      if (!version && primaryLocale !== undefined) sections.details = { defaultLanguage: primaryLocale };
       channels.push({
         channel,
         ...(version?.versionString !== undefined ? { versionString: version.versionString } : {}),

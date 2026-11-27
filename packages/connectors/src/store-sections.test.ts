@@ -22,6 +22,7 @@ const APP = '100';
 
 function appleSetup() {
   const fake = new fx.FakeFetch();
+  fake.on({ method: 'GET', match: lx.APPLE_PRIMARY_LOCALE_PATH, json: lx.applePrimaryLocale() });
   const connector = new AppStoreConnectConnector({
     credential: { keyId: fx.KEY_ID, issuerId: fx.ISSUER_ID, privateKey: appleKey.privateKey },
     fetch: fake.fetch,
@@ -131,7 +132,9 @@ test('App Store: an extended read has categories, age rating, privacy, details a
     choicesUrls: { 'en-US': 'https://example.org/choices' },
   });
   assert.deepEqual(editable?.sections?.privacy, { choicesUrls: {} });
-  assert.deepEqual(live?.sections?.details, { copyright: '2026 Coffee Co' });
+  // The App Store's primary locale is the default language (`GET /v1/apps/{id}`), as Google Play's `defaultLanguage`.
+  assert.deepEqual(live?.sections?.details, { copyright: '2026 Coffee Co', defaultLanguage: 'en-US' });
+  assert.equal(editable?.sections?.details?.defaultLanguage, 'en-US');
 
   // Media: counts, file names and asset states; per locale (the live version has en-US and de-DE).
   const media = live?.sections?.media;
@@ -260,7 +263,7 @@ test('App Store: without `extended` only the sections that come out of the same 
   const live = read.channels[0]?.sections;
   assert.deepEqual(Object.keys(live ?? {}).sort(), ['details', 'privacy']);
   assert.deepEqual(live?.privacy, { choicesUrls: { 'en-US': 'https://example.org/choices' } });
-  assert.equal(fake.calls.length, 6, 'the same six requests as before');
+  assert.equal(fake.calls.length, 7, 'the same six requests as before, and the app for its primary locale');
   assert.ok(!fake.calls.some((c) => c.url.searchParams.has('include')));
 });
 
@@ -714,4 +717,16 @@ test('Google Play: the package name and language are encoded into the image path
   fake.on({ method: 'GET', match: /.*/, json: {} });
   await connector.readListing(PKG, { extended: true });
   assert.ok(fake.calls.some((c) => c.url.pathname.includes('/listings/x%2F..%2Fy/icon')));
+});
+
+test('App Store: a refused read of the primary locale is a warning; the texts and the other sections are still read', async () => {
+  const { fake, connector } = appleSetup();
+  extendedRoutes(fake);
+  fake.clear('GET', lx.APPLE_PRIMARY_LOCALE_PATH);
+  fake.on({ method: 'GET', match: lx.APPLE_PRIMARY_LOCALE_PATH, status: 403, json: fx.google403Forbidden });
+  const read = await connector.readListing(APP);
+  assert.equal(read.channels[0]?.sections?.details?.defaultLanguage, undefined);
+  assert.deepEqual(read.channels[0]?.sections?.details, { copyright: '2026 Coffee Co' });
+  assert.ok(read.channels[0]?.listing.appStore?.locales['en-US']);
+  assert.match(read.warnings.join(' '), /primary locale of the app could not be read/);
 });
