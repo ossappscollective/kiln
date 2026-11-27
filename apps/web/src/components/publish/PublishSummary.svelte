@@ -142,7 +142,7 @@
     </dl>
 
     <!-- Whether the draft could be submitted once this push is made, known now (the same rules the submit itself applies). -->
-    <SubmitReadiness view={summary.readiness} {onnavigate} />
+    <SubmitReadiness view={summary.readiness} {onnavigate} {api} {workspaceId} appId={summary.appId} />
 
     {#if notes && (notes.shown || notes.others.length > 0)}
       {#snippet notesHead()}<span title={notes?.hint ?? undefined} data-testid="summary-notes-title">{notes?.title}</span>{/snippet}

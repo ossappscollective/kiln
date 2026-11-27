@@ -22,7 +22,12 @@ import {
   type PublishPlan,
   type PublishStepType,
 } from './pending.ts';
-import { isReadinessProblem, type ReadinessView, readinessView } from './publish-readiness.ts';
+import {
+  addedWhat,
+  isReadinessProblem,
+  type ReadinessView,
+  readinessView,
+} from './publish-readiness.ts';
 import type { DraftPreview } from './staged.ts';
 import { APP_STORE_CONNECT_APPS_URL, PLAY_CONSOLE_URL } from './store-links.ts';
 import { percentText } from './store-release.ts';
@@ -845,6 +850,14 @@ export function publishSummary(input: SummaryInput): PublishSummary {
             }),
     });
     const graphics = graphicsParts(pushed);
+    // A language the store draft does not have and the push adds: its own row, with what is staged for it (nothing is hidden).
+    for (const added of plan.readiness?.submit.adds ?? [])
+      rows.push({
+        id: `adds-${added.locale}`,
+        label: t('publish:summary.row.adds'),
+        value: t('publish:summary.adds.value', { locale: added.locale }),
+        hint: addedWhat(added),
+      });
     rows.push({
       id: 'graphics',
       label: t('publish:summary.row.graphics'),

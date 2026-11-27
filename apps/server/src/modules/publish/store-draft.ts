@@ -1081,7 +1081,7 @@ const itemMatches = (state: DraftState, p: Prepared) => ({
   text: p.texts.map((t) => {
     const found = state.text.find((s) => s.locale === t.locale && s.field === t.field);
     // Unchanged = a push would not change what the store's draft holds (`isUnchangedStaged`, the one baseline rule).
-    return found !== undefined && isUnchangedStaged(t.value, found.value);
+    return isUnchangedStaged(t.value, found?.value ?? null);
   }),
   assets: p.sets.map((s) => {
     const found = state.assets.find((a) => a.locale === s.locale && a.target === s.target);

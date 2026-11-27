@@ -29,6 +29,8 @@
   "ap.issues.where": "{{item}} ({{locale}})",
   "ap.item.empty": "nothing",
   "ap.item.hasIssues": "Has issues",
+  "ap.item.newLanguage": "Adds {{locale}}",
+  "ap.item.newLanguageHint": "The store draft has no {{locale}}. Staging this adds the language, and Apple then requires its description, keywords and support URL. It is not ticked unless you choose it.",
   "ap.item.repo": "Repository",
   "ap.item.selectAria": "Stage {{item}} ({{locale}})",
   "ap.item.store": "Store",

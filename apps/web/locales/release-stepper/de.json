@@ -29,6 +29,8 @@
   "ap.issues.where": "{{item}} ({{locale}})",
   "ap.item.empty": "nichts",
   "ap.item.hasIssues": "Hat Probleme",
+  "ap.item.newLanguage": "Fügt {{locale}} hinzu",
+  "ap.item.newLanguageHint": "Der Store-Entwurf hat kein {{locale}}. Das Vormerken fügt die Sprache hinzu, und Apple verlangt dann Beschreibung, Schlüsselwörter und Support-URL. Nicht angehakt, außer Sie wählen es.",
   "ap.item.repo": "Repository",
   "ap.item.selectAria": "{{item}} ({{locale}}) bereitstellen",
   "ap.item.store": "Store",

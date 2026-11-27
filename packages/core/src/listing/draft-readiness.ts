@@ -46,6 +46,8 @@ export type DraftLocale = {
   locale: string;
   /** Where the locale comes from (absent: the store, which is what `draftContentOf` reads). */
   origin?: DraftLocaleOrigin | undefined;
+  /** Origin `staged`: what the push stages for it (texts written, screenshot sets), so a person is told WHAT adds the language. */
+  stagedItems?: { texts: number; sets: number } | undefined;
   /** Listing field id -> the draft's value, null when not set. */
   text: Record<string, string | null>;
   assets: DraftSet[];
@@ -93,8 +95,11 @@ export type ReadinessFinding = {
 };
 
 /** `source` ('store_draft' | 'staged') and `version` of a locale's findings: a person can tell where a locale they did not expect comes from. */
-const originParams = (content: DraftContent, locale: DraftLocale): Record<string, string> => ({
+const originParams = (content: DraftContent, locale: DraftLocale): Record<string, string | number> => ({
   source: locale.origin === 'staged' ? 'staged' : 'store_draft',
+  ...(locale.origin === 'staged' && locale.stagedItems
+    ? { texts: locale.stagedItems.texts, sets: locale.stagedItems.sets }
+    : {}),
   ...(content.version ? { version: content.version } : {}),
 });
 
@@ -328,16 +333,30 @@ export function predictDraft(current: DraftContent, staged: StagedDraftChanges):
     if (found) return found;
     const text: Record<string, string | null> = {};
     for (const field of fields) text[field] = null;
-    const made: DraftLocale = { locale: code, origin: 'staged', text, assets: [] };
+    const made: DraftLocale = {
+      locale: code,
+      origin: 'staged',
+      stagedItems: { texts: 0, sets: 0 },
+      text,
+      assets: [],
+    };
     locales.push(made);
     return made;
   };
   for (const t of staged.texts) {
     if (fields.indexOf(t.field) < 0) continue;
-    ensure(t.locale).text[t.field] = t.value;
+    // An empty staged text for a language the draft does not have adds nothing: it never makes the language.
+    const empty = t.value === null || t.value.trim() === '';
+    if (empty && !locales.some((l) => l.locale === t.locale)) continue;
+    const into = ensure(t.locale);
+    into.text[t.field] = t.value;
+    if (into.stagedItems && !empty) into.stagedItems.texts += 1;
   }
   for (const s of staged.sets) {
+    // A cleared set of a language the draft does not have is a no-op: it never makes the language.
+    if (s.images.length === 0 && !locales.some((l) => l.locale === s.locale)) continue;
     const locale = ensure(s.locale);
+    if (locale.stagedItems && s.images.length > 0) locale.stagedItems.sets += 1;
     let at = locale.assets.findIndex((set) => sameSet(set, s));
     // A push makes the set of a display exactly the staged files, in whatever placement group it sits: a sibling set that shows the same
     // display (the 12.9" group next to the 13" one) is removed with it, so it is not counted on top of the pushed set.

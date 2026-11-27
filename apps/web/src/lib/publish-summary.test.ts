@@ -824,3 +824,28 @@ test('the blockers of a submit that cannot run are listed once, not again under 
     ['other'],
   );
 });
+
+test('a language the push adds to the draft is its own summary row, with what is staged for it', () => {
+  const push = playPush([{ field: 'release_notes', locale: 'en-US', after: 'Hello' }]);
+  const s = publishSummary({
+    plan: plan([step('push_draft', { preview: push })], {
+      readiness: {
+        submit: {
+          ready: false,
+          blockers: [],
+          unknown: [],
+          predicted: true,
+          checkedAt: 1,
+          adds: [{ locale: 'fr-FR', texts: 0, sets: 2, files: 15 }],
+        },
+      },
+    }),
+    wanted: ['push_draft'],
+    identifier: '',
+  });
+  const added = s.rows.find((r) => r.id === 'adds-fr-FR');
+  assert.equal(added?.label, 'New language');
+  assert.equal(added?.value, 'This push adds the language fr-FR to the draft');
+  assert.equal(added?.hint, '2 screenshot sets');
+  assert.equal(s.readiness?.adds[0]?.locale, 'fr-FR');
+});

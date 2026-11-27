@@ -36,6 +36,8 @@
   "ap.issues.where": "{{item}} ({{locale}})",
   "ap.item.empty": "rien",
   "ap.item.hasIssues": "Présente des problèmes",
+  "ap.item.newLanguage": "Ajoute {{locale}}",
+  "ap.item.newLanguageHint": "Le brouillon du store n’a pas de {{locale}}. Préparer ceci ajoute la langue, et Apple exige alors sa description, ses mots-clés et son URL d’assistance. Non coché, sauf si vous le choisissez.",
   "ap.item.repo": "Dépôt",
   "ap.item.selectAria": "Préparer {{item}} ({{locale}})",
   "ap.item.store": "Boutique",

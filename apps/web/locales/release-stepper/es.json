@@ -36,6 +36,8 @@
   "ap.issues.where": "{{item}} ({{locale}})",
   "ap.item.empty": "nada",
   "ap.item.hasIssues": "Tiene problemas",
+  "ap.item.newLanguage": "Añade {{locale}}",
+  "ap.item.newLanguageHint": "El borrador de la tienda no tiene {{locale}}. Prepararlo añade el idioma, y Apple exigirá entonces su descripción, palabras clave y URL de soporte. No está marcado salvo que lo elija.",
   "ap.item.repo": "Repositorio",
   "ap.item.selectAria": "Preparar {{item}} ({{locale}})",
   "ap.item.store": "Tienda",

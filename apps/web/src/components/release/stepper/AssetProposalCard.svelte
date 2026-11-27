@@ -87,6 +87,8 @@
   const groups = $derived(view ? issueGroups(view.issues) : NO_ISSUES);
   const writable = $derived(canStage(role) && view !== null && !view.locked.locked);
   const picked = $derived(view ? idsToStage(view, selected) : []);
+  // A ticked item of a language the store draft lacks is the person asking for that language: only then is it staged.
+  const addLanguages = $derived(view ? [...new Set(view.changes.filter((c) => c.newLanguage === true && picked.indexOf(c.id) !== -1).map((c) => c.locale))] : []);
   const withErrors = $derived(view ? selectedWithErrors(view.changes, picked) : []);
 
   async function load() {
@@ -122,7 +124,7 @@
     confirming = false;
     problem = '';
     try {
-      const got = await settle((signal) => api.stageReleaseAssetProposal(workspaceId, app.id, { ...release, itemIds: picked, ...(acceptIssues ? { acceptIssues: true } : {}) }, signal), {
+      const got = await settle((signal) => api.stageReleaseAssetProposal(workspaceId, app.id, { ...release, itemIds: picked, ...(acceptIssues ? { acceptIssues: true } : {}), ...(addLanguages.length > 0 ? { addLanguages } : {}) }, signal), {
         ms: STAGE_TIMEOUT_MS,
         timeoutMessage: t('release-stepper:ap.stageTimeout'),
       });

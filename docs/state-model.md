@@ -462,6 +462,16 @@ with a `@deprecated` tag point at the owner; `facts-owners.test.ts` lists them u
 Not done here, on purpose: moving a consumer onto an owner (Wave 2), and a guard that fails a second implementation of a listed fact
 (it belongs with the enforcement tests of section 3 once the consumers have moved).
 
+### A staged locale is never hidden
+
+A language of a push comes from the store's draft or from what is STAGED for it (a text, or a screenshot set: the push must create the
+language to attach them). Rules, one owner each: a staged row that changes nothing (`isUnchangedStaged`, an empty text for a language the
+store lacks included) or a cleared set for a language the draft lacks never makes a language (`predictDraft`); a language the push adds is
+named on every surface (the readiness origin line says what is staged for it, `PlanSubmitReadiness.adds` feeds the summary row `adds-<locale>`
+and the "Unstage <locale>" action); `DELETE /apps/:id/staged/locale?locale=` removes everything staged for that language of ONE app (idempotent,
+`staged_changed`). The release asset proposal marks an item of a language the store draft lacks `newLanguage`, never ticks it by default and
+stages it only when the person ticked it (`addLanguages`).
+
 ## 3. Enforcement (so it cannot regress)
 
 | Test                  | File                           | What fails it                                                                                                                                  |

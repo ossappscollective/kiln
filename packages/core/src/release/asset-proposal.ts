@@ -59,6 +59,8 @@ export type ProposalText = {
   /** The repository's text at the release's source. */
   after: string;
   hasErrors: boolean;
+  /** The store's draft has no such language: staging this would ADD the language (never ticked by default). */
+  newLanguage?: boolean;
 };
 
 export type ProposalGraphics = {
@@ -76,6 +78,8 @@ export type ProposalGraphics = {
   beforeFiles?: ProposalStoreFile[];
   after: { count: number; commit: string; files: ProposalFile[] };
   hasErrors: boolean;
+  /** The store's draft has no such language: staging this would ADD the language (never ticked by default). */
+  newLanguage?: boolean;
 };
 
 export type ProposalItem = ProposalText | ProposalGraphics;
@@ -169,7 +173,7 @@ export function summarizeProposal(
 
 /** The items checked when the card opens: those without errors. An item with errors can be selected, after an explicit confirmation. */
 export const defaultSelection = (changes: readonly ProposalItem[]): string[] =>
-  changes.filter((c) => !c.hasErrors).map((c) => c.id);
+  changes.filter((c) => !c.hasErrors && c.newLanguage !== true).map((c) => c.id);
 
 /** Of the selected ids, those that have errors (the person confirms these before they are staged). */
 export function selectedWithErrors(

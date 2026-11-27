@@ -612,3 +612,37 @@ test('the locales of a draft are the store draft locales plus the staged ones, a
   });
   assert.ok(missing(kept).every((f) => f.params?.source === 'store_draft'));
 });
+
+test('a staged set for a language the store lacks adds it, and the findings say WHAT adds it; a no-op row adds nothing', () => {
+  const only: DraftContent = {
+    store: 'app_store',
+    version: '2.00.1',
+    locales: [{ locale: 'en-US', origin: 'store', text: { ...filled }, assets: [iphone(3)] }],
+  };
+  const missing = (c: DraftContent) =>
+    evaluateDraftContent(c).filter((f) => f.code === 'missing_text' && f.locale === 'fr-FR');
+  const withShots = predictDraft(only, {
+    texts: [],
+    sets: [
+      { locale: 'fr-FR', kind: 'screenshot', device: 'iphone_6_5', target: 'group-iphone-65', images: shots(3) },
+      { locale: 'fr-FR', kind: 'screenshot', device: 'ipad_13', target: 'group-ipad-13', images: shots(3, IPAD_13) },
+    ],
+  });
+  const found = missing(withShots);
+  assert.equal(found.length, 3);
+  for (const f of found) {
+    assert.equal(f.params?.source, 'staged');
+    assert.equal(f.params?.sets, 2);
+    assert.equal(f.params?.texts, 0);
+  }
+  // An empty staged text, or a cleared set, for a language the store lacks creates no language and no finding.
+  const noop = predictDraft(only, {
+    texts: [{ locale: 'fr-FR', field: 'description', value: '' }],
+    sets: [{ locale: 'fr-FR', kind: 'screenshot', device: 'iphone_6_5', target: 'group-iphone-65', images: [] }],
+  });
+  assert.deepEqual(
+    noop.locales.map((l) => l.locale),
+    ['en-US'],
+  );
+  assert.deepEqual(missing(noop), []);
+});

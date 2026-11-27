@@ -1193,6 +1193,8 @@ export async function bootStaged(db: Database, options: StagedBootOptions = {}) 
     t.call(cookie, 'PUT', sp(appId, '/assets'), body);
   const unstage = (appId: string, id: string, cookie = t.owner) =>
     t.call(cookie, 'DELETE', sp(appId, `/items?id=${encodeURIComponent(id)}`));
+  const unstageLocale = (appId: string, locale: string, cookie = t.owner) =>
+    t.call(cookie, 'DELETE', sp(appId, `/locale?locale=${encodeURIComponent(locale)}`));
   const clear = (appId: string, cookie = t.owner) => t.call(cookie, 'DELETE', sp(appId));
   const preview = (appId: string, cookie = t.owner) =>
     t.call(cookie, 'POST', sp(appId, '/push/preview'), {});
@@ -1317,6 +1319,7 @@ export async function bootStaged(db: Database, options: StagedBootOptions = {}) 
     stageText,
     stageAssets,
     unstage,
+    unstageLocale,
     clear,
     preview,
     push,

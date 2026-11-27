@@ -317,3 +317,30 @@ dbTest('the plan of a release alone reads no store for a readiness', async (db) 
 });
 
 export type { StagedBoot };
+
+import { test } from 'node:test';
+import { addedLanguagesOf, stagedChangesOf } from './submit-readiness.ts';
+
+test('addedLanguagesOf: only staged languages the store lacks, only real changes (a no-op row adds nothing)', () => {
+  const set = (locale: string, n: number) => ({
+    locale,
+    kind: 'screenshot' as const,
+    device: 'iphone_6_9',
+    target: 'g',
+    images: Array.from({ length: n }, () => ({ width: 1, height: 1 })),
+  });
+  const changes = {
+    texts: [
+      { locale: 'fr-FR', field: 'description', value: '' },
+      { locale: 'de-DE', field: 'description', value: 'Hallo' },
+      { locale: 'en-US', field: 'description', value: 'Hi' },
+    ],
+    sets: [set('fr-FR', 8), set('fr-FR', 7), set('en-US', 8), set('es-ES', 0)],
+  };
+  assert.deepEqual(addedLanguagesOf(['en-US'], changes), [
+    { locale: 'de-DE', texts: 1, sets: 0, files: 0 },
+    { locale: 'fr-FR', texts: 0, sets: 2, files: 15 },
+  ]);
+  assert.deepEqual(addedLanguagesOf(['en-US', 'fr-FR', 'de-DE'], changes), []);
+  assert.deepEqual(stagedChangesOf(undefined), { texts: [], sets: [] });
+});

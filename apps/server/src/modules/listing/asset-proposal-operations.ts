@@ -215,7 +215,7 @@ export const assetProposalOperations: Draft[] = [
     tags: ['releases'],
     summary: 'Stage the chosen items of the proposal into the cart (nothing is written to a store)',
     description:
-      'Needs `changesets.write`. The server computes the proposal again and stages the named items itself (texts through the staged text rules, graphics as the set of the release commit); a client sends ids, never a text or a path. Items with errors need `acceptIssues: true` (else `409 has_issues` with `itemIds`). An item that is in the cart already is not written again (`already_staged`), and one a person edited is kept (`kept_edited`). Apple with no editable version answers `409 metadata_locked`. Answers one result per id and the proposal as it stands then.',
+      'Needs `changesets.write`. The server computes the proposal again and stages the named items itself (texts through the staged text rules, graphics as the set of the release commit); a client sends ids, never a text or a path. Items with errors need `acceptIssues: true` (else `409 has_issues` with `itemIds`). An item that is in the cart already is not written again (`already_staged`), and one a person edited is kept (`kept_edited`). An item of a language the store draft does not have is marked `newLanguage` and is staged only when its language is in `addLanguages` (else `new_language`: it would add the language). Apple with no editable version answers `409 metadata_locked`. Answers one result per id and the proposal as it stands then.',
     risk: 'write',
     access: { action: 'changesets.write' },
     appScope: { kind: 'param', name: 'id' },
@@ -224,6 +224,7 @@ export const assetProposalOperations: Draft[] = [
         ...releaseKey,
         itemIds: z.array(z.string().max(200)).min(1).max(400),
         acceptIssues: z.boolean().optional(),
+        addLanguages: z.array(z.string().min(2).max(20)).max(60).optional(),
       })
       .strict(),
     responses: {
@@ -233,7 +234,7 @@ export const assetProposalOperations: Draft[] = [
           results: z.array(
             z.object({
               id: z.string(),
-              status: z.enum(['staged', 'already_staged', 'kept_edited', 'not_proposed', 'failed']),
+              status: z.enum(['staged', 'already_staged', 'kept_edited', 'not_proposed', 'new_language', 'failed']),
               code: z.string().optional(),
             }),
           ),

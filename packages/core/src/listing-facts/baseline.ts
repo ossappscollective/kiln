@@ -31,11 +31,15 @@ export function stagedBaselineOf(
   return value === undefined ? null : { value, from: copy.from };
 }
 
-/** Whether a staged text equals its baseline once normalised (a push would not change it). False without a baseline. */
+/**
+ * Whether a staged text equals its baseline once normalised (a push would not change it). Without a baseline (the store does not have
+ * the language or the field) only an EMPTY staged text is unchanged: it adds nothing, so it never makes a language of the push.
+ */
 export function isUnchangedStaged(
   staged: string,
   baseline: StagedBaseline | string | null,
 ): boolean {
   const value = baseline === null ? null : typeof baseline === 'string' ? baseline : baseline.value;
-  return value !== null && normalizeStoreText(staged) === normalizeStoreText(value);
+  if (value === null) return normalizeStoreText(staged) === '';
+  return normalizeStoreText(staged) === normalizeStoreText(value);
 }

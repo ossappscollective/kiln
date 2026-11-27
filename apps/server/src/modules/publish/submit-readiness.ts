@@ -30,16 +30,52 @@ export type PlanSubmitReadiness = SubmitReadiness & {
   predicted: boolean;
   /** When the store was read (epoch ms). */
   checkedAt: number;
+  /** The languages this push adds to the draft (staged for a language the store does not have), with what is staged for each. */
+  adds: AddedLanguage[];
 };
 
 export type PlanReadiness = { submit: PlanSubmitReadiness };
+
+/** A language this push would ADD to the store's draft, and what is staged for it (so no staged language is hidden from the person). */
+export type AddedLanguage = { locale: string; texts: number; sets: number; files: number };
+
+/** The languages the staged push adds to the draft: staged for a locale the store's draft does not hold. Only real changes count. */
+export function addedLanguagesOf(
+  existing: readonly string[],
+  changes: StagedDraftChanges,
+): AddedLanguage[] {
+  const have = new Set(existing);
+  const out = new Map<string, AddedLanguage>();
+  const at = (locale: string): AddedLanguage => {
+    let a = out.get(locale);
+    if (!a) {
+      a = { locale, texts: 0, sets: 0, files: 0 };
+      out.set(locale, a);
+    }
+    return a;
+  };
+  for (const t of changes.texts)
+    if (!have.has(t.locale) && t.value !== null && t.value.trim() !== '') at(t.locale).texts += 1;
+  for (const s of changes.sets)
+    if (!have.has(s.locale) && s.images.length > 0) {
+      const a = at(s.locale);
+      a.sets += 1;
+      a.files += s.images.length;
+    }
+  return [...out.values()].sort((x, y) => x.locale.localeCompare(y.locale));
+}
 
 /** The staged items of a push preview, in the plain shape of `predictDraft`. */
 export function stagedChangesOf(push: DraftPreview | undefined): StagedDraftChanges {
   if (push === undefined) return { texts: [], sets: [] };
   return {
-    texts: push.text.map((t) => ({ locale: t.locale, field: t.field, value: t.after })),
-    sets: push.assets.map((a) => ({
+    // A row that changes nothing (the one baseline rule) is not part of the push: it never adds a language.
+    texts: push.text
+      .filter((t) => t.status !== 'unchanged')
+      .map((t) => ({ locale: t.locale, field: t.field, value: t.after })),
+    sets: push.assets
+      .filter((a) => a.status !== 'unchanged')
+      .map((a) => ({
       locale: a.locale,
       kind: a.slot.kind,
       device: a.slot.device,
@@ -71,6 +107,12 @@ export function submitReadinessOf(input: {
     const predicted = predictDraft(draftContentOf(ios, state.locales, state.version?.versionString), stagedChangesOf(push));
     blockers.push(...blockersOf(app, evaluateDraftContent(predicted)));
   }
+  const adds = state.alreadySubmitted
+    ? []
+    : addedLanguagesOf(
+        draftContentOf(ios, state.locales, state.version?.versionString).locales.map((l) => l.locale),
+        stagedChangesOf(push),
+      );
   const unknown: string[] = [];
   if (ios && (push?.summary.filesToUpload ?? 0) > 0) unknown.push('image_not_ready');
   if (!ios) unknown.push('play_review_state_unknown');
@@ -79,6 +121,7 @@ export function submitReadinessOf(input: {
       ...readinessOf(blockers, unknown),
       predicted: push !== undefined,
       checkedAt: input.now,
+      adds,
     },
   };
 }

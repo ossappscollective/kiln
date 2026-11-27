@@ -75,3 +75,18 @@ test('the summary counts texts, languages, graphics and findings', () => {
   );
   assert.deepEqual(s, { texts: 3, locales: 2, graphics: 0, errors: 1, warnings: 1, tips: 2 });
 });
+
+test('defaultSelection never ticks an item that would add a language to the store draft', () => {
+  const item = (id: string, newLanguage?: boolean): ProposalItem =>
+    ({
+      id,
+      kind: 'text',
+      locale: 'fr-FR',
+      field: 'description',
+      before: null,
+      after: 'x',
+      hasErrors: false,
+      ...(newLanguage ? { newLanguage } : {}),
+    }) as ProposalItem;
+  assert.deepEqual(defaultSelection([item('a'), item('b', true)]), ['a']);
+});

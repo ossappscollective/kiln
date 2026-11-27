@@ -20,8 +20,11 @@ import { APP_STORE_CONNECT_APPS_URL, PLAY_CONSOLE_URL } from './store-links.ts';
 
 /** What a plan carries (`PublishPlan.readiness`). */
 export type PlanReadiness = {
-  submit: SubmitReadiness & { predicted: boolean; checkedAt: number };
+  submit: SubmitReadiness & { predicted: boolean; checkedAt: number; adds?: AddedLanguage[] };
 };
+
+/** A language the push would ADD to the store's draft, and what is staged for it (the server: `addedLanguagesOf`). */
+export type AddedLanguage = { locale: string; texts: number; sets: number; files: number };
 
 /** What `GET /apps/:id/publish/readiness` answers: the one type of `@kiln/core` (the server builds it from a store read, the browser reads it). */
 export type PublishReadiness = CurrentReadiness;
@@ -102,6 +105,8 @@ export type ReadinessView = {
   predicted: boolean;
   /** The plan asked for a submit that it left out (or blocked) because of these. */
   submitLeftOut: boolean;
+  /** The languages this push adds to the draft, each with its own "Unstage" action (no staged language stays hidden). */
+  adds: AddedLanguage[];
 };
 
 const clean = (text: string): string =>
@@ -141,7 +146,12 @@ export function originOf(blocker: SubmitBlocker): string | null {
   if (p === undefined || blocker.locale === undefined) return null;
   if (blocker.code !== 'missing_text' && blocker.code !== 'text_problem') return null;
   const locale = blocker.locale;
-  if (p.source === 'staged') return t('publish:readiness.origin.staged', { locale });
+  if (p.source === 'staged') {
+    const sets = typeof p.sets === 'number' ? p.sets : 0;
+    return sets > 0
+      ? t('publish:readiness.origin.stagedSets', { locale, count: sets })
+      : t('publish:readiness.origin.staged', { locale });
+  }
   if (p.source !== 'store_draft') return null;
   return typeof p.version === 'string' && p.version !== ''
     ? t('publish:readiness.origin.storeDraftVersion', { locale, version: p.version })
@@ -211,6 +221,7 @@ export function readinessView(source: {
     note: unknownNote(submit.unknown),
     predicted: submit.predicted,
     submitLeftOut: left && !submit.ready,
+    adds: submit.adds ?? [],
   };
 }
 
@@ -277,4 +288,12 @@ export function checklist(view: ReadinessView): ChecklistItem[] {
 /** The text of the stepper's last button, so it says what will happen: with blockers the submit is not part of it. */
 export function confirmButtonText(count: number, base: string): string {
   return count > 0 ? t('publish:readiness.confirmButtonBlocked', { count }) : base;
+}
+
+/** What is staged for an added language, in words: "8 screenshot sets and 1 text". */
+export function addedWhat(a: AddedLanguage): string {
+  const parts: string[] = [];
+  if (a.sets > 0) parts.push(t('publish:summary.adds.sets', { count: a.sets }));
+  if (a.texts > 0) parts.push(t('publish:summary.adds.texts', { count: a.texts }));
+  return parts.join(', ');
 }

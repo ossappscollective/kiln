@@ -187,3 +187,15 @@ test('the create-version form says what is carried over from the previous versio
   assert.match(form, /carryLine\(done\.result\.reviewInformation, 'result'\)/);
   assert.match(form, /data-testid="create-version-review-info"/);
 });
+
+test('an added language has a one-click unstage for this app, through the one API call and the staged store', () => {
+  const list = read('../components/publish/SubmitReadiness.svelte');
+  assert.match(list, /api\.unstageLocale\(workspaceId, appId, locale\)/);
+  assert.match(list, /stagedStore\.set\(done\.staged\)/);
+  assert.match(list, /data-testid="submit-readiness-unstage"/);
+  assert.match(read('../components/publish/PublishSummary.svelte'), /<SubmitReadiness [^>]*appId=\{summary\.appId\}/);
+  const api = read('./api.ts');
+  assert.match(api, /unstageLocale: \(workspaceId: string, appId: string, locale: string\)[\s\S]*?stagedChanged\(appId, 'unstage'\)/);
+  // The proposal never stages a new language the person did not tick.
+  assert.match(read('../components/release/stepper/AssetProposalCard.svelte'), /addLanguages/);
+});

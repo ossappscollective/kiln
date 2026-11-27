@@ -740,3 +740,26 @@ dbTest(
     assert.ok(Date.now() - started < 5000);
   },
 );
+
+dbTest(
+  'a language the store draft does not have is marked newLanguage, never staged unless that language is asked for',
+  async (db) => {
+    const fr: Files = {
+      ...CHANGED[B1],
+      'fastlane/metadata/ios/fr-FR/description.txt': 'Nouvelle description\n',
+    };
+    const b = await boot(db, { trees: { ...CHANGED, [B1]: fr } });
+    const view = (await b.get()).body.proposal;
+    const item = view.changes.find((c: { id: string }) => c.id === 'text:fr-FR:description');
+    assert.equal(item?.newLanguage, true);
+    assert.ok(
+      view.changes.filter((c: { locale: string }) => c.locale === 'en-US').every((c: { newLanguage?: boolean }) => c.newLanguage !== true),
+    );
+    const skipped = await b.stage({ itemIds: ['text:fr-FR:description'] });
+    assert.equal(skipped.status, 200, skipped.text);
+    assert.equal(skipped.body.results[0].status, 'new_language');
+    assert.equal((await b.t.rows(b.app)).length, 0, 'nothing is staged for a language that was not asked for');
+    const asked = await b.stage({ itemIds: ['text:fr-FR:description'], addLanguages: ['fr-FR'] });
+    assert.equal(asked.body.results[0].status, 'staged');
+  },
+);

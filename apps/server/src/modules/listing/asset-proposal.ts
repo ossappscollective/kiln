@@ -26,6 +26,7 @@ import {
   STAGED_LIMITS,
   slotKey,
   summarizeProposal,
+  localeKey,
   textItemId,
 } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
@@ -858,7 +859,14 @@ export async function getAssetProposal(
       }),
     };
 
-  const changes: ProposalItem[] = [...textPlan.items, ...(graphicsPlan?.items ?? [])];
+  // An item for a language the store's draft does not have would ADD that language (the push then asks for its description, keywords
+  // and support URL): it is marked, never ticked by default, and staged only when the person asks for that language.
+  const storeLocaleKeys = new Set(store.copies.editable.locales.map((l) => localeKey(l.locale)));
+  const changes: ProposalItem[] = [...textPlan.items, ...(graphicsPlan?.items ?? [])].map((c) =>
+    storeLocaleKeys.size > 0 && !storeLocaleKeys.has(localeKey(c.locale))
+      ? { ...c, newLanguage: true }
+      : c,
+  );
   const issues = orderIssues([...textPlan.issues, ...(graphicsPlan?.issues ?? [])]);
   if (textPlan.truncated || graphicsPlan?.truncated) notes.push('truncated');
   const view: AssetProposalView = {
@@ -892,7 +900,7 @@ export async function getAssetProposal(
 
 export type StageResult = {
   id: string;
-  status: 'staged' | 'already_staged' | 'kept_edited' | 'not_proposed' | 'failed';
+  status: 'staged' | 'already_staged' | 'kept_edited' | 'not_proposed' | 'new_language' | 'failed';
   code?: string;
 };
 
@@ -907,6 +915,8 @@ export async function stageProposal(
     query: ProposalQuery;
     itemIds: string[];
     acceptIssues: boolean;
+    /** The languages the person asked to ADD to the store's draft (an item of another new language is not staged). */
+    addLanguages?: string[];
     actor: Actor;
     gate?: () => Failure | undefined;
     budgetMs?: number;
@@ -961,6 +971,10 @@ export async function stageProposal(
             : 'kept_edited'
           : 'not_proposed',
       });
+      continue;
+    }
+    if (item.newLanguage === true && !(input.addLanguages ?? []).includes(item.locale)) {
+      results.push({ id, status: 'new_language' });
       continue;
     }
     const done =

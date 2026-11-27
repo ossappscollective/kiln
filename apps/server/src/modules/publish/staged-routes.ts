@@ -18,6 +18,7 @@ import {
   stageAssets,
   stageText,
   unstage,
+  unstageLocale,
 } from './staged-changes.ts';
 import { stageReleaseField } from './staged-release.ts';
 import {
@@ -258,6 +259,31 @@ export function stagedRoutes(ctx: StagedRoutesContext) {
         actor: actor(c),
       });
       return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
+    },
+  );
+
+  // Everything staged for one language of this app, in one request (by query: the language code).
+  routes.delete(
+    '/:workspaceId/apps/:id/staged/locale',
+    needs('changesets.write'),
+    notPublishing,
+    async (c) => {
+      const locale = c.req.query('locale') ?? '';
+      if (!/^[A-Za-z]{2,3}([-_][A-Za-z0-9]{2,8}){0,2}$/.test(locale))
+        return c.json(
+          {
+            error: 'invalid_request',
+            issues: [{ path: 'locale', message: 'A language code such as fr-FR.' }],
+          },
+          400,
+        );
+      const done = await unstageLocale(staged, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        locale,
+        actor: actor(c),
+      });
+      return done.ok ? c.json({ staged: done.staged, removed: done.removed }) : respond(c, done);
     },
   );
 

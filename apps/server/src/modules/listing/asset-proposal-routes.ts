@@ -46,6 +46,7 @@ const stageBody = z
     build: build.nullable().optional(),
     itemIds: z.array(z.string().min(3).max(200)).min(1).max(400),
     acceptIssues: z.boolean().optional(),
+    addLanguages: z.array(z.string().min(2).max(20)).max(60).optional(),
   })
   .strict();
 const decideBody = z
@@ -126,6 +127,7 @@ export function mountAssetProposalRoutes(routes: Hono<AppEnv>, deps: ProposalRou
         query: queryOf(body.data),
         itemIds: body.data.itemIds,
         acceptIssues: body.data.acceptIssues === true,
+        ...(body.data.addLanguages ? { addLanguages: body.data.addLanguages } : {}),
         actor: actor(c),
         gate: gate(c),
         budgetMs: deadlineMs === undefined ? STAGE_BUDGET_MS : Math.floor(stageMs * 0.75),

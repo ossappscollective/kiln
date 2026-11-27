@@ -1082,6 +1082,42 @@ export async function unstage(
   return { ok: true, staged: await buildStagedView(ctx, input.workspaceId, app) };
 }
 
+/**
+ * Takes out EVERYTHING staged for one language of this app (its texts, its screenshot sets, its per language release notes): the one
+ * click that removes a language a person never meant to add. Only this app's rows; idempotent (a language with nothing staged answers
+ * the current view, not an error).
+ */
+export async function unstageLocale(
+  ctx: StagedContext,
+  input: { workspaceId: string; appId: string; locale: string; actor: Actor },
+): Promise<{ ok: true; staged: StagedChangesView; removed: number } | Failure> {
+  const { db } = ctx;
+  const app = await getApp(db, input.workspaceId, input.appId);
+  if (!app) return failure(404, 'not_found');
+  const at = ctx.now();
+  const removed = await db.transaction(async (tx) => {
+    const count = await tx.execute(
+      "DELETE FROM staged_changes WHERE workspace_id = ? AND app_id = ? AND locale = ? AND kind IN ('listing_text', 'asset', 'release_field')",
+      [input.workspaceId, app.id, input.locale],
+    );
+    if (count > 0) {
+      await deleteUnreferencedBlobs(tx, input.workspaceId, app.id);
+      await recordAudit(tx, {
+        workspaceId: input.workspaceId,
+        actor: input.actor,
+        action: 'staged.locale_removed',
+        target: { type: 'app', id: app.id },
+        detail: { appId: app.id, locale: input.locale, rows: count },
+        at,
+      });
+    }
+    return count;
+  });
+  if (removed > 0)
+    emitCacheEvent('staged_changed', { workspaceId: input.workspaceId, appId: app.id });
+  return { ok: true, staged: await buildStagedView(ctx, input.workspaceId, app), removed };
+}
+
 export async function clearStaged(
   ctx: StagedContext,
   input: { workspaceId: string; appId: string; actor: Actor },

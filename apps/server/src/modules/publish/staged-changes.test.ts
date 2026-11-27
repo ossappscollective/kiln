@@ -870,6 +870,36 @@ dbTest(
   },
 );
 
+dbTest(
+  'unstaging a language removes everything staged for it, for this app only, and is idempotent',
+  async (db) => {
+    const t = await bootStaged(db);
+    const app = await t.addApp('ios');
+    const other = await t.addApp('ios');
+    for (const a of [app, other]) {
+      await t.stageText(a, { locale: 'fr-FR', field: 'description', from: 'local', value: 'Bonjour' });
+      await t.stageText(a, { locale: 'en-US', field: 'description', from: 'local', value: 'Hello' });
+      await t.stageAssets(a, { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5' });
+    }
+    assert.equal((await t.unstageLocale(app, 'not a locale!')).status, 400);
+    const done = await t.unstageLocale(app, 'en-US');
+    assert.equal(done.status, 200);
+    assert.ok(done.body.removed >= 2, 'its text and its set');
+    assert.deepEqual(
+      done.body.staged.text.map((x: { locale: string }) => x.locale),
+      ['fr-FR'],
+    );
+    assert.equal(done.body.staged.assets.length, 0);
+    const again = await t.unstageLocale(app, 'en-US');
+    assert.equal(again.status, 200, 'idempotent');
+    assert.equal(again.body.removed, 0);
+    const kept = await t.view(other);
+    assert.equal(kept.text.length, 2, 'another app is untouched');
+    assert.equal(kept.assets.length, 1);
+    assert.ok((await t.audit('staged.locale_removed')).length === 1);
+  },
+);
+
 dbTest('deleting an app removes what was staged for it and its draft claim', async (db) => {
   const t = await bootStaged(db);
   const app = await t.addApp('ios');

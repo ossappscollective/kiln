@@ -52,6 +52,7 @@
     <p class="head">
       <strong>{itemTitle(item)}</strong>
       <span class="muted">{localeName(item.locale)}</span>
+      {#if item.newLanguage}<Badge tone="warn" icon="alert-triangle" title={t('release-stepper:ap.item.newLanguageHint', { locale: item.locale })}>{t('release-stepper:ap.item.newLanguage', { locale: item.locale })}</Badge>{/if}
       {#if item.hasErrors}<Badge tone="bad" icon="x-circle">{t('release-stepper:ap.item.hasIssues')}</Badge>{/if}
       {#if item.kind === 'text' && ondiff}
         <Button size="sm" variant="ghost" icon="columns" iconOnly label={t('release-stepper:ap.diff.aria', { item: itemTitle(item), locale: localeName(item.locale) })} onclick={() => ondiff(item)} />

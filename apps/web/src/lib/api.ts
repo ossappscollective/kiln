@@ -1691,7 +1691,7 @@ export function createApi(options: ApiOptions = {}) {
     stageReleaseAssetProposal: (
       workspaceId: string,
       appId: string,
-      body: ReleaseAssetRef & { itemIds: string[]; acceptIssues?: boolean },
+      body: ReleaseAssetRef & { itemIds: string[]; acceptIssues?: boolean; addLanguages?: string[] },
       signal?: AbortSignal,
     ) =>
       request<{
@@ -1858,6 +1858,12 @@ export function createApi(options: ApiOptions = {}) {
       request<{ staged: StagedChangesView }>(
         'DELETE',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/items?id=${encodeURIComponent(id)}`,
+      ).then(stagedChanged(appId, 'unstage')),
+    /** Everything staged for ONE language of this app (texts, sets, notes). Idempotent; announces `staged_changed` like every unstage. */
+    unstageLocale: (workspaceId: string, appId: string, locale: string) =>
+      request<{ staged: StagedChangesView; removed: number }>(
+        'DELETE',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/locale?locale=${encodeURIComponent(locale)}`,
       ).then(stagedChanged(appId, 'unstage')),
     clearStaged: (workspaceId: string, appId: string) =>
       request<{ staged: StagedChangesView }>(

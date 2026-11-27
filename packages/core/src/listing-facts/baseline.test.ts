@@ -49,3 +49,9 @@ test('no baseline: never unchanged; a plain string baseline is accepted; empty s
   assert.equal(isUnchangedStaged('', ''), true);
   assert.equal(baseline([]), null);
 });
+
+test('isUnchangedStaged: without a baseline only an empty staged text is unchanged (it adds nothing)', () => {
+  assert.equal(isUnchangedStaged('', null), true);
+  assert.equal(isUnchangedStaged('  \n', null), true);
+  assert.equal(isUnchangedStaged('Bonjour', null), false);
+});
