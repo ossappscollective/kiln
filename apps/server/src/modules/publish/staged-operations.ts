@@ -582,6 +582,27 @@ export const stagedChangesOperations: Draft[] = [
     },
   },
   {
+    id: 'unstageStagedLocale',
+    method: 'delete',
+    path: `${W}/apps/{id}/staged/locale`,
+    tags: ['staged-changes'],
+    summary: 'Take everything staged for one language out of the staged changes',
+    description:
+      'Removes every staged item (texts, release fields, graphics sets) of ONE language of THIS app, in one request. Idempotent: a language with nothing staged answers with `removed: 0`. Nothing reaches a store. Needs `changesets.write`. Refused while a publish of the app runs. Emits the `staged_changed` cache event and is audited.',
+    risk: 'destructive',
+    access: { action: 'changesets.write' },
+    appScope: { kind: 'param', name: 'id' },
+    query: z.object({
+      locale: z.string().min(2).max(35).describe('A language code such as fr-FR.'),
+    }),
+    responses: {
+      '200': {
+        description: 'The staged changes after the change and how many items were removed.',
+        schema: z.object({ staged: stagedChangesSchema, removed: z.number() }),
+      },
+    },
+  },
+  {
     id: 'removeStagedAssetFiles',
     method: 'post',
     path: `${W}/apps/{id}/staged/assets/remove`,
