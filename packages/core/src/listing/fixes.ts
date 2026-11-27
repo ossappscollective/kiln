@@ -11,13 +11,8 @@
 import { APP_STORE_KEYWORD_BYTES, languageOf, matchWords } from '../aso/aso.ts';
 import { type CheckCode, type CheckIssue, checkListing } from '../insights/listing-checks.ts';
 import type { Platform } from '../platform.ts';
-import {
-  APP_STORE_FIELD_SPECS,
-  countBytes,
-  countCharacters,
-  type ListingStore,
-  PLAY_FIELD_SPECS,
-} from './listing.ts';
+import { textLimitOf } from '../listing-facts/text.ts';
+import { countBytes, type ListingStore, measureField } from './listing.ts';
 import { isStageableTextField } from './staged-changes.ts';
 
 export type FixId =
@@ -76,17 +71,6 @@ const KEY = {
   shorten: 'listing:fix.shortenAi',
   edit: 'listing:fix.editField',
 };
-
-const specOf = (
-  store: ListingStore,
-  field: string,
-): { maxLength?: number; unit: 'characters' | 'bytes' } | undefined =>
-  (store === 'app_store'
-    ? (APP_STORE_FIELD_SPECS as Record<string, never>)
-    : (PLAY_FIELD_SPECS as Record<string, never>))[field];
-
-const lengthIn = (unit: 'characters' | 'bytes', text: string): number =>
-  unit === 'bytes' ? countBytes(text) : countCharacters(text);
 
 /** The terms of an Apple keyword field: split on commas, white space collapsed, empty terms gone. Repeats are kept (the caller decides). */
 export function keywordTerms(value: string): string[] {
@@ -221,8 +205,7 @@ export function analyzeFixes(input: FixInput): FixAnalysis {
   // Apple keyword field.
   if (store === 'app_store' && text('keywords') !== '') {
     const before = text('keywords');
-    const spec = specOf(store, 'keywords');
-    const limit = spec?.maxLength ?? APP_STORE_KEYWORD_BYTES;
+    const limit = textLimitOf(store, 'keywords')?.max ?? APP_STORE_KEYWORD_BYTES;
     const mk = (
       id: FixId,
       labelKey: string,
@@ -291,9 +274,9 @@ export function analyzeFixes(input: FixInput): FixAnalysis {
   for (const issue of issues) {
     if (issue.field === null || issue.field === 'keywords') continue;
     const field = issue.field;
-    const spec = specOf(store, field);
-    const unit = spec?.unit ?? 'characters';
-    const limit = spec?.maxLength ?? null;
+    const fieldLimit = textLimitOf(store, field);
+    const unit = fieldLimit?.unit ?? 'characters';
+    const limit = fieldLimit?.max ?? null;
     const common = {
       ...base,
       field,
@@ -322,7 +305,7 @@ export function analyzeFixes(input: FixInput): FixAnalysis {
     } else if (issue.code === 'too_long') {
       const tidy = tidyText(text(field));
       const fits =
-        limit !== null && tidy !== text(field) && tidy !== '' && lengthIn(unit, tidy) <= limit;
+        limit !== null && tidy !== text(field) && tidy !== '' && measureField({ unit }, tidy) <= limit;
       if (fits && !stillFailing(input, field, tidy, ['too_long'])) {
         fixes.push({
           ...common,

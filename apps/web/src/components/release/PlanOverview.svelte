@@ -7,6 +7,7 @@
   ondelete (called after the plan was deleted).
 -->
 <script lang="ts">
+  import { MAX_PLAN_NOTES_LENGTH } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { formatTargetDate, planErrorMessage } from '../../lib/release.ts';
   import { planLine } from '../../lib/release-detail.ts';
@@ -199,7 +200,7 @@
     {#if canWrite || plan.notes}
       <div class="field">
         <label for="{uid}-notes">{t('release:plan.teamNotes')}</label>
-        <textarea id="{uid}-notes" rows="3" maxlength="4000" value={notes} readonly={!canWrite} oninput={(e) => (notesDraft = e.currentTarget.value)}></textarea>
+        <textarea id="{uid}-notes" rows="3" maxlength={MAX_PLAN_NOTES_LENGTH} value={notes} readonly={!canWrite} oninput={(e) => (notesDraft = e.currentTarget.value)}></textarea>
         {#if canWrite}
           <div class="row actions">
             <Button size="sm" disabled={!notesDirty || busy} onclick={saveNotes}>{t('release:plan.saveNotes')}</Button>

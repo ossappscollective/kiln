@@ -18,6 +18,7 @@ import {
   emptyRequiredTexts,
   fieldSpecOf,
   normalizeStoreText,
+  notesLengthOf,
   releaseNotesLimitOf,
   requiredFieldsOf,
   sameListingText,
@@ -156,4 +157,21 @@ test('normalizeStoreText: line breaks and no trailing white space (the server ru
   assert.equal(normalizeStoreText('a \nb  \n\n'), 'a \nb');
   assert.equal(sameListingText('Fixes\r\n', 'Fixes'), true);
   assert.equal(sameListingText('Fixes', 'Fix'), false);
+});
+
+test('Play notes of 501 characters: an error in the staged view, a blocker in readiness, the listing validator and notesLengthOf agree', () => {
+  const note = 'x'.repeat(501);
+  assert.equal(notesLengthOf('google_play', note), 501);
+  assert.equal(notesLengthOf('google_play', `${'x'.repeat(500)}\n`), 500);
+  assert.equal(checkReleaseField('android', 'release_notes', 'en-US', note, 0)[0]?.severity, 'error');
+  assert.equal(
+    validateListing({ googlePlay: { locales: {}, changelogs: { 'en-US': { '1': note } } } })[0]?.severity,
+    'error',
+  );
+  const ready = evaluateDraftContent({
+    store: 'google_play',
+    locales: [{ locale: 'en-US', text: {}, assets: [] }],
+    releaseNotes: [{ locale: 'en-US', text: note }],
+  });
+  assert.equal(ready.find((f) => f.code === 'release_notes_too_long')?.severity, 'blocking');
 });

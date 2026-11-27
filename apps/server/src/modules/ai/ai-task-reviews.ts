@@ -11,12 +11,12 @@ import {
   type AiSentiment,
   type AiSeverity,
   type AiThemeKind,
-  APP_STORE_FIELD_SPECS,
   aiReviewTopics,
   aiSentiments,
   aiSeverities,
   aiThemeKinds,
   listingStoreOf,
+  releaseNotesLimit,
 } from '@kiln/core';
 import { coded } from '../../i18n/problem.ts';
 import { getReview } from '../reviews/service.ts';
@@ -723,7 +723,6 @@ export const reviewClassifyTask: ReadyTask = {
 
 export const FIX_NEXT_VERSION = 1;
 const FIX_ITEMS_MAX = 6;
-const PLAY_WHATS_NEW_LIMIT = 500;
 
 const FIX_SYSTEM = `You help the developer of an app decide what to fix next, from the complaints in their reviews.
 
@@ -856,10 +855,7 @@ export const fixNextTask: ReadyTask = {
         ...(fullDetail && r.version ? { version: r.version } : {}),
       })),
     };
-    const limitChars =
-      listingStoreOf(ctx.app.platform) === 'app_store'
-        ? (APP_STORE_FIELD_SPECS.release_notes.maxLength ?? 4000)
-        : PLAY_WHATS_NEW_LIMIT;
+    const limitChars = releaseNotesLimit(ctx.app.platform);
     const facts: FixFacts = { loaded, stats, limit: limitChars };
     return { input, scope: { days, limit }, facts };
   },

@@ -384,7 +384,8 @@ export type KeywordFieldReport = {
   savedBytes: number;
 };
 
-export const APP_STORE_KEYWORD_BYTES: number = APP_STORE_FIELD_SPECS.keywords.maxLength ?? 100;
+/** The App Store keywords limit in bytes: the spec's, never retyped (`textLimitOf('app_store', 'keywords')`). */
+export const APP_STORE_KEYWORD_BYTES: number = APP_STORE_FIELD_SPECS.keywords.maxLength as number;
 
 const encoder = new TextEncoder();
 const byteLength = (s: string) => encoder.encode(s).length;

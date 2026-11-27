@@ -1,4 +1,5 @@
 import { assetFact } from '../images/facts.ts';
+import { checkTextField, textLimitOf } from '../listing-facts/text.ts';
 import {
   APP_STORE_FIELD_SPECS,
   type ListingFieldSpec,
@@ -53,6 +54,8 @@ export type DraftContent = {
 export type ReadinessCode =
   | 'no_locales'
   | 'missing_text'
+  /** A text over its limit, under its minimum or a URL that is none (`checkTextField`, the one text check). */
+  | 'text_problem'
   | 'locale_without_screenshots'
   | 'no_screenshots'
   | 'asset_spec'
@@ -78,9 +81,6 @@ export type ReadinessFinding = {
   /** The numbers and names of the sentence, for a translation. */
   params?: Record<string, string | number>;
 };
-
-const isBlank = (value: string | null | undefined): boolean =>
-  value === null || value === undefined || value.trim() === '';
 
 const specsOf = (store: ListingStore): Record<string, ListingFieldSpec> =>
   (store === 'app_store' ? APP_STORE_FIELD_SPECS : PLAY_FIELD_SPECS) as Record<
@@ -154,36 +154,69 @@ export function evaluateDraftContent(content: DraftContent): ReadinessFinding[] 
         locale: locale.locale,
       });
     for (const field of Object.keys(locale.text)) {
-      if (!isBlank(locale.text[field])) continue;
       const spec = specs[field];
-      if (!spec?.required) continue;
-      const verified = spec.unverified.indexOf('required') < 0;
-      out.push({
-        code: 'missing_text',
-        severity: verified ? 'blocking' : 'warning',
-        message: `${spec.label} is empty in ${locale.locale}.${verified ? '' : ' UNVERIFIED: no official page confirms it is required.'}`,
+      if (!spec) continue;
+      // ONE text check (`checkTextField`): the same required, length and URL rules and the same severity as `validateListing`, the staged
+      // view and the Insights checks. The keyword advice stays with the Insights checks.
+      for (const problem of checkTextField(spec, locale.text[field], {
         locale: locale.locale,
-        item: field,
-        source: spec.source,
-        verified,
-        params: { field, label: spec.label, locale: locale.locale },
-      });
+        field,
+      })) {
+        const verified = problem.severity === 'error';
+        if (problem.code === 'missing_required') {
+          out.push({
+            code: 'missing_text',
+            severity: verified ? 'blocking' : 'warning',
+            message: `${spec.label} is empty in ${locale.locale}.${verified ? '' : ' UNVERIFIED: no official page confirms it is required.'}`,
+            locale: locale.locale,
+            item: field,
+            source: spec.source,
+            verified,
+            params: { field, label: spec.label, locale: locale.locale },
+          });
+        } else if (
+          problem.code === 'too_long' ||
+          problem.code === 'too_short' ||
+          problem.code === 'invalid_url'
+        ) {
+          out.push({
+            code: 'text_problem',
+            severity: verified ? 'blocking' : 'warning',
+            message: `${problem.message} (${locale.locale})`,
+            locale: locale.locale,
+            item: field,
+            rule: `listing.${field}.${problem.code}`,
+            source: spec.source,
+            verified,
+            params: {
+              field,
+              label: spec.label,
+              locale: locale.locale,
+              problem: problem.code,
+              ...(problem.limit !== undefined ? { limit: problem.limit } : {}),
+              ...(problem.actual !== undefined ? { actual: problem.actual } : {}),
+            },
+          });
+        }
+      }
     }
   }
   if (content.store === 'google_play') {
-    const max = PLAY_CHANGELOG_SPEC.maxLength ?? 500;
+    const limit = textLimitOf('google_play', 'release_notes');
+    const max = limit?.max ?? null;
     for (const note of content.releaseNotes ?? []) {
       const count = measureField(PLAY_CHANGELOG_SPEC, note.text);
-      if (count <= max) continue;
+      if (max === null || count <= max) continue;
+      const verified = limit?.maxVerified === true;
       out.push({
         code: 'release_notes_too_long',
-        severity: 'blocking',
+        severity: verified ? 'blocking' : 'warning',
         message: `The release notes for ${note.locale} have ${count} characters. Google Play allows at most ${max} per language.`,
         locale: note.locale,
         item: 'release_notes',
         rule: 'play.release_notes.length',
         source: PLAY_CHANGELOG_SPEC.source,
-        verified: true,
+        verified,
         params: { locale: note.locale, count, max },
       });
     }
@@ -363,7 +396,7 @@ export const REVIEW_CODES: readonly string[] = ['no_review_contact', 'no_review_
 
 /** Which kind of fix a check code needs. An unknown code is a push (the draft is written again and read again). */
 export function fixKindOf(code: string): ReadinessFixKind {
-  if (code === 'missing_text' || code === 'no_locales') return 'listing';
+  if (code === 'missing_text' || code === 'text_problem' || code === 'no_locales') return 'listing';
   if (code === 'no_screenshots' || code === 'asset_spec') return 'screenshots';
   if (code === 'release_notes_too_long') return 'notes';
   if (BUILD_CODES.indexOf(code) >= 0) return 'build';
@@ -469,6 +502,7 @@ export function reconcileBlockers<R extends BlockerRef, C extends BlockerRef>(
 export const RECOMPUTABLE_CODES: readonly string[] = [
   'no_locales',
   'missing_text',
+  'text_problem',
   'locale_without_screenshots',
   'no_screenshots',
   'asset_spec',

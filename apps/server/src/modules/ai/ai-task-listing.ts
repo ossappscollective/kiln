@@ -6,10 +6,9 @@ import {
   APP_STORE_FIELD_SPECS,
   aiLimits,
   byFamily,
-  countBytes,
-  countCharacters,
   isStageableTextField,
   listingStoreOf,
+  measureField,
   normalizeLocale,
   PLAY_FIELD_SPECS,
   type Platform,
@@ -119,8 +118,6 @@ type FieldFacts = {
 };
 type Facts = { platform: Platform; locale: string; fields: FieldFacts[] };
 
-export const measure = (unit: 'characters' | 'bytes', value: string): number =>
-  unit === 'bytes' ? countBytes(value) : countCharacters(value);
 
 /** A keywords text as the stores want it: entries trimmed, empty and repeated ones dropped, joined with a comma. */
 export function normalizeKeywords(text: string): string[] {
@@ -291,7 +288,7 @@ export const listingImproveTask: ReadyTask = {
         const limit = spec.limit;
         if (limit !== null) {
           let dropped = false;
-          while (entries.length > 0 && measure(unit, entries.join(',')) > limit) {
+          while (entries.length > 0 && measureField({ unit }, entries.join(',')) > limit) {
             entries.pop();
             dropped = true;
           }
@@ -299,7 +296,7 @@ export const listingImproveTask: ReadyTask = {
         }
         text = entries.join(',');
       }
-      const length = measure(unit, text);
+      const length = measureField({ unit }, text);
       let acceptable = true;
       const refuse = (flag: AiFlag) => {
         if (!flags.includes(flag)) flags.push(flag);

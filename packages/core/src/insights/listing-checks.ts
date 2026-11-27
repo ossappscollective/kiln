@@ -6,13 +6,8 @@
 // field with its wasted space removed (`analyzeKeywordField`), because it changes no meaning; the rest is advice a person acts on.
 
 import { analyzeKeywordField, languageOf } from '../aso/aso.ts';
-import {
-  APP_STORE_FIELD_SPECS,
-  countBytes,
-  countCharacters,
-  type ListingStore,
-  PLAY_FIELD_SPECS,
-} from '../listing/listing.ts';
+import { type ListingStore, measureField } from '../listing/listing.ts';
+import { requiredFieldsOf, textLimitOf } from '../listing-facts/text.ts';
 import { languageKey } from './countries.ts';
 
 export type CheckSeverity = 'problem' | 'warning' | 'tip';
@@ -76,13 +71,6 @@ const PENALTY: Record<CheckSeverity, number> = { problem: 20, warning: 8, tip: 3
 export const scoreOf = (issues: readonly CheckIssue[]): number =>
   Math.max(0, 100 - issues.reduce((sum, i) => sum + PENALTY[i.severity], 0));
 
-type Spec = { id: string; maxLength?: number; unit: 'characters' | 'bytes' };
-
-const specsOf = (store: ListingStore): Record<string, Spec> =>
-  store === 'app_store'
-    ? (APP_STORE_FIELD_SPECS as unknown as Record<string, Spec>)
-    : (PLAY_FIELD_SPECS as unknown as Record<string, Spec>);
-
 /** The fields the checks look at, per store. */
 const FIELDS: Record<
   ListingStore,
@@ -110,9 +98,6 @@ const FIELDS: Record<
   },
 };
 
-const lengthOf = (spec: Spec, text: string): number =>
-  spec.unit === 'bytes' ? countBytes(text) : countCharacters(text);
-
 const wordsOf = (text: string): string[] =>
   text
     .toLowerCase()
@@ -132,7 +117,6 @@ function checkLocale(
   anyScreenshots: boolean,
 ): CheckIssue[] {
   const f = FIELDS[store];
-  const specs = specsOf(store);
   const issues: CheckIssue[] = [];
   const add = (
     code: CheckCode,
@@ -143,35 +127,36 @@ function checkLocale(
   ) => issues.push({ id: key(entry.locale, code, field), code, field, severity, params, fix });
   const text = (field: string): string => entry.fields[field] ?? '';
 
-  // Limits and empty fields, for every field the store counts.
+  // Limits and empty fields, for every field the store counts. ONE rule (`listing-facts/text.ts`): a limit or a `required` an official page
+  // states is a problem, one no page states is a warning; the same severity as readiness and the staged view.
   for (const field of [f.name, f.short, f.long, f.keywords, f.promo]) {
     if (field === null) continue;
-    const spec = specs[field];
-    if (!spec || spec.maxLength === undefined) continue;
-    const value = text(field);
-    const used = lengthOf(spec, value);
-    if (used > spec.maxLength)
-      add('too_long', field, 'problem', {
+    const limit = textLimitOf(store, field);
+    if (limit === null || limit.max === null) continue;
+    const used = measureField(limit.spec, text(field));
+    if (used > limit.max)
+      add('too_long', field, limit.maxVerified ? 'problem' : 'warning', {
         used,
-        limit: spec.maxLength,
-        over: used - spec.maxLength,
-        unit: spec.unit,
+        limit: limit.max,
+        over: used - limit.max,
+        unit: limit.unit,
       });
   }
-  for (const field of [f.name, f.long]) {
-    if (text(field).trim() === '') add('empty', field, 'problem');
+  const checked = [f.name, f.short, f.long, f.keywords];
+  for (const required of requiredFieldsOf(store)) {
+    if (checked.indexOf(required.field) < 0) continue;
+    if (text(required.field).trim() === '')
+      add('empty', required.field, required.severity === 'error' ? 'problem' : 'warning');
   }
-  if (store === 'google_play' && f.short && text(f.short).trim() === '')
-    add('empty', f.short, 'problem');
 
   // Use of the room.
   const room = (field: string, code: CheckCode, severity: CheckSeverity) => {
-    const spec = specs[field];
+    const limit = textLimitOf(store, field);
     const value = text(field).trim();
-    if (!spec || spec.maxLength === undefined || value === '') return;
-    const used = lengthOf(spec, value);
-    if (used < spec.maxLength * UNDERUSED)
-      add(code, field, severity, { used, limit: spec.maxLength, unit: spec.unit });
+    if (limit === null || limit.max === null || value === '') return;
+    const used = measureField(limit.spec, value);
+    if (used < limit.max * UNDERUSED)
+      add(code, field, severity, { used, limit: limit.max, unit: limit.unit });
   };
   if (store === 'app_store') {
     if (text('subtitle').trim() === '') add('subtitle_missing', 'subtitle', 'warning');
@@ -179,8 +164,7 @@ function checkLocale(
     if (text('promotional_text').trim() === '') add('promo_missing', 'promotional_text', 'tip');
     room('name', 'underused', 'tip');
     const kw = text('keywords');
-    if (kw.trim() === '') add('empty', 'keywords', 'warning');
-    else {
+    if (kw.trim() !== '') {
       const report = analyzeKeywordField(kw, {
         title: text('name'),
         subtitle: text('subtitle'),

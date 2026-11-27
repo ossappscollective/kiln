@@ -18,17 +18,19 @@ export const MAX_PLAN_VERSION_LENGTH = 64;
 export const MAX_CHECKLIST_ITEMS = 100;
 export const MAX_CHECKLIST_TEXT_LENGTH = 300;
 export const MAX_BLOCKED_REASON_LENGTH = 500;
-export const MAX_PLAN_NOTES_LENGTH = 4000;
 /** App Store Connect offers about 40 locales and Play about 80; this is a sanity cap. */
 export const MAX_NOTE_LOCALES = 80;
 export const MAX_TEMPLATES = 50;
 export const MAX_TEMPLATE_NAME_LENGTH = 100;
 
 /** Release notes limit of the App Store ("What's new"), in characters. */
-export const APP_STORE_RELEASE_NOTES_LIMIT: number =
-  APP_STORE_FIELD_SPECS.release_notes.maxLength ?? 4000;
+export const APP_STORE_RELEASE_NOTES_LIMIT: number = APP_STORE_FIELD_SPECS.release_notes
+  .maxLength as number;
 /** Release notes limit of a Play release, in characters. */
-export const PLAY_RELEASE_NOTES_LIMIT: number = PLAY_CHANGELOG_SPEC.maxLength ?? 500;
+export const PLAY_RELEASE_NOTES_LIMIT: number = PLAY_CHANGELOG_SPEC.maxLength as number;
+
+/** The most a plan's release notes of one locale may hold at the server: the App Store's limit, the larger of the two (the stricter store is judged by `releaseNotesLimit`). */
+export const MAX_PLAN_NOTES_LENGTH: number = APP_STORE_RELEASE_NOTES_LIMIT;
 
 /**
  * The most characters a locale's release notes may have. A plan for both platforms must fit the

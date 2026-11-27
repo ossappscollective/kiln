@@ -487,3 +487,32 @@ test('reconcileBlockers: a count blocker that names its set is the same blocker 
   assert.equal(r.resolved.length, 0);
   assert.deepEqual(r.added.map((b) => b.code), ['no_build']);
 });
+
+test('readiness has the text length and URL checks of the one text check: the same severity as validateListing', () => {
+  const locale: DraftLocale = {
+    locale: 'en-US',
+    text: { ...filled, description: 'd'.repeat(4001), support_url: 'not a url', keywords: 'k'.repeat(101) },
+    assets: [iphone(3)],
+  };
+  const found = evaluateDraftContent({ store: 'app_store', locales: [locale] }).filter(
+    (f) => f.code === 'text_problem',
+  );
+  const by = (field: string) => found.find((f) => f.item === field);
+  assert.equal(by('description')?.severity, 'blocking');
+  assert.equal(by('keywords')?.severity, 'blocking');
+  assert.equal(by('support_url')?.severity, 'blocking');
+  assert.equal(by('description')?.params?.limit, 4000);
+});
+
+test('an empty iOS keywords field blocks the submit and is a problem in the Insights checks (one severity)', () => {
+  const locale: DraftLocale = { locale: 'en-US', text: { ...filled, keywords: '' }, assets: [iphone(3)] };
+  const missing = evaluateDraftContent({ store: 'app_store', locales: [locale] }).find(
+    (f) => f.code === 'missing_text' && f.item === 'keywords',
+  );
+  assert.equal(missing?.severity, 'blocking');
+  const checks = checkListing({
+    store: 'app_store',
+    locales: [{ locale: 'en-US', fields: { name: 'App', subtitle: 'S', description: filled.description, keywords: '' } }],
+  });
+  assert.equal(checks.locales[0]?.issues.find((i) => i.code === 'empty' && i.field === 'keywords')?.severity, 'problem');
+});

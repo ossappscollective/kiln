@@ -1,5 +1,5 @@
 import type { Platform, StoreId } from '@kiln/core';
-import { isLocaleCode, localeKey, releaseNotesLimit } from '@kiln/core';
+import { isLocaleCode, listingStoreOf, localeKey, notesLengthOf, releaseNotesLimit } from '@kiln/core';
 import { k, t } from './i18n/t.ts';
 import type { TestNotes } from './release-candidates.ts';
 
@@ -153,7 +153,9 @@ export function reuseOptions(
       preview: previewOf(note.text),
       uses: lines.slice(0, 3),
       usesMore: Math.max(0, lines.length - 3),
-      overLimit: note.text.length > limit ? note.text.length : null,
+      overLimit: notesLengthOf(listingStoreOf(platform), note.text) > limit
+        ? notesLengthOf(listingStoreOf(platform), note.text)
+        : null,
       truncated: note.truncated,
       same: clean(note.text) === clean(current),
     });
@@ -319,7 +321,7 @@ export function promoteNotesFill(input: {
     }
     drafts[key] = text;
     filled.push(key);
-    if (text.length > limit) tooLong.push(key);
+    if (notesLengthOf(listingStoreOf(input.platform), text) > limit) tooLong.push(key);
     if (shown === undefined && isNoteLocale(key)) addLocales.push(key);
   });
   return {
@@ -417,6 +419,7 @@ export function noteRows(input: {
     const staged = input.staged[locale] ?? null;
     const store = input.store[locale] ?? null;
     const base = staged ?? store ?? '';
+    const chars = notesLengthOf(listingStoreOf(input.platform), draft);
     let state: LocaleState;
     if (clean(draft) !== clean(base)) state = 'edited';
     else if (staged !== null) state = 'staged';
@@ -428,9 +431,9 @@ export function noteRows(input: {
       store,
       staged,
       state,
-      chars: draft.length,
+      chars,
       limit,
-      over: draft.length > limit,
+      over: chars > limit,
     };
   });
 }

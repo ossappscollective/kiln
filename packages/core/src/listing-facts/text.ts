@@ -2,6 +2,7 @@ import {
   APP_STORE_COPYRIGHT_SPEC,
   APP_STORE_FIELD_SPECS,
   checkListingField,
+  measureField,
   type ListingFieldSpec,
   type ListingProblem,
   type ListingStore,
@@ -75,6 +76,13 @@ export function textLimitOf(store: ListingStore, field: string): TextLimit | nul
 /** The most characters of release notes per locale in a store (`textLimitOf(store, 'release_notes').max`). */
 export const releaseNotesLimitOf = (store: ListingStore): number | null =>
   textLimitOf(store, RELEASE_NOTES_FIELD)?.max ?? null;
+
+/**
+ * How long a release note is, the one way: the notes spec's unit (Unicode code points, white space trimmed). Never `text.length` (UTF-16
+ * units: an emoji counts twice, so a note at the limit read as "over").
+ */
+export const notesLengthOf = (store: ListingStore, text: string): number =>
+  measureField(fieldSpecOf(store, RELEASE_NOTES_FIELD) as ListingFieldSpec, text);
 
 export type RequiredField = {
   field: string;

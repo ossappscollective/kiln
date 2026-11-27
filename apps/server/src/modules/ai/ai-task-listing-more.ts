@@ -10,6 +10,7 @@ import {
   byFamily,
   isStageableTextField,
   listingStoreOf,
+  measureField,
   normalizeLocale,
   PLAY_FIELD_SPECS,
   type Platform,
@@ -22,7 +23,7 @@ import { normalizeListingValue } from '../listing/drift.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { loadLocaleTexts } from './ai-task-keywords.ts';
 import { int, line } from './ai-task-lenient.ts';
-import { listingImproveTask, measure, SINGLE_LINE } from './ai-task-listing.ts';
+import { listingImproveTask, SINGLE_LINE } from './ai-task-listing.ts';
 import {
   checkScope,
   cleanGoal,
@@ -295,7 +296,7 @@ export const listingVariantsTask: ReadyTask = {
           if (!flags.includes(flag)) flags.push(flag);
           acceptable = false;
         };
-        const length = measure(spec.unit, text);
+        const length = measureField(spec, text);
         if (text === '') refuse('empty');
         if (seen.has(text.toLowerCase())) refuse('duplicate');
         seen.add(text.toLowerCase());

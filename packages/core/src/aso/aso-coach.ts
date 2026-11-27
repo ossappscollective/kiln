@@ -13,7 +13,7 @@
 import {
   APP_STORE_FIELD_SPECS,
   countBytes,
-  countCharacters,
+  measureField,
   PLAY_FIELD_SPECS,
 } from '../listing/listing.ts';
 import { localeKey, localesMatch } from '../listing-facts/locale.ts';
@@ -308,7 +308,7 @@ export function listingBudget(input: {
 
   const budgets: FieldBudget[] = specs.map((spec) => {
     const text = fieldValue(fields, spec.field);
-    const used = spec.unit === 'bytes' ? countBytes(text) : countCharacters(text);
+    const used = measureField(spec, text);
     const set = new Set(matchWords(text, language));
     return {
       field: spec.field,

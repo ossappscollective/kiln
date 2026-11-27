@@ -16,7 +16,7 @@ import { measureField, PLAY_CHANGELOG_SPEC } from '../listing/listing.ts';
 import { type CoreText, coreText } from '../text.ts';
 
 /** The most characters of release notes per language (VERIFIED, see above). */
-export const PLAY_NOTES_LIMIT: number = PLAY_CHANGELOG_SPEC.maxLength ?? 500;
+export const PLAY_NOTES_LIMIT: number = PLAY_CHANGELOG_SPEC.maxLength as number;
 
 export type PlayStatus = 'draft' | 'inProgress' | 'completed';
 

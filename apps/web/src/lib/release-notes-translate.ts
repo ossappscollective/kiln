@@ -1,4 +1,12 @@
-import { aiProviderInfo, can, localeKey, type Role, translationProviderInfo } from '@kiln/core';
+import {
+  aiProviderInfo,
+  APP_STORE_RELEASE_NOTES_LIMIT,
+  can,
+  localeKey,
+  notesLengthOf,
+  type Role,
+  translationProviderInfo,
+} from '@kiln/core';
 import {
   type AiConfig,
   aiErrorMessage,
@@ -23,7 +31,7 @@ import type { TranslationConfig } from './settings.ts';
 export type TranslateEngine = 'machine' | 'ai';
 
 /** The limits of the server (`POST /apps/{id}/release-notes/translate`). */
-export const NOTES_TRANSLATE_MAX_CHARS = 4000;
+export const NOTES_TRANSLATE_MAX_CHARS: number = APP_STORE_RELEASE_NOTES_LIMIT;
 export const NOTES_TRANSLATE_MAX_TARGETS = 40;
 
 export type TranslateNotesBody = {
@@ -272,10 +280,10 @@ export function translatePlan(
     chunks.push(targets.slice(i, i + NOTES_TRANSLATE_MAX_TARGETS));
   let problem: string | null = null;
   if (text === '') problem = t('release-stepper:tr.problem.writeFirst', { source });
-  else if (text.length > NOTES_TRANSLATE_MAX_CHARS)
+  else if (notesLengthOf('app_store', text) > NOTES_TRANSLATE_MAX_CHARS)
     problem = t('release-stepper:tr.problem.tooLong', {
       source,
-      chars: text.length,
+      chars: notesLengthOf('app_store', text),
       max: NOTES_TRANSLATE_MAX_CHARS,
     });
   else if (targets.length === 0) problem = t('release-stepper:tr.problem.noTarget');

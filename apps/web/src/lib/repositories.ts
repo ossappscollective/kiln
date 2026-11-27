@@ -3,12 +3,11 @@ import {
   APP_STORE_FIELDS,
   type ChangeSetStatus,
   can,
-  countBytes,
-  countCharacters,
   DEFAULT_LOCALE,
   type Listing,
   type ListingFieldSpec,
   type ListingStore,
+  measureField,
   PLAY_FIELD_SPECS,
   PLAY_FIELDS,
   type Platform,
@@ -402,7 +401,7 @@ export function fieldUsage(
   spec: Pick<ListingFieldSpec, 'maxLength' | 'minLength' | 'unit'>,
   value: string,
 ): FieldUsage {
-  const count = spec.unit === 'bytes' ? countBytes(value) : countCharacters(value);
+  const count = measureField(spec, value);
   const { maxLength: max, minLength: min, unit } = spec;
   const keys = unit === 'bytes' ? usageBytes : usageCharacters;
   const text = max === undefined ? t(keys.plain, { count }) : t(keys.withMax, { count, max });

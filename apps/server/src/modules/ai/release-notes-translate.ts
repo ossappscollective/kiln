@@ -1,5 +1,15 @@
 import type { JsonSchema } from '@kiln/connectors';
-import { type AiProvider, byFamily, isLocaleCode, localeKey, sameLanguage, storeShortName } from '@kiln/core';
+import {
+  type AiProvider,
+  APP_STORE_RELEASE_NOTES_LIMIT,
+  isLocaleCode,
+  listingStoreOf,
+  localeKey,
+  notesLengthOf,
+  releaseNotesLimit,
+  sameLanguage,
+  storeShortName,
+} from '@kiln/core';
 import type { Database } from '@kiln/db';
 import { coded } from '../../i18n/problem.ts';
 import type { ManagedApp } from '../../services/apps.ts';
@@ -28,12 +38,12 @@ import type { ConcurrencyGate, UsageWarning } from './ai-usage.ts';
  * The answer is TEXT for the editors. Nothing is stored (no cache, no suggestion), nothing is staged, nothing reaches a store: a person
  * reads the texts, edits them and stages them like any other note.
  *
- * What leaves the server: the text of the one source language (at most 4000 characters), the language tags, and for `ai` the store, the
+ * What leaves the server: the text of the one source language (at most the App Store notes limit), the language tags, and for `ai` the store, the
  * limit, and the AI context of the app when there is one. No review, no listing, no credential. The text is never logged, never audited and
  * never in an error: the audit entry has ids, the engine, the provider, counts and a code.
  */
 
-export const NOTES_TRANSLATE_LIMITS = { maxChars: 4000, maxTargets: 40 } as const;
+export const NOTES_TRANSLATE_LIMITS = { maxChars: APP_STORE_RELEASE_NOTES_LIMIT, maxTargets: 40 } as const;
 export const NOTES_TASK = { id: 'release_notes_translate', version: 1 } as const;
 
 /** A language tag for notes: `en-US`, `de`, `pt_BR`. Same rule as the screen. */
@@ -41,7 +51,7 @@ export const isNoteLocale = (value: string): boolean => isLocaleCode(value);
 
 /** The longest "what is new" of the store of this platform. */
 export const noteLimitOf = (platform: ManagedApp['platform']): number =>
-  byFamily(platform, { apple: 4000, google: 500 });
+  releaseNotesLimit(platform);
 
 export type NotesEngine = 'machine' | 'ai';
 
@@ -371,7 +381,8 @@ export async function translateReleaseNotes(
   const over: Record<string, number> = {};
   const warnings: Record<string, string[]> = {};
   for (const [locale, value] of Object.entries(base.texts)) {
-    if (value.length > limit) over[locale] = value.length;
+    const size = notesLengthOf(listingStoreOf(input.app.platform), value);
+    if (size > limit) over[locale] = size;
     if (!sameLanguage(locale, input.sourceLocale) || input.engine === 'ai') {
       const w = translationWarnings(text, value, brandTerms.value);
       if (w.length > 0) warnings[locale] = w;

@@ -14,11 +14,10 @@ import {
   aiHealthAreas,
   aiLimits,
   checkTerm,
-  countBytes,
-  countCharacters,
   dateToDay,
   type ListingStore,
   listingStoreOf,
+  measureField,
   normalizeCountry,
   normalizeLocale,
   PLAY_FIELD_SPECS,
@@ -64,8 +63,6 @@ type FieldSpecs = Record<
 >;
 const specsFor = (apple: boolean): FieldSpecs =>
   (apple ? APP_STORE_FIELD_SPECS : PLAY_FIELD_SPECS) as unknown as FieldSpecs;
-const measure = (unit: 'characters' | 'bytes', value: string): number =>
-  unit === 'bytes' ? countBytes(value) : countCharacters(value);
 
 const words = (text: string): string[] =>
   text
@@ -197,7 +194,7 @@ export const listingAuditTask: ReadyTask = {
       const value = texts.values.get(field) ?? '';
       const unit = specs[field]?.unit ?? 'characters';
       const limit = specs[field]?.maxLength ?? null;
-      const length = measure(unit, value);
+      const length = measureField({ unit }, value);
       return {
         field,
         label: specs[field]?.label ?? field,

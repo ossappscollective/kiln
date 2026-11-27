@@ -9,8 +9,9 @@
   Pure view: no request, nothing is changed.
 -->
 <script lang="ts">
+  import { measureField } from '@kiln/core';
   import { k, t } from '../../lib/i18n/t.ts';
-  import { countChars, diffText, type DiffMode, sidesOf, statsLine } from '../../lib/diff/text-diff.ts';
+  import { diffText, type DiffMode, sidesOf, statsLine } from '../../lib/diff/text-diff.ts';
   import Button from './Button.svelte';
   import CopyButton from './CopyButton.svelte';
 
@@ -38,7 +39,7 @@
   const a = $derived(after ?? '');
   const diff = $derived(diffText(b, a, { mode }));
   const sides = $derived(sidesOf(diff.segments));
-  const size = (s: string) => (unit === 'bytes' ? new TextEncoder().encode(s).length : countChars(s));
+  const size = (s: string) => measureField({ unit: unit ?? 'characters' }, s);
   const COUNTER = {
     chars: k('common:diff.chars'),
     bytes: k('common:diff.bytes'),

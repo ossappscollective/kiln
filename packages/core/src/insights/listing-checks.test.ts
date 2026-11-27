@@ -107,7 +107,21 @@ test('Google Play: title, short and full description, no keyword field', () => {
   assert.ok(c.includes('too_long:title'));
   assert.ok(c.includes('empty:short_description'));
   assert.ok(!c.some((x) => x.includes('keywords')));
-  assert.equal(out.locales[0]?.score, 60);
+  // No official page says a Play text is required: an empty one is a WARNING (8), the same severity as readiness; the title is a problem (20).
+  assert.equal(out.locales[0]?.issues.find((i) => i.code === 'empty')?.severity, 'warning');
+  assert.equal(out.locales[0]?.score, 72);
+});
+
+test('an empty iOS keywords field is a problem, as in readiness (one severity per rule)', () => {
+  const ios: CheckLocaleText = {
+    locale: 'en-US',
+    fields: { name: 'App', subtitle: 'Sub', description: 'D'.repeat(200), keywords: '' },
+  };
+  const out = checkListing({ store: 'app_store', locales: [ios] });
+  assert.equal(
+    out.locales[0]?.issues.find((i) => i.code === 'empty' && i.field === 'keywords')?.severity,
+    'problem',
+  );
 });
 
 test('score floors at 0 and an empty list scores 100', () => {

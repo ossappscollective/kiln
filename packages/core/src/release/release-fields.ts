@@ -167,7 +167,7 @@ export const RELEASE_FIELD_SPECS: Readonly<Record<ReleaseFieldId, ReleaseFieldSp
     // verified for readiness, so a 520 character note staged with a warning and then blocked the submit.
     maxLength: PLAY_CHANGELOG_SPEC.maxLength ?? null,
     limitUnverified: PLAY_CHANGELOG_SPEC.unverified.indexOf('max') >= 0,
-    help: 'What is new, per language (Play Console shows 500 characters a language).',
+    help: 'What is new, per language (Play Console limits the characters of a language).',
   },
 };
 

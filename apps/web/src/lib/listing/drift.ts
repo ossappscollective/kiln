@@ -1,4 +1,4 @@
-import { countBytes, countCharacters } from '@kiln/core';
+import { measureField } from '@kiln/core';
 import { formatDisplayName, formatList, formatNumber } from '../i18n/format.ts';
 import { k, t } from '../i18n/t.ts';
 import type { BadgeTone } from '../portfolio.ts';
@@ -88,7 +88,7 @@ export function usage(
   limit: number | null,
   unit: 'characters' | 'bytes',
 ): Usage {
-  const count = value === null ? 0 : unit === 'bytes' ? countBytes(value) : countCharacters(value);
+  const count = value === null ? 0 : measureField({ unit }, value);
   return { count, limit, unit, over: limit !== null && count > limit };
 }
 

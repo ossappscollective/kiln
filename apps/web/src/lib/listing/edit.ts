@@ -2,13 +2,12 @@ import {
   APP_STORE_FIELD_SPECS,
   type AppStoreField,
   byFamily,
-  countBytes,
-  countCharacters,
   isStageableTextField,
   type ListingFieldSpec,
   languageOf,
   listingStoreOf,
   matchWords,
+  measureField as measureText,
   PLAY_FIELD_SPECS,
   type Platform,
   type PlayField,
@@ -136,8 +135,9 @@ export type FieldMeter = {
   text: string;
 };
 
+/** The length of a text in the unit of its field: the one `measureField` of core (code points or UTF-8 bytes, white space trimmed). */
 export const lengthOf = (text: string, unit: 'characters' | 'bytes'): number =>
-  unit === 'bytes' ? countBytes(text) : countCharacters(text);
+  measureText({ unit }, text);
 
 export function measureField(info: Pick<FieldInfo, 'limit' | 'unit'>, text: string): FieldMeter {
   const used = lengthOf(text, info.unit);
