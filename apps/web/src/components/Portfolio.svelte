@@ -7,7 +7,7 @@
   import { type AppGroup, groupApps, groupOf } from '../lib/app-groups.ts';
   import { buildOverviewRows, overviewStats } from '../lib/app-overview.ts';
   import { attentionCount, unansweredCount } from '../lib/nav-badges.ts';
-  import { navSignals } from '../lib/nav-signals.svelte.ts';
+  import { navSignals } from '../lib/app-state/pending-facade.ts';
   import { appStateStore } from '../lib/app-state/app-state-store.svelte.ts';
   import { invalidate } from '../lib/facts/invalidate.ts';
   import { type ViewMode, readViewMode, saveViewMode } from '../lib/dashboard.ts';

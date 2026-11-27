@@ -8,8 +8,7 @@
 -->
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
-  import { cartDetailStore } from '../../lib/cart-preview.svelte.ts';
-  import { previewOf } from '../../lib/cart-preview.ts';
+  import { cartDetailStore, previewOf } from '../../lib/app-state/pending-facade.ts';
   import { t } from '../../lib/i18n/t.ts';
   import type { CartRow } from '../../lib/pending-cart.ts';
   import Alert from '../ui/Alert.svelte';

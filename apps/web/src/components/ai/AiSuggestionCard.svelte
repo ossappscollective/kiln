@@ -37,8 +37,7 @@
   import { timeAgo } from '../../lib/format.ts';
   import { formatNumber } from '../../lib/i18n/format.ts';
   import { t } from '../../lib/i18n/t.ts';
-  import { pendingStore } from '../../lib/pending-store.svelte.ts';
-  import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { pendingStore, stagedStore } from '../../lib/app-state/pending-facade.ts';
   import { canSubmit } from '../../lib/store-submit.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';

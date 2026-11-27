@@ -14,9 +14,8 @@
   import { appAddress } from '../../lib/app-scope.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
   import { openSubmitChecklist } from '../../lib/app-state/panel.svelte.ts';
-  import { KIND_LABEL, pendingAcrossText } from '../../lib/cart-summary.ts';
+  import { KIND_LABEL, navSignals, pendingAcrossText } from '../../lib/app-state/pending-facade.ts';
   import { k, t } from '../../lib/i18n/t.ts';
-  import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { queueCartOpen } from '../../lib/pending-cart.ts';
   import { canPublishBatch } from '../../lib/pending.ts';
   import FailureAnchor from '../app-state/FailureAnchor.svelte';

@@ -25,7 +25,7 @@
   import { appReviewsHref } from '../../lib/app-scope.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { unansweredCount } from '../../lib/nav-badges.ts';
-  import { navSignals } from '../../lib/nav-signals.svelte.ts';
+  import { navSignals } from '../../lib/app-state/pending-facade.ts';
   import { tint } from '../../lib/tint/store.svelte.ts';
   import { appOptions, filterSummaryText, pruneAppIds, selectedOptions } from '../../lib/reviews/app-filter.ts';
   import { replyOffText, type ReplyConfig } from '../../lib/reviews/reply.ts';

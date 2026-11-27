@@ -29,9 +29,8 @@
   import { buildMatrix, modeCounts } from '../../lib/listing/matrix.ts';
   import { releaseFactsOf } from '../../lib/app-state/release-facts.ts';
   import { copyIdentifierLabel, identifierLabel, trackLabel } from '../../lib/portfolio.ts';
-  import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { stagedStore, submitStore } from '../../lib/app-state/pending-facade.ts';
   import { canSubmit } from '../../lib/store-submit.ts';
-  import { submitStore } from '../../lib/store-submit-store.svelte.ts';
   import type { AsoSummary } from '../../lib/aso/aso.ts';
   import { listingStore } from '../../lib/app-state/listing-store.svelte.ts';
   import type { ActiveRuns, AppBuild, AppSummary, PlanSummary, ReleaseSummary } from '../../lib/types.ts';

@@ -18,9 +18,8 @@
   import { navBadgeCount } from '../lib/insights/insights.ts';
   import { appStateStore } from '../lib/app-state/app-state-store.svelte.ts';
   import { roleLabel } from '../lib/role-label.ts';
-  import { navSignals } from '../lib/nav-signals.svelte.ts';
+  import { navSignals, pendingAcrossText } from '../lib/app-state/pending-facade.ts';
   import { tint } from '../lib/tint/store.svelte.ts';
-  import { pendingAcrossText } from '../lib/cart-summary.ts';
   import { loadCollapsed, railApplies, saveCollapsed } from '../lib/sidebar-state.ts';
   import { CHORD_TIMEOUT_MS, type ChordState, chordHint, idleChord, isTypingTarget, stepShortcut } from '../lib/shortcuts.ts';
   import { initials } from '../lib/format.ts';

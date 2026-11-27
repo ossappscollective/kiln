@@ -16,7 +16,7 @@
   import { cartStore } from '../../lib/app-state/cart-store.svelte.ts';
   import { PUBLISH_AGAIN_EVENT, stepsToRepeat } from '../../lib/app-state/actions.ts';
   import type { PlatformScope } from '../../lib/app-scope.ts';
-  import { cartButton, resetCartButton } from '../../lib/cart-button.svelte.ts';
+  import { cartButton, resetCartButton } from '../../lib/app-state/pending-facade.ts';
   import { t } from '../../lib/i18n/t.ts';
   import {
     CART_ADDED_EVENT,

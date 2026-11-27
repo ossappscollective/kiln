@@ -15,7 +15,7 @@
 <script lang="ts">
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
   import { openPendingPanel } from '../../lib/app-state/panel.svelte.ts';
-  import { cartButton } from '../../lib/cart-button.svelte.ts';
+  import { cartButton } from '../../lib/app-state/pending-facade.ts';
   import { t } from '../../lib/i18n/t.ts';
   import Icon from '../ui/Icon.svelte';
   import Spinner from '../ui/Spinner.svelte';

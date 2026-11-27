@@ -8,7 +8,7 @@
 -->
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
-  import { type Expanded, expansionOf, PREVIEW_KEYS, noneExpanded, toggleAll, toggleExpanded } from '../../lib/cart-preview.ts';
+  import { type Expanded, expansionOf, noneExpanded, PREVIEW_KEYS, toggleAll, toggleExpanded } from '../../lib/app-state/pending-facade.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { cartStore } from '../../lib/app-state/cart-store.svelte.ts';
   import { type CartRow, GROUP_KEYS } from '../../lib/pending-cart.ts';

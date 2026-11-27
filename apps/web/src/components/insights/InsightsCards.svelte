@@ -32,7 +32,7 @@
   } from '../../lib/insights/insights.ts';
   import { t } from '../../lib/i18n/t.ts';
   import type { PlatformScope } from '../../lib/app-scope.ts';
-  import { navSignals } from '../../lib/nav-signals.svelte.ts';
+  import { navSignals } from '../../lib/app-state/pending-facade.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';

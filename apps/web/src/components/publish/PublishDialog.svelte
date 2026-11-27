@@ -64,10 +64,9 @@
     warningsOf,
   } from '../../lib/pending.ts';
   import { announcePublished } from '../../lib/app-page.ts';
-  import { pendingStore } from '../../lib/pending-store.svelte.ts';
+  import { pendingStore, publishingStore } from '../../lib/app-state/pending-facade.ts';
   import { endedByServer } from '../../lib/publishing.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
-  import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import { firstFix, readinessView, submitChoice } from '../../lib/publish-readiness.ts';
   import { publishSummary, shownErrors } from '../../lib/publish-summary.ts';
   import { elapsedText, failureDetail, minutesOf, PUBLISH_SLOW_AFTER_MS, PUBLISH_WAIT_LIMIT_MS, PublishWaitError, withWaitLimit } from '../../lib/publish-run.ts';

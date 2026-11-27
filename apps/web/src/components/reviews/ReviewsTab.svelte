@@ -62,7 +62,7 @@
   import { filtersButtonText, popoverFilterCount, statsLine, statusChips, statusesAfterChip } from '../../lib/reviews/toolbar.ts';
   import { averageText, inboxAnnouncement } from '../../lib/reviews/reviews.ts';
   import Section from '../ui/Section.svelte';
-  import { navSignals } from '../../lib/nav-signals.svelte.ts';
+  import { navSignals } from '../../lib/app-state/pending-facade.ts';
   import { type TranslationConfig, languageName, loadTranslationConfig } from '../../lib/settings.ts';
   import { splitView } from '../../lib/split-view.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';

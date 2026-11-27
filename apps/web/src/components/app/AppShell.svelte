@@ -29,13 +29,12 @@
     withHeaderParams,
   } from '../../lib/app-header.ts';
   import { asoViewFromHash } from '../../lib/aso/aso.ts';
-  import { navSignals } from '../../lib/nav-signals.svelte.ts';
+  import { navSignals, pendingStore } from '../../lib/app-state/pending-facade.ts';
   import { tint } from '../../lib/tint/store.svelte.ts';
   import { dataChips } from '../../lib/app-chips.ts';
   import { canonicalAppHash, canonicalSection, pageTitle, resolveView, showsScope, viewsFor } from '../../lib/app-nav.ts';
   import { PUBLISHED_EVENT } from '../../lib/app-page.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
-  import { pendingStore } from '../../lib/pending-store.svelte.ts';
   import { invalidate, onInvalidated } from '../../lib/facts/invalidate.ts';
   import { batchAppIds } from '../../lib/staged-sync.ts';
   import { canSubmit } from '../../lib/store-submit.ts';

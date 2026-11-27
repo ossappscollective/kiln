@@ -17,7 +17,7 @@
   import { type Role, can } from '@kiln/core';
   import { tick, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
-  import { type Expanded, PREVIEW_KEYS, expansionOf, noneExpanded, pruneExpanded, toggleAll, toggleExpanded } from '../../lib/cart-preview.ts';
+  import { type Expanded, expansionOf, noneExpanded, pendingStore, PREVIEW_KEYS, pruneExpanded, stagedStore, toggleAll, toggleExpanded } from '../../lib/app-state/pending-facade.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { formatList } from '../../lib/i18n/format.ts';
   import { t } from '../../lib/i18n/t.ts';
@@ -46,14 +46,12 @@
   } from '../../lib/pending.ts';
   import type { CartRow } from '../../lib/pending-cart.ts';
   import { itemKey, needsCart, thumbsOf } from '../../lib/pending-preview.ts';
-  import { pendingStore } from '../../lib/pending-store.svelte.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
   import { cartStore } from '../../lib/app-state/cart-store.svelte.ts';
   import { reportShown } from '../../lib/app-state/dev-assert.ts';
   import { openSubmitChecklist } from '../../lib/app-state/panel.svelte.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { canStage, stagingError } from '../../lib/staged.ts';
-  import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { canSubmit } from '../../lib/store-submit.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';

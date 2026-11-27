@@ -18,7 +18,7 @@
   import { t } from '../../lib/i18n/t.ts';
   import type { Api } from '../../lib/api.ts';
   import type { LastPublish } from '../../lib/pending.ts';
-  import { type Expanded, expansionOf, PREVIEW_KEYS, noneExpanded, pruneExpanded, toggleAll, toggleExpanded } from '../../lib/cart-preview.ts';
+  import { type Expanded, expansionOf, noneExpanded, PREVIEW_KEYS, pruneExpanded, toggleAll, toggleExpanded } from '../../lib/app-state/pending-facade.ts';
   import { issueText, money, samePhrase, verificationText } from '../../lib/prices.ts';
   import type { PriceDryRunItem } from '../../lib/types.ts';
   import { appAddress, type PlatformScope } from '../../lib/app-scope.ts';

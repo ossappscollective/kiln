@@ -28,7 +28,7 @@
   } from '../../lib/ci/ci.ts';
   import { appsHint, appsInfo, appsLine, dispatchAppsBody, toggleApp } from '../../lib/ci/dispatch-apps.ts';
   import { type DispatchTarget, dispatchLinkableApps, dispatchPreselection } from '../../lib/ci/dispatch-target.ts';
-  import { navSignals } from '../../lib/nav-signals.svelte.ts';
+  import { navSignals } from '../../lib/app-state/pending-facade.ts';
   import { repositoryName } from '../../lib/repositories.ts';
   import { dispatchHints } from '../../lib/start-release.ts';
   import { toast } from '../../lib/toast.svelte.ts';

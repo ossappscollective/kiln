@@ -25,8 +25,7 @@
   import { type RailItem, navEntryOf, visibleNav, workspaceRail } from '../../lib/app-nav.ts';
   import { type AppAddress, type AppSection, appAddress } from '../../lib/app-scope.ts';
   import { type BadgeTone, badgeClass, badgeText, navBadgeTone } from '../../lib/nav-badges.ts';
-  import { pendingAcrossText } from '../../lib/cart-summary.ts';
-  import { navSignals } from '../../lib/nav-signals.svelte.ts';
+  import { navSignals, pendingAcrossText } from '../../lib/app-state/pending-facade.ts';
   import { chordHint } from '../../lib/shortcuts.ts';
   import { itemOfId, type SwitcherItem } from '../../lib/app-switcher.ts';
   import type { PlatformStatusLine } from '../../lib/app-status.ts';

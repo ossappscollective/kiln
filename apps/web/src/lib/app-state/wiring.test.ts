@@ -69,8 +69,6 @@ const RULES: Rule[] = [
     allow: {
       'lib/publishing-store.svelte.ts':
         'it IS the claims store the app-state store reads (it reads the cart summary to know what a publish emptied)',
-      'components/publish/PublishDialog.svelte':
-        'the dialog REPORTS its own publish to the claims store (started / answered / refresh): it writes, it decides nothing. The model reads those claims back',
     },
   },
   {
