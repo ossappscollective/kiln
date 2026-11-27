@@ -155,7 +155,7 @@ export class AppleReviewDetailConnector {
 
   /**
    * The first of these versions (best first, `reviewSourceOrder`) whose detail holds anything, with that detail. Null when none does.
-   * A version whose detail cannot be read is skipped; if none could be read and one failed, that failure is thrown.
+   * A version whose detail cannot be read is skipped; if none of the others holds one and a read failed, that failure is thrown (never "no source").
    */
   async findSource(
     versions: readonly ReviewSourceCandidate[],
@@ -177,7 +177,9 @@ export class AppleReviewDetailConnector {
         failure = error;
       }
     }
-    if (!anyRead && failure !== undefined) throw failure;
+    // A version whose detail could not be read may be the one that holds it: "nothing to copy" is only true when every read worked.
+    if (failure !== undefined) throw failure;
+    void anyRead;
     return null;
   }
 

@@ -269,6 +269,11 @@ export const listingStore = {
     return readinessStore.load(api, workspaceId, app.id);
   },
 
+  /** The review information of the draft changed (the copy): the check reads the store again now, not after its 30 seconds. */
+  reloadReview(api: Api, workspaceId: string, appId: string): Promise<void> {
+    return readinessStore.load(api, workspaceId, appId, { fresh: true });
+  },
+
   /** Forgets an app (it left the workspace). */
   forget(workspaceId: string, appId: string): void {
     entries.delete(keyOf(workspaceId, appId));

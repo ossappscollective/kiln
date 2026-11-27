@@ -17,6 +17,8 @@ import {
   newestNonEditableVersion,
   nextVersion,
   type Platform,
+  type ReviewCarryStatus,
+  reviewCarryStatusOf,
   type ReviewSummary,
   sameVersion,
   supports,
@@ -355,6 +357,8 @@ const NOTE =
 /** The App Review Information of a version as the API and the screens show it: an outcome, where it came from, a count and a masked summary. */
 export type ReviewInformationView = {
   outcome: ReviewCarryResult['outcome'];
+  /** The one word for the outcome (`reviewCarryStatusOf`): copied, nothing_to_copy or failed. */
+  status: ReviewCarryStatus;
   /** The version string it comes from (null: there is none). */
   from: string | null;
   fieldsCopied: number;
@@ -365,6 +369,7 @@ export type ReviewInformationView = {
 
 const reviewViewOf = (r: ReviewCarryResult): ReviewInformationView => ({
   outcome: r.outcome,
+  status: reviewCarryStatusOf(r.outcome),
   from: r.from?.versionString ?? null,
   fieldsCopied: r.fieldsCopied,
   summary: r.summary,
@@ -516,17 +521,27 @@ const reviewWarning = (r: ReviewCarryResult): VersionCheck =>
           'The App Review Information of the previous version could not be copied to the new version. Copy it from the submit checklist, or fill it in App Store Connect before submitting.',
       };
 
-/** Carries the review information onto the version; null when it cannot be tried (no version id, or a connector without it). Never throws. */
+/** Carries the review information onto the version. Never throws, never null: what could not be tried is a `failed` result. */
 async function carryReview(
   ctx: VersionContext,
   input: Omit<VersionConnectorInput, 'fetch'>,
   versions: readonly StoreVersionRow[],
   versionId: string | null,
-): Promise<ReviewCarryResult | null> {
-  if (versionId === null) return null;
+): Promise<ReviewCarryResult> {
+  // Never silent: a carry-over that could not be tried is a `failed` result with the reason, so every screen can say it and offer the repair.
+  const notTried = (code: string): ReviewCarryResult => ({
+    outcome: 'failed',
+    from: null,
+    fieldsCopied: 0,
+    summary: null,
+    code,
+  });
+  if (versionId === null) return notTried('no_version_id');
   try {
     return await withConnector(ctx, input, async (c) =>
-      c.carryOverReviewInformation ? c.carryOverReviewInformation(versions, versionId) : null,
+      c.carryOverReviewInformation
+        ? c.carryOverReviewInformation(versions, versionId)
+        : notTried('not_attempted'),
     );
   } catch (error) {
     return {
@@ -954,6 +969,9 @@ export async function applyReviewCopy(
     const m = mapped(error, connection.secret);
     return failed(m.code, 'failed', m.failure);
   }
+  // The version's review information may have changed (a partial write counts): the readiness, the checks and the pending list read it again.
+  if (outcome.kind === 'done')
+    emitCacheEvent('release_changed', { workspaceId: input.workspaceId, appId: app.id });
   if (outcome.kind === 'refused') return failed(outcome.code, 'refused', outcome.failure);
   if (outcome.kind === 'changed') {
     return failed(

@@ -14,6 +14,11 @@ const check = z.object({ code: z.string(), message: z.string() });
 const reviewInformationSchema = z
   .object({
     outcome: z.enum(['created', 'merged', 'already_complete', 'no_source', 'failed', 'not_read']),
+    status: z
+      .enum(['copied', 'nothing_to_copy', 'skipped_disabled', 'failed'])
+      .describe(
+        'The one word for the outcome: `copied` (written, or already complete), `nothing_to_copy` (no earlier version has any), `failed` (see `code`). `skipped_disabled` is what a screen says when store writes are off.',
+      ),
     from: z.string().nullable().describe('The version string the review information comes from.'),
     fieldsCopied: z.number().int().describe('How many attributes are (or would be) written.'),
     summary: z
@@ -29,7 +34,7 @@ const reviewInformationSchema = z
       .describe(
         'The source as it may be shown: initials and yes/no. Never a name, phone number, email address, account or note.',
       ),
-    code: z.string().optional().describe('`failed`: the kind of the failure.'),
+    code: z.string().optional().describe('`failed`: the kind of the failure (`store_rejected`, `network`, `timeout`, `not_attempted`, `no_version_id`, ...).'),
   })
   .describe(
     'What is done with the App Review Information of the previous version (docs/api/review-information.md).',

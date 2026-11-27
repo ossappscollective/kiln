@@ -16,6 +16,7 @@ import {
   reviewSourceOrder,
 } from '@kiln/core';
 import { dbTest } from '@kiln/db/testing';
+import { registerCache } from '../../services/cache-registry.ts';
 import { setPolicy } from '../../services/step-up.ts';
 import type { VersionConnector, VersionConnectorInput } from './store-version.ts';
 import { bootStaged } from './test-helpers.ts';
@@ -224,6 +225,7 @@ withBoot(
     assert.equal(preview.status, 200, preview.text);
     assert.deepEqual(preview.body.preview.reviewInformation, {
       outcome: 'created',
+      status: 'copied',
       from: '1.19.0',
       fieldsCopied: 8,
       summary: {
@@ -278,6 +280,7 @@ withBoot(
     const done = await b.create(app, '1.19.1');
     assert.equal(done.create.status, 200, done.create.text);
     assert.equal(done.create.body.result.reviewInformation.outcome, 'no_source');
+    assert.equal(done.create.body.result.reviewInformation.status, 'nothing_to_copy');
     assert.deepEqual(
       done.create.body.result.warnings.map((w: any) => w.code),
       ['review_information_missing'],
@@ -326,6 +329,7 @@ withBoot(
     const r = done.create.body.result;
     assert.equal(r.version.id, 'v-new');
     assert.equal(r.reviewInformation.outcome, 'failed');
+    assert.equal(r.reviewInformation.status, 'failed');
     assert.equal(r.reviewInformation.code, 'store_rejected');
     assert.deepEqual(
       r.warnings.map((w: any) => w.code),
@@ -555,3 +559,60 @@ withBoot('the API description lists both routes with the draft push action', asy
   assert.equal(at('/apps/{id}/review-information')?.['x-kiln-action'], 'store.push_draft');
   assert.equal(at('/apps/{id}/review-information')?.['x-kiln-risk'], 'destructive');
 });
+
+// ----- never silent, the source, the registry events ------------------------------------------------------------------
+
+withBoot(
+  'create: the newest version that HAS review information is the source: an empty live version is skipped for the next one',
+  async (b) => {
+    const app = await b.t.addApp('ios');
+    // The live version has an empty detail; the one before it holds the information.
+    b.store.details.set('v1', structuredClone(emptyReviewDetail()));
+    b.store.details.set('v0', structuredClone(FULL));
+    const done = await b.create(app, '1.19.1');
+    assert.equal(done.create.status, 200, done.create.text);
+    const info = done.create.body.result.reviewInformation;
+    assert.equal(info.status, 'copied');
+    assert.equal(info.from, '1.18.0');
+    assert.equal(b.store.writes.length, 1);
+  },
+);
+
+withBoot(
+  'create: a connector that cannot carry over is a visible failed result (not_attempted), never a silent null',
+  async (b) => {
+    const app = await b.t.addApp('ios');
+    (b.store as { carryOverReviewInformation?: unknown }).carryOverReviewInformation = undefined;
+    const done = await b.create(app, '1.19.1');
+    assert.equal(done.create.status, 200, done.create.text);
+    const info = done.create.body.result.reviewInformation;
+    assert.equal(info.status, 'failed');
+    assert.equal(info.code, 'not_attempted');
+    assert.deepEqual(
+      done.create.body.result.warnings.map((w: any) => w.code),
+      ['review_information_not_copied'],
+    );
+  },
+);
+
+withBoot(
+  'repair: a copy tells the registry (release_changed), so the readiness and the checks read the draft again; a refused preview does not',
+  async (b) => {
+    const app = await b.t.addApp('ios');
+    withDraft(b);
+    let dropped = 0;
+    registerCache({
+      name: 'test.review_copy_spy',
+      owner: 'modules/publish/store-review-information.test.ts',
+      ttlMs: null,
+      invalidatedBy: ['release_changed'],
+      drop: () => void (dropped += 1),
+    });
+    const p = await b.copyPreview(app);
+    assert.equal(dropped, 0, 'the preview is a read');
+    const done = await b.copy(app, p.body.preview.confirmHash);
+    assert.equal(done.status, 200, done.text);
+    assert.equal(done.body.result.reviewInformation.status, 'copied');
+    assert.ok(dropped >= 1, 'the copy emitted release_changed');
+  },
+);

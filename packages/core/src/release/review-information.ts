@@ -276,3 +276,27 @@ export function maskedReviewSummary(detail: ReviewDetail): ReviewSummary {
     notes: !isBlankReviewValue(detail.text.notes),
   };
 }
+
+// ---------------------------------------------------------------------------------------------
+// What a screen says about a carry-over
+
+/**
+ * The one word for what happened to the review information of a version, whatever the connector's outcome:
+ * `copied` (something was written, or the version already held it all), `nothing_to_copy` (no earlier version has any),
+ * `failed` (a read or a write did not work, or it was not tried) and `skipped_disabled` (store writes are switched off:
+ * `KILN_STORE_DRAFT_WRITE_ENABLED`; a screen says it when the server refuses with `store_draft_disabled`).
+ */
+export type ReviewCarryStatus = 'copied' | 'nothing_to_copy' | 'skipped_disabled' | 'failed';
+
+export function reviewCarryStatusOf(outcome: string): ReviewCarryStatus {
+  switch (outcome) {
+    case 'created':
+    case 'merged':
+    case 'already_complete':
+      return 'copied';
+    case 'no_source':
+      return 'nothing_to_copy';
+    default:
+      return 'failed';
+  }
+}

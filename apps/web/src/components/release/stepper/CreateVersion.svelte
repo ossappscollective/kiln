@@ -16,7 +16,8 @@
   import type { Api } from '../../../lib/api.ts';
   import { releaseFactsStore } from '../../../lib/app-state/release-facts-store.svelte.ts';
   import { invalidate } from '../../../lib/facts/invalidate.ts';
-  import { carryLine } from '../../../lib/review-information.ts';
+  import { carryLine, offersReviewCopy, type ReviewInformationView } from '../../../lib/review-information.ts';
+  import { provideReviewRepair } from '../../../lib/review-repair-context.ts';
   import { type CreateVerdict, createRefusalText, createVerdictFor } from '../../../lib/release-candidates.ts';
   import { confirmed } from '../../../lib/step-up-prompt.svelte.ts';
   import { stagedStore } from '../../../lib/app-state/pending-facade.ts';
@@ -36,6 +37,7 @@
   import type { AppSummary } from '../../../lib/types.ts';
   import Button from '../../ui/Button.svelte';
   import PublishingNote from '../../publish/PublishingNote.svelte';
+  import ReviewInfoCopy from '../../publish/ReviewInfoCopy.svelte';
   import TextField from '../../ui/TextField.svelte';
 
   let {
@@ -70,6 +72,10 @@
   let announcement = $state('');
   /** "Review information is carried over from 1.19.0 (Contact: M. G., ...)": from the preview, masked, before anything is created. */
   let reviewNote = $state('');
+  /** What the create said about the review information, kept on screen (not only in a toast): not copied means the one-click copy is offered here. */
+  let reviewResult = $state<ReviewInformationView | null>(null);
+  // "Copy review information from 1.19.0" works on the version that was just created, and on any editable version that has blanks.
+  provideReviewRepair(() => ({ api, workspaceId, role, app: { id: app.id, name: app.name, platform: app.platform }, onrepaired: () => { reviewResult = null; reviewNote = ''; onread(); } }));
 
   $effect(() => {
     void stagedStore.loadConfig(api, workspaceId);
@@ -98,6 +104,7 @@
     problem = '';
     announcement = '';
     reviewNote = '';
+    reviewResult = null;
     try {
       const looked = await api.previewStoreVersion(workspaceId, app.id, { versionString: wanted });
       const preview = looked.preview;
@@ -109,8 +116,11 @@
       const body = { versionString: wanted, confirmHash: preview.confirmHash };
       // The only call that writes to the store. Sent once per click, with the hash of the preview.
       const done = await confirmed((grant) => api.createStoreVersion(workspaceId, app.id, body, grant), body.confirmHash);
-      const warnings = done.result.warnings.map((w) => w.message).join(' ');
+      // The review information has its own line (and the copy button): its two warnings would only repeat it.
+      const warnings = done.result.warnings.filter((w) => !w.code.startsWith('review_information_')).map((w) => w.message).join(' ');
       const carried = carryLine(done.result.reviewInformation, 'result') ?? '';
+      reviewResult = done.result.reviewInformation ?? null;
+      reviewNote = carried;
       const text = [t('release-stepper:cv.created', { version: done.result.version.versionString }), carried, warnings].filter((s) => s !== '').join(' ');
       announcement = text;
       toast.success(text);
@@ -162,6 +172,7 @@
   <PublishingNote {verdict} appId={app.id} />
   <p class="small muted">{t(VERSION_NOTE)}</p>
   {#if reviewNote !== ''}<p class="small muted" data-testid="create-version-review-info">{reviewNote}</p>{/if}
+  {#if reviewResult !== null && offersReviewCopy(reviewResult)}<ReviewInfoCopy from={reviewResult.from} />{/if}
   {#if problem !== ''}<p class="small bad" role="alert">{problem}</p>{/if}
   <p class="visually-hidden" role="status">{announcement}</p>
 {/if}

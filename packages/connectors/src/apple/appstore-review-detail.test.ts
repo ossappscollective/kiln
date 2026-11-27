@@ -230,6 +230,17 @@ test('a source that cannot be read is a failed result; one unreadable version is
   assert.equal((await skip.connector.carryOver(VERSIONS, 'v-new')).from?.versionString, '1.18.0');
 });
 
+test('a read that failed is never reported as "no source": the live version may be the one that holds the information', async () => {
+  // The live version cannot be read (403); the older one has no detail: the answer is failed, not "nothing to copy".
+  const refused = setup({}, { read: (id) => (id === 'v-live' ? json(403, {}) : undefined) });
+  const result = await refused.connector.carryOver(VERSIONS, 'v-new');
+  assert.equal(result.outcome, 'failed');
+  assert.ok(result.code !== undefined);
+  assert.deepEqual(writes(refused.calls), []);
+  const preview = await refused.connector.previewCarry(VERSIONS, 'v-new');
+  assert.equal(preview.outcome, 'failed');
+});
+
 test('readFacts holds presence only; a version without a detail is "exists false"; a failed read is null', async () => {
   const { connector } = setup({
     'v-live': FULL,

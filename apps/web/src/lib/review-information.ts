@@ -1,4 +1,4 @@
-import { REVIEW_CODES, type ReviewSummary } from '@kiln/core';
+import { REVIEW_CODES, type ReviewCarryStatus, type ReviewSummary, reviewCarryStatusOf } from '@kiln/core';
 import { ApiError } from './api.ts';
 import { t } from './i18n/t.ts';
 import { stepUpMessage } from './step-up.ts';
@@ -21,6 +21,8 @@ export type ReviewOutcome =
 
 export type ReviewInformationView = {
   outcome: ReviewOutcome;
+  /** The one word for the outcome (core `reviewCarryStatusOf`). Absent in an answer of an older server: derived from `outcome`. */
+  status?: ReviewCarryStatus;
   /** The version string it comes from. */
   from: string | null;
   fieldsCopied: number;
@@ -80,23 +82,52 @@ export function carryLine(
 ): string | null {
   if (!info) return null;
   const from = info.from ?? '';
-  switch (info.outcome) {
-    case 'created':
-    case 'merged':
+  const status = info.status ?? reviewCarryStatusOf(info.outcome);
+  switch (status) {
+    case 'copied':
+      if (info.outcome === 'already_complete')
+        return phase === 'preview' ? null : t('release-store:review.carry.alreadyComplete');
       return phase === 'preview'
         ? t('release-store:review.carry.willCopy', { from, summary: summaryText(info.summary) })
         : t('release-store:review.carry.copied', { from });
-    case 'already_complete':
-      return phase === 'preview' ? null : t('release-store:review.carry.alreadyComplete');
-    // After the create the server's warning says it (no_source, failed): the line would only repeat it.
-    case 'no_source':
-      return phase === 'preview' ? t('release-store:review.carry.noSource') : null;
-    case 'failed':
-      return phase === 'preview' ? t('release-store:review.carry.previewFailed') : null;
+    case 'nothing_to_copy':
+      return t('release-store:review.carry.noSource');
+    case 'skipped_disabled':
+      return t('release-store:review.carry.disabled', { env: STORE_WRITE_ENV });
     default:
-      return null;
+      // Never silent: the reason, and where the one-click repair is.
+      return phase === 'preview'
+        ? t('release-store:review.carry.previewFailed')
+        : t('release-store:review.carry.notCopied', { reason: reviewReason(info.code) });
   }
 }
+
+/** The switch that turns store writes on (the server's `KILN_STORE_DRAFT_WRITE_ENABLED`). */
+export const STORE_WRITE_ENV = 'KILN_STORE_DRAFT_WRITE_ENABLED';
+
+/** Why a carry-over failed, from the kind of the failure the server names. */
+export function reviewReason(code: string | undefined): string {
+  switch (code) {
+    case 'timeout':
+      return t('release-store:review.reason.timeout');
+    case 'network':
+      return t('release-store:review.reason.network');
+    case 'store_rejected':
+    case 'rejected':
+    case 'forbidden':
+    case 'unauthorized':
+      return t('release-store:review.reason.rejected');
+    case 'not_attempted':
+    case 'no_version_id':
+      return t('release-store:review.reason.notAttempted');
+    default:
+      return t('release-store:review.reason.unknown');
+  }
+}
+
+/** Whether the one-click "Copy review information" should be offered after this answer (anything that is not a copy). */
+export const offersReviewCopy = (info: ReviewInformationView | null | undefined): boolean =>
+  !info || (info.status ?? reviewCarryStatusOf(info.outcome)) !== 'copied';
 
 /** The label of the repair button. */
 export const copyLabel = (from: string | null): string =>

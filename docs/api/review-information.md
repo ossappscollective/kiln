@@ -40,15 +40,28 @@ right after the version exists:
 4. It never fails the create: the version stays created. A failure, or a source that does not exist, is `reviewInformation.outcome` and a
    warning (`review_information_not_copied`, `review_information_missing`).
 
-`reviewInformation` is `{ outcome, from, fieldsCopied, summary, code? }`:
+`reviewInformation` is `{ outcome, status, from, fieldsCopied, summary, code? }`:
 
 | Field          | Meaning                                                                                                                                  |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `outcome`      | `created`, `merged`, `already_complete`, `no_source`, `failed`, `not_read`. In a preview: what would happen.                             |
+| `status`       | The one word for the outcome (core `reviewCarryStatusOf`): `copied` (`created`, `merged`, `already_complete`), `nothing_to_copy` (`no_source`) or `failed`. `skipped_disabled` is what a screen says when the server answers `store_draft_disabled` (store writes are off: `KILN_STORE_DRAFT_WRITE_ENABLED`). |
 | `from`         | The version string it comes from (`1.19.0`), or null.                                                                                    |
 | `fieldsCopied` | How many attributes are written (a count).                                                                                               |
 | `summary`      | The SOURCE as a screen may show it: `{ contact: "M. G.", phone, email, demoAccount, demoCredentials, notes }`: initials and yes/no only. |
 | `code`         | `failed`: the kind of the failure (`store_rejected`, `network`, ...).                                                                    |
+
+**Never silent.** A carry-over that could not be tried (no version id in Apple's answer, a connector without the carry-over) is a `failed`
+result with `code: 'not_attempted'` / `'no_version_id'`, not a missing field. A source version whose detail cannot be read is a `failed`
+result (`code` = the kind of the failure), never "no source": the version that holds the information may be the one that could not be read.
+The create form and the checks say it in words ("App Review Information was not copied from the previous version: <reason> Use “Copy review
+information” in the checks to try again."), and the one-click button **Copy review information from 1.19.0** is on the Listing/Prepare release
+check ("App Review information is incomplete"), in the submit checklist and in the publish plan. This is the only place a version made before
+this existed (or whose copy failed) is repaired: it fills the blanks of the draft, never a filled value. `POST /apps/{id}/store-version` is the
+ONLY place Kiln creates an App Store version, and it always runs the carry-over right after (`succeed` in `store-version.ts`).
+
+After a copy the server emits `release_changed` (drops the 30-second readiness reading, the images view and the notes history of the app) and
+the check reads the store again at once.
 
 ### 2. The submit checks `no_review_contact` and `no_review_demo_account`
 

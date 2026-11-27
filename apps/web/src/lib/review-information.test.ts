@@ -8,6 +8,7 @@ import {
   classifyReviewCopyFailure,
   copyLabel,
   isReviewCode,
+  offersReviewCopy,
   type ReviewInformationView,
   reviewFromParam,
   summaryText,
@@ -95,17 +96,29 @@ test('the create form says what will be carried over (masked) and what was', () 
     carryLine(view({ outcome: 'no_source', from: null, summary: null }), 'preview') ?? '',
     /No earlier version has App Review Information/,
   );
-  // after the create the server's warning says it, so the line would repeat it
-  assert.equal(
-    carryLine(view({ outcome: 'no_source', from: null, summary: null }), 'result'),
-    null,
+  // never silent: after the create the result says what happened and, when it did not work, why
+  assert.match(
+    carryLine(view({ outcome: 'no_source', from: null, summary: null }), 'result') ?? '',
+    /No earlier version has App Review Information/,
   );
   assert.equal(
     carryLine(
-      view({ outcome: 'failed', from: null, summary: null, code: 'store_rejected' }),
+      view({ outcome: 'failed', status: 'failed', from: null, summary: null, code: 'store_rejected' }),
       'result',
     ),
-    null,
+    'App Review Information was not copied from the previous version: App Store Connect refused the request. Use “Copy review information” in the checks to try again.',
+  );
+  assert.match(
+    carryLine(view({ outcome: 'failed', from: null, summary: null, code: 'timeout' }), 'result') ?? '',
+    /the store did not answer in time/,
+  );
+  assert.match(
+    carryLine(view({ outcome: 'failed', from: null, summary: null, code: 'not_attempted' }), 'result') ?? '',
+    /the copy was not tried/,
+  );
+  assert.equal(
+    carryLine(view({ outcome: 'failed', status: 'skipped_disabled', from: null, summary: null }), 'result'),
+    'App Review Information was not copied because store writes are disabled (KILN_STORE_DRAFT_WRITE_ENABLED).',
   );
   assert.match(
     carryLine(view({ outcome: 'failed', from: null, summary: null }), 'preview') ?? '',
@@ -113,7 +126,13 @@ test('the create form says what will be carried over (masked) and what was', () 
   );
   assert.equal(carryLine(null, 'preview'), null);
   assert.equal(carryLine(undefined, 'result'), null);
-  assert.equal(carryLine(view({ outcome: 'not_read' }), 'result'), null);
+  assert.match(carryLine(view({ outcome: 'not_read' }), 'result') ?? '', /was not copied/);
+  // the one-click copy is offered after anything that is not a copy
+  assert.equal(offersReviewCopy(view({})), false);
+  assert.equal(offersReviewCopy(view({ outcome: 'already_complete' })), false);
+  assert.equal(offersReviewCopy(view({ outcome: 'no_source' })), true);
+  assert.equal(offersReviewCopy(view({ outcome: 'failed' })), true);
+  assert.equal(offersReviewCopy(null), true);
 });
 
 test('no sentence of this module can carry a value: only initials and yes/no go in', () => {
