@@ -9,6 +9,7 @@
   The address may carry `?build=<number>` (from the release stepper): that build is highlighted and the filters show it.
 -->
 <script lang="ts">
+  import { builtReason } from '../../lib/build-origin.ts';
   import { can, platformLabel, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
@@ -348,7 +349,7 @@
                     <a href={row.runUrl} target="_blank" rel="noopener noreferrer">{row.detail || t('builds:guide.eas.openOnExpo')}<Icon name="external-link" size={12} /><span class="visually-hidden"> {t('common:link.opensInNewTab')}</span></a>
                   {:else if row.detail}<span>{row.detail}</span>{/if}
                   {#if row.sizeBytes !== null}<span>{humanSize(row.sizeBytes)}</span>{/if}
-                  {#if row.at !== null}<time datetime={new Date(row.at).toISOString()} title={fullTime(row.at)}>{timeAgo(row.at, now)}</time>{:else}<span>{t('builds:tests.ageUnknown')}</span>{/if}
+                  {#if row.at !== null}<time datetime={new Date(row.at).toISOString()} title={fullTime(row.at)}>{timeAgo(row.at, now)}</time>{:else}{@const why = row.store?.origin ? builtReason(row.store.origin) : null}<span title={why?.title}>{why?.text ?? t('builds:tests.ageUnknown')}</span>{/if}
                   {#if expiryText(row, now) !== ''}<span>{expiryText(row, now)}</span>{/if}
                   {#if row.artifact?.guessed && row.kind !== 'other'}<span>{t('builds:tests.typeGuessed')}</span>{/if}
                   {#if row.artifact}

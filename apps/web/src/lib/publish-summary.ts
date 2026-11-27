@@ -7,6 +7,7 @@ import {
   supports,
 } from '@kiln/core';
 import { kindLabel } from './assets/assets.ts';
+import { type BuiltReason, builtReason, type OriginFields, sameVersion } from './build-origin.ts';
 import { formatList } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
 import {
@@ -483,17 +484,19 @@ export function buildLink(facts: BuildFacts, storeAppId: string | null | undefin
   };
 }
 
-/** When the build was uploaded, as far as the stored builds say. */
+/** When the build was made, as far as the ONE read of the builds says (`origin` of each store row: server join of store, CI and release facts). */
 export type BuildDate =
   | { state: 'known'; at: number }
-  /** Google Play gives no upload date of a build (its API lists version codes and tracks only). */
+  /** Google Play with nothing that dates the code (no CI file, no reason sent): its API lists version codes and tracks only. */
   | { state: 'notProvided' }
-  /** App Store Connect gives it, but the stored builds do not hold this build (yet) or hold no date for it. */
-  | { state: 'notRead' };
+  /** No date for the build; `reason` is the server's reason (reads disabled, file gone, not read ...), null when it sent none. */
+  | { state: 'notRead'; reason: BuiltReason | null };
 
 /**
- * The upload date of the build of the summary. `stored` is the list of the builds the last sync stored (`AppBuilds.builds`), or null when it
- * was not read (then nothing is known and null is returned, so nothing is shown). Google Play never has one, so it says so. Pure.
+ * The date of the build of the summary. `stored` is the list of the store builds of the app as the builds read returns them with their
+ * `origin` (`GET builds/artifacts`, the same rows the Test builds page and the release candidates show), or null when it was not read
+ * (then nothing is known and null is returned, so nothing is shown). The date is the origin's (`builtAt`: the CI file's or the store's
+ * own), so a Google Play code built by a CI run gets its date here like everywhere else. Pure.
  */
 export function buildDate(
   facts: BuildFacts | null,
@@ -501,25 +504,35 @@ export function buildDate(
     | readonly {
         platform: Platform;
         buildNumber: string;
-        version?: string | undefined;
+        version?: string | null | undefined;
         uploadedAt: number | null;
+        origin?: OriginFields | undefined;
       }[]
     | null,
 ): BuildDate | null {
   if (facts === null) return null;
-  if (facts.kind === 'play') return { state: 'notProvided' };
   if (stored === null || facts.numbers.length === 0) return null;
   const mine = stored.filter(
     (b) => b.platform === facts.platform && facts.numbers.indexOf(b.buildNumber) >= 0,
   );
   const same = mine.filter(
-    (b) => facts.version === null || b.version === undefined || b.version === facts.version,
+    (b) => facts.version === null || b.version == null || sameVersion(b.version, facts.version),
   );
-  const dated = (same.length > 0 ? same : mine).filter((b) => b.uploadedAt !== null);
-  const newest = dated.sort((a, b) => (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0))[0];
-  return newest?.uploadedAt != null
-    ? { state: 'known', at: newest.uploadedAt }
-    : { state: 'notRead' };
+  const rows = same.length > 0 ? same : mine;
+  const atOf = (b: (typeof rows)[number]): number | null => {
+    const at = b.origin?.builtAt ?? b.uploadedAt;
+    return typeof at === 'number' && Number.isFinite(at) ? at : null;
+  };
+  let newest: number | null = null;
+  for (const b of rows) {
+    const at = atOf(b);
+    if (at !== null && (newest === null || at > newest)) newest = at;
+  }
+  if (newest !== null) return { state: 'known', at: newest };
+  const withReason = rows.filter((b) => b.origin !== undefined)[0];
+  const reason = withReason?.origin ? builtReason(withReason.origin) : null;
+  if (reason !== null) return { state: 'notRead', reason };
+  return facts.kind === 'play' ? { state: 'notProvided' } : { state: 'notRead', reason: null };
 }
 
 /**

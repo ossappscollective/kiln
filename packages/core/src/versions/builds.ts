@@ -28,6 +28,8 @@ export type BuildCi = {
 
 export type BuiltGap =
   | 'not_read'
+  /** No CI file was read for this build AND this server does not read builds (`KILN_BUILDS_DOWNLOAD_ENABLED` is off): enabling it is the way to a date. */
+  | 'reads_disabled'
   | 'file_gone'
   | 'github_unreachable'
   | 'github_no_access'
@@ -69,6 +71,11 @@ export type BuildOriginSources = {
   ciLinked?: boolean | undefined;
   /** The app's package or bundle id: an artifact of another package does not match (unless it is the only one with the number). */
   packageId?: string | null | undefined;
+  /**
+   * Whether this server reads builds from CI at all (`KILN_BUILDS_DOWNLOAD_ENABLED`). Default true. When false and no file was read for a
+   * build, the gap is `reads_disabled`, never the vaguer `not_read`: nothing will ever fill the date until it is turned on.
+   */
+  readsEnabled?: boolean | undefined;
 };
 
 export const NO_ORIGIN_SOURCES: BuildOriginSources = { artifacts: [] };
@@ -155,7 +162,12 @@ export function originOfBuild(row: BuildRowFact, sources: BuildOriginSources = N
   if (ci?.run) out.ci = ci.run;
   if (out.builtAt === null) {
     if (hits.length === 0) {
-      out.builtGap = sources.ciLinked === false ? 'no_repository' : 'not_read';
+      out.builtGap =
+        sources.ciLinked === false
+          ? 'no_repository'
+          : sources.readsEnabled === false
+            ? 'reads_disabled'
+            : 'not_read';
     } else {
       const listing = sources.listing ?? 'ok';
       out.builtGap = listing === 'ok' ? 'file_gone' : GAP_OF_LISTING[listing];

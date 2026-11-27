@@ -21,7 +21,7 @@
   import { t } from '../../../lib/i18n/t.ts';
   import T from '../../ui/T.svelte';
   import type { Api } from '../../../lib/api.ts';
-  import { buildNumberOfTitle, type ReadFromCi, readRecentCiBuilds, testBuildsHref } from '../../../lib/builds.ts';
+  import { type ReadFromCi, readRecentCiBuilds, testBuildsHref } from '../../../lib/builds.ts';
   import { readHintText, readOutcomeText, readProgressText } from '../../../lib/read-from-ci.ts';
   import {
     type AppleCandidates,
@@ -169,7 +169,7 @@
   $effect(() => {
     // "Create release ... from TestFlight build 95": the build of the candidate is selected once, when it is among the builds, ahead of nothing the person chose.
     if (prefill?.build && !prefilled && picked === '' && stagedBuild === null) {
-      const row = rows.filter((r) => r.eligibility.selectable && buildNumberOfTitle(r.title) === prefill.build)[0];
+      const row = rows.filter((r) => r.eligibility.selectable && r.buildNumber === prefill.build)[0];
       if (row) {
         prefilled = true;
         picked = row.id;
@@ -304,7 +304,7 @@
               <p class="sentence" class:bad={selectedRow.eligibility.tone === 'bad'}>{selectedRow.eligibility.sentence}</p>
               <p class="meta">
                 {#if selectedRow.run.url}<T key="release-stepper:sb.madeBy" params={{ run: selectedRow.run.text }} tags={{ link: runLink }} />{:else}{t('release-stepper:sb.runText', { text: selectedRow.run.text })}{/if}
-                {#if canTest}<a href={testBuildsHref(app.id, app.platform, buildNumberOfTitle(selectedRow.title))}>{t('release-stepper:sb.installToTest')}</a>{/if}
+                {#if canTest}<a href={testBuildsHref(app.id, app.platform, selectedRow.buildNumber)}>{t('release-stepper:sb.installToTest')}</a>{/if}
               </p>
               <p class="meta">{selectedRow.testNotes}</p>
             </div>

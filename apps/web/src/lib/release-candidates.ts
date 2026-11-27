@@ -1,4 +1,4 @@
-import type { Platform } from '@kiln/core';
+import { buildNumberOfBuild, compareBuildNumbers, type Platform } from '@kiln/core';
 import {
   latestOf,
   type OriginFields,
@@ -273,9 +273,11 @@ export function testNotesLine(notes: TestNotes | undefined): string {
 export const hasTestNotes = (notes: TestNotes | undefined): boolean =>
   !!notes && notes.read && notes.locales.length > 0;
 
-export type BuildRow = {
+export type CandidateBuildRow = {
   id: string;
   title: string;
+  /** The build number as the server sent it (structured): never parsed out of the translated `title`. Null: not known. */
+  buildNumber: string | null;
   version: string | null;
   uploaded: string;
   /** "yesterday", "3 days ago"; null when the date is not known. */
@@ -304,11 +306,11 @@ export function buildRows(
   builds: readonly BuildCandidate[],
   appBuilds: readonly Pick<AppBuild, 'buildNumber' | 'link' | 'linkState'>[],
   now: number = Date.now(),
-): BuildRow[] {
+): CandidateBuildRow[] {
   const latest = latestOf(
     builds.map((b) => ({
       id: b.id,
-      number: Number(b.buildNumber) || 0,
+      buildNumber: b.buildNumber,
       builtAt: uploadedMs(b.uploadedDate),
     })),
   );
@@ -318,6 +320,7 @@ export function buildRows(
       b.buildNumber !== null
         ? t('release-stepper:cand.build.title', { number: b.buildNumber })
         : t('release-stepper:cand.build.titleUnknown'),
+    buildNumber: buildNumberOfBuild(b),
     version: b.version,
     uploaded: uploadedText(b.uploadedDate),
     uploadedAge: ageOf(b.uploadedDate, now),
@@ -414,7 +417,7 @@ export function codeRows(
   const latest = latestOf(
     codes.map((c) => ({
       id: c.versionCode,
-      number: Number(c.versionCode) || 0,
+      buildNumber: c.versionCode,
       builtAt: c.builtAt ?? null,
     })),
   );
@@ -442,8 +445,10 @@ export function codeRows(
       latest: latest === c.versionCode,
     };
   });
-  const num = (r: CodeRow) => Number(r.versionCode) || 0;
-  return rows.sort((a, b) => Number(b.inSource) - Number(a.inSource) || num(b) - num(a));
+  return rows.sort(
+    (a, b) =>
+      Number(b.inSource) - Number(a.inSource) || compareBuildNumbers(b.versionCode, a.versionCode),
+  );
 }
 
 /** Whether reading the recent CI builds could still tell a version or a date of one of these rows ("Read build info from CI" is offered). */

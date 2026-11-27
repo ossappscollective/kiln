@@ -1,3 +1,4 @@
+import { compareBuildNumbers, sameVersion as coreSameVersion } from '@kiln/core';
 import { formatDateTime, formatRelativeTime } from './i18n/format.ts';
 import { t } from './i18n/t.ts';
 
@@ -38,6 +39,7 @@ export type OriginFields = {
 /** Why a build date is not known, as the server says it. */
 export type BuiltGap =
   | 'not_read'
+  | 'reads_disabled'
   | 'file_gone'
   | 'github_unreachable'
   | 'github_no_access'
@@ -46,6 +48,7 @@ export type BuiltGap =
 /** The reason model of a missing build date: which sentence, and whether reading the CI files could still help. */
 export type BuiltReasonKey =
   | 'not_read'
+  | 'reads_disabled'
   | 'file_gone'
   | 'github_unreachable'
   | 'github_no_access'
@@ -149,6 +152,14 @@ export function builtReason(o: OriginFields, options: OriginOptions = {}): Built
             title: t('release-stepper:og.gapTitle.notRead'),
             readable: true,
           };
+    case 'reads_disabled':
+      return {
+        key: 'reads_disabled',
+        text: t('release-stepper:og.gap.readsDisabled'),
+        title: t('release-stepper:og.gapTitle.readsDisabled'),
+        // "Read build info from CI" would be refused (409 builds_download_disabled): not worth offering.
+        readable: false,
+      };
     case 'file_gone': {
       const on =
         typeof o.ciExpiredAt === 'number' && Number.isFinite(o.ciExpiredAt) ? o.ciExpiredAt : null;
@@ -268,21 +279,21 @@ export function originView(
  * Null when no date is known, or when it cannot be said.
  */
 export function latestOf(
-  items: readonly { id: string; number: number; builtAt: number | null }[],
+  items: readonly { id: string; buildNumber: string | null; builtAt: number | null }[],
 ): string | null {
-  let best: { id: string; number: number; builtAt: number } | null = null;
+  let best: { id: string; buildNumber: string | null; builtAt: number } | null = null;
   for (const i of items) {
     if (i.builtAt === null) continue;
     if (
       best === null ||
       i.builtAt > best.builtAt ||
-      (i.builtAt === best.builtAt && i.number > best.number)
+      (i.builtAt === best.builtAt && compareBuildNumbers(i.buildNumber, best.buildNumber) > 0)
     )
-      best = { id: i.id, number: i.number, builtAt: i.builtAt };
+      best = { id: i.id, buildNumber: i.buildNumber, builtAt: i.builtAt };
   }
   if (best === null) return null;
-  const top = best.number;
-  if (items.some((i) => i.builtAt === null && i.number > top)) return null;
+  const top = best.buildNumber;
+  if (items.some((i) => i.builtAt === null && compareBuildNumbers(i.buildNumber, top) > 0)) return null;
   return best.id;
 }
 
@@ -302,24 +313,8 @@ export function versionInName(name: string | null | undefined): string | null {
   return hit ? hit[0] : null;
 }
 
-const parts = (version: string): number[] | null => {
-  const p = version.trim().split('.');
-  const out: number[] = [];
-  for (const x of p) {
-    if (!/^\d+$/.test(x)) return null;
-    out.push(Number(x));
-  }
-  while (out.length > 1 && out[out.length - 1] === 0) out.pop();
-  return out;
-};
-
-/** The same version, written alike or not ("2.00.1" and "2.0.1" are the same one; "2.1" and "2.1.0" too). */
-export function sameVersion(a: string, b: string): boolean {
-  const x = parts(a);
-  const y = parts(b);
-  if (x === null || y === null) return a.trim() === b.trim();
-  return x.length === y.length && x.every((n, i) => n === y[i]);
-}
+/** The same version, written alike or not (`2.00.1` and `2.0.1`): the one comparator of @kiln/core. */
+export const sameVersion = coreSameVersion;
 
 /**
  * "This build is version 2.00.0, but you are releasing 2.00.1": only when the version of the build was READ (a file or the store;

@@ -8,7 +8,6 @@ import {
   type BuildsList,
   buildHint,
   buildNote,
-  buildNumberOfTitle,
   buildTitle,
   canInspect,
   canOfferShare,
@@ -291,8 +290,6 @@ test('addresses: the download path, the phone address, and a phone that cannot r
     '#/portfolio/app%201/builds?platform=ios&view=tests&build=240',
   );
   assert.equal(testBuildsHref('app1'), '#/portfolio/app1/builds?view=tests');
-  assert.equal(buildNumberOfTitle('Build 240'), '240');
-  assert.equal(buildNumberOfTitle('Build (number unknown)'), null);
 });
 
 test('the API calls go to the documented paths', async () => {

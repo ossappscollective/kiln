@@ -1,4 +1,5 @@
 import type { Platform } from '@kiln/core';
+import type { OriginFields } from './build-origin.ts';
 import { platformSupports, supports } from '@kiln/core';
 import { appAddress } from './app-scope.ts';
 import {
@@ -73,6 +74,11 @@ export type StoreBuildItem = {
   runId: string | null;
   /** TestFlight: ids of the public-link groups the build is in; null when they were not read. */
   testflightGroupIds: string[] | null;
+  /**
+   * Where the build came from, joined ONCE on the server (version name, date, origin, why a date is missing): the Test builds page, the
+   * Publish summary, the next release's train and the build picker read this and nothing else for a build's date. Absent from an older server.
+   */
+  origin?: OriginFields | undefined;
 };
 
 export type TestFlightProblemReason = 'no_access' | 'rate_limited' | 'unavailable' | 'not_synced';
@@ -248,7 +254,7 @@ export function storeRow(b: StoreBuildItem): BuildRow {
     detail: where,
     runUrl: null,
     sizeBytes: null,
-    at: b.uploadedAt,
+    at: b.origin?.builtAt ?? b.uploadedAt,
     expiresAt: b.expiresAt,
     expired: b.expired === true,
     state: storeState(b),
@@ -986,9 +992,6 @@ export const testBuildsHref = (
 export const secondsLeft = (expiresAt: number, now: number): number =>
   Math.max(0, Math.ceil((expiresAt - now) / 1000));
 
-/** The number in a stepper row title ("Build 240"), or null for "Build (number unknown)". */
-export const buildNumberOfTitle = (title: string): string | null =>
-  /^Build ([A-Za-z0-9._-]+)$/.exec(title)?.[1] ?? null;
 
 // ---------------------------------------------------------------------------------------------
 // Share to device: Google Play internal app sharing (docs/api/internal-sharing.md, docs/adr/0020-play-internal-sharing.md)

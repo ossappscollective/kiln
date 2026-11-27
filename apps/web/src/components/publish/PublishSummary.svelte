@@ -21,7 +21,7 @@
   import { formatDateTime, formatRelativeTime } from '../../lib/i18n/format.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { buildDate, buildLink, notesDetail, type PublishSummary } from '../../lib/publish-summary.ts';
-  import type { AppBuild } from '../../lib/types.ts';
+  import type { StoreBuildItem } from '../../lib/builds.ts';
   import Disclosure from '../ui/Disclosure.svelte';
   import Icon from '../ui/Icon.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
@@ -49,7 +49,7 @@
   // What is read for this app, once per app and only when the block can ask (never a write).
   // The default language is the store read's base locale (`listingStore`: the language the store declares, the App Store's primary locale
   // included, else English, else the first): the same one the checks and the fix bar compare with.
-  let stored = $state<AppBuild[] | null>(null);
+  let stored = $state<StoreBuildItem[] | null>(null);
   let readFor = '';
   const defaultLocale = $derived(
     workspaceId !== undefined && summary !== null ? (listingStore.defaultLocale(workspaceId, summary.appId)?.locale ?? null) : null,
@@ -59,7 +59,7 @@
     const appId = summary?.appId ?? '';
     const reader = api;
     const ws = workspaceId;
-    const wantsBuilds = summary?.build?.kind === 'apple' && (summary?.build?.numbers.length ?? 0) > 0;
+    const wantsBuilds = (summary?.build?.numbers.length ?? 0) > 0;
     if (!reader || !ws || appId === '') return;
     untrack(() => {
       if (readFor !== appId) {
@@ -69,9 +69,9 @@
       }
       if (wantsBuilds && stored === null) {
         reader
-          .appBuilds(ws, appId)
+          .buildArtifacts(ws, appId)
           .then((list) => {
-            if (readFor === appId) stored = list.builds;
+            if (readFor === appId) stored = list.store;
           })
           .catch(() => undefined);
       }
@@ -127,7 +127,7 @@
             {:else if date.state === 'notProvided'}
               <span class="hint" data-testid="summary-build-date" title={t('publish:summary.build.dateNotProvidedTitle')}>{t('publish:summary.build.dateNotProvided')}</span>
             {:else}
-              <span class="hint" data-testid="summary-build-date" title={t('publish:summary.build.dateNotReadTitle')}>{t('publish:summary.build.dateNotRead')}</span>
+              <span class="hint" data-testid="summary-build-date" title={date.reason?.title ?? t('publish:summary.build.dateNotReadTitle')}>{date.reason?.text ?? t('publish:summary.build.dateNotRead')}</span>
             {/if}
           {/if}
         </dd>

@@ -79,21 +79,21 @@ test('a run without a number or a link', () => {
 });
 
 test('Latest: the newest known build date, unless an undated code above it could be newer', () => {
-  const a = { id: '90', number: 90, builtAt: BUILT };
-  const b = { id: '89', number: 89, builtAt: BUILT - 1000 };
+  const a = { id: '90', buildNumber: '90', builtAt: BUILT };
+  const b = { id: '89', buildNumber: '89', builtAt: BUILT - 1000 };
   assert.equal(latestOf([b, a]), '90');
-  assert.equal(latestOf([{ id: '88', number: 88, builtAt: null }, a, b]), '90');
+  assert.equal(latestOf([{ id: '88', buildNumber: '88', builtAt: null }, a, b]), '90');
   assert.equal(
-    latestOf([{ id: '91', number: 91, builtAt: null }, a, b]),
+    latestOf([{ id: '91', buildNumber: '91', builtAt: null }, a, b]),
     null,
     'an undated higher code may be newer',
   );
-  assert.equal(latestOf([{ id: '91', number: 91, builtAt: null }]), null, 'no date known');
+  assert.equal(latestOf([{ id: '91', buildNumber: '91', builtAt: null }]), null, 'no date known');
   assert.equal(latestOf([]), null);
   assert.equal(
     latestOf([
-      { id: '7', number: 7, builtAt: 5 },
-      { id: '8', number: 8, builtAt: 5 },
+      { id: '7', buildNumber: '7', builtAt: 5 },
+      { id: '8', buildNumber: '8', builtAt: 5 },
     ]),
     '8',
     'a tie goes to the higher number',

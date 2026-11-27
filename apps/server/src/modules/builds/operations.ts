@@ -71,6 +71,36 @@ const storeBuild = z.object({
   releaseStatus: z.string().nullable(),
   optInUrl: z.string().nullable(),
   runId: z.string().nullable(),
+  origin: z
+    .object({
+      version: z
+        .string()
+        .nullable()
+        .describe('The version name: from the CI file read for this build, else the store row, else (Google Play) the name of the release holding the code.'),
+      builtAt: z
+        .number()
+        .int()
+        .nullable()
+        .describe('When the build was made: the date GitHub made the CI artifact, else the store upload time. Null: not known (see `builtGap`).'),
+      origin: z.enum(['ci', 'store', 'release']).nullable().describe('Where `version` came from, else where `builtAt` came from.'),
+      builtFrom: z.enum(['ci', 'store']).nullable(),
+      builtGap: z
+        .enum(['not_read', 'reads_disabled', 'file_gone', 'github_unreachable', 'github_no_access', 'no_repository'])
+        .nullable()
+        .describe('Why `builtAt` is null: no CI file read yet (`not_read`), this server does not read builds (`reads_disabled`: KILN_BUILDS_DOWNLOAD_ENABLED), the file is gone from GitHub, GitHub cannot be reached or refuses, or no repository is linked.'),
+      ciExpiredAt: z.number().int().nullable(),
+      matchedBy: z.enum(['package', 'build_number_only']).nullable(),
+      firstSeenAt: z.number().int().nullable().describe('When this server first saw the build. NOT a build date.'),
+      ci: z
+        .object({
+          runNumber: z.number().int().nullable(),
+          branch: z.string().nullable(),
+          commit: z.string().nullable(),
+          url: z.string().nullable(),
+        })
+        .nullable(),
+    })
+    .describe('Where the build came from, joined once on the server (the same join the release candidates use).'),
 });
 
 const list = z.object({

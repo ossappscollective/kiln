@@ -24,7 +24,19 @@ the app (`appIds`, or no app) and of its platform are listed; the rest are count
 artifacts of the repository are read (`truncated`) and runs are the 100 newest stored.
 **Runs linked to several apps (a monorepo).** An artifact of such a run is shown for the app it belongs to, read from its name only: the one app whose name, bundle id or package name (whole or last part) or own tag prefix (the per-app convention) the artifact name contains, ignoring case and punctuation; with several matches the strictly longest wins. An artifact that names another app is not listed here and is counted in `hiddenArtifacts`. When the name does not say (no match, or a tie), it is listed under every linked app with `sharedWith` set to the names of those apps (the screen shows "From a run shared by Demo Notes, Demo Weather"); `sharedWith` is `null` otherwise. Runs for one app, or for no app, are unchanged.
 `store[]`: from `app_builds` and `app_releases`: `channel (testflight|play)`, `state`, `expired`, `uploadedAt`, `expiresAt`
-(TestFlight: upload + 90 days, `expiresAtEstimated: true`), `tracks`, `optInUrl` (Play, closed or open tracks only).
+(TestFlight: upload + 90 days, `expiresAtEstimated: true`), `tracks`, `optInUrl` (Play, closed or open tracks only), and `origin`:
+where the build came from, ONE join on the server (`joinBuildOrigin` of `@kiln/core`, the same join the release candidates use), so
+the Test builds page, the Publish summary, the next release's train and the build picker show the same version name, DATE and origin.
+`origin {version, builtAt, origin (ci|store|release), builtFrom (ci|store), builtGap, ciExpiredAt, matchedBy, firstSeenAt, ci}`: the
+version name comes from the CI file read for the build, else the store row; the date is the date GitHub made the CI artifact (read
+from the build's own file, or from the artifact of the run the build is linked to), else the store's upload time (TestFlight; Google
+Play gives none). `firstSeenAt` (when this server first saw the build) is never a build date. When `builtAt` is null, `builtGap` says
+why: `not_read` (no CI file was read for it yet), `reads_disabled` (this server does not read builds: set
+`KILN_BUILDS_DOWNLOAD_ENABLED=true`), `file_gone` (GitHub no longer has the file and no date was kept), `github_unreachable`,
+`github_no_access`, `no_repository`.
+**Lazy fill.** Listing the builds of an app also starts, in the background and after the answer is built, the read of the build
+number inside the newest unread CI artifacts (at most 3, one batch per app every 5 minutes; the same guarded path as "Read build
+info from CI"), so a build has its version name and date without anybody pressing the button. With downloads off nothing is read.
 `testflight` (iOS and macOS apps with synced builds; `null` otherwise): a READ of the app's external TestFlight groups that
 have a public link: `groups[] {id, name, publicLink, enabled, limit}` (`limit` null = no limit), `withoutLink` (external groups
 without a link, not listed), `readAt`, `cached`, and `problem {reason, needs}` with a fixed reason (`no_access` for a 401 or 403 from

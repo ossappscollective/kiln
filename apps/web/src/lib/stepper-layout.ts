@@ -3,7 +3,7 @@ import { supports } from '@kiln/core';
 import { formatList } from './i18n/format.ts';
 import { t } from './i18n/t.ts';
 import type { PendingItem, PublishStepType } from './pending.ts';
-import type { BuildRow } from './release-candidates.ts';
+import type { CandidateBuildRow } from './release-candidates.ts';
 import type { Chosen, Level, StagedFacts, StepId } from './release-stepper.ts';
 import { STEP_LABELS } from './release-stepper.ts';
 import { storeName } from './staged.ts';
@@ -257,7 +257,7 @@ export type ChipTone = 'ok' | 'info' | 'warn' | 'bad' | 'neutral';
 
 /** The ONE state chip of a build row. */
 export function buildChip(
-  row: Pick<BuildRow, 'eligibility'>,
+  row: Pick<CandidateBuildRow, 'eligibility'>,
   flags: { attached: boolean; staged: boolean },
 ): { text: string; tone: ChipTone } {
   if (row.eligibility.tone === 'bad') return { text: t('common:stepper.chip.cannot'), tone: 'bad' };
@@ -297,5 +297,5 @@ export function visibleBuilds<T extends { id: string }>(
 }
 
 /** The selected build has a real problem (a warning to read, or it cannot be chosen): the details open by themselves. */
-export const buildHasProblem = (row: Pick<BuildRow, 'eligibility'> | undefined): boolean =>
+export const buildHasProblem = (row: Pick<CandidateBuildRow, 'eligibility'> | undefined): boolean =>
   row !== undefined && (row.eligibility.tone === 'bad' || row.eligibility.tone === 'warn');

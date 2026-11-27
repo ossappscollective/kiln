@@ -110,6 +110,8 @@ export type BuildsContext = CiContext & {
   downloading: Map<string, number>;
   /** The reads of build numbers in flight or waiting, by app: one at a time per app. */
   inspecting: Map<string, Promise<unknown>>;
+  /** When the last background batch of build reads started, by app (`facts.ts`): one batch per app every `BUILD_AUTO_READ_PAUSE_MS`. */
+  autoReadAt: Map<string, number>;
 };
 
 export function createBuildsContext(
@@ -141,6 +143,7 @@ export function createBuildsContext(
     links: new Map(),
     downloading: new Map(),
     inspecting: new Map(),
+    autoReadAt: new Map(),
   };
 }
 

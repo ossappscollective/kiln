@@ -116,3 +116,12 @@ test('buildNumberOfBuild reads structured fields, never a title (Spanish "Compil
   assert.equal(buildNumberOfBuild({}), null);
   assert.equal(buildNumberOfBuild({ title: 'Compilación 240' } as never), null);
 });
+
+test('builds are not read on this server: the gap says so (enable build reads), unless a repository is missing or a file was read', () => {
+  const gap = (sources: Parameters<typeof originOfBuild>[1]) => originOfBuild(row(), sources).builtGap;
+  assert.equal(gap({ artifacts: [], readsEnabled: false }), 'reads_disabled');
+  assert.equal(gap({ artifacts: [], readsEnabled: false, ciLinked: false }), 'no_repository');
+  assert.equal(gap({ artifacts: [], readsEnabled: true }), 'not_read');
+  // A file read before the switch was turned off still gives its date.
+  assert.equal(originOfBuild(row(), { artifacts: [artifact()], packageId: APP, readsEnabled: false }).builtGap, null);
+});

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { useLocale } from './i18n/test-setup.ts';
 import {
   type BuildCandidate,
   buildRows,
@@ -240,4 +241,18 @@ test('build rows carry the age of the upload and mark the newest build Latest', 
   assert.equal(rows[0]?.uploadedAge, 'yesterday');
   assert.equal(rows[1]?.uploadedAge, '2 days ago');
   assert.equal(rows[2]?.uploadedAge, null);
+});
+
+test('the build number of a picker row is the structured one: a Spanish title ("Compilacion 240") gives the same number as English', () => {
+  try {
+    useLocale('es');
+    const rows = buildRows([build('240', elig('ok', true, 'ok'), { buildNumber: '240' })], [], Date.now());
+    assert.match(rows[0]?.title ?? '', /240/);
+    assert.notEqual(rows[0]?.title, 'Build 240', 'the title is translated, so a parse of it would fail');
+    assert.equal(rows[0]?.buildNumber, '240');
+  } finally {
+    useLocale('en');
+  }
+  const unknown = buildRows([build('x', undefined, { buildNumber: null as never })], [], Date.now());
+  assert.equal(unknown[0]?.buildNumber, null);
 });

@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import type { AppEnv } from '../../http.ts';
 import { memberRole } from '../../services/accounts.ts';
 import { inspectArtifact } from './artifact-inspect.ts';
+import { withBuildOrigins } from './facts.ts';
 import {
   type BuildsContext,
   createDownloadLink,
@@ -75,7 +76,8 @@ export function buildsRoutes(ctx: BuildsContext) {
       actor(c),
     );
     if (!done.ok) return respond(c, done);
-    return c.json({ ...done.list, canDownload: can(c.get('role'), 'builds.download') });
+    const facts = await withBuildOrigins(ctx, { workspaceId: ws(c), list: done.list });
+    return c.json({ ...facts, canDownload: can(c.get('role'), 'builds.download') });
   });
 
   app.get(

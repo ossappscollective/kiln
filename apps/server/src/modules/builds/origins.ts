@@ -6,7 +6,14 @@ import {
   loadArtifactMeta,
   rememberArtifactOrigin,
 } from './artifact-meta-store.ts';
-import { artifactOriginOf, type BuildsContext, listRawArtifacts, storeBuilds } from './service.ts';
+import {
+  artifactOriginOf,
+  type BuildsContext,
+  guessArtifact,
+  listRawArtifacts,
+  type StoreBuildItem,
+  storeBuilds,
+} from './service.ts';
 
 /**
  * What Kiln already knows about the builds of an app, for the "which version and when" of a version code in Prepare release
@@ -25,33 +32,52 @@ type Actor = { type: 'user' | 'token' | 'assistant' | 'system'; id: string };
 
 export async function loadOriginSources(
   ctx: BuildsContext,
-  input: { workspaceId: string; app: ManagedApp; actor: Actor },
+  input: {
+    workspaceId: string;
+    app: ManagedApp;
+    actor: Actor;
+    /** The store rows the caller already read (one read per request); read here when absent. */
+    store?: readonly StoreBuildItem[] | undefined;
+  },
 ): Promise<OriginSources> {
   const { app } = input;
+  const readsEnabled = ctx.builds.downloadEnabled;
   const metas = await loadArtifactMeta(ctx.db, input.workspaceId, app.id);
   const read = [...metas.entries()].filter(([, m]) => m.status === 'read' && m.build !== null);
-  const seen = new Map<string, number>();
+  const firstSeen: Record<string, number> = {};
   for (const r of await ctx.db.query(
     'SELECT build_number, first_seen_at FROM app_builds WHERE workspace_id = ? AND app_id = ? AND platform = ?',
     [input.workspaceId, app.id, app.platform],
   ))
-    seen.set(String(r.build_number), Number(r.first_seen_at));
-  const store = (await storeBuilds(ctx, input.workspaceId, app)).map((b) => ({
+    firstSeen[String(r.build_number)] = Number(r.first_seen_at);
+  const rows = input.store ?? (await storeBuilds(ctx, input.workspaceId, app));
+  const store = rows.map((b) => ({
     buildNumber: b.buildNumber,
     version: b.version,
     uploadedAt: b.uploadedAt,
-    firstSeenAt: seen.get(b.buildNumber) ?? null,
+    firstSeenAt: firstSeen[b.buildNumber] ?? null,
   }));
   const repository = app.repositoryId
     ? await getRepository(ctx.db, input.workspaceId, app.repositoryId)
     : undefined;
   let ciLinked = Boolean(repository && !repository.localOnly);
-  if (read.length === 0) return { artifacts: [], store, listing: 'not_asked', ciLinked };
+  // A build the CI linked to a run (build_links) has the date of the run's artifact even when its file was never opened.
+  const readNumbers = new Set(read.map(([, m]) => (m.build === null ? '' : m.build.number)));
+  const links = new Map<string, string>();
+  for (const l of await ctx.db.query(
+    "SELECT build_number, run_id FROM build_links WHERE workspace_id = ? AND app_id = ? AND platform = ? AND run_id <> ''",
+    [input.workspaceId, app.id, app.platform],
+  ))
+    if (!readNumbers.has(String(l.build_number))) links.set(String(l.build_number), String(l.run_id));
+  if (read.length === 0 && links.size === 0)
+    return { artifacts: [], store, listing: 'not_asked', ciLinked, readsEnabled };
 
-  // The persisted date and run first; the live list (kept 30 seconds) only when a file read lacks its date, and it fills them in.
+  // The persisted date and run first; the live list (kept 30 seconds, the one the Test builds page just read) only when a file read
+  // lacks its date or a linked build has none, and it fills them in.
   const live = new Map<string, ArtifactOrigin>();
+  const linkedArtifacts: { number: string; origin: ArtifactOrigin }[] = [];
   let listing: ListingState = 'ok';
-  if (read.some(([, m]) => m.origin.createdAt === null)) {
+  if (read.some(([, m]) => m.origin.createdAt === null) || (ciLinked && links.size > 0)) {
     listing = 'unreachable';
     try {
       const out = await listRawArtifacts(
@@ -63,6 +89,17 @@ export async function loadOriginSources(
         listing = 'ok';
         for (const a of out.artifacts)
           live.set(a.id, artifactOriginOf(a, a.runId ? out.runs.get(a.runId) : undefined));
+        for (const [number, runId] of links) {
+          const mine = out.artifacts
+            .filter((a) => a.runId === runId)
+            .filter((a) => {
+              const guess = guessArtifact(a.name, app.platform).platform;
+              return guess === null || guess === app.platform;
+            })
+            .sort((x, y) => (x.createdAt ?? 0) - (y.createdAt ?? 0))[0];
+          const origin = mine === undefined ? undefined : live.get(mine.id);
+          if (origin !== undefined) linkedArtifacts.push({ number, origin });
+        }
       } else if (out.reason === 'no_repository') {
         listing = 'no_repository';
         ciLinked = false;
@@ -105,5 +142,25 @@ export async function loadOriginSources(
         : null,
     });
   }
-  return { artifacts, store, listing, ciLinked };
+  // The run's artifact stands in for a file that was never opened: its DATE and run only (no version name, no package).
+  for (const { number, origin } of linkedArtifacts) {
+    artifacts.push({
+      artifactId: `run:${origin.runId ?? number}`,
+      number,
+      version: null,
+      packageId: null,
+      createdAt: origin.createdAt,
+      expiresAt: origin.expiresAt,
+      run:
+        origin.runNumber !== null || origin.branch !== null || origin.runUrl !== null
+          ? {
+              runNumber: origin.runNumber,
+              branch: origin.branch,
+              commit: origin.headSha,
+              url: origin.runUrl,
+            }
+          : null,
+    });
+  }
+  return { artifacts, store, listing, ciLinked, readsEnabled };
 }

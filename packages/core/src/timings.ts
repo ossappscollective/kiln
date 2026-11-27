@@ -63,6 +63,15 @@ export const BUILD_LIST_TTL_MS = 30 * SECOND;
 /** The server keeps the reason a build list could not be read this long, so a broken credential is not asked again every request. */
 export const BUILD_PROBLEM_TTL_MS = MINUTE;
 
+/**
+ * Lazy build reads (`modules/builds/facts.ts`): when the builds of an app are listed and downloads are on, the server reads the build
+ * number inside up to `BUILD_AUTO_READ_BATCH` of the newest unread CI artifacts in the background, so a build gets its version name and
+ * its DATE without anybody pressing "Read build info from CI". At most one batch per app every `BUILD_AUTO_READ_PAUSE_MS`, a failed
+ * download included, so a broken artifact is not downloaded on every page view.
+ */
+export const BUILD_AUTO_READ_BATCH = 3;
+export const BUILD_AUTO_READ_PAUSE_MS = 5 * MINUTE;
+
 // ---------------------------------------------------------------------------------------------
 // Images, notes, proposals
 

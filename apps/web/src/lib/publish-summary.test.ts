@@ -466,12 +466,19 @@ test('the build link: the TestFlight page of the app when the Apple id is known,
   );
 });
 
-test('the build date: Google Play says it gives none, App Store Connect gives it when stored', () => {
+test('the build date: the origin of the store rows decides, with the server reason when there is none', () => {
   const play = { kind: 'play', platform: 'android', version: null, numbers: ['165'] } as const;
-  assert.deepEqual(buildDate(play, null), { state: 'notProvided' });
-  assert.deepEqual(buildDate(play, [{ platform: 'android', buildNumber: '165', uploadedAt: 5 }]), {
+  assert.equal(buildDate(play, null), null, 'not read: nothing is said');
+  assert.deepEqual(buildDate(play, [{ platform: 'android', buildNumber: '165', uploadedAt: null }]), {
     state: 'notProvided',
   });
+  assert.deepEqual(
+    buildDate(play, [
+      { platform: 'android', buildNumber: '165', uploadedAt: null, origin: { builtAt: 7, builtFrom: 'ci' } },
+    ]),
+    { state: 'known', at: 7 },
+    'a code built by a CI run is dated like everywhere else',
+  );
   const apple = { kind: 'apple', platform: 'ios', version: '2.9.0', numbers: ['412'] } as const;
   const stored = [
     { platform: 'ios', buildNumber: '411', version: '2.9.0', uploadedAt: 100 },
@@ -481,9 +488,20 @@ test('the build date: Google Play says it gives none, App Store Connect gives it
   assert.deepEqual(buildDate(apple, stored), { state: 'known', at: 200 });
   assert.deepEqual(
     buildDate(apple, [{ platform: 'ios', buildNumber: '412', version: '2.9.0', uploadedAt: null }]),
-    { state: 'notRead' },
+    { state: 'notRead', reason: null },
   );
-  assert.deepEqual(buildDate(apple, []), { state: 'notRead' });
+  const disabled = buildDate(apple, [
+    {
+      platform: 'ios',
+      buildNumber: '412',
+      version: '2.9.0',
+      uploadedAt: null,
+      origin: { builtAt: null, builtGap: 'reads_disabled' },
+    },
+  ]);
+  assert.equal(disabled?.state, 'notRead');
+  assert.equal(disabled?.state === 'notRead' ? disabled.reason?.key : null, 'reads_disabled');
+  assert.deepEqual(buildDate(apple, []), { state: 'notRead', reason: null });
   // Not read (or no build named): nothing is said at all.
   assert.equal(buildDate(apple, null), null);
   assert.equal(buildDate({ ...apple, numbers: [] }, stored), null);
