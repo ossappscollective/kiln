@@ -585,6 +585,24 @@ build that is missing, expired or not processed (from one read of the store; a p
 build codes are not warned about when such a push is staged; the review information codes are not changed by a push). These are `problems` of severity `warning` with the code `submit_will_block_<check code>` (they are not part of `planHash`);
 the checks that depend on the push (the draft, texts, screenshots) cannot be known yet and are not listed.
 
+### Current readiness: what blocks the submit NOW (`GET /apps/{id}/publish/readiness`)
+
+The blockers a run kept are HISTORY: true when the run ended, not necessarily now (a person removes screenshots, fills a text, attaches a
+build). This read answers what blocks the submit at this moment, with the same pure rules (`@kiln/core` `evaluateDraftContent`,
+`predictDraft`, `readinessOf`) from a store read, so the app can drop the blockers that no longer hold.
+
+- Right: `store.submit`. Operation `getStoreSubmitReadiness` (risk `read`). 409 `store_submit_disabled` when the workspace does not submit.
+- Answer: `{ readiness: { appId, ready, blockers[], unknown[], predicted, versionString, storeReadAt, cached }, generatedAt }`. `blockers`
+  have the shape of a run's, plus `params` and `fix`. For a count over the limit `params` is `{ count, max, device, set }`.
+- Cache: the answer is kept 30 seconds per app (`cached: true`). `?fresh=1` (or `true`) drops every store read cache of the app (the store-image
+  view, the draft read) and reads again; the "Check again" button sends it.
+- It is also dropped by everything that may have changed the store: a push, a submit, a sync (`POST /apps/{id}/sync` re-reads the
+  screenshots, not only the texts) and the "Read again" of the Graphics tab (`GET .../store-images?fresh=1`).
+- Screenshots are counted PER STORE SET (an App Store placement group: `APP_IPAD_PRO_3GEN_129` and `APP_IPAD_PRO_129` are two sets), never
+  summed across the sibling display types that the listing shows as one (iPad 13" / 12.9"). Apple's limit is 10 per set, so 10 + 2 is not 12.
+  The message names the set (`... iPad 13" / 12.9" (APP_IPAD_PRO_3GEN_129): 12 found.`), the finding's `item` is `apple.screenshot.count:<set>`.
+  A staged replacement of a display removes every other set of that display in that locale, as the push does.
+
 ### Causes Kiln names for Google Play
 
 The Google connectors (draft, submit, release, rollout) read the error body (`error.message`, `error.errors[].reason`, `error.status`) and,

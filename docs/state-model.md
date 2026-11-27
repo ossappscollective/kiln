@@ -72,6 +72,7 @@ For the platforms in scope, the first row that applies wins:
 | 1   | `publishing`        | a publish claim exists for a record in scope                                      | `show_pending`                                      | none                                                         |
 | 2   | `publish_failed`    | the latest run did not complete and was not dismissed (and no newer publish runs) | `show_pending`                                      | `publish_again`                                              |
 | 2b  | `publish_failed` (draft pushed, submit blocked) | the latest run applied `push_draft` and only its submit was skipped as `blocked` (nothing failed) | `fix_blockers` ("Fix 2 blockers, then submit 2.0.1 for review"): opens the submit checklist (SubmitReady) with the blockers | `show_pending` |
+| 2c  | `ready_to_submit` | the latest run only had its submit blocked, a reading of the store NEWER than the run says nothing blocks any more, and no change is pending | `submit_now` ("Submit 2.0.1 for review"): opens the submit checklist | `show_pending` |
 | 3   | `changes_pending`   | the pending count in scope is above 0                                             | `show_pending` ("Review and publish")               | the release step of the flow, `publish_again` is not offered |
 | 4   | `release_needs_you` | a release failed, was rejected, or waits for a person                             | the train's button (`attach_build`, `open_release`) | Promote when offered                                         |
 | 4b  | `version_in_prep`   | a version for the newest build is being prepared: attach the build, then submit   | `attach_build`, or `prepare_release` ("Submit 2.00.1 for review") |                                                |
@@ -83,6 +84,20 @@ For the platforms in scope, the first row that applies wins:
 
 "Nothing is waiting for you" is only ever said by phases 7 and 8, which need: no publish running, no undismissed failure, a pending
 count of 0 in scope. That is how the Next step card can no longer say it while 29 changes wait.
+
+### Blockers of a run: history vs current
+
+A run that pushed the draft and had its submit skipped as `blocked` keeps its blockers (`runBlockers`: what was true when it ran). The model
+holds them against a CURRENT reading of the store (`facts.readiness[appId]`, from `GET /apps/{id}/publish/readiness`; `blockersViewOf`
+in `app-state/blockers.ts`, pure) and exposes `failure.blockers`: `{ state, current, run, resolved, summary, runLabel, readLabel }`.
+
+- `unverified`: no reading newer than the run (not read yet, no right, the read failed): the run's list is shown as it was, labelled "From
+  the last publish, N minutes ago". A reading older than the run is ignored.
+- `blocked`: only the blockers of the reading are current (`currentBlockers`); the card says "Fix N blockers" with N of the reading.
+- `ready`: nothing blocks: phase `ready_to_submit` (row 2c), the failure block says "everything that blocked the submit is fixed now" with "Submit now" and "Dismiss".
+  The run stays as history, visibly separate. Only the codes core can recompute (`RECOMPUTABLE_CODES`) are judged against a reading.
+- "Check again" (card, failure block) reads the store fresh and re-derives; sync and "Read again" refresh the reading too. "Store images read
+  {time}" is shown next to it.
 
 ### Candidates and obsolete versions
 
@@ -152,7 +167,7 @@ another number).
 
 ### Top bar
 
-`deriveTopBar` returns `idle | pending(count) | publishing | failed(count)`. Priority: the open app publishing, then another app of the
+`deriveTopBar` returns `idle | pending(count) | publishing | failed(count)` (`failed` carries `ready: true` when every kept blocker is fixed: the bar then says it is ready to submit). Priority: the open app publishing, then another app of the
 workspace publishing (the button follows it), then a failure in scope, then pending in scope. It never shows `idle` while the card
 says something is pending, because both read the same `AppState`.
 
