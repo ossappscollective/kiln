@@ -102,6 +102,8 @@ export function assetFactsOf(content: DraftContent): AssetFacts[] {
           locale: locale.locale,
           kind: set.kind,
           device: set.device,
+          // The store's own set: App Store sets (placement groups) are counted one by one, Apple's limit is per set, not per display.
+          set: content.store === 'app_store' ? set.target : null,
           order: index + 1,
           bytes: null,
           width: image.width,
@@ -194,10 +196,21 @@ export function evaluateDraftContent(content: DraftContent): ReadinessFinding[] 
       severity: p.severity === 'error' && p.verified ? 'blocking' : 'warning',
       message: p.message,
       ...(p.locale !== undefined ? { locale: p.locale } : {}),
-      item: p.path ?? p.rule,
+      item: p.path ?? (p.set ? `${p.rule}:${p.set}` : p.rule),
       rule: p.rule,
       source: p.source,
       verified: p.verified,
+      // A count problem says which set is over (`set`: the store's name, `device`: the display) and by how much.
+      ...(p.count !== undefined && p.max !== undefined
+        ? {
+            params: {
+              count: p.count,
+              max: p.max,
+              ...(p.device ? { device: p.device } : {}),
+              ...(p.set ? { set: p.set } : {}),
+            },
+          }
+        : {}),
     });
   }
   return out;
@@ -264,12 +277,24 @@ export function predictDraft(current: DraftContent, staged: StagedDraftChanges):
   }
   for (const s of staged.sets) {
     const locale = ensure(s.locale);
-    const at = locale.assets.findIndex((set) => sameSet(set, s));
+    let at = locale.assets.findIndex((set) => sameSet(set, s));
+    // A push makes the set of a display exactly the staged files, in whatever placement group it sits: a sibling set that shows the same
+    // display (the 12.9" group next to the 13" one) is removed with it, so it is not counted on top of the pushed set.
+    const kept = at >= 0 ? (locale.assets[at] as DraftSet) : undefined;
+    const display = s.device ?? kept?.device ?? null;
+    if (display !== null) {
+      for (let i = locale.assets.length - 1; i >= 0; i--) {
+        const other = locale.assets[i] as DraftSet;
+        if (i !== at && other.kind === s.kind && other.device === display) {
+          locale.assets.splice(i, 1);
+          if (i < at) at--;
+        }
+      }
+    }
     if (s.images.length === 0) {
       if (at >= 0) locale.assets.splice(at, 1);
       continue;
     }
-    const kept = at >= 0 ? (locale.assets[at] as DraftSet) : undefined;
     const next: DraftSet = {
       kind: s.kind,
       device: s.device ?? kept?.device ?? null,
@@ -398,3 +423,57 @@ export const readinessOf = (blockers: SubmitBlocker[], unknown: string[]): Submi
   blockers,
   unknown,
 });
+
+// ---------------------------------------------------------------------------------------------
+// A blocker is a claim about one moment
+
+/** What names a blocker for comparing two moments: the check, the locale and the field or rule it is about (a set's name is left out). */
+type BlockerRef = {
+  code: string;
+  locale?: string | undefined;
+  item?: string | undefined;
+};
+
+/** The identity of a blocker across two readings of the store (`apple.screenshot.count:APP_IPAD_PRO_129` and `apple.screenshot.count` are one). */
+export const blockerKey = (b: BlockerRef): string =>
+  `${b.code}|${b.locale ?? ''}|${(b.item ?? '').split(':')[0]}`;
+
+/**
+ * What a run (or any earlier reading) said stood in the way of a submit, held against what stands in the way NOW. A blocker is only
+ * true at the moment it was computed: `resolved` are the ones of the earlier reading that no longer hold, `remaining` is the current
+ * list (what to show), `added` the current blockers the earlier reading did not have. Pure.
+ */
+export function reconcileBlockers<R extends BlockerRef, C extends BlockerRef>(
+  earlier: readonly R[],
+  current: readonly C[],
+): { remaining: C[]; resolved: R[]; added: C[] } {
+  const now = new Set(current.map(blockerKey));
+  const before = new Set(earlier.map(blockerKey));
+  return {
+    remaining: current.slice(),
+    resolved: earlier.filter((b) => !now.has(blockerKey(b))),
+    added: current.filter((b) => !before.has(blockerKey(b))),
+  };
+}
+
+/**
+ * The codes a fresh read of the store can judge (everything `submitReadinessOf` evaluates). A blocker of an earlier run with another code
+ * (`draft_differs`, `image_not_ready`, `push_in_progress`...) was a fact of that moment's push that nothing can recompute; the submit
+ * itself checks it again, so it is never carried over as current.
+ */
+export const RECOMPUTABLE_CODES: readonly string[] = [
+  'no_locales',
+  'missing_text',
+  'locale_without_screenshots',
+  'no_screenshots',
+  'asset_spec',
+  'release_notes_too_long',
+  'no_review_contact',
+  'no_review_demo_account',
+  'already_submitted',
+  'no_version',
+  'release_not_manual',
+  'no_build',
+  'build_expired',
+  'build_not_valid',
+];

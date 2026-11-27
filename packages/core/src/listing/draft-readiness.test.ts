@@ -8,6 +8,7 @@ import {
   draftTextFields,
   evaluateDraftContent,
   predictDraft,
+  reconcileBlockers,
 } from './draft-readiness.ts';
 
 const IPHONE_65 = { width: 1242, height: 2688 };
@@ -126,7 +127,7 @@ test('more screenshots than a device size allows blocks, with the documented sen
   assert.equal(over[0]?.rule, 'apple.screenshot.count');
   assert.equal(
     over[0]?.message,
-    'At most 10 screenshots per device size. en-US iPad 13" / 12.9": 12 found.',
+    'At most 10 screenshots per device size. en-US iPad 13" / 12.9" (group-ipad-13): 12 found.',
   );
   assert.equal(evaluateDraftContent(apple(locale('en-US', filled, [ipad(10)]))).length, 0);
 });
@@ -340,6 +341,149 @@ test('the user case: fr-FR description, keywords and support URL empty and 12 sc
     'missing_text:fr-FR:description',
     'missing_text:fr-FR:keywords',
     'missing_text:fr-FR:support_url',
-    'asset_spec:en-US:apple.screenshot.count',
+    'asset_spec:en-US:apple.screenshot.count:group-ipad-13',
   ]);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Counting per set (a display type), never per device size across sets
+
+const ipadSet = (target: string, n: number): DraftSet => ({
+  kind: 'screenshot',
+  device: 'ipad_13',
+  target,
+  images: shots(n, IPAD_13),
+});
+const countProblems = (content: DraftContent) =>
+  evaluateDraftContent(content).filter((f) => f.rule === 'apple.screenshot.count');
+
+test('10 in the 13" display type and 2 in the sibling 12.9" type are NOT summed: each set counts against its own 10', () => {
+  const content = apple(
+    locale('en-US', filled, [
+      ipadSet('APP_IPAD_PRO_3GEN_129', 10),
+      ipadSet('APP_IPAD_PRO_129', 2),
+    ]),
+  );
+  assert.deepEqual(countProblems(content), []);
+});
+
+test('12 in ONE display type is flagged, and the sentence says which display type is over and by how much', () => {
+  const content = apple(
+    locale('en-US', filled, [ipadSet('APP_IPAD_PRO_3GEN_129', 12), ipadSet('APP_IPAD_PRO_129', 2)]),
+  );
+  const over = countProblems(content);
+  assert.equal(over.length, 1);
+  assert.equal(over[0]?.severity, 'blocking');
+  assert.match(over[0]?.message ?? '', /\(APP_IPAD_PRO_3GEN_129\): 12 found\.$/);
+  assert.deepEqual(over[0]?.params, {
+    count: 12,
+    max: 10,
+    device: 'ipad_13',
+    set: 'APP_IPAD_PRO_3GEN_129',
+  });
+});
+
+test('two sets over their own limit are two findings, one per display type', () => {
+  const content = apple(
+    locale('en-US', filled, [ipadSet('APP_IPAD_PRO_3GEN_129', 11), ipadSet('APP_IPAD_PRO_129', 12)]),
+  );
+  assert.deepEqual(
+    countProblems(content).map((f) => f.item),
+    [
+      'apple.screenshot.count:APP_IPAD_PRO_129',
+      'apple.screenshot.count:APP_IPAD_PRO_3GEN_129',
+    ],
+  );
+});
+
+test('the same display in two locales is counted per locale', () => {
+  const content = apple(
+    locale('en-US', filled, [ipadSet('APP_IPAD_PRO_3GEN_129', 10)]),
+    locale('fr-FR', filled, [ipadSet('APP_IPAD_PRO_3GEN_129', 10)]),
+  );
+  assert.deepEqual(countProblems(content), []);
+});
+
+test('Google Play counts per device type as before (no store set is named)', () => {
+  const play: DraftContent = {
+    store: 'google_play',
+    locales: [
+      locale('en-US', {}, [
+        { kind: 'screenshot', device: 'phone', target: 'phoneScreenshots', images: shots(9, PHONE) },
+      ]),
+    ],
+  };
+  const over = evaluateDraftContent(play).filter((f) => f.rule === 'play.screenshot.count');
+  assert.equal(over.length, 1);
+  assert.doesNotMatch(over[0]?.message ?? '', /\(/);
+});
+
+test('predictDraft: a push that removes screenshots leaves the staged set only; a sibling group of the same display goes with it', () => {
+  const current = apple(
+    locale('en-US', filled, [
+      ipadSet('APP_IPAD_PRO_3GEN_129', 12),
+      ipadSet('APP_IPAD_PRO_129', 2),
+    ]),
+  );
+  const next = predictDraft(current, {
+    texts: [],
+    sets: [
+      {
+        locale: 'en-US',
+        kind: 'screenshot',
+        device: 'ipad_13',
+        target: 'ipad_13',
+        group: 'APP_IPAD_PRO_3GEN_129',
+        images: shots(10, IPAD_13),
+      },
+    ],
+  });
+  const sets = next.locales[0]?.assets ?? [];
+  assert.equal(sets.length, 1);
+  assert.equal(sets[0]?.target, 'APP_IPAD_PRO_3GEN_129');
+  assert.equal(sets[0]?.images.length, 10);
+  assert.deepEqual(countProblems(next), []);
+  // The input is not touched.
+  assert.equal(current.locales[0]?.assets.length, 2);
+});
+
+test('predictDraft: staged removals applied: clearing the set of a display removes every set that shows it', () => {
+  const current = apple(
+    locale('en-US', filled, [ipadSet('APP_IPAD_PRO_3GEN_129', 12), iphone(3)]),
+  );
+  const next = predictDraft(current, {
+    texts: [],
+    sets: [{ locale: 'en-US', kind: 'screenshot', device: 'ipad_13', target: 'ipad_13', images: [] }],
+  });
+  assert.deepEqual(
+    (next.locales[0]?.assets ?? []).map((a) => a.target),
+    ['group-iphone-65'],
+  );
+});
+
+test('reconcileBlockers: what an earlier reading said and no longer holds is resolved; the current list is what to show', () => {
+  const earlier = [
+    { code: 'asset_spec', locale: 'en-US', item: 'apple.screenshot.count' },
+    { code: 'missing_text', locale: 'fr-FR', item: 'description' },
+  ];
+  const now = [{ code: 'missing_text', locale: 'fr-FR', item: 'description' }];
+  const r = reconcileBlockers(earlier, now);
+  assert.deepEqual(r.resolved, [earlier[0]]);
+  assert.deepEqual(r.remaining, now);
+  assert.deepEqual(r.added, []);
+  const none = reconcileBlockers(earlier, []);
+  assert.equal(none.resolved.length, 2);
+  assert.equal(none.remaining.length, 0);
+});
+
+test('reconcileBlockers: a count blocker that names its set is the same blocker as the older one without it; a new one is added', () => {
+  const r = reconcileBlockers(
+    [{ code: 'asset_spec', locale: 'en-US', item: 'apple.screenshot.count' }],
+    [
+      { code: 'asset_spec', locale: 'en-US', item: 'apple.screenshot.count:APP_IPAD_PRO_129' },
+      { code: 'no_build' },
+    ],
+  );
+  assert.equal(r.resolved.length, 0);
+  assert.deepEqual(r.added.map((b) => b.code), ['no_build']);
 });

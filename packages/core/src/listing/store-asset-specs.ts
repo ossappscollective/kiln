@@ -550,6 +550,11 @@ export type AssetProblem = {
   locale?: string;
   kind?: AssetKind;
   device?: string | null;
+  /** The store's own set that is over its limit (an App Store placement group), for a count problem of a store read. */
+  set?: string | null | undefined;
+  /** A count problem: how many the set holds and the most it may hold. */
+  count?: number;
+  max?: number;
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -563,6 +568,12 @@ export type AssetFacts = {
   kind: AssetKind;
   /** A display id (`iphone_6_9`, `imessage:ipad_13`) or a Play device id (`phone`), null when not known. */
   device: string | null;
+  /**
+   * The store's own set the file sits in (an App Store placement group such as `APP_IPAD_PRO_3GEN_129`), when the facts come from a store
+   * read. Several store sets can show the same display (`ipad_13` is the 13" AND the 12.9" iPad) and Apple's limit is per set, so a set that is
+   * named is counted by itself, never summed with its sibling. Absent: the files of one device count together (a repository scan).
+   */
+  set?: string | null | undefined;
   /** 1-based position among the files of the same locale, kind and device (file name order). */
   order: number;
   bytes: number | null;
@@ -581,6 +592,8 @@ export type AssetSet = {
   locale: string;
   kind: AssetKind;
   device: string | null;
+  /** The store's own set (see `AssetFacts.set`), null when the files are counted by device. */
+  set: string | null;
   deviceLabel: string;
   count: number;
   /** The most a set may hold, or null when there is no limit. */
@@ -597,8 +610,8 @@ export const APPLE_PREVIEW_MAX_BYTES = 500 * MB;
 
 const rule = (id: string): AssetRule => ASSET_RULES[id] as AssetRule;
 
-const countKey = (a: Pick<AssetFacts, 'locale' | 'kind' | 'device'>) =>
-  `${a.locale}\u0000${a.kind}\u0000${a.device ?? ''}`;
+const countKey = (a: Pick<AssetFacts, 'locale' | 'kind' | 'device' | 'set'>) =>
+  `${a.locale}\u0000${a.kind}\u0000${a.device ?? ''}\u0000${a.set ?? ''}`;
 
 const maxFor = (store: AssetStore, kind: AssetKind): { max: number; rule: string } | null => {
   if (store === 'app_store') {
@@ -623,6 +636,7 @@ export function summarizeAssets(store: AssetStore, assets: readonly AssetFacts[]
         locale: a.locale,
         kind: a.kind,
         device: a.device,
+        set: a.set ?? null,
         deviceLabel: deviceLabel(store, a.device),
         count: 0,
         max: limit?.max ?? null,
@@ -636,7 +650,8 @@ export function summarizeAssets(store: AssetStore, assets: readonly AssetFacts[]
     (x, y) =>
       x.locale.localeCompare(y.locale) ||
       ASSET_KINDS.indexOf(x.kind) - ASSET_KINDS.indexOf(y.kind) ||
-      (x.device ?? '').localeCompare(y.device ?? ''),
+      (x.device ?? '').localeCompare(y.device ?? '') ||
+      (x.set ?? '').localeCompare(y.set ?? ''),
   );
 }
 
@@ -647,7 +662,10 @@ function problem(
   ruleId: string,
   severity: AssetSeverity,
   found: string,
-  where: Partial<Pick<AssetFacts, 'path' | 'locale' | 'kind' | 'device'>> = {},
+  where: Partial<Pick<AssetFacts, 'path' | 'locale' | 'kind' | 'device' | 'set'>> & {
+    count?: number;
+    max?: number;
+  } = {},
 ): AssetProblem {
   const r = rule(ruleId);
   return {
@@ -844,11 +862,15 @@ function checkSets(store: AssetStore, assets: readonly AssetFacts[], out: AssetP
         problem(
           set.rule,
           'error',
-          `${[set.locale, describeDevice(store, set.kind, set.device)].filter(Boolean).join(' ')}: ${set.count} found.`,
+          // The set is named when the store has several for one display: `en-US iPad 13" / 12.9" (APP_IPAD_PRO_3GEN_129): 12 found.`
+          `${[set.locale, describeDevice(store, set.kind, set.device)].filter(Boolean).join(' ')}${set.set !== null ? ` (${set.set})` : ''}: ${set.count} found.`,
           {
             locale: set.locale,
             kind: set.kind,
             device: set.device,
+            set: set.set,
+            count: set.count,
+            max: set.max,
           },
         ),
       );
