@@ -11,6 +11,7 @@ const source = (name: string) =>
   readFileSync(new URL(`../../components/assets/${name}`, import.meta.url), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
 const graphics = source('StoreGraphics.svelte');
 const editor = source('AssetSetEditor.svelte');
+const store = readFileSync(new URL('../app-state/store-images.ts', import.meta.url), 'utf8');
 
 test('one request stages every removal of a selection, and nothing loops over the files', () => {
   assert.equal((graphics.match(/api\.removeStagedAssetFiles\(/g) ?? []).length, 1);
@@ -21,7 +22,8 @@ test('one request stages every removal of a selection, and nothing loops over th
 });
 
 test('the answer of the server is the only source of the staged view and of what the tray counts', () => {
-  assert.match(graphics, /stagedStore\.set\(done\.staged\)/);
+  assert.match(graphics, /storeImagesStore\.applyStaged\(done\.staged\)/);
+  assert.doesNotMatch(graphics, /staged-store/, 'the staged store is reached through the images store only');
   assert.doesNotMatch(graphics, /pendingStore|cartSummaryStore|appStateStore|pendingCount/, 'no local count of pending changes');
 });
 
@@ -71,6 +73,6 @@ test('the tab says which version it shows (draft or live), offers the switch, an
   assert.match(graphics, /assets:store\.version\.live'/);
   assert.match(graphics, /assets:store\.version\.draftNote/, 'a removal is explained: it changes the draft only');
   assert.match(graphics, /offersChannelSwitch\(view\)/);
-  assert.match(graphics, /channel === 'live' \? null : stagedStore\.view\(app\.id\)/, 'staged changes are for the draft, not shown on the live view');
+  assert.match(store, /staged: channel === 'live' \? null : staged/, 'staged changes are for the draft, not shown on the live view');
   assert.match(graphics, /!versionLabel\.editable/, 'the live view cannot be edited');
 });

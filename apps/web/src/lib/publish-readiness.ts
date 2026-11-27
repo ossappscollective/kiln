@@ -1,4 +1,4 @@
-import type { Platform, ReadinessFixKind, SubmitBlocker, SubmitReadiness } from '@kiln/core';
+import type { CurrentReadiness, Platform, ReadinessFixKind, SubmitBlocker, SubmitReadiness } from '@kiln/core';
 import { supports } from '@kiln/core';
 import { k, t } from './i18n/t.ts';
 import { reviewFromParam } from './review-information.ts';
@@ -17,20 +17,8 @@ export type PlanReadiness = {
   submit: SubmitReadiness & { predicted: boolean; checkedAt: number };
 };
 
-/** What `GET /apps/:id/publish/readiness` answers (docs/api/pending.md "Current readiness"): what blocks a submit NOW, read from the store. */
-export type PublishReadiness = {
-  appId: string;
-  ready: boolean;
-  blockers: SubmitBlocker[];
-  unknown: string[];
-  /** The staged push was merged into the store's draft. */
-  predicted: boolean;
-  versionString: string | null;
-  /** When the store was read (epoch ms). */
-  storeReadAt: number;
-  /** The server answered from its 30 second cache. */
-  cached: boolean;
-};
+/** What `GET /apps/:id/publish/readiness` answers: the one type of `@kiln/core` (the server builds it from a store read, the browser reads it). */
+export type PublishReadiness = CurrentReadiness;
 
 /** How to fix each blocker, before anything is pushed. An unknown code gets the generic sentence. */
 type FixCode =

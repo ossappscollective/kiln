@@ -29,8 +29,14 @@ export type StagedCounts = {
   unpushedFiles: number;
 };
 
-/** The staged counts of a view, both families. A cleared set holds no files but is a set that a push changes. */
-export function stagedCountsOf(view: Pick<StagedChangesView, 'text' | 'assets'> | null): StagedCounts {
+/**
+ * The staged counts of a view, both families. A cleared set holds no files but is a set that a push changes. `scope.locale` counts the rows
+ * of one locale only (the locales matrix' count per row).
+ */
+export function stagedCountsOf(
+  view: Pick<StagedChangesView, 'text' | 'assets'> | null,
+  scope: { locale?: string } = {},
+): StagedCounts {
   const out: StagedCounts = {
     totalTexts: 0,
     totalSets: 0,
@@ -41,10 +47,12 @@ export function stagedCountsOf(view: Pick<StagedChangesView, 'text' | 'assets'> 
   };
   if (view === null) return out;
   for (const t of view.text) {
+    if (scope.locale !== undefined && t.locale !== scope.locale) continue;
     out.totalTexts += 1;
     if (!t.pushed) out.unpushedTexts += 1;
   }
   for (const a of view.assets) {
+    if (scope.locale !== undefined && a.locale !== scope.locale) continue;
     out.totalSets += 1;
     out.totalFiles += a.files.length;
     if (!a.pushed) {

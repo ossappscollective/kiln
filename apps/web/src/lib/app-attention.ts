@@ -1,4 +1,4 @@
-import type { Platform, StagedChangesView } from '@kiln/core';
+import { type Platform, type StagedChangesView, stagedCountsOf } from '@kiln/core';
 import { appAddress, type PlatformScope } from './app-scope.ts';
 import { type AsoMover, type AsoSummary, asoViewHref, isBigDrop, moverText } from './aso/aso.ts';
 import { t } from './i18n/t.ts';
@@ -87,7 +87,7 @@ export function stagedUnpushedCount(
   if (view === null) return 0;
   return (
     view.text.filter((t) => !t.pushed && t.status !== 'unchanged').length +
-    view.assets.filter((a) => !a.pushed).length +
+    stagedCountsOf(view).unpushedSets +
     (view.release ?? []).filter((r) => !r.pushed && !r.localOnly).length
   );
 }

@@ -1,4 +1,4 @@
-import type { AssetCompareTotals } from '@kiln/core';
+import { type AssetCompareTotals, compareSentence } from '@kiln/core';
 import { formatList } from './i18n/format.ts';
 import { t } from './i18n/t.ts';
 
@@ -10,29 +10,24 @@ import { t } from './i18n/t.ts';
 
 export type AssetsLine = { tone: 'ok' | 'warn' | 'neutral'; text: string; needsUpdate: boolean };
 
-/** The state of the screenshots against the store, from the totals of the comparison (null: not read). */
+/**
+ * The state of the screenshots against the store, from the totals of the comparison (null: not read). The structure (state, changes, tone)
+ * is core's `compareSentence`; this only puts it in words.
+ */
 export function assetsLine(totals: AssetCompareTotals | null): AssetsLine {
-  if (totals === null)
-    return {
-      tone: 'neutral',
-      text: t('release-stepper:assetsLine.notCompared'),
-      needsUpdate: false,
-    };
-  const all =
-    totals.identical + totals.likely_same + totals.differs + totals.only_repo + totals.only_store;
-  if (all === 0)
-    return {
-      tone: 'neutral',
-      text: t('release-stepper:assetsLine.nothing'),
-      needsUpdate: false,
-    };
-  const changed = totals.differs + totals.only_repo;
-  if (changed > 0) {
+  const sentence = compareSentence(totals);
+  if (sentence.state === 'not_compared')
+    return { tone: 'neutral', text: t('release-stepper:assetsLine.notCompared'), needsUpdate: false };
+  if (sentence.state === 'nothing')
+    return { tone: 'neutral', text: t('release-stepper:assetsLine.nothing'), needsUpdate: false };
+  if (sentence.state === 'changed') {
     const parts: string[] = [];
-    if (totals.differs > 0)
-      parts.push(t('release-stepper:assetsLine.differs', { count: totals.differs }));
-    if (totals.only_repo > 0)
-      parts.push(t('release-stepper:assetsLine.onlyRepo', { count: totals.only_repo }));
+    for (const c of sentence.changes)
+      parts.push(
+        c.status === 'differs'
+          ? t('release-stepper:assetsLine.differs', { count: c.count })
+          : t('release-stepper:assetsLine.onlyRepo', { count: c.count }),
+      );
     return {
       tone: 'warn',
       text: t('release-stepper:assetsLine.changed', { changes: formatList(parts) }),
@@ -40,13 +35,9 @@ export function assetsLine(totals: AssetCompareTotals | null): AssetsLine {
     };
   }
   const text = [t('release-stepper:assetsLine.match')];
-  if (totals.only_store > 0)
-    text.push(t('release-stepper:assetsLine.onlyStore', { count: totals.only_store }));
-  return {
-    tone: 'ok',
-    text: text.join(' '),
-    needsUpdate: false,
-  };
+  for (const p of sentence.parts)
+    if (p.status === 'only_store') text.push(t('release-stepper:assetsLine.onlyStore', { count: p.count }));
+  return { tone: 'ok', text: text.join(' '), needsUpdate: false };
 }
 
 /** The count of staged graphic sets as a sentence. */

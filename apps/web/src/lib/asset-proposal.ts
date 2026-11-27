@@ -38,15 +38,23 @@ export type IssueGroups = {
   errors: ProposalIssue[];
   warnings: ProposalIssue[];
   tips: ProposalIssue[];
+  /** How many findings of each severity (a screen never counts the lists itself). */
+  counts: { errors: number; warnings: number; tips: number; total: number };
 };
+
+export const NO_ISSUES: IssueGroups = { errors: [], warnings: [], tips: [], counts: { errors: 0, warnings: 0, tips: 0, total: 0 } };
 
 /** The findings by severity, each in the order the server found them. Errors and warnings are shown; tips are collapsed. */
 export function issueGroups(issues: readonly ProposalIssue[]): IssueGroups {
   const ordered = orderIssues(issues);
+  const errors = ordered.filter((i) => i.severity === 'error');
+  const warnings = ordered.filter((i) => i.severity === 'warning');
+  const tips = ordered.filter((i) => i.severity === 'tip');
   return {
-    errors: ordered.filter((i) => i.severity === 'error'),
-    warnings: ordered.filter((i) => i.severity === 'warning'),
-    tips: ordered.filter((i) => i.severity === 'tip'),
+    errors,
+    warnings,
+    tips,
+    counts: { errors: errors.length, warnings: warnings.length, tips: tips.length, total: errors.length + warnings.length + tips.length },
   };
 }
 

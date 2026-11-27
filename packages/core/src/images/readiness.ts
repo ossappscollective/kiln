@@ -1,4 +1,4 @@
-import type { DraftSet } from '../listing/draft-readiness.ts';
+import type { DraftSet, SubmitBlocker } from '../listing/draft-readiness.ts';
 import type { AssetKind } from '../listing/store-asset-specs.ts';
 
 /**
@@ -112,3 +112,23 @@ export function setsOfImageRecords<
   }
   return [...byId.values()];
 }
+
+/**
+ * What `GET /apps/:id/publish/readiness` answers (docs/api/pending.md "Current readiness"): what blocks a submit NOW, from one read of the store
+ * through the decisions above. The server builds it (`readCurrentReadiness`), the browser reads it: ONE type (the browser kept a hand copy,
+ * `PublishReadiness`).
+ */
+export type CurrentReadiness = {
+  appId: string;
+  ready: boolean;
+  blockers: SubmitBlocker[];
+  unknown: string[];
+  /** The staged push was merged into the store's draft. */
+  predicted: boolean;
+  /** The version the submit would send, null when none. */
+  versionString: string | null;
+  /** When the store was read (epoch ms): the age of the images and texts behind the answer. */
+  storeReadAt: number;
+  /** Served from the server's 30 second cache (the store was not asked again). */
+  cached: boolean;
+};

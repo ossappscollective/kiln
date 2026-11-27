@@ -21,11 +21,13 @@
     issueSentence,
     itemTitle,
     localeName,
+    NO_ISSUES,
     refsLine,
     resultLine,
     selectedWithErrors,
     summaryLine,
   } from '../../../lib/asset-proposal.ts';
+  import { storeImagesStore } from '../../../lib/app-state/store-images-store.svelte.ts';
   import { k, t } from '../../../lib/i18n/t.ts';
   import { announceCartOpen } from '../../../lib/pending-cart.ts';
   import { announceStagedChanged } from '../../../lib/staged-sync.ts';
@@ -82,7 +84,7 @@
 
   const key = $derived(`${workspaceId}/${app.id}/${release.version ?? ''}/${release.track ?? ''}/${release.build ?? ''}`);
   const mode = $derived(cardMode(view));
-  const groups = $derived(view ? issueGroups(view.issues) : { errors: [], warnings: [], tips: [] });
+  const groups = $derived(view ? issueGroups(view.issues) : NO_ISSUES);
   const writable = $derived(canStage(role) && view !== null && !view.locked.locked);
   const picked = $derived(view ? idsToStage(view, selected) : []);
   const withErrors = $derived(view ? selectedWithErrors(view.changes, picked) : []);
@@ -92,7 +94,7 @@
     loading = true;
     problem = '';
     try {
-      const got = await settle((signal) => api.releaseAssetProposal(workspaceId, app.id, release, signal), { timeoutMessage: t('release-stepper:ap.timeout') });
+      const got = await storeImagesStore.readProposal(api, workspaceId, app.id, release, { timeoutMessage: t('release-stepper:ap.timeout') });
       if (!got.ok) throw got.error;
       const out = got.value;
       if (mine !== seq) return;
@@ -215,12 +217,12 @@
 
       <div class="findings" aria-labelledby="ap-issues">
         <h5 id="ap-issues">{t('release-stepper:ap.issues.title')}</h5>
-        {#if groups.errors.length + groups.warnings.length + groups.tips.length === 0}
+        {#if groups.counts.total === 0}
           <p class="ok-line"><Badge tone="ok" icon="check">{t('release-stepper:ap.issues.none')}</Badge></p>
         {:else}
           <p class="counts">
-            {#if groups.errors.length > 0}<Badge tone="bad" icon="x-circle">{t('release-stepper:ap.issues.errors', { count: groups.errors.length })}</Badge>{/if}
-            {#if groups.warnings.length > 0}<Badge tone="warn" icon="alert-triangle">{t('release-stepper:ap.issues.warnings', { count: groups.warnings.length })}</Badge>{/if}
+            {#if groups.counts.errors > 0}<Badge tone="bad" icon="x-circle">{t('release-stepper:ap.issues.errors', { count: groups.counts.errors })}</Badge>{/if}
+            {#if groups.counts.warnings > 0}<Badge tone="warn" icon="alert-triangle">{t('release-stepper:ap.issues.warnings', { count: groups.counts.warnings })}</Badge>{/if}
           </p>
           {#each [groups.errors, groups.warnings] as list, i (i)}
             {#if list.length > 0}
@@ -235,8 +237,8 @@
               </ul>
             {/if}
           {/each}
-          {#if groups.tips.length > 0}
-            <Disclosure summary={t('release-stepper:ap.issues.tips', { count: groups.tips.length })}>
+          {#if groups.counts.tips > 0}
+            <Disclosure summary={t('release-stepper:ap.issues.tips', { count: groups.counts.tips })}>
               <ul class="issues tips">
                 {#each groups.tips as issue (issue.id)}
                   {@const s = issueSentence(issue, view.changes)}

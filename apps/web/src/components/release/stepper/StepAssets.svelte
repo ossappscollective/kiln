@@ -9,16 +9,15 @@
   Props: api, workspaceId, role, app, view (the staged changes), scope (the platform scope for the link), release ({ version, track, build }).
 -->
 <script lang="ts">
-  import { type AssetDiffView, type Role, type StagedChangesView } from '@kiln/core';
+  import { type Role, type StagedChangesView, stagedCountsOf } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../../lib/api.ts';
   import { appAddress, type PlatformScope } from '../../../lib/app-scope.ts';
   import { compareState, statusLabel } from '../../../lib/asset-compare.ts';
-  import { settle } from '../../../lib/bounded-read.ts';
+  import { reportShown } from '../../../lib/app-state/dev-assert.ts';
+  import { storeImagesStore } from '../../../lib/app-state/store-images-store.svelte.ts';
   import { stagingError } from '../../../lib/staged.ts';
-  import { onInvalidated } from '../../../lib/facts/invalidate.ts';
   import { t } from '../../../lib/i18n/t.ts';
-  import { readCache } from '../../../lib/read-cache.ts';
   import { assetsLine, stagedSetsLine } from '../../../lib/release-assets.ts';
   import type { AppSummary } from '../../../lib/types.ts';
   import Alert from '../../ui/Alert.svelte';
@@ -45,34 +44,14 @@
     release: { version: string | null; track: string | null; build: string | null };
   } = $props();
 
-  let diff = $state<AssetDiffView | null>(null);
-  let loading = $state(true);
-  let problem = $state('');
-  let seq = 0;
-
-  async function read(force = false) {
-    const mine = ++seq;
-    loading = true;
-    problem = '';
-    try {
-      const out = await readCache.read({
-        workspaceId,
-        group: 'repo',
-        key: `assetdiff/${app.id}`,
-        force,
-        load: async () => {
-          const got = await settle((signal) => api.appAssetDiff(workspaceId, app.id, force, signal), { timeoutMessage: t('release-stepper:sa.timeout') });
-          if (!got.ok) throw got.error;
-          return got.value;
-        },
-      });
-      if (mine === seq) diff = out.diff;
-    } catch (e) {
-      if (mine === seq) problem = stagingError(e);
-    } finally {
-      if (mine === seq) loading = false;
-    }
-  }
+  // The comparison is read, kept and made old by the one web store of the store's images (lib/app-state/store-images-store.svelte.ts): the
+  // same comparison the Assets tab's badges and the comparison dialog show. A "Read again", a push, a sync or a new version makes it old.
+  const comparison = $derived(storeImagesStore.diff(workspaceId, app.id));
+  const diff = $derived(comparison.diff);
+  const loading = $derived(comparison.loading || (diff === null && comparison.problem === ''));
+  const problem = $derived(comparison.problem);
+  const readOptions = () => ({ timeoutMessage: t('release-stepper:sa.timeout'), describeError: stagingError });
+  const read = (fresh = false) => storeImagesStore.loadDiff(api, workspaceId, app.id, { ...readOptions(), fresh });
 
   let shownFor = '';
   $effect(() => {
@@ -82,22 +61,30 @@
       untrack(() => void read());
     }
   });
-
-  // The store was read again (a sync, "Read again" of the Graphics tab, "Check again"), a push changed it, or a version was created: what this
-  // comparison kept of the store is stale (`invalidate` already forgot it) and it is read again (the server's own read is already fresh then):
-  // one source of the store's images.
-  $effect(() => {
-    const mine = app.id;
-    return onInvalidated((i) => {
-      if (!i.appIds.includes(mine) || (i.event !== 'store_read' && i.event !== 'publish' && i.event !== 'sync' && i.event !== 'release_created')) return;
-      void read(false);
-    });
-  });
+  $effect(() => storeImagesStore.watchDiff(api, workspaceId, app.id, readOptions()));
 
   const cmp = $derived(diff ? compareState(diff) : null);
   const line = $derived(assetsLine(diff ? diff.totals : null));
-  const sets = $derived(view ? view.assets.length : 0);
-  const files = $derived(view ? view.assets.reduce((n, s) => n + s.files.length, 0) : 0);
+  // What a push would send (graphic sets staged and not pushed yet: the family the cart and the badge count).
+  const staged = $derived(stagedCountsOf(view));
+
+  // Dev monitor: what this step draws (the sets staged and not pushed; the store's images of each set it compares).
+  $effect(() => {
+    if (staged.unpushedSets > 0) reportShown('stagedAssetSets', staged.unpushedSets, 'releaseStepStaged');
+  });
+  $effect(() => {
+    if (diff === null || diff.repoStatus === 'no_repository') return;
+    const perDisplay: Record<string, number> = {};
+    for (const set of diff.sets) perDisplay[`${set.locale}/${set.device ?? ''}`] = (perDisplay[`${set.locale}/${set.device ?? ''}`] ?? 0) + 1;
+    for (const set of diff.sets) {
+      const key = `${set.locale}/${set.device ?? ''}`;
+      let held = 0;
+      for (const row of set.rows) if (row.store !== null) held += 1;
+      if (held === 0) continue;
+      if ((perDisplay[key] ?? 0) > 1) reportShown(`imageGroupCount:${key}/${set.target ?? ''}`, held, 'releaseStepAssets');
+      else reportShown(`imageCount:${key}`, held, 'releaseStepAssets');
+    }
+  });
 </script>
 
 <div class="stack">
@@ -157,10 +144,10 @@
     <p class="muted small">{t('release-stepper:sa.explain')}</p>
   {/if}
 
-  {#if sets > 0}
+  {#if staged.unpushedSets > 0}
     <p class="status">
-      <Badge tone="info">{t('release-stepper:sa.staged', { count: sets })}</Badge>
-      <span>{stagedSetsLine(sets, files)}</span>
+      <Badge tone="info">{t('release-stepper:sa.staged', { count: staged.unpushedSets })}</Badge>
+      <span>{stagedSetsLine(staged.unpushedSets, staged.unpushedFiles)}</span>
     </p>
   {/if}
 

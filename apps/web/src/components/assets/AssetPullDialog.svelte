@@ -9,12 +9,13 @@
   for all of them), onpulled (called with the report, also when nothing changed).
 -->
 <script lang="ts">
-  import { type Role, type StoreImagesView } from '@kiln/core';
+  import type { Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
-  import { type PullReport, canChangeAssets, skipText, storeKeyOf, summarizePull, SYNC_ROLE_REASON } from '../../lib/assets/sync.ts';
+  import { type PullReport, canChangeAssets, skipText, summarizePull, SYNC_ROLE_REASON } from '../../lib/assets/sync.ts';
   import { formatBytes, localeLabel } from '../../lib/assets/assets.ts';
   import { deviceText } from '../../lib/assets/device-text.ts';
+  import { storeImagesStore } from '../../lib/app-state/store-images-store.svelte.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { stagingError } from '../../lib/staged.ts';
@@ -45,18 +46,31 @@
 
   const uid = $props.id();
 
-  let phase = $state<'loading' | 'error' | 'ready' | 'pulling' | 'done'>('loading');
-  let problem = $state('');
-  let view = $state<StoreImagesView | null>(null);
-  let picked = $state<string[]>([]);
+  // What the store holds is read from the one web store of the store's images (lib/app-state/store-images-store.svelte.ts): the same view the
+  // Graphics tab draws, so what a pull offers is what the person sees there. A pull takes the PRIMARY group of a display (see `PullChoice`).
+  const facts = $derived(storeImagesStore.of(workspaceId, app));
+  const view = $derived(facts.view);
+  const choices = $derived(facts.pullChoices);
+  let stage = $state<'idle' | 'pulling' | 'done'>('idle');
+  let pullProblem = $state('');
+  let chosen = $state<string[] | null>(null);
   let prune = $state(false);
   let report = $state<PullReport | null>(null);
-  let generation = 0;
 
+  const phase = $derived<'loading' | 'error' | 'ready' | 'pulling' | 'done'>(
+    stage !== 'idle' ? stage : view === null ? (facts.problem !== '' && !facts.checking ? 'error' : 'loading') : 'ready',
+  );
+  const problem = $derived(pullProblem !== '' ? pullProblem : facts.problem);
+  /** The keys ticked: every display (or the ones asked for) until the person changes the choice. */
+  const picked = $derived(
+    chosen ?? (initialSets === null ? choices.map((c) => c.key) : choices.map((c) => c.key).filter((k) => initialSets.indexOf(k) !== -1)),
+  );
   const mayPull = $derived(canChangeAssets(role));
-  const keyOf = (s: StoreImagesView['sets'][number]) => storeKeyOf(s.platform, s.locale, s.kind, s.device);
-  const sets = $derived(view ? view.sets.filter((s) => s.files.length > 0) : []);
-  const fileCount = $derived(sets.reduce((n, s) => (picked.indexOf(keyOf(s)) !== -1 ? n + s.files.length : n), 0));
+  const fileCount = $derived.by(() => {
+    let n = 0;
+    for (const c of choices) if (picked.indexOf(c.key) !== -1) n += c.count;
+    return n;
+  });
   const summary = $derived(report ? summarizePull(report) : null);
 
   // Every time the dialog opens: read the store (a cached read of the last minute is fine) and start clean.
@@ -66,41 +80,30 @@
   });
 
   async function load(fresh: boolean) {
-    const mine = ++generation;
-    phase = 'loading';
-    problem = '';
+    stage = 'idle';
+    pullProblem = '';
     report = null;
-    try {
-      const done = await api.appStoreImages(workspaceId, app.id, fresh);
-      if (mine !== generation) return;
-      view = done.store;
-      const all = done.store.sets.filter((s) => s.files.length > 0).map(keyOf);
-      picked = initialSets === null ? all : all.filter((k) => initialSets.indexOf(k) !== -1);
-      phase = 'ready';
-    } catch (e) {
-      if (mine !== generation) return;
-      problem = stagingError(e);
-      phase = 'error';
-    }
+    chosen = null;
+    await storeImagesStore.load(api, workspaceId, app, { fresh, recheck: false, role });
   }
 
   function toggle(key: string) {
-    picked = picked.indexOf(key) === -1 ? [...picked, key] : picked.filter((k) => k !== key);
+    chosen = picked.indexOf(key) === -1 ? [...picked, key] : picked.filter((k) => k !== key);
   }
 
   async function submit(event: Event) {
     event.preventDefault();
     if (phase !== 'ready' || picked.length === 0 || !mayPull) return;
-    phase = 'pulling';
-    problem = '';
+    stage = 'pulling';
+    pullProblem = '';
     try {
       const done = await api.pullStoreImages(workspaceId, app.id, { sets: picked, ...(prune ? { prune: true } : {}) });
       report = done.pull;
-      phase = 'done';
+      stage = 'done';
       onpulled?.(done.pull);
     } catch (e) {
-      problem = stagingError(e);
-      phase = 'ready';
+      pullProblem = stagingError(e);
+      stage = 'idle';
     }
   }
 
@@ -140,22 +143,24 @@
       {#if view.version}
         <p class="muted small">{view.version.versionString ? t('assets:pull.readFromVersion', { store: view.store === 'app_store' ? 'App Store Connect' : 'Google Play', version: view.version.versionString, state: view.version.state }) : t('assets:pull.readFrom', { store: view.store === 'app_store' ? 'App Store Connect' : 'Google Play', state: view.version.state })}</p>
       {/if}
-      {#if sets.length === 0}
+      {#if facts.counts.pullSets === 0}
         <Alert tone="info" title={t('assets:pull.noImages')}>{t('assets:pull.nothingToPull')}</Alert>
       {:else}
         <fieldset class="sets">
-          <legend>{t('assets:pull.setsLegend', { picked: picked.length, total: sets.length, count: fileCount })}</legend>
+          <legend>{t('assets:pull.setsLegend', { picked: picked.length, total: facts.counts.pullSets, count: fileCount })}</legend>
           <div class="row wrap tools">
-            <Button size="sm" variant="ghost" onclick={() => (picked = sets.map(keyOf))} disabled={phase === 'pulling'}>{t('assets:pull.selectAll')}</Button>
-            <Button size="sm" variant="ghost" onclick={() => (picked = [])} disabled={phase === 'pulling'}>{t('assets:pull.selectNone')}</Button>
+            <Button size="sm" variant="ghost" onclick={() => (chosen = choices.map((c) => c.key))} disabled={phase === 'pulling'}>{t('assets:pull.selectAll')}</Button>
+            <Button size="sm" variant="ghost" onclick={() => (chosen = [])} disabled={phase === 'pulling'}>{t('assets:pull.selectNone')}</Button>
           </div>
           <ul class="plain list">
-            {#each sets as s (keyOf(s))}
+            {#each choices as c (c.key)}
+              {@const s = c.display}
               <li>
                 <label class="check">
-                  <input type="checkbox" checked={picked.indexOf(keyOf(s)) !== -1} onchange={() => toggle(keyOf(s))} disabled={phase === 'pulling'} />
-                  <span><T key="assets:pull.setItem" params={{ title: t('assets:compare.setTitle', { locale: localeLabel(s.locale), device: deviceText(s.kind, s.device, s.deviceLabel) || s.kind }), count: s.files.length }} tags={{ link: muted }} /></span>
+                  <input type="checkbox" checked={picked.indexOf(c.key) !== -1} onchange={() => toggle(c.key)} disabled={phase === 'pulling'} />
+                  <span><T key="assets:pull.setItem" params={{ title: t('assets:compare.setTitle', { locale: localeLabel(s.locale), device: deviceText(s.kind, s.device, s.deviceLabel) || s.kind }), count: c.count }} tags={{ link: muted }} /></span>
                 </label>
+                {#if c.others > 0}<p class="muted small">{t('assets:pull.otherGroups', { target: s.pushTarget, others: c.others })}</p>{/if}
               </li>
             {/each}
           </ul>
@@ -169,7 +174,7 @@
         <p class="muted small">{t('assets:pull.unplaced', { count: view.unplaced })}</p>
       {/if}
       {#each view.notes as n (n)}<p class="muted small">{n}</p>{/each}
-      {#if problem}<Alert tone="error" title={t('assets:pull.pullFailed')}>{problem}</Alert>{/if}
+      {#if pullProblem}<Alert tone="error" title={t('assets:pull.pullFailed')}>{pullProblem}</Alert>{:else if facts.problem}<Alert tone="error" title={t('assets:pull.readFailed')}>{facts.problem}</Alert>{/if}
       {#if !mayPull}<p class="muted small">{t(SYNC_ROLE_REASON)}</p>{/if}
     {/if}
   </form>

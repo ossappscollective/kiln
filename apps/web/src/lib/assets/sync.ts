@@ -290,12 +290,23 @@ export function diffBadge(set: AssetDiffSet | null): { tone: StatusTone; text: s
   return { tone: 'warn', text: t('assets:sync.badge.differs', { count: n }) };
 }
 
-/** The image keys (`ios/en-US/screenshot:iphone_6_9#2`) of the rows that exist in the store and are not identical. */
+/**
+ * The key a pull selects ONE image by: the set key and the store's own position of the image (`ios/en-US/screenshot:iphone_6_9#2`, the row's
+ * `storePosition`, unique within a display; the server finds the image by its ref). NEVER the row's place in the comparison: store
+ * positions continue across the sibling groups of a display, the comparison's places start at 1 in each. Null: nothing in the store here.
+ */
+export function pullKeyOf(set: Pick<AssetDiffSet, 'locale' | 'kind' | 'device'>, row: Pick<AssetDiffSet['rows'][number], 'storePosition'>, platform: Platform): string | null {
+  return row.storePosition === null ? null : `${storeKeyOf(platform, set.locale, set.kind, set.device)}#${row.storePosition}`;
+}
+
+/** The image keys of the rows that exist in the store and are not identical. A sibling group of a display (not `primary`) is never pulled. */
 export function pullableKeys(set: AssetDiffSet, platform: Platform): string[] {
   const out: string[] = [];
+  if (!set.primary) return out;
   for (const r of set.rows) {
     if (r.store === null || r.status === 'identical') continue;
-    out.push(`${storeKeyOf(platform, set.locale, set.kind, set.device)}#${r.position}`);
+    const key = pullKeyOf(set, r, platform);
+    if (key !== null) out.push(key);
   }
   return out;
 }

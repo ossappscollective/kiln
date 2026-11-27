@@ -26,7 +26,7 @@
   import { t } from '../../lib/i18n/t.ts';
   import { stageRoleReason, type SetStaging } from '../../lib/staged.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
-  import type { AssetItem, AssetStoreSide } from '../../lib/types.ts';
+  import type { AssetItem, AssetIndex } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Section from '../ui/Section.svelte';
@@ -58,7 +58,7 @@
     commit: string | null;
     maxServedBytes: number;
     problemMap: Record<string, AssetProblem[]>;
-    storeSide: AssetStoreSide | null;
+    storeSide: AssetIndex['storeSide'];
     onopen: (asset: AssetItem) => void;
     stageFor?: ((locale: string, set: DeviceGroup) => SetStaging) | undefined;
     onstage?: ((locale: string, set: DeviceGroup) => void) | undefined;

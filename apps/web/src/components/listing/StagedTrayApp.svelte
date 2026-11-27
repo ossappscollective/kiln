@@ -11,7 +11,7 @@
   is never retried (the person previews again, which reads the store); no button submits or publishes.
 -->
 <script lang="ts">
-  import { type Role, platformMeta } from '@kiln/core';
+  import { type Role, platformMeta, stagedCountsOf } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { fileName } from '../../lib/assets/assets.ts';
@@ -41,6 +41,7 @@
   } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import { reportShown } from '../../lib/app-state/dev-assert.ts';
   import { canSubmit } from '../../lib/store-submit.ts';
   import { submitStore } from '../../lib/store-submit-store.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -309,6 +310,13 @@
   }
 
   const empty = $derived(itemCount(view) === 0);
+  /** The graphic sets the tray lists (pushed ones included: they stay staged until they are discarded). */
+  const graphicSets = $derived(stagedCountsOf(view).totalSets);
+  // Dev monitor: the graphic sets the tray's text says a push would send.
+  $effect(() => {
+    const toPush = stagedCountsOf(view).unpushedSets;
+    if (toPush > 0) reportShown('stagedAssetSets', toPush, 'stagedTray');
+  });
   const releaseFields = $derived(view?.release ?? []);
 </script>
 
@@ -475,7 +483,7 @@
       </section>
     {/if}
 
-    {#if view.assets.length > 0}
+    {#if graphicSets > 0}
       <section aria-labelledby="{uid}-assets">
         <h5 id="{uid}-assets">{t('listing:trayApp.graphics')}</h5>
         <ul class="items">

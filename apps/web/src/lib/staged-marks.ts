@@ -1,7 +1,7 @@
 // What the listing locales matrix says about staged values: a marker on the CELL that has one (with the before and after in words),
 // and a count per locale row. Pure: the screens give it the staged views the shared store holds (lib/staged-store.svelte.ts), so a
 // discard or a publish (lib/staged-sync.ts) removes the marker with the staged row. Wording comes from i18n.
-import type { StagedChangesView } from '@kiln/core';
+import { type StagedChangesView, stagedCountsOf } from '@kiln/core';
 import { t } from './i18n/t.ts';
 import { findStagedText } from './staged.ts';
 
@@ -49,7 +49,7 @@ export function stagedCellMark(inputs: readonly StagedCellInput[]): {
   return { count: parts.length, text: parts.join(' · ') };
 }
 
-/** How many staged items (listing texts and graphics sets) the given views hold for one locale. */
+/** How many staged items (listing texts, and graphic sets still to push) the given views hold for one locale. */
 export function stagedCountForLocale(
   views: readonly (StagedChangesView | null)[],
   locale: string,
@@ -58,7 +58,8 @@ export function stagedCountForLocale(
   for (const v of views) {
     if (v === null) continue;
     n += v.text.filter((x) => x.locale === locale).length;
-    n += v.assets.filter((x) => x.locale === locale).length;
+    // Graphic sets a push would send (the unpushed family), not the ones that were pushed already.
+    n += stagedCountsOf(v, { locale }).unpushedSets;
   }
   return n;
 }

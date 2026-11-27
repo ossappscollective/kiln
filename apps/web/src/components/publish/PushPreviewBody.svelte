@@ -10,6 +10,7 @@
   import {
     type DraftPreview,
     previewFieldStatus,
+    previewGraphicSets,
     previewSetText,
     previewSummaryText,
     previewTextStatus,
@@ -18,6 +19,7 @@
   import Badge from '../ui/Badge.svelte';
 
   let { preview }: { preview: DraftPreview } = $props();
+  const graphicSets = $derived(previewGraphicSets(preview));
 
   /** The warnings of the server and the store's warning checks, in ONE list under ONE heading (never two alerts that say the same). */
   const readFirst = $derived(
@@ -100,9 +102,9 @@
     </section>
   {/if}
 
-  {#if preview.assets.length > 0}
+  {#if graphicSets > 0}
     <section aria-label={t('publish:push.graphicsAria')} class="stack">
-      <h3>{t('publish:push.graphicsHeading', { count: preview.assets.length })}</h3>
+      <h3>{t('publish:push.graphicsHeading', { count: graphicSets })}</h3>
       {#each preview.assets as set (set.id)}
         <div class="item">
           <p class="item-head">

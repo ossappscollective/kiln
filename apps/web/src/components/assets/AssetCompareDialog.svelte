@@ -5,11 +5,11 @@
   server (an allow list of the stores' CDN hosts); the page never loads an address of a store. Reading the store
   changes nothing in it. "Pull" makes a draft change set that puts the store's image into the repository.
   Props: open (bindable), api, workspaceId, role, app, focus (one set: locale, kind, device; or null for all sets),
-  onpulled (called with the report of a pull made here), ondiff (called with each comparison read, so the
-  sets can show how they differ).
+  onpulled (called with the report of a pull made here). The comparison is read and kept by the web store of the store's images, so the
+  Assets tab's sets show how they differ from the same read.
 -->
 <script lang="ts">
-  import { type AssetCompareRow, type AssetDiffSet, type AssetDiffView, type AssetKind, type Role } from '@kiln/core';
+  import { type CompareRow, type AssetDiffSet, type AssetKind, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import {
@@ -22,12 +22,13 @@
     pullableKeys,
     shortChecksum,
     sizeLine,
-    storeKeyOf,
+    pullKeyOf,
     storeThumbUrl,
     summarizePull,
   } from '../../lib/assets/sync.ts';
   import { assetFileUrl, fileName, localeLabel } from '../../lib/assets/assets.ts';
   import { deviceText } from '../../lib/assets/device-text.ts';
+  import { storeImagesStore } from '../../lib/app-state/store-images-store.svelte.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { stagingError } from '../../lib/staged.ts';
@@ -46,7 +47,6 @@
     app,
     focus = null,
     onpulled,
-    ondiff,
   }: {
     open?: boolean | undefined;
     api: Api;
@@ -55,17 +55,18 @@
     app: AppSummary;
     focus?: { locale: string; kind: AssetKind; device: string | null } | null | undefined;
     onpulled?: ((report: PullReport) => void) | undefined;
-    ondiff?: ((diff: AssetDiffView) => void) | undefined;
   } = $props();
 
-  let phase = $state<'loading' | 'error' | 'ready'>('loading');
-  let problem = $state('');
-  let diff = $state<AssetDiffView | null>(null);
+  // The comparison is read through the one web store of the store's images (lib/app-state/store-images-store.svelte.ts): it is the same
+  // comparison the Assets tab shows its badges from, and `invalidate` forgets it with every other number kept of the store.
+  const comparison = $derived(storeImagesStore.diff(workspaceId, app.id));
+  const diff = $derived(comparison.diff);
+  const problem = $derived(comparison.problem);
+  const phase = $derived<'loading' | 'error' | 'ready'>(comparison.loading && diff === null ? 'loading' : problem !== '' && diff === null ? 'error' : diff !== null ? 'ready' : 'loading');
   let pulling = $state('');
   let pullProblem = $state('');
   let last = $state<PullReport | null>(null);
   let broken = $state<string[]>([]);
-  let generation = 0;
 
   const mayPull = $derived(canChangeAssets(role));
   const shown = $derived(
@@ -80,30 +81,23 @@
     untrack(() => void load(false));
   });
 
+  // While the dialog is open the comparison follows the store (a "Read again", a push, a sync): it is read again when it was made old.
+  $effect(() => {
+    if (!open) return;
+    return storeImagesStore.watchDiff(api, workspaceId, app.id, { timeoutMessage: t('assets:compare.timeout'), describeError: stagingError });
+  });
+
   async function load(fresh: boolean) {
-    const mine = ++generation;
-    phase = 'loading';
-    problem = '';
     pullProblem = '';
     last = null;
     broken = [];
-    try {
-      const done = await api.appAssetDiff(workspaceId, app.id, fresh);
-      if (mine !== generation) return;
-      diff = done.diff;
-      ondiff?.(done.diff);
-      phase = 'ready';
-    } catch (e) {
-      if (mine !== generation) return;
-      problem = stagingError(e);
-      phase = 'error';
-    }
+    await storeImagesStore.loadDiff(api, workspaceId, app.id, { fresh, timeoutMessage: t('assets:compare.timeout'), describeError: stagingError });
   }
 
   const idOf = (s: AssetDiffSet) => `${s.locale}/${s.kind}/${s.device ?? ''}`;
   const titleOf = (s: AssetDiffSet) => t('assets:compare.setTitle', { locale: localeLabel(s.locale), device: deviceText(s.kind, s.device, s.deviceLabel) || s.kind });
-  const repoUrl = (row: AssetCompareRow) => (row.repo && diff ? assetFileUrl(workspaceId, app.id, row.repo.path, diff.commit) : null);
-  const storeUrl = (row: AssetCompareRow) => (row.store && row.store.downloadable ? storeThumbUrl(workspaceId, app.id, row.store.ref, 320) : null);
+  const repoUrl = (row: CompareRow) => (row.repo && diff ? assetFileUrl(workspaceId, app.id, row.repo.path, diff.commit) : null);
+  const storeUrl = (row: CompareRow) => (row.store && row.store.downloadable ? storeThumbUrl(workspaceId, app.id, row.store.ref, 320) : null);
 
   async function pull(label: string, body: { files?: string[]; sets?: string[] }) {
     if (pulling !== '' || !mayPull) return;
@@ -129,7 +123,7 @@
   const imageFailed = (id: string) => {
     if (broken.indexOf(id) === -1) broken = [...broken, id];
   };
-  const pullKey = (s: AssetDiffSet, row: AssetCompareRow) => `${storeKeyOf(s.platform, s.locale, s.kind, s.device)}#${row.position}`;
+  const pullKey = (s: AssetDiffSet, row: CompareRow) => (s.primary ? pullKeyOf(s, row, s.platform) : null);
 </script>
 
 <Modal
@@ -204,14 +198,14 @@
                       {:else}<span class="muted">{t('assets:compare.noPreview')}</span>{/if}
                     </div>
                     <p class="meta">{row.store.name ?? t('assets:compare.imageN', { number: row.position })}<br />{sizeLine(row.store.width, row.store.height, row.store.bytes)}<br /><span title={row.store.checksum ?? ''}>{t('assets:compare.checksum', { kind: row.store.checksumKind ?? t('assets:compare.checksumWord'), sum: shortChecksum(row.store.checksum) })}</span></p>
-                    {#if row.status !== 'identical'}
+                    {#if row.status !== 'identical' && pullKey(s, row) !== null}
                       <Button
                         size="sm"
                         icon="download"
                         loading={pulling === rid}
                         disabled={pulling !== '' || !mayPull}
                         title={!mayPull ? t(SYNC_ROLE_REASON) : t('assets:compare.pullOneHint')}
-                        onclick={() => pull(rid, { files: [pullKey(s, row)] })}
+                        onclick={() => pull(rid, { files: [pullKey(s, row) ?? ''] })}
                       >{t('assets:compare.pullOne')}<span class="visually-hidden"> {t('assets:compare.pullOneFor', { title: titleOf(s), number: row.position })}</span></Button>
                     {/if}
                   {:else}<p class="muted none">{t('assets:compare.nothingHere')}</p>{/if}

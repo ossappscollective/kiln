@@ -62,7 +62,7 @@
   let dragging = $state(false);
   let busy = $state(false);
   let notes = $state<string[]>([]);
-  let staged = $state<{ name: string; fixed: boolean }[]>([]);
+  let sentNames = $state<{ name: string; fixed: boolean }[]>([]);
   let refused = $state<Refused[]>([]);
   let nextId = 1;
 
@@ -83,7 +83,7 @@
     try {
       const done = await api.uploadStagedAsset(workspaceId, appId, query(file, fix, background), file);
       onstaged(done.staged);
-      staged = [...staged, { name: file.name, fixed: fix !== undefined }];
+      sentNames = [...sentNames, { name: file.name, fixed: fix !== undefined }];
       if (again) refused = refused.filter((r) => r.id !== again.id);
       return true;
     } catch (e) {
@@ -104,7 +104,7 @@
     const files = mode === 'replace' ? list.slice(0, 1) : list;
     busy = true;
     notes = [];
-    staged = [];
+    sentNames = [];
     refused = [];
     let ok = 0;
     for (let i = 0; i < files.length; i++) {
@@ -145,7 +145,7 @@
     void take(imageFilesOf(event.dataTransfer?.files));
   }
 
-  const stagedText = $derived(formatList(staged.map((s) => (s.fixed ? t('assets:upload.fixedName', { name: s.name }) : s.name))));
+  const stagedText = $derived(formatList(sentNames.map((s) => (s.fixed ? t('assets:upload.fixedName', { name: s.name }) : s.name))));
 
   function onDragOver(event: DragEvent) {
     if (disabledReason !== '') return;
@@ -184,7 +184,7 @@
     <p class="muted small">{disabledReason !== '' ? disabledReason : t('assets:upload.hint')}</p>
   </div>
 
-  {#if staged.length > 0}
+  {#if sentNames.length > 0}
     <p class="ok small" role="status">{t('assets:upload.staged', { files: stagedText })}</p>
   {/if}
   {#each notes as n (n)}<Alert tone="error">{n}</Alert>{/each}

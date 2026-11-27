@@ -313,6 +313,9 @@ test('without store counts a set is "not yet compared"', () => {
   assert.equal(compareWithStore(side, group, 'en-US').state, 'same');
   assert.equal(compareWithStore(side, { ...group, count: 4 }, 'en-US').state, 'differs');
   assert.equal(compareWithStore(side, group, 'de-DE').state, 'not_compared');
+  // A display held in several store groups says which group the number is.
+  const siblings = { observedAt: 1, counts: [{ ...side.counts[0], target: 'APP_IPAD_PRO_3GEN_129', groups: [{ target: 'APP_IPAD_PRO_3GEN_129', count: 10 }, { target: 'APP_IPAD_PRO_129', count: 2 }] }] } as never;
+  assert.match(compareWithStore(siblings, group, 'en-US').text, /\(main group APP_IPAD_PRO_3GEN_129\)$/);
 });
 
 test('an index with no assets gives no groups', () => {

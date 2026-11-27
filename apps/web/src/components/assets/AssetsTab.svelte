@@ -11,22 +11,20 @@
   stores' APIs cannot write is not stageable, with the reason. The images are served from the repository by the app's own
   file route, and the store's by a proxy of the server.
   Props: api, workspaceId, role, app, now (ms), refreshKey (changes when a sync finished, so this
-  tab reads again), storeSide? (the seam for the store side: the counts the store has per locale,
-  kind and device. Left out, the tab uses the one in the index, which is null today, so each set
-  says "Not yet compared with the store"), locked? (the selected version is live or in review: no staging, no file
+  tab reads again), locked? (the selected version is live or in review: no staging, no file
   editing and no tray; the images, the comparison with the store and the pull stay), locale? (the locale of the
   page header, which narrows the sets to it; the tab's own Locale select writes it back to the address).
-  The locales found are handed to the header picker (lib/nav-signals.svelte.ts).
+  The locales found are handed to the header picker. What the store holds (the counts next to the repository's, per display; the
+  version on screen; the comparison) is read from the one web store of the store's images (lib/app-state/store-images-store.svelte.ts).
   States: loading, error (with retry), no repository linked, no media found (with the folders that
   were searched), partial (a limit was reached: it says what was left out), ready.
 -->
 <script lang="ts">
-  import { type AssetDiffView, type AssetKind, type Role, type StoreImagesView, can } from '@kiln/core';
+  import { type AssetKind, type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { replaceHash } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import { withHeaderParams } from '../../lib/app-header.ts';
-  import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import {
     ALL,
     NO_FILTER,
@@ -55,17 +53,16 @@
   } from '../../lib/assets/groups.ts';
   import { SYNC_ROLE_REASON, type EditorSet, canChangeAssets, setIdOf, storeKeyOf } from '../../lib/assets/sync.ts';
   import { assetsLead, otherCountsText, splitProblems } from '../../lib/assets/lead.ts';
-  import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
-  import { planFor, storeCacheKey, storeMediaCache } from '../../lib/assets/store-cache.ts';
-  import { invalidate, onInvalidated } from '../../lib/facts/invalidate.ts';
+  import { reportShown } from '../../lib/app-state/dev-assert.ts';
+  import { storeImagesStore } from '../../lib/app-state/store-images-store.svelte.ts';
+  import { onInvalidated } from '../../lib/facts/invalidate.ts';
   import { formatList } from '../../lib/i18n/format.ts';
   import { k, t } from '../../lib/i18n/t.ts';
   import { describeError } from '../../lib/portfolio.ts';
   import { reverseImageSyncNote, stageRoleReason, canStage, setStaging, stageAssetsBody, stagingError } from '../../lib/staged.ts';
-  import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { DeviceGroup } from '../../lib/assets/assets.ts';
-  import type { AppSummary, AssetIndex, AssetItem, AssetStoreSide } from '../../lib/types.ts';
+  import type { AppSummary, AssetItem } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import Section from '../ui/Section.svelte';
@@ -94,7 +91,6 @@
     app,
     now,
     refreshKey,
-    storeSide = undefined,
     locked = false,
     locale = null,
   }: {
@@ -104,7 +100,6 @@
     app: AppSummary;
     now: number;
     refreshKey: number;
-    storeSide?: AssetStoreSide | null | undefined;
     locked?: boolean | undefined;
     locale?: string | null | undefined;
   } = $props();
@@ -120,75 +115,24 @@
     screenshots: k('assets:tab.noneFound.screenshots'),
   };
 
-  // What the store holds (read only, the cached read of the last minute) and whether the app compares the repository's graphics with it
-  // (app listing settings, default off). Off: the store's graphics are the page; the repository's are not shown next to them.
-  let storeView = $state<StoreImagesView | null>(null);
-  let storeProblem = $state('');
-  let storeReloading = $state(false);
+  // What the store holds, its problems after the staged changes, the version on screen and the read clock all come from the ONE web
+  // store of the store's images (lib/app-state/store-images-store.svelte.ts); the same store holds the repository's index and the comparison.
+  // Whether the app compares the repository's graphics with the store (app listing settings, default off) is a setting, read here.
+  // Off: the store's graphics are the page; the repository's are not shown next to them.
   let compareMedia = $state(false);
-  let storeGeneration = 0;
-  /** App Store: the draft version (default, what Kiln edits) or the live version (read only). Google Play ignores it. */
-  let storeChannel = $state<'editable' | 'live'>('editable');
-  const channelKey = (platform: string) => (storeChannel === 'live' ? `${platform}:live` : platform);
-  function pickChannel(next: 'editable' | 'live') {
-    if (next === storeChannel) return;
-    storeChannel = next;
-    storeView = storeMediaCache.get(storeCacheKey(workspaceId, app.id, channelKey(app.platform)))?.view ?? null;
-    void loadStore(false);
+  async function loadSettings() {
+    const settings = await api.appListingSettings(workspaceId, app.id).catch(() => null);
+    if (settings) compareMedia = settings.settings.compareMedia;
   }
+  const facts = $derived(storeImagesStore.of(workspaceId, app));
+  const comparison = $derived(storeImagesStore.diff(workspaceId, app.id));
+  const diff = $derived(comparison.diff);
 
-  // Stale while revalidate: the last read of this app and platform is kept for the session (lib/assets/store-cache.ts), so coming back
-  // shows it at once and asks again in the background; a failed read keeps what is shown. A publish drops it.
-  async function loadStore(fresh: boolean, recheck = true) {
-    if (!allowed) return;
-    const mine = ++storeGeneration;
-    const channel = storeChannel;
-    const key = storeCacheKey(workspaceId, app.id, channelKey(app.platform));
-    const hit = storeMediaCache.get(key);
-    if (hit && storeView !== hit.view) storeView = hit.view;
-    const recent = !fresh && planFor(hit, Date.now()) === 'show';
-    storeReloading = !recent;
-    storeProblem = '';
-    try {
-      const [done, settings] = await Promise.all([
-        recent ? Promise.resolve(null) : api.appStoreImages(workspaceId, app.id, fresh, channel),
-        api.appListingSettings(workspaceId, app.id).catch(() => null),
-      ]);
-      if (mine !== storeGeneration) return;
-      if (done && channel === storeChannel) {
-        storeView = done.store;
-        storeMediaCache.set(key, done.store);
-      }
-      // "Read again" asked the store: every number that was kept of its images is stale. The comparison of the release step is forgotten and
-      // the counts next to the repository's (`storeSide`, the same read on the server) are read again, so one read of the draft feeds them all.
-      if (done && fresh) {
-        void invalidate('store_read', { workspaceId, appId: app.id, keepGraphics: true, origin: 'graphics' });
-        void api
-          .appAssets(workspaceId, app.id)
-          .then((next) => {
-            if (index !== null && mine === storeGeneration) index = { ...index, storeSide: next.storeSide };
-          })
-          .catch(() => {});
-      }
-      // "Read again" asked the store: what blocks a blocked submit is judged against the same fresh read (the server dropped its caches too).
-      if (done && fresh && recheck) void appStateStore.storeRead(api, workspaceId, app, { role });
-      if (settings) compareMedia = settings.settings.compareMedia;
-    } catch (e) {
-      if (mine !== storeGeneration) return;
-      // What was shown stays shown (the page says that the read failed); only a first read has nothing to fall back on.
-      storeProblem = describeStoreRead(e);
-      const settings = await api.appListingSettings(workspaceId, app.id).catch(() => null);
-      if (mine === storeGeneration && settings) compareMedia = settings.settings.compareMedia;
-    } finally {
-      if (mine === storeGeneration) storeReloading = false;
-    }
-  }
-  const describeStoreRead = (e: unknown): string => (e instanceof Error && e.message ? e.message : t('assets:store.readFailedText'));
-
-  let index = $state<AssetIndex | null>(null);
-  let loading = $state(true);
-  let reloading = $state(false);
-  let loadProblem = $state('');
+  const repo = $derived(storeImagesStore.repo(workspaceId, app.id));
+  const index = $derived(repo.index);
+  const loading = $derived(repo.loading);
+  const reloading = $derived(repo.reloading);
+  const loadProblem = $derived(repo.problem);
   let filter = $state<AssetFilter>({ ...NO_FILTER });
   let group = $state<string>('screenshots');
   /** The group picked by the tab itself; a different `group` means the person chose one, which a re-read keeps. */
@@ -200,34 +144,17 @@
   let stagingId = $state('');
   let stagingAll = $state(false);
 
-  let generation = 0;
-
   async function load() {
     if (!allowed) return;
-    const mine = ++generation;
-    if (index === null) loading = true;
-    else reloading = true;
-    loadProblem = '';
-    try {
-      const next = await api.appAssets(workspaceId, app.id);
-      if (mine !== generation) return;
-      index = next;
-      // The first read opens the group that has files; a later read keeps the person's choice.
-      if (autoGroup === null || group === autoGroup) {
-        autoGroup = defaultGroup(groupSummaries(next, app.platform));
-        group = autoGroup;
-      }
-      filter = { ...NO_FILTER };
-      announcement = t('assets:tab.announceRead', { count: next.totals.assets, problems: problemCountsText(next) });
-    } catch (e) {
-      if (mine !== generation) return;
-      loadProblem = describeError(e, 'load');
-    } finally {
-      if (mine === generation) {
-        loading = false;
-        reloading = false;
-      }
+    const next = await storeImagesStore.loadRepo(api, workspaceId, app.id, (e) => describeError(e, 'load'));
+    if (next === null) return;
+    // The first read opens the group that has files; a later read keeps the person's choice.
+    if (autoGroup === null || group === autoGroup) {
+      autoGroup = defaultGroup(groupSummaries(next, app.platform));
+      group = autoGroup;
     }
+    filter = { ...NO_FILTER };
+    announcement = t('assets:tab.announceRead', { count: next.totals.assets, problems: problemCountsText(next) });
   }
 
   let shownFor = '';
@@ -237,16 +164,16 @@
     const key = `${workspaceId}/${app.id}`;
     if (key !== shownFor) {
       shownFor = key;
-      storeChannel = 'editable';
-      storeView = storeMediaCache.get(storeCacheKey(workspaceId, app.id, app.platform))?.view ?? null;
-      index = null;
+      storeImagesStore.resetChannel(workspaceId, app.id);
+      storeImagesStore.forgetRepo(workspaceId, app.id);
       filter = { ...NO_FILTER };
       autoGroup = null;
       lightboxOpen = false;
     }
     untrack(() => {
       void load();
-      void loadStore(false);
+      if (allowed) void storeImagesStore.load(api, workspaceId, app);
+      void loadSettings();
     });
   });
 
@@ -257,13 +184,24 @@
       if (i.origin === 'graphics' || !i.appIds.includes(appId)) return;
       if (i.event !== 'publish' && i.event !== 'store_read' && i.event !== 'sync' && i.event !== 'release_created') return;
       // A sync or "Check again" already told the model about the new reading: only the pictures are read again here.
-      void loadStore(true, i.event === 'publish');
+      if (allowed) void storeImagesStore.load(api, workspaceId, app, { fresh: true, recheck: i.event === 'publish', role });
     });
+  });
+
+  // Dev monitor: the store's counts this tab draws next to the repository's (the MAIN group of a display, named as such) are the same
+  // numbers every other surface shows for that group.
+  $effect(() => {
+    if (!compareMedia || seam === null) return;
+    for (const c of seam.counts) {
+      const key = `${c.locale}/${c.device ?? ''}`;
+      if (c.groups === undefined) reportShown(`imageCount:${key}`, c.count, 'assetsTab');
+      else reportShown(`imageGroupCount:${key}/${c.target}`, c.count, 'assetsTab');
+    }
   });
 
   // The locales found are what the header picker offers; the header's locale narrows the sets (and back).
   $effect(() => {
-    if (index) navSignals.setLocales(workspaceId, app.id, [...new Set(index.assets.map((a) => a.locale))]);
+    if (index) storeImagesStore.publishLocales(workspaceId, app.id, [...new Set(index.assets.map((a) => a.locale))]);
   });
   $effect(() => {
     const want = locale ?? ALL;
@@ -284,12 +222,16 @@
   /** The filters of the toolbar are drawn when the open group is on this store and has files. */
   const groupShown = $derived(groupAvailability(asGroupId(group), app.platform).available && (summaries.filter((g) => g.id === group)[0]?.files ?? 0) > 0);
   const problemMap = $derived(index ? problemsByPath(index.problems) : {});
-  const shownAssets = $derived(groups.reduce((all: AssetItem[], locale) => {
-    for (const group of locale.groups) for (const asset of group.assets) all.push(asset);
+  /** The filter leaves no set on screen. */
+  const nothingShown = $derived(groups[0] === undefined);
+  const shownAssets = $derived.by(() => {
+    const all: AssetItem[] = [];
+    for (const locale of groups) for (const set of locale.groups) for (const asset of set.assets) all.push(asset);
     return all;
-  }, []));
+  });
   const maxServed = $derived(index?.limits.maxServedBytes ?? 0);
-  const seam = $derived(storeSide !== undefined ? storeSide : (index?.storeSide ?? null));
+  /** The counts the store has next to the repository's, per display (`storeSideOf` of the one view); only the draft is what the repository is compared with. */
+  const seam = $derived(facts.channel === 'editable' ? facts.side : null);
 
   const urlFor = (asset: AssetItem) =>
     index && previewState(asset, maxServed) === 'image' ? assetFileUrl(workspaceId, app.id, asset.path, index.commit) : null;
@@ -314,7 +256,7 @@
 
   const problemsOfFile = (asset: AssetItem) => problemMap[asset.path] ?? [];
 
-  const stagedView = $derived(stagedStore.view(app.id));
+  const stagedView = $derived(storeImagesStore.stagedView(app.id));
   const stageFor = (locale: string, set: DeviceGroup) =>
     setStaging({
       role,
@@ -329,15 +271,15 @@
       view: stagedView,
     });
   /** The sets of the groups on screen (the filter applies) that "Stage all" would stage: stageable and not staged as they are. */
-  const stageableShown = $derived(
-    groups.reduce((all: { locale: string; set: DeviceGroup }[], locale) => {
+  const stageableShown = $derived.by(() => {
+    const all: { locale: string; set: DeviceGroup }[] = [];
+    for (const locale of groups)
       for (const set of locale.groups) {
         const st = stageFor(locale.locale, set);
         if (st.canStage && st.stagedState !== 'current') all.push({ locale: locale.locale, set });
       }
-      return all;
-    }, []),
-  );
+    return all;
+  });
 
   /** Stages one set's repository files for the draft push. Returns '' on success, else the reason it failed. */
   async function stageOne(locale: string, set: DeviceGroup): Promise<string> {
@@ -345,7 +287,7 @@
     if (!st.canStage) return st.reason ?? t('assets:tab.cannotStage');
     try {
       const done = await api.stageAssets(workspaceId, app.id, stageAssetsBody(locale, set.kind, set.device, st.paths, index?.commit ?? null));
-      stagedStore.set(done.staged);
+      storeImagesStore.applyStaged(done.staged);
       return '';
     } catch (e) {
       return stagingError(e);
@@ -368,7 +310,7 @@
     stagingId = id;
     try {
       const done = await api.unstageItem(workspaceId, app.id, id);
-      stagedStore.set(done.staged);
+      storeImagesStore.applyStaged(done.staged);
       announcement = t('assets:tab.announceUnstaged');
     } catch (e) {
       toast.error(stagingError(e));
@@ -400,7 +342,6 @@
   let compareFocus = $state<{ locale: string; kind: AssetKind; device: string | null } | null>(null);
   let editorOpen = $state(false);
   let editorKey = $state<{ locale: string; kind: AssetKind; device: string | null } | null>(null);
-  let diff = $state<AssetDiffView | null>(null);
   let selection = $state<Picked[]>([]);
   let bulkBusy = $state(false);
 
@@ -489,7 +430,7 @@
   <p class="visually-hidden" role="status">{announcement}</p>
 
   {#if allowed}
-    <StoreGraphics {api} {workspaceId} {role} {app} {now} {locked} view={storeView} problem={storeProblem} reloading={storeReloading} onreload={() => loadStore(true)} channel={storeChannel} onchannel={pickChannel} />
+    <StoreGraphics {api} {workspaceId} {role} {app} {now} {locked} />
   {/if}
 
   {#if !allowed}
@@ -498,8 +439,8 @@
     </div>
   {:else if !compareMedia}
     {#if !locked}<StagedTray {api} {workspaceId} {role} members={[app]} />{/if}
-    {#if index && index.status !== 'no_repository' && index.assets.length > 0}
-      <p class="muted">{t('assets:store.repoHidden', { count: index.assets.length })}</p>
+    {#if index && index.status !== 'no_repository' && index.totals.assets > 0}
+      <p class="muted">{t('assets:store.repoHidden', { count: index.totals.assets })}</p>
     {/if}
   {:else if loading && !index}
     <div role="status" aria-label={t('assets:tab.reading')}>
@@ -550,7 +491,7 @@
         <Alert tone="info">{note}</Alert>
       {/each}
 
-      {#if index.assets.length === 0}
+      {#if index.totals.assets === 0}
         <div class="card">
           <EmptyState
             icon="images"
@@ -672,7 +613,7 @@
                   <EmptyState icon="images" title={t(NONE_FOUND[asGroupId(id)])} description={t('assets:tab.noneFoundText')} />
                 </div>
               {:else}
-                {#if groups.length === 0}
+                {#if nothingShown}
                   <div class="card">
                     <EmptyState icon="filter" title={t('assets:tab.noMatch')} description={t('assets:tab.noMatchText')}>
                       {#snippet actions()}
@@ -729,7 +670,7 @@
       </Section>
 
       <AssetPullDialog bind:open={pullOpen} {api} {workspaceId} {role} {app} initialSets={pullSets} />
-      <AssetCompareDialog bind:open={compareOpen} {api} {workspaceId} {role} {app} focus={compareFocus} ondiff={(d) => (diff = d)} />
+      <AssetCompareDialog bind:open={compareOpen} {api} {workspaceId} {role} {app} focus={compareFocus} />
       <AssetSetEditor bind:open={editorOpen} {api} {workspaceId} {role} {app} set={editorSet} oncompare={compareFromEditor} />
 
       <AssetLightbox

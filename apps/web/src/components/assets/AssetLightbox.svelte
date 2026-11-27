@@ -59,11 +59,14 @@
     asset ? (asset.hasAlpha === true ? t('assets:lightbox.formatAlpha', { format: asset.format ?? t('assets:lightbox.notRead') }) : asset.hasAlpha === false ? t('assets:lightbox.formatNoAlpha', { format: asset.format ?? t('assets:lightbox.notRead') }) : (asset.format ?? t('assets:lightbox.notRead'))) : '',
   );
 
+  const hasProblems = $derived(problems.some(() => true));
   const hasPrev = $derived(index > 0);
-  const hasNext = $derived(index < assets.length - 1);
+  /** The pictures the arrows move through (the lightbox's own position, not a count of facts). */
+  const pictures = $derived(assets);
+  const hasNext = $derived(index < pictures.length - 1);
   const go = (delta: number) => {
     const next = index + delta;
-    if (next >= 0 && next < assets.length) index = next;
+    if (next >= 0 && next < pictures.length) index = next;
   };
 
   function onkeydown(event: KeyboardEvent) {
@@ -116,7 +119,7 @@
       </dl>
 
       <section aria-label={t('assets:lightbox.problems')}>
-        {#if problems.length === 0}
+        {#if !hasProblems}
           <p class="muted">{t('assets:lightbox.noProblems')}</p>
         {:else}
           <AssetProblems {problems} showPath={false} />
@@ -125,7 +128,7 @@
     </div>
   {/if}
   {#snippet footer()}
-    <span class="position muted" aria-live="polite">{assets.length > 0 ? t('assets:lightbox.positionOf', { number: index + 1, total: assets.length }) : ''}</span>
+    <span class="position muted" aria-live="polite">{pictures.length > 0 ? t('assets:lightbox.positionOf', { number: index + 1, total: pictures.length }) : ''}</span>
     <Button icon="chevron-left" disabled={!hasPrev} onclick={() => go(-1)}>{t('assets:lightbox.previous')}</Button>
     <Button disabled={!hasNext} onclick={() => go(1)}>{t('assets:lightbox.next')} <Icon name="chevron-right" size="sm" /></Button>
     <Button variant="primary" onclick={() => (open = false)}>{t('common:action.close')}</Button>

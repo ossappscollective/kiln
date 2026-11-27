@@ -12,20 +12,18 @@
   last image of a set can be removed (the set is then staged empty); when the store needs at least one the bar says so. After a removal an
   Undo link discards the staged change it made. Counts and the staged tray come from the staged view the answer carries (the app state).
   The images come through the server's thumbnail route; the read is the cached one of the last minute, and the last read is kept in
-  the browser (lib/assets/store-cache.ts), so coming back shows it at once while it is read again.
+  the browser by the web store of the store's images, so coming back shows it at once while it is read again.
   App Store: the header says WHICH VERSION the images belong to ("Draft 2.00.1", the version Kiln edits and shows by default, or "Live
   1.19.0") with a switch between them (lib/assets/store-version.ts), and one sentence says what a removal touches: it changes the draft
   only, the live version keeps its screenshots until the draft is released. The live view is read only.
-  Props: api, workspaceId, role, app, now (ms), view (the answer, or null while reading), problem (why it could not be read, or ''),
-  reloading, onreload, locked (the version in the store locks its listing and graphics), channel ('editable' | 'live') and onchannel.
+  Props: api, workspaceId, role, app, now (ms), locked (the version in the store locks its listing and graphics). The view, its problems,
+  the read clock and the version on screen come from the one web store (lib/app-state/store-images-store.svelte.ts).
 -->
 <script lang="ts">
-  import { ASSET_KIND_LABELS, type Role, assetStoreOf, checkStoreImages, setNeedsAnImage } from '@kiln/core';
+  import { ASSET_KIND_LABELS, type Role, assetStoreOf, setNeedsAnImage } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
-  import { assetFileUrl } from '../../lib/assets/assets.ts';
-  import { overLimitOf } from '../../lib/assets/over-limit.ts';
-  import { type GraphicRow, type GraphicSet, buildGraphicSets, canAddMore, moveBy } from '../../lib/assets/graphic-sets.ts';
-  import { SYNC_ROLE_REASON, canChangeAssets, stagedBlobUrl, storeFileUrl, storeThumbUrl } from '../../lib/assets/sync.ts';
+  import { type GraphicRow, type GraphicSet, canAddMore, moveBy } from '../../lib/assets/graphic-sets.ts';
+  import { SYNC_ROLE_REASON, canChangeAssets } from '../../lib/assets/sync.ts';
   import {
     NO_STATES,
     REASON_KEYS,
@@ -42,7 +40,8 @@
   import { timeAgo } from '../../lib/format.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { stagingError } from '../../lib/staged.ts';
-  import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { reportShown } from '../../lib/app-state/dev-assert.ts';
+  import { storeImagesStore } from '../../lib/app-state/store-images-store.svelte.ts';
   import { offersChannelSwitch, storeVersionLabel } from '../../lib/assets/store-version.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -62,49 +61,44 @@
     role,
     app,
     now,
-    view,
-    problem = '',
-    reloading = false,
-    onreload,
     locked = false,
-    channel = 'editable',
-    onchannel,
   }: {
     api: Api;
     workspaceId: string;
     role: Role;
     app: AppSummary;
     now: number;
-    view: StoreImagesView | null;
-    problem?: string | undefined;
-    reloading?: boolean | undefined;
-    onreload: () => void;
     locked?: boolean | undefined;
-    channel?: 'editable' | 'live' | undefined;
-    onchannel?: ((channel: 'editable' | 'live') => void) | undefined;
   } = $props();
 
-  type StoreImagesView = import('@kiln/core').StoreImagesView;
-
-  const found = $derived(view ? checkStoreImages(view) : []);
-  /** A group of the store over its limit, with the images past it (the one rule of core says that it is over; this finds the images). */
-  const over = $derived(overLimitOf(found, view));
-  const errors = $derived(found.filter((p) => p.severity !== 'info' && p.rule !== 'inspect.unread'));
-  const locales = $derived(
-    buildGraphicSets({
-      platform: app.platform,
-      view,
-      // The live version is shown as the store holds it: what is staged is for the draft.
-      staged: channel === 'live' ? null : stagedStore.view(app.id),
-      urls: {
-        thumb: (ref) => storeThumbUrl(workspaceId, app.id, ref, 160),
-        file: (ref) => storeFileUrl(workspaceId, app.id, ref),
-        blob: (oid) => stagedBlobUrl(workspaceId, app.id, oid),
-        repo: (path, commit) => assetFileUrl(workspaceId, app.id, path, commit),
-      },
-    }),
-  );
-  const imageCount = (sets: GraphicSet[]) => sets.reduce((n, s) => n + s.rows.length, 0);
+  // EVERYTHING about the store's images is read from the one web store (lib/app-state/store-images-store.svelte.ts): the view, the sets
+  // drawn (a display in several groups is one set), the problems of the store AFTER the staged changes, the read clock, the version on
+  // screen. This component keeps no copy of it and counts nothing itself.
+  const facts = $derived(storeImagesStore.of(workspaceId, app));
+  const view = $derived(facts.view);
+  const problem = $derived(facts.problem);
+  const reloading = $derived(facts.checking);
+  const channel = $derived(facts.channel);
+  /** What the store would hold after the staged changes are pushed (the store as it is when nothing is staged). */
+  const found = $derived(facts.problemsAfter);
+  const over = $derived(facts.overLimit);
+  const errors = $derived(facts.errors);
+  const locales = $derived(facts.graphicSets);
+  // The dev monitor (lib/app-state/dev-assert.ts): what this surface shows, under the fact keys of the consistency harness.
+  $effect(() => {
+    for (const loc of locales)
+      for (const set of loc.sets) {
+        const key = `${set.locale}/${set.device ?? ''}`;
+        if (set.staged) reportShown(`stagedSetFiles:${key}`, set.rows.length, 'graphicsTab');
+        else {
+          reportShown(`imageCount:${key}`, set.total, 'graphicsTab');
+          for (const g of set.groups) reportShown(`imageGroupCount:${key}/${g.target}`, g.count, 'graphicsTab');
+        }
+      }
+    reportShown('stagedAssetSets', facts.counts.staged, 'graphicsTab');
+  });
+  const reload = () => storeImagesStore.load(api, workspaceId, app, { fresh: true, role });
+  const onchannel = (next: 'editable' | 'live') => storeImagesStore.pickChannel(api, workspaceId, app, next);
   const setName = (set: GraphicSet) => (set.deviceLabel ? `${ASSET_KIND_LABELS[set.kind]} · ${set.deviceLabel}` : ASSET_KIND_LABELS[set.kind]);
 
   const may = $derived(canChangeAssets(role));
@@ -130,7 +124,11 @@
   let uploadOpen = $state(false);
   let dragFrom = $state<{ setId: string; position: number } | null>(null);
 
-  const allSets = $derived(locales.reduce((all: GraphicSet[], l) => all.concat(l.sets), []));
+  const allSets = $derived.by(() => {
+    const all: GraphicSet[] = [];
+    for (const l of locales) for (const set of l.sets) all.push(set);
+    return all;
+  });
   const viewedSet = $derived(viewing ? (allSets.filter((s) => s.id === viewing?.setId)[0] ?? null) : null);
   const uploadSet = $derived(uploading ? (allSets.filter((s) => s.id === uploading?.setId)[0] ?? null) : null);
 
@@ -154,7 +152,7 @@
     trouble = '';
     try {
       const done = await job();
-      stagedStore.set(done.staged);
+      storeImagesStore.applyStaged(done.staged);
       announce = doneText;
     } catch (e) {
       trouble = stagingError(e);
@@ -214,7 +212,7 @@
       const done = await api.removeStagedAssetFiles(workspaceId, app.id, { ...slotOf(set), files: rows.map(fileIdOf), base: 'store' });
       const applied = applyResults(itemStates, marks, done.results, (reason) => t(REASON_KEYS[reason]));
       itemStates = applied.states;
-      stagedStore.set(done.staged);
+      storeImagesStore.applyStaged(done.staged);
       const gone = applied.gone.map((m) => rows[marks.indexOf(m)]?.key);
       selections[set.id] = { keys: selectionOf(set).keys.filter((key) => gone.indexOf(key) < 0), anchor: null };
       const screenshots = set.kind === 'screenshot';
@@ -238,7 +236,7 @@
     working = `undo:${last.setId}`;
     try {
       const done = await api.unstageItem(workspaceId, app.id, last.setId);
-      stagedStore.set(done.staged);
+      storeImagesStore.applyStaged(done.staged);
       undoable = null;
       announce = t('assets:store.undone');
     } catch (e) {
@@ -286,7 +284,7 @@
     askRemove(set, [row.key]);
   }
 
-  const fullReason = (set: GraphicSet) => (canAddMore(set) ? '' : t('assets:store.fullReason', { max: set.max }));
+  const fullReason = (set: GraphicSet) => (canAddMore(set) ? '' : t('assets:store.fullReason', { max: set.stagedMax }));
 </script>
 
 <section class="store" aria-label={t('assets:store.title')}>
@@ -294,7 +292,7 @@
     <h3>{t('assets:store.title')}</h3>
     {#if view}
       <span class="muted" role="status">
-        {#if reloading}<Spinner size={14} label="" /> {t('assets:store.refreshing')}{:else}{t('assets:store.updatedAt', { when: timeAgo(view.readAt, now) })}{/if}
+        {#if reloading}<Spinner size={14} label="" /> {t('assets:store.refreshing')}{:else if facts.readAt !== null}{t('assets:store.updatedAt', { when: timeAgo(facts.readAt, now) })}{/if}
       </span>
     {/if}
     {#if versionLabel}
@@ -302,13 +300,13 @@
         {versionLabel.kind === 'draft' ? t('assets:store.version.draft', { version: versionLabel.version }) : t('assets:store.version.live', { version: versionLabel.version })}
       </Badge>
     {/if}
-    {#if view && offersChannelSwitch(view) && onchannel}
+    {#if view && offersChannelSwitch(view)}
       <div class="channels" role="group" aria-label={t('assets:store.channel.label')}>
         <Button size="sm" variant={channel === 'editable' ? 'primary' : 'secondary'} aria-pressed={channel === 'editable'} onclick={() => onchannel('editable')}>{t('assets:store.channel.editable')}</Button>
         <Button size="sm" variant={channel === 'live' ? 'primary' : 'secondary'} aria-pressed={channel === 'live'} onclick={() => onchannel('live')}>{t('assets:store.channel.live')}</Button>
       </div>
     {/if}
-    <Button size="sm" icon="refresh" loading={reloading} onclick={onreload}>{t('assets:store.reread')}</Button>
+    <Button size="sm" icon="refresh" loading={reloading} onclick={reload}>{t('assets:store.reread')}</Button>
   </header>
   {#if versionLabel}
     <p class="muted version-note">
@@ -321,7 +319,7 @@
 
   {#if problem && !view}
     <Alert tone="warn" title={t('assets:store.readFailed')}>{problem}</Alert>
-  {:else if view && locales.length === 0}
+  {:else if view && facts.counts.locales === 0}
     <div class="card"><EmptyState icon="images" title={t('assets:store.emptyTitle')} description={t('assets:store.emptyText')} /></div>
   {:else if view}
     {#if problem}<Alert tone="warn" title={t('assets:store.rereadFailed')}>{problem}</Alert>{/if}
@@ -331,30 +329,30 @@
         {#each over as o (`${o.setId}|${o.group ?? ''}`)}
           {@const gset = allSets.filter((x) => x.id === o.setId)[0]}
           <p class="over" data-testid="store-over-limit">
-            <span>{t('assets:store.over', { where: o.group ? `${o.locale} · ${o.group}` : o.locale, found: o.count, max: o.max, places: o.extra.map((e) => e.position).join(', ') })}</span>
-            {#if gset}<Button size="sm" icon="trash" disabled={!editable || working !== ''} title={editReason || undefined} onclick={() => askRemove(gset, o.extra.map((e) => e.ref))}>{t('assets:store.removeExtra', { count: o.extra.length })}</Button>{/if}
+            <span>{o.cause === 'display' ? t('assets:store.overDisplay', { where: o.locale, found: o.count, max: o.max, places: o.extra.map((e) => e.position).join(', ') }) : t('assets:store.over', { where: o.group ? `${o.locale} · ${o.group}` : o.locale, found: o.count, max: o.max, places: o.extra.map((e) => e.position).join(', ') })}</span>
+            {#if gset}<Button size="sm" icon="trash" disabled={!editable || working !== ''} title={editReason || undefined} onclick={() => askRemove(gset, o.extra.map((e) => e.key))}>{t('assets:store.removeExtra', { count: o.extra.length })}</Button>{/if}
           </p>
         {/each}
       </Alert>
     {:else if found.length > 0}
       <div class="quiet"><StoreGraphicsNotes problems={found} /></div>
     {/if}
-    {#if view.unplaced > 0}<p class="muted">{t('assets:store.unplaced', { count: view.unplaced })}</p>{/if}
+    {#if facts.unplaced > 0}<p class="muted">{t('assets:store.unplaced', { count: facts.unplaced })}</p>{/if}
     {#if !editable && may}<p class="muted lock"><Icon name="lock" size="sm" /> {editReason}</p>{/if}
     {#if trouble}<Alert tone="error" title={t('assets:store.editFailed')}>{trouble}</Alert>{/if}
     {#each locales as loc (loc.locale)}
-      <details class="card locale" open={openLocales[loc.locale] ?? locales.length === 1} ontoggle={(e) => (openLocales[loc.locale] = e.currentTarget.open)}>
+      <details class="card locale" open={openLocales[loc.locale] ?? facts.counts.locales === 1} ontoggle={(e) => (openLocales[loc.locale] = e.currentTarget.open)}>
         <summary>
           <strong>{loc.locale}</strong>
-          <span class="muted">{t('assets:store.images', { count: imageCount(loc.sets) })}</span>
-          {#if loc.sets.some((s) => s.staged)}<Badge tone="accent" icon="layers">{t('assets:store.staged')}</Badge>{/if}
+          <span class="muted">{t('assets:store.images', { count: loc.imageCount })}</span>
+          {#if loc.hasStaged}<Badge tone="accent" icon="layers">{t('assets:store.staged')}</Badge>{/if}
         </summary>
         {#each loc.sets as set (set.id)}
           {@const picked = pickedOf(set)}
           {@const busyCount = removingIn(set)}
           {@const selecting = picked.length > 0 || busyCount > 0}
           <div class="set-head">
-            <h4>{setName(set)} <span class="muted">({set.rows.length})</span></h4>
+            <h4>{setName(set)} <span class="muted">({set.grouped && !set.staged ? set.groups.map((g) => g.count).join(' + ') : set.rows.length})</span></h4>
             {#if set.staged}
               <Badge tone="accent" icon="layers">{t('assets:store.staged')}</Badge>
               <span class="muted small">{t('assets:store.storeHolds', { count: set.storeCount })}</span>
@@ -365,7 +363,7 @@
             {/if}
             <Button size="sm" icon="upload" disabled={!editable || working !== '' || !canAddMore(set)} title={editReason || fullReason(set) || undefined} onclick={() => openUpload(set, 'add')}>{t('assets:store.add')}</Button>
           </div>
-          {#if set.groups.length > 1}
+          {#if set.grouped}
             <p class="muted small groups" data-testid="store-groups">{t('assets:store.groupsNote', { groups: set.groups.map((g) => `${g.target} (${g.count})`).join(', '), max: set.max })}</p>
           {/if}
           {#if set.cleared}
@@ -492,7 +490,7 @@
         base="store"
         disabledReason={editReason}
         onstaged={(v) => {
-          stagedStore.set(v);
+          storeImagesStore.applyStaged(v);
           announce = t('assets:store.announceStaged', { set: setName(uploadSet) });
         }}
         ondone={() => (uploadOpen = false)}

@@ -67,6 +67,8 @@
   let saving = $state(false);
   let saveProblem = $state('');
   let showLog = $state(false);
+  /** The screenshots the tester attached to this feedback (not the store's graphics). */
+  const attachments = $derived(item.screenshots);
   let links = $state<ScreenshotLink[] | null>(null);
   let linksLoading = $state(false);
   let linksProblem = $state('');
@@ -172,10 +174,10 @@
     {#if item.kind === 'feedback'}
       <section class="stack" aria-label={t('testflight:detail.screenshotsHeading')}>
         <h4 class="heading">{t('testflight:detail.screenshotsHeading')}</h4>
-        {#if item.screenshots.length === 0}
+        {#if attachments.length === 0}
           <p class="muted text-sm">{t('testflight:detail.screenshotsNone')}</p>
         {:else}
-          <p class="muted text-sm">{t('testflight:detail.screenshotsCount', { count: item.screenshots.length })}</p>
+          <p class="muted text-sm">{t('testflight:detail.screenshotsCount', { count: attachments.length })}</p>
           {#if links === null}
             <div class="row">
               <Button size="sm" icon="external-link" loading={linksLoading} onclick={() => void getLinks()}>{t('testflight:detail.screenshotsLoad')}</Button>

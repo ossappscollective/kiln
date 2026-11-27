@@ -1,7 +1,9 @@
 import {
+  ASSET_UPLOAD_MAX_BYTES,
   type AssetKind,
   type AssetProblem,
   assetSlotSupport,
+  assetStoreOf,
   can,
   isLocaleCode,
   isUnchangedStaged,
@@ -15,9 +17,10 @@ import {
   type StagedChangesView,
   type StagedProblem,
   type StagedTextView,
-  slotKey,
+  limitOf,
   normalizeStoreText,
-  slotMaxFiles,
+  slotKey,
+  stagedCountsOf,
   supports,
 } from '@kiln/core';
 import { ApiError, waitPhrase } from './api.ts';
@@ -220,15 +223,17 @@ export function trayCountText(view: StagedChangesView | null): string {
     parts.push(t('publish:staged.count.texts', { count: view.text.length }));
   if (releaseCount(view) > 0)
     parts.push(t('publish:staged.count.releaseFields', { count: releaseCount(view) }));
-  if (view.assets.length > 0) {
-    const files = view.assets.reduce((n, s) => n + s.files.length, 0);
+  // The graphic sets a push would send (the unpushed family of core's `stagedCountsOf`: what the cart and the badge count). Sets that are
+  // in the store draft already are not "to push"; a tray that holds only those says so.
+  const counts = stagedCountsOf(view);
+  if (counts.unpushedSets > 0)
     parts.push(
       t('publish:staged.count.graphicSets', {
-        count: view.assets.length,
-        files: t('publish:staged.count.files', { count: files }),
+        count: counts.unpushedSets,
+        files: t('publish:staged.count.files', { count: counts.unpushedFiles }),
       }),
     );
-  }
+  else if (parts.length === 0 && counts.totalSets > 0) parts.push(t('publish:staged.inStoreDraft'));
   return formatList(parts, { type: 'unit' });
 }
 
@@ -409,7 +414,7 @@ export function setStaging(input: {
     staged,
     stagedState,
   });
-  const maxFile = input.maxFileBytes ?? 8 * MiB;
+  const maxFile = input.maxFileBytes ?? ASSET_UPLOAD_MAX_BYTES;
 
   if (!canStage(input.role)) return no(stageRoleReason());
   if (input.assets.length === 0) return no(t('publish:staged.set.noFiles'));
@@ -417,7 +422,7 @@ export function setStaging(input: {
   if (!isStageableLocale(input.locale)) return no(t('publish:staged.set.noLocale'));
   const support = assetSlotSupport(input.platform, { kind: input.kind, device: input.device });
   if (!support.ok) return no(support.reason);
-  const max = slotMaxFiles(input.platform, { kind: input.kind, device: input.device });
+  const max = limitOf(assetStoreOf(input.platform), input.kind, input.device).stagedMax;
   if (input.assets.length > max)
     return no(t('publish:staged.set.tooMany', { count: max, have: input.assets.length }));
   for (const a of input.assets) {
@@ -752,6 +757,10 @@ export function canConfirmPush(
     return false;
   return acknowledged && confirmationMatches(typed, confirmPhrase(preview));
 }
+
+/** The graphic sets a push preview holds (the server counts them in its summary: changed and already the same). */
+export const previewGraphicSets = (preview: Pick<DraftPreview, 'summary'>): number =>
+  preview.summary.assetSetsChanged + preview.summary.assetSetsUnchanged;
 
 export function previewSummaryText(summary: DraftPreview['summary']): string {
   if (summary.nothingToDo) return t('publish:staged.summary.nothingToDo');

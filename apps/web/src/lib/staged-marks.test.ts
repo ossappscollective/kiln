@@ -11,7 +11,7 @@ import {
 const view = (text: [string, string, string | null, string][], assets: string[] = []) =>
   ({
     text: text.map(([locale, field, before, value]) => ({ locale, field, before, value })),
-    assets: assets.map((locale) => ({ locale })),
+    assets: assets.map((locale) => ({ locale, pushed: false, files: [] })),
   }) as unknown as StagedChangesView;
 
 test('clipText: one line, at most the limit, with an ellipsis', () => {
@@ -71,4 +71,7 @@ test('the locale count adds listing texts and graphics sets of that locale acros
   assert.equal(stagedCountForLocale([a, b, null], 'en-US'), 4);
   assert.equal(stagedCountForLocale([a, b], 'de-DE'), 0);
   assert.equal(stagedCountForLocale([view([]), null], 'en-US'), 0);
+  // A graphic set that was pushed already is not something a push would send: it is not counted (the unpushed family).
+  const pushed = { ...view([], ['en-US']), assets: [{ locale: 'en-US', pushed: true, files: [] }] } as never;
+  assert.equal(stagedCountForLocale([pushed], 'en-US'), 0);
 });

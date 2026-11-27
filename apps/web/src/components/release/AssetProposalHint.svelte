@@ -9,10 +9,10 @@
   import { platformLabel } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
-  import { type ProposalSummary, proposalHint, proposalHintText } from '../../lib/asset-proposal-hint.ts';
+  import { storeImagesStore } from '../../lib/app-state/store-images-store.svelte.ts';
+  import { proposalHint, proposalHintText } from '../../lib/asset-proposal-hint.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { onInvalidated } from '../../lib/facts/invalidate.ts';
-  import { createReadingsScope } from '../../lib/sync-scope.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
@@ -26,23 +26,11 @@
     onreview,
   }: { api: Api; workspaceId: string; app: AppSummary; showPlatform?: boolean | undefined; refreshKey?: number | undefined; onreview: () => void } = $props();
 
-  let summary = $state<ProposalSummary | null>(null);
-  const scope = createReadingsScope();
+  // The count is read and kept by the one web store of the store's images (lib/app-state/store-images-store.svelte.ts).
+  const summary = $derived(storeImagesStore.proposalSummary(workspaceId, app.id));
   const hint = $derived(proposalHint(summary, app.repositoryId !== null));
 
-  function read(): void {
-    const { token, changed } = scope.begin(`${workspaceId}|${app.id}`);
-    if (changed) summary = null;
-    if (app.repositoryId === null) return;
-    api
-      .releaseAssetProposalSummary(workspaceId, app.id)
-      .then((r) => {
-        if (scope.accepts(token)) summary = r.summary;
-      })
-      .catch(() => {
-        if (scope.accepts(token)) summary = null;
-      });
-  }
+  const read = (): void => void storeImagesStore.loadProposalSummary(api, workspaceId, app.id, app.repositoryId !== null);
 
   // After the page has drawn, again when a sync ended or something of this app was staged (the count changes with the cart).
   $effect(() => {

@@ -119,7 +119,7 @@ test('staged facts count items, errors and what a push would write', () => {
         value: 'x',
       },
     ] as never,
-    assets: [{ id: 'a1', pushed: true, problems: [problem('error')] }] as never,
+    assets: [{ id: 'a1', pushed: true, files: [{}, {}], problems: [problem('error')] }] as never,
     release: [
       {
         id: 'r1',
@@ -145,6 +145,7 @@ test('staged facts count items, errors and what a push would write', () => {
     release: 2,
     texts: 2,
     assets: 1,
+    unpushedAssets: 0,
     total: 5,
     errors: 1,
     warnings: 1,

@@ -5,6 +5,7 @@ import {
   type Role,
   type StagedChangesView,
   type StagedReleaseFieldView,
+  stagedCountsOf,
   supports,
 } from '@kiln/core';
 import { appAddress, type PlatformScope, parseViewPath } from './app-scope.ts';
@@ -157,7 +158,10 @@ export type StagedFacts = {
   /** Staged release fields, texts and graphic sets. */
   release: number;
   texts: number;
+  /** Graphic sets staged (pushed ones included: what the staging area holds). */
   assets: number;
+  /** Graphic sets staged and not pushed yet (core's `stagedCountsOf`). */
+  unpushedAssets: number;
   total: number;
   errors: number;
   warnings: number;
@@ -169,21 +173,23 @@ type WithProblems = { problems: readonly { severity: string }[] };
 
 export function stagedFacts(view: StagedChangesView | null): StagedFacts {
   if (view === null)
-    return { release: 0, texts: 0, assets: 0, total: 0, errors: 0, warnings: 0, unpushed: 0 };
+    return { release: 0, texts: 0, assets: 0, unpushedAssets: 0, total: 0, errors: 0, warnings: 0, unpushed: 0 };
   const release = view.release ?? [];
   const all: WithProblems[] = [...view.text, ...view.assets, ...release];
   const count = (severity: string) =>
     all.reduce((n, i) => n + i.problems.filter((p) => p.severity === severity).length, 0);
+  const counts = stagedCountsOf(view);
   return {
     release: release.length,
     texts: view.text.length,
-    assets: view.assets.length,
+    assets: counts.totalSets,
+    unpushedAssets: counts.unpushedSets,
     total: release.length + view.text.length + view.assets.length,
     errors: count('error'),
     warnings: count('warning'),
     unpushed:
       view.text.filter((t) => !t.pushed && t.status !== 'unchanged').length +
-      view.assets.filter((a) => !a.pushed).length +
+      counts.unpushedSets +
       release.filter((r) => !r.pushed && !r.localOnly).length,
   };
 }

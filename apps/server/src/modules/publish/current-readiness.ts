@@ -1,4 +1,4 @@
-import { CURRENT_READINESS_TTL_MS, type SubmitBlocker } from '@kiln/core';
+import { CURRENT_READINESS_TTL_MS, type CurrentReadiness } from '@kiln/core';
 import { getApp } from '../../services/apps.ts';
 import { emitCacheEvent, registerMapCache } from '../../services/cache-registry.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
@@ -21,20 +21,7 @@ import { submitReadinessOf } from './submit-readiness.ts';
  */
 export { CURRENT_READINESS_TTL_MS };
 
-export type CurrentReadiness = {
-  appId: string;
-  ready: boolean;
-  blockers: SubmitBlocker[];
-  unknown: string[];
-  /** The staged push was merged into the store's draft. */
-  predicted: boolean;
-  /** The version the submit would send, null when none. */
-  versionString: string | null;
-  /** When the store was read (epoch ms): the age of the images and texts behind the answer. */
-  storeReadAt: number;
-  /** Served from the 30 second cache (the store was not asked again). */
-  cached: boolean;
-};
+export type { CurrentReadiness };
 
 const cache = new Map<string, { at: number; value: CurrentReadiness }>();
 const keyOf = (workspaceId: string, appId: string) => `${workspaceId}|${appId}`;

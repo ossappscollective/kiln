@@ -395,15 +395,18 @@ export function compareWithStore(
       c.locale === locale && c.kind === group.kind && (c.device ?? '') === (group.device ?? ''),
   );
   if (!entry) return { state: 'not_compared', text: t(NOT_COMPARED) };
+  // A display the store keeps in several groups says which group the number is (the main one, what a push writes and the repository is
+  // paired with), so it is never read as the display's whole count.
+  const named = (text: string) => (entry.groups === undefined ? text : t('assets:compare.mainGroup', { text, target: entry.target }));
   return entry.count === group.count
     ? {
         state: 'same',
-        text: t('assets:compare.same', { count: entry.count }),
+        text: named(t('assets:compare.same', { count: entry.count })),
         storeCount: entry.count,
       }
     : {
         state: 'differs',
-        text: t('assets:compare.differs', { store: entry.count, repo: group.count }),
+        text: named(t('assets:compare.differs', { store: entry.count, repo: group.count })),
         storeCount: entry.count,
       };
 }

@@ -15,6 +15,7 @@ import {
   isHexColour,
   type PullReport,
   pullableKeys,
+  pullKeyOf,
   setIdOf,
   shortChecksum,
   sizeLine,
@@ -37,6 +38,17 @@ const totals = (over: Partial<AssetDiffSet['totals']> = {}): AssetDiffSet['total
   only_store: 0,
   ...over,
 });
+const row = (position: number, status: AssetDiffSet['rows'][number]['status'], ref: string | null): AssetDiffSet['rows'][number] => ({
+  index: position - 1,
+  position,
+  status,
+  repo: null,
+  store: ref === null ? null : ({ ref } as never),
+  reason: '',
+  group: ref === null ? null : 'APP_IPHONE_67',
+  storeRef: ref,
+  storePosition: ref === null ? null : position,
+});
 const set = (over: Partial<AssetDiffSet> = {}): AssetDiffSet => ({
   platform: 'ios',
   locale: 'en-US',
@@ -47,6 +59,7 @@ const set = (over: Partial<AssetDiffSet> = {}): AssetDiffSet => ({
   rows: [],
   totals: totals(),
   inSync: false,
+  primary: true,
   ...over,
 });
 
@@ -95,10 +108,10 @@ test('a comparison row says what is different, and which images a pull would tak
   assert.equal(sizeLine(null, null, null), 'unknown size');
   const s = set({
     rows: [
-      { position: 1, status: 'identical', repo: null, store: { ref: 'r1' } as never, reason: '' },
-      { position: 2, status: 'differs', repo: null, store: { ref: 'r2' } as never, reason: 'x' },
-      { position: 3, status: 'only_repo', repo: {} as never, store: null, reason: '' },
-      { position: 4, status: 'only_store', repo: null, store: { ref: 'r4' } as never, reason: '' },
+      { ...row(1, 'identical', 'r1') },
+      { ...row(2, 'differs', 'r2'), reason: 'x' },
+      { ...row(3, 'only_repo', null), repo: {} as never },
+      { ...row(4, 'only_store', 'r4') },
     ],
     totals: totals({ identical: 1, differs: 1, only_repo: 1, only_store: 1 }),
   });
@@ -106,6 +119,11 @@ test('a comparison row says what is different, and which images a pull would tak
     'ios/en-US/screenshot:iphone_6_9#2',
     'ios/en-US/screenshot:iphone_6_9#4',
   ]);
+  // A sibling group of a display is never pulled (the pull takes the primary group), and the key is the store's position of the image.
+  assert.deepEqual(pullableKeys({ ...s, primary: false }, 'ios'), []);
+  const shifted = set({ rows: [{ ...row(1, 'only_store', 'r11'), storePosition: 11 }] });
+  assert.deepEqual(pullableKeys(shifted, 'ios'), ['ios/en-US/screenshot:iphone_6_9#11']);
+  assert.equal(pullKeyOf(shifted, { storePosition: null }, 'ios'), null);
   assert.equal(diffBadge(null), null);
   assert.deepEqual(diffBadge(set({ inSync: true })), { tone: 'ok', text: 'Same as the store' });
   assert.equal(diffBadge(s)?.text, '3 files differ from the store');

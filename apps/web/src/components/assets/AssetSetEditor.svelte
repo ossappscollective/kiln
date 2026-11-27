@@ -10,7 +10,7 @@
   files of the set), commit }), oncompare (open the comparison for this set).
 -->
 <script lang="ts">
-  import { type Role, slotMaxFiles } from '@kiln/core';
+  import { type Role, assetStoreOf, limitOf } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import {
     DEFAULT_BACKGROUND,
@@ -33,7 +33,7 @@
   import { t } from '../../lib/i18n/t.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { stagingError } from '../../lib/staged.ts';
-  import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { storeImagesStore } from '../../lib/app-state/store-images-store.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -70,7 +70,7 @@
   let toRepo = $state<ToRepoResult | null>(null);
 
   const may = $derived(canChangeAssets(role));
-  const stagedSet = $derived(set ? stagedSetOf(stagedStore.view(app.id), set.locale, set.kind, set.device) : null);
+  const stagedSet = $derived(set ? stagedSetOf(storeImagesStore.stagedView(app.id), set.locale, set.kind, set.device) : null);
   const rows = $derived<StagedFileRow[]>(
     stagedSet
       ? stagedFileRows(stagedSet)
@@ -92,7 +92,7 @@
             }))
         : [],
   );
-  const max = $derived(set ? slotMaxFiles(app.platform, { kind: set.kind, device: set.device }) : 0);
+  const max = $derived(set ? limitOf(assetStoreOf(app.platform), set.kind, set.device).stagedMax : 0);
   const full = $derived(max > 0 && rows.length >= max);
   const slot = $derived(set ? { locale: set.locale, kind: set.kind as string, device: set.device } : { locale: '', kind: '', device: null });
   const urlOf = (r: StagedFileRow) => (r.upload ? stagedBlobUrl(workspaceId, app.id, r.oid) : r.commit !== '' ? assetFileUrl(workspaceId, app.id, r.path, r.commit) : null);
@@ -130,7 +130,7 @@
     try {
       // One file, named by its blob id (never by a place that may have moved), answered for itself.
       const done = await api.removeStagedAssetFiles(workspaceId, app.id, { locale: set.locale, kind: set.kind, device: set.device, files: [fileIdOf(r)] });
-      stagedStore.set(done.staged);
+      storeImagesStore.applyStaged(done.staged);
       const result = done.results[0];
       if (result && result.outcome === 'not_found') problem = t(REASON_KEYS[result.reason ?? 'unknown_file']);
       else message = t('assets:editor.removed', { name: r.name });
@@ -158,7 +158,7 @@
         fix: fixing.kind,
         ...(fixing.kind === 'remove_alpha' ? { background } : {}),
       });
-      stagedStore.set(done.staged);
+      storeImagesStore.applyStaged(done.staged);
       message = t('assets:editor.fixed', { summary: done.summary });
       fixing = null;
     } catch (e) {
@@ -229,7 +229,7 @@
                   mode="replace"
                   position={r.position}
                   disabledReason={reason}
-                  onstaged={(v) => stagedStore.set(v)}
+                  onstaged={(v) => storeImagesStore.applyStaged(v)}
                   ondone={() => (replacing = null)}
                 />
               </div>
@@ -260,7 +260,7 @@
         {slot}
         mode="add"
         disabledReason={reason || (full ? t('assets:editor.full', { max }) : '')}
-        onstaged={(v) => stagedStore.set(v)}
+        onstaged={(v) => storeImagesStore.applyStaged(v)}
       />
     </section>
 

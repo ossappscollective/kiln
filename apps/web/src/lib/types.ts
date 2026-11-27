@@ -24,6 +24,7 @@ import type {
   RolloutSummary,
   SectionCompare,
   StoreRollout,
+  StoreSide,
 } from '@kiln/core';
 import type { RevenueCatStep } from './revenuecat/revenuecat.ts';
 
@@ -1309,25 +1310,6 @@ export type AssetItem = {
   origin: 'store' | 'project';
 };
 
-/**
- * The counts the store has, per locale, kind and device (the optional seam: the listing reads fill
- * it in a later step; the Assets tab shows "not yet compared" while it is null).
- */
-export type AssetStoreSide = {
-  observedAt: number | null;
-  /**
-   * One entry per display: `count` is the ONE set of it a push writes (`primaryStoreSet` in core), `groups` every set the store keeps for
-   * it when it keeps more than one (the siblings are never added up).
-   */
-  counts: {
-    locale: string;
-    kind: AssetKind;
-    device: string | null;
-    count: number;
-    target?: string;
-    groups?: { target: string; count: number }[];
-  }[];
-};
 
 export type AssetIndex = {
   appId: string;
@@ -1374,7 +1356,8 @@ export type AssetIndex = {
     sources: Record<string, string>;
     unverified: { id: string; text: string }[];
   };
-  storeSide: AssetStoreSide | null;
+  /** Reserved, always null: the store's counts come from the store view (`storeSideOf` of `@kiln/core`, in the web store of the store's images). */
+  storeSide: StoreSide | null;
   /** The index came from the cache of the server. */
   cached?: boolean;
 };

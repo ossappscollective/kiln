@@ -63,7 +63,7 @@ export function createStoreCache(
     },
     set(key, view, at) {
       kept.delete(key);
-      kept.set(key, { view, at: at ?? now() });
+      kept.set(key, { view, at: at ?? view.readAt });
       while (kept.size > max) {
         const oldest = kept.keys().next().value;
         if (oldest === undefined) break;

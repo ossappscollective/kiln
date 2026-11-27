@@ -155,8 +155,8 @@ test('moves stay inside the set, and the limit of the set stops adding', () => {
   assert.deepEqual(moveBy(2, -1, 3), { from: 2, to: 1 });
   assert.equal(moveBy(1, -1, 3), null);
   assert.equal(moveBy(3, 1, 3), null);
-  assert.equal(canAddMore({ rows: new Array(8).fill(0), max: 8 }), false);
-  assert.equal(canAddMore({ rows: [], max: 0 }), true);
+  assert.equal(canAddMore({ rows: new Array(8).fill(0), stagedMax: 8 }), false);
+  assert.equal(canAddMore({ rows: [], stagedMax: 1 }), true);
 });
 
 test('Play kinds without a device dimension have no device suffix; an unrecognised screenshot device says so', () => {
