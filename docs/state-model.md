@@ -510,6 +510,16 @@ a component to read a model fact removes its entries: run `--prune` and commit t
 allowlists are emptied and `"strict": true` is set in `component-guard.allowlist.json`: then any entry is ignored and every violation fails.
 Do not add an entry to make a test pass; if the code is right and the rule is wrong, change the rule in `scan.ts` and say why in the commit.
 
+State domain, what the burn-down uses (Wave 2):
+
+- R7 (a low-level store import): a component reaches the cart, publish and nav stores through ONE file, `lib/app-state/pending-facade.ts`.
+  The facade is a list, not a decision: a store is added to it only when the model cannot hand the screen what it needs, and `wiring.test.ts`
+  still forbids reading a count from `publishingStore`/`cartSummaryStore` (only `PublishDialog` reports its own publish to the claims).
+- R2 (own clock): `lib/app-state/clock.svelte.ts`, `useNow({ everyMs, while })`. A screen that draws an age or a wait takes `clock.value` and
+  calls `clock.touch()` after a read; it never keeps `Date.now()` or a `setInterval`. The timer is cleaned up with the component.
+- R5 (own count): the model hands over the number (`appState.pendingCount`, `lineOf(...)`, `blockingCount`); a step line says whether the run
+  recorded blockers (`hasBlockers`) instead of the screen testing the list.
+
 `consistency.expected.json` and `state-contract.expected.json` work the same way: the test passes while the list is exactly the current
 disagreements. A NEW disagreement fails ("fix it, or add it with a note"), a disagreement that stops failing fails ("delete the entry"), and a
 changed value fails. Each entry has a `note` that says which definition is wrong.
@@ -527,6 +537,10 @@ A new screen that shows a fact from the model needs two things: it reads the fac
    point: the fix is in the model function both call, not in the projection.
 3. `consistency.test.ts` also fails for a surface that returns nothing in every scenario (a dead projection) and for a fact key that is not in
    `FACTS`.
+4. A surface that only DISPLAYS a fact of the `state` domain (a count, a headline, a badge: the sidebar, the chips, the Portfolio card, the
+   Board, `WorkspacePending`, the tiles, the stale-staged alert) is also registered in `DISPLAY_SURFACES` (`app-state/surfaces.ts`) with the
+   `state` fact families it shows. `display-surfaces.test.ts` fails when a registered id has no projection, when a projection shows a `state`
+   fact and is not registered, and when the families listed are not the ones the projection shows in the scenarios.
 
 ### How to add a fact
 
@@ -546,7 +560,13 @@ In a component that has just been migrated, `reportShown('pendingCount', n, 'top
 the monitor what this surface shows now. In production it is a no-op (`import.meta.env.DEV` is false). In development it compares, once per
 tick, every value shown under one fact key by different surfaces, logs `console.error` with both values and both surface ids once per distinct
 conflict, and exposes `window.__kilnConsistency()` (`{ latest, conflicts, disagreeingNow }`) to read in the console, in an e2e test or in a
-screenshot script. It is not wired into components yet: wire it as each one is migrated, with the same surface id as in `SURFACES`.
+screenshot script. Wire it as each surface is migrated, with the same surface id as in `SURFACES`.
+
+Wired today (state domain): `topBar` (`PendingCartButton`), `pendingCartDrawer` and `pendingCartRows` (`PendingCart`; the rows are reported only
+once every record's cart was read), `pendingHeader` (`PendingChanges`), `workspacePending` (`WorkspacePending`) and `boardCard` (`Board`, only
+while every app has its card). Not wired yet: `sidebarBadge`, `appSwitcherChip` (the chip is drawn in several places and does not know its
+surface), `portfolioCard`, `pendingChangesStaged`, `appDashboardAttention`, `publishFailure` and `publishDialogFailure`. The server-side
+alert `alertPendingStale` is projected for the harness and has no browser surface to report from.
 
 ## 4. Migration status
 
