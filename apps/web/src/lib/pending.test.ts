@@ -50,7 +50,7 @@ import {
   stepRow,
   stepRows,
   toggled,
-  totalsLine,
+  pendingLineText,
   visibleRows,
 } from './pending.ts';
 
@@ -184,8 +184,19 @@ test('totals, the summary line and the platform groups', () => {
   ];
   const totals = platformTotals({ items });
   assert.deepEqual(totals, { items: 3, actionable: 2, blocking: 1 });
-  assert.equal(totalsLine(totals), '2 waiting for you, 1 with an error, 1 waiting for the store');
-  assert.equal(totalsLine({ items: 0, actionable: 0, blocking: 0 }), 'Nothing pending');
+  assert.equal(
+    pendingLineText({ count: 2, blocking: 1, awaitingSubmit: 0, awaitingRelease: 0, waiting: 1 }),
+    '2 waiting for you, 1 with an error, 1 waiting for the store',
+  );
+  // A pushed draft is named apart, never added to the count.
+  assert.equal(
+    pendingLineText({ count: 0, blocking: 0, awaitingSubmit: 1, awaitingRelease: 0, waiting: 0 }),
+    '1 waiting to be submitted',
+  );
+  assert.equal(
+    pendingLineText({ count: 0, blocking: 0, awaitingSubmit: 0, awaitingRelease: 0, waiting: 0 }),
+    'Nothing pending',
+  );
   const view = {
     app: { id: 'a', name: 'n', platform: 'ios' as const, store: 'appstoreconnect' as const },
     platforms: [{ platform: 'ios' as const, store: 'appstoreconnect' as const, items, totals }],

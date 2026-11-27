@@ -13,6 +13,7 @@
   import { type Role } from '@kiln/core';
   import { type Api, ApiError } from '../../lib/api.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import { cartStore } from '../../lib/app-state/cart-store.svelte.ts';
   import { PUBLISH_AGAIN_EVENT, stepsToRepeat } from '../../lib/app-state/actions.ts';
   import type { PlatformScope } from '../../lib/app-scope.ts';
   import { cartButton, resetCartButton } from '../../lib/cart-button.svelte.ts';
@@ -31,11 +32,9 @@
     reviewScope,
     type Selection,
     selectedRows,
-    toRows,
   } from '../../lib/pending-cart.ts';
   import { PUBLISHED_EVENT } from '../../lib/app-page.ts';
   import type { StepRequest } from '../../lib/pending.ts';
-  import { onInvalidated } from '../../lib/facts/invalidate.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import { classifyPriceFailure } from '../../lib/prices.ts';
@@ -59,9 +58,6 @@
     platform: PlatformScope | null;
   } = $props();
 
-  let rows = $state<CartRow[]>([]);
-  let loading = $state(false);
-  let error = $state('');
   let open = $state(false);
   let focusLocale = $state<string | null>(null);
   let busy = $state(false);
@@ -72,11 +68,14 @@
   let dryRun = $state<{ items: { key: string; title: string; item: PriceDryRunItem }[]; writesEnabled: boolean; failed: string } | null>(null);
   let dryBusy = $state(false);
   let now = $state(Date.now());
-  let generation = 0;
   let loadedOnce = false;
   let lastToast = 0;
 
   const ids = $derived(members.map((m) => m.id));
+  /** The rows of the records' carts: read once for every screen that shows them (`cartStore`), the count is the model's. */
+  const rows = $derived<CartRow[]>(ids.flatMap((id) => cartStore.rows(workspaceId, id) ?? []));
+  const loading = $derived(ids.some((id) => cartStore.loading(workspaceId, id)));
+  const error = $derived(ids.some((id) => cartStore.failed(workspaceId, id)) ? (ids.map((id) => cartStore.message(workspaceId, id)).find((m) => m !== '') ?? t('app:cart.loadFailed')) : '');
   /** What is true about the records of the drawer (the state model): which publish runs, which failed, what each action may do. */
   const appState = $derived(appStateStore.of({ workspaceId, role, records: members, scope: 'both' }));
   /** The records whose publish runs now: their items are being written. */
@@ -96,30 +95,16 @@
   });
 
   async function refresh(): Promise<void> {
-    const mine = ++generation;
-    loading = true;
-    try {
-      const lists = await Promise.all(ids.map(async (id) => toRows(id, (await api.appPendingCart(workspaceId, id)).cart.items)));
-      if (mine !== generation) return;
-      rows = lists.flat();
-      error = '';
-      now = Date.now();
-    } catch (e) {
-      if (mine !== generation) return;
-      error = e instanceof ApiError ? e.message : t('app:cart.loadFailed');
-    } finally {
-      if (mine === generation) loading = false;
-    }
+    await cartStore.refresh(api, workspaceId, ids);
+    now = Date.now();
   }
 
   // Read the cart for these records on mount and whenever the app's records change.
   $effect(() => {
     void ids.join(',');
     loadedOnce = false;
-    rows = [];
     // Another app: nothing of the previous one (open drawer, report, dry run, error, running rows) is carried over.
     open = false;
-    error = '';
     report = null;
     dryRun = null;
     running = new Set();
@@ -128,8 +113,9 @@
     untrack(() => {
       // Only once the records are known: before that the effect would use the request up and the reset above would close the drawer again.
       if (ids.length > 0 && takeQueuedCartOpen(groupId)) open = true;
-      void refresh();
     });
+    // The carts are read once for every screen and read again for each change while this one shows them.
+    return untrack(() => cartStore.watch(api, workspaceId, ids));
   });
 
   // A polite announcement of the count, but not the first load.
@@ -172,12 +158,7 @@
     const onFocus = () => {
       if (document.visibilityState === 'visible') void refresh();
     };
-    // A discard, an unstage or a publish anywhere (not only in this cart) reads the cart again.
-    const offStaged = onInvalidated((i) => {
-      if (i.event !== 'staged_changed' && i.event !== 'publish' && i.event !== 'store_read' && i.event !== 'sync') return;
-      if (i.event === 'staged_changed' && i.reason === 'stage') return;
-      if (i.appIds.length === 0 || i.appIds.some((id) => ids.includes(id))) void refresh();
-    });
+    // A discard, an unstage or a publish anywhere (not only in this cart) reads the cart again: `cartStore` does it for every screen.
     // "2 staged" on a locale row: open the drawer on that locale's items.
     const onOpen = (e: Event) => {
       focusLocale = (e as CustomEvent<{ locale?: string | null }>).detail?.locale ?? null;
@@ -202,7 +183,6 @@
     window.addEventListener(PUBLISHED_EVENT, onPublished);
     document.addEventListener('visibilitychange', onFocus);
     return () => {
-      offStaged();
       window.removeEventListener(PUBLISH_AGAIN_EVENT, onPublishAgain);
       window.removeEventListener(CART_OPEN_EVENT, onOpen);
       window.removeEventListener(CART_ADDED_EVENT, onAdded);

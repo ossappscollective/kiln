@@ -32,6 +32,14 @@ export type PendingFacts = {
   count: number;
   /** Of those, the items with an error (`GET /pending/summary`): a quality of the same count, never a second count. */
   blocking: number;
+  /** The staged part of `count` (texts, graphics sets, release fields), from the same summary line. */
+  stagedUnpushed?: number | undefined;
+  /** 1 when a draft was pushed and waits for its SUBMIT. NOT in `count`: it is named apart wherever it is shown ("waiting to be submitted"). */
+  awaitingSubmit?: number | undefined;
+  /** Draft releases, approved versions and due rollout steps that wait for a person. Not in `count`. */
+  awaitingRelease?: number | undefined;
+  /** Informational items (in review). */
+  waiting?: number | undefined;
 };
 
 /** The plain snapshot the model is derived from. The store assembles it; a test writes it by hand. */
@@ -245,6 +253,11 @@ export type AppState = {
   pendingCount: number;
   /** Of those, the items with an error. */
   blockingCount: number;
+  /** The staged part of `pendingCount`, a pushed draft that waits for its submit, release steps, and what waits for the store: named apart, in scope. */
+  stagedCount: number;
+  awaitingSubmitCount: number;
+  awaitingReleaseCount: number;
+  waitingCount: number;
   pendingKnown: boolean;
   /** The records in scope whose publish runs now. */
   publishing: { appId: string; platform: Platform; name: string; entry: Publishing }[];

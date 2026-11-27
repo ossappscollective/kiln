@@ -32,7 +32,9 @@ const cart = (counts: Record<string, number>): CartSummary => ({
   },
   generatedAt: NOW,
 });
-const summary = (lines: Record<string, { blocking: number; waiting: number }>): PendingSummary =>
+const summary = (
+  lines: Record<string, { blocking: number; waiting: number; awaitingSubmit?: number }>,
+): PendingSummary =>
   ({
     apps: Object.keys(lines).map((appId) => ({
       appId,
@@ -77,8 +79,22 @@ test('facts: the count comes from the cart, what blocks from the pending summary
       failure: (id) => (id === ANDROID.id ? failedRun('android') : null),
     }),
   );
-  assert.deepEqual(f.pending[ANDROID.id], { count: 29, blocking: 29 });
-  assert.deepEqual(f.pending[IOS.id], { count: 2, blocking: 1 });
+  assert.deepEqual(f.pending[ANDROID.id], {
+    count: 29,
+    blocking: 29,
+    stagedUnpushed: 0,
+    awaitingSubmit: 0,
+    awaitingRelease: 0,
+    waiting: 1,
+  });
+  assert.deepEqual(f.pending[IOS.id], {
+    count: 2,
+    blocking: 1,
+    stagedUnpushed: 0,
+    awaitingSubmit: 0,
+    awaitingRelease: 0,
+    waiting: 0,
+  });
   assert.equal(f.pendingKnown, true);
   assert.ok(f.publishing[IOS.id]);
   assert.equal(f.publishing[ANDROID.id], null);
@@ -109,7 +125,15 @@ test('the chip line is null while the cart is unread, and when nothing waits at 
     lineOfRecords(sources({ pendingSummary: summary({ [IOS.id]: { blocking: 0, waiting: 2 } }) }), [
       IOS.id,
     ]),
-    { count: 0, blocking: 0, waiting: 2 },
+    { count: 0, blocking: 0, waiting: 2, stagedUnpushed: 0, awaitingSubmit: 0, awaitingRelease: 0 },
+  );
+  // A pushed draft that waits for its submit is a line of its own: never in the count, never lost.
+  assert.deepEqual(
+    lineOfRecords(
+      sources({ pendingSummary: summary({ [IOS.id]: { blocking: 0, waiting: 0, awaitingSubmit: 1 } }) }),
+      [IOS.id],
+    ),
+    { count: 0, blocking: 0, waiting: 0, stagedUnpushed: 0, awaitingSubmit: 1, awaitingRelease: 0 },
   );
 });
 

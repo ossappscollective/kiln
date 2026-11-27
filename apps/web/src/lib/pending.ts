@@ -85,7 +85,15 @@ export type PendingPlatform = {
 export type PendingView = {
   app: { id: string; name: string; platform: Platform; store: PendingStore };
   platforms: PendingPlatform[];
-  totals: PendingTotals & { platforms: Platform[]; nextSteps: PublishStepType[] };
+  totals: PendingTotals & {
+    platforms: Platform[];
+    nextSteps: PublishStepType[];
+    /** THE pending count (the cart length), the staged part of it, and what waits for a submit or a release apart from it (an older server sends none). */
+    count?: number | undefined;
+    stagedUnpushed?: number | undefined;
+    awaitingSubmit?: number | undefined;
+    awaitingRelease?: number | undefined;
+  };
   lastSyncedAt: number | null;
   /** A publish of this app runs now (an older server sends none). The screens read it from `publishing-store`, which polls it. */
   publishing?: Publishing | null | undefined;
@@ -98,7 +106,14 @@ export type PendingSummaryApp = {
   appId: string;
   id: string;
   app: { id: string; name: string; platform: Platform; store: PendingStore };
+  /** THE pending count: the length of the cart (docs/state-model.md). A pushed draft is not in it (`awaitingSubmit`). */
   count: number;
+  /** The staged part of `count`. */
+  stagedUnpushed?: number | undefined;
+  /** 1 when a pushed draft waits for its submit; not in `count`. */
+  awaitingSubmit?: number | undefined;
+  /** Draft releases, approved versions and due rollout steps; not in `count`. */
+  awaitingRelease?: number | undefined;
   blocking: number;
   waiting: number;
   kinds: PendingKind[];
@@ -474,15 +489,30 @@ export function platformTotals(p: Pick<PendingPlatform, 'items'>): PendingTotals
   };
 }
 
-/** The one line at the top of the view: what waits, what is blocked, what only waits for the store. */
-export function totalsLine(totals: PendingTotals): string {
-  if (totals.items === 0) return t('app:pending.totals.nothing');
-  const waiting = totals.items - totals.actionable;
+/** The numbers the Pending page and the chips say, from the model (docs/state-model.md "The pending count"): never summed from the list rows. */
+export type PendingNumbers = {
+  /** THE pending count: the cart length. */
+  count: number;
+  blocking: number;
+  /** A pushed draft that waits for its submit (not in `count`), and the release steps that wait for a person (not in `count`). */
+  awaitingSubmit: number;
+  awaitingRelease: number;
+  /** Informational items: in review. */
+  waiting: number;
+};
+
+/** "3 waiting for you, 1 with an error, 1 waiting to be submitted, 1 waiting for the store": the one line of the Pending page. */
+export function pendingLineText(n: PendingNumbers): string {
+  if (n.count + n.awaitingSubmit + n.awaitingRelease + n.waiting === 0)
+    return t('app:pending.totals.nothing');
   const parts: string[] = [];
-  if (totals.actionable > 0)
-    parts.push(t('app:pending.totals.forYou', { count: totals.actionable }));
-  if (totals.blocking > 0) parts.push(t('app:pending.totals.errors', { count: totals.blocking }));
-  if (waiting > 0) parts.push(t('app:pending.totals.forStore', { count: waiting }));
+  if (n.count > 0) parts.push(t('app:pending.totals.forYou', { count: n.count }));
+  if (n.blocking > 0) parts.push(t('app:pending.totals.errors', { count: n.blocking }));
+  if (n.awaitingSubmit > 0)
+    parts.push(t('app:pending.totals.toSubmit', { count: n.awaitingSubmit }));
+  if (n.awaitingRelease > 0)
+    parts.push(t('app:pending.totals.toRelease', { count: n.awaitingRelease }));
+  if (n.waiting > 0) parts.push(t('app:pending.totals.forStore', { count: n.waiting }));
   return formatList(parts, { type: 'unit' });
 }
 

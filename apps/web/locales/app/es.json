@@ -661,6 +661,8 @@
   "pending.totals.forStore": "{{count}} esperando a la tienda",
   "pending.totals.forYou": "{{count}} esperando tu acción",
   "pending.totals.nothing": "Nada pendiente",
+  "pending.totals.toRelease": "{{count}} pendientes de publicar",
+  "pending.totals.toSubmit": "{{count}} pendientes de enviar",
   "pending.waitingOn_many": "{{shown}} cambios pendientes en {{on}}",
   "pending.waitingOn_one": "{{shown}} cambio pendiente en {{on}}",
   "pending.waitingOn_other": "{{shown}} cambios pendientes en {{on}}",

@@ -5,7 +5,7 @@ import { buildOverviewRows } from '../app-overview.ts';
 import { platformStatusLines } from '../app-status.ts';
 import { buildGraphicSets } from '../assets/graphic-sets.ts';
 import { appNavCounts } from '../nav-badges.ts';
-import { combineTotals, platformGroups, blockingItems } from '../pending.ts';
+import { platformGroups, blockingItems } from '../pending.ts';
 import { blockerLines, submitBlockedOnly } from '../publish-failure.ts';
 import { buildDate } from '../publish-summary.ts';
 import type { ReleaseLoad } from '../portfolio.ts';
@@ -16,6 +16,7 @@ import { stagedFacts } from '../release-stepper.ts';
 import type { PipelineSummaryApp } from '../release-pipeline.ts';
 import { itemCount } from '../staged.ts';
 import type { ReleaseSummary } from '../types.ts';
+import { blockersViewOf } from './blockers.ts';
 import { deriveAppState } from './derive.ts';
 import {
   analyzeCandidates,
@@ -68,6 +69,7 @@ export const FACTS: Readonly<Record<string, { domain: Domain; about: string }>> 
   pendingCount: { domain: 'state', about: 'how many changes wait to be published (the cart length)' },
   blockingCount: { domain: 'state', about: 'pending items that an error blocks' },
   stagedUnpushed: { domain: 'state', about: 'staged changes not written to the store draft yet' },
+  awaitingSubmit: { domain: 'state', about: 'a draft was pushed and waits for its submit (never part of the pending count)' },
   stagedItems: { domain: 'state', about: 'every staged row, pushed ones included (the tray)' },
   stagedAssetSets: { domain: 'images', about: 'staged graphic sets' },
   stagedSetFiles: { domain: 'images', about: 'files of a staged graphic set' },
@@ -310,27 +312,26 @@ export const SURFACES: readonly Surface[] = [
     id: 'pendingHeader',
     components: ['components/publish/PendingChanges.svelte'],
     mirrors: [
-      'components/publish/PendingChanges.svelte:118-121 views = pendingStore.view(m.id); totals = combineTotals(groups) (the per-app view, not the cart)',
-      'components/publish/PendingChanges.svelte:380 totalsLine(totals)',
+      'components/publish/PendingChanges.svelte numbers (appState.pendingCount, blockingCount, awaitingSubmitCount: the model, summed over the records)',
     ],
     project(w) {
-      const views = w.records.map((r) => pendingViewOf(w, r.id));
-      const totals = combineTotals(platformGroups(views).map((g) => g.platform));
-      return { pendingCount: totals.actionable, blockingCount: totals.blocking };
+      const s = appState(w);
+      const out: Facts = { pendingCount: s.pendingCount, blockingCount: s.blockingCount };
+      if (s.awaitingSubmitCount > 0) out.awaitingSubmit = s.awaitingSubmitCount;
+      return out;
     },
   },
   {
     id: 'pendingChangesStaged',
     components: ['components/publish/PendingChanges.svelte'],
-    mirrors: ['components/publish/PendingChanges.svelte:297 stagedCount(items) (counts.changes ?? refs.length)', 'lib/pending.ts:520 blockingItems'],
+    mirrors: [
+      'components/publish/PendingChanges.svelte groupNumbers.staged (appStateStore.lineOf(...).stagedUnpushed, the summary line of the record)',
+      'lib/pending.ts blockingItems (the rows with an error)',
+    ],
     project(w) {
       const views = w.records.map((r) => pendingViewOf(w, r.id));
       const groups = platformGroups(views);
-      let staged = 0;
-      for (const g of groups)
-        for (const i of g.platform.items)
-          if (i.kind === 'listing_text' || i.kind === 'asset_set' || i.kind === 'release_field')
-            staged += i.kind === 'listing_text' ? (i.counts.changes ?? i.refs.length) : 1;
+      const staged = groups.reduce((n, g) => n + (lineOf(w, [g.appId])?.stagedUnpushed ?? 0), 0);
       return { stagedUnpushed: staged, blockingCount: blockingItems(groups).length };
     },
   },
@@ -485,16 +486,18 @@ export const SURFACES: readonly Surface[] = [
   },
   {
     id: 'publishDialogFailure',
-    components: ['components/publish/PublishDialog.svelte', 'components/publish/PublishFailureDetail.svelte'],
-    mirrors: ['components/publish/PublishDialog.svelte:574 <PublishFailureDetail run=... /> (no blockers view: the RUN\'s blockers are shown as if current)'],
+    components: ['components/publish/PublishDialog.svelte', 'components/publish/PublishFailure.svelte'],
+    mirrors: ['components/publish/PublishDialog.svelte blockers={appStateStore.blockersFor(...)} (the model view: the run\'s list is history)'],
     project(w) {
       const out: Facts = {};
       for (const m of inScope(w)) {
         const run = w.lastRun[m.id];
-        if (run && submitBlockedOnly(run)) {
-          const step = run.results.find((r) => r.status === 'skipped' && r.reason === 'blocked');
-          out.blockerCount = blockerLines({ blockers: step?.blockers ?? [] }).length;
-        }
+        if (!run || !submitBlockedOnly(run)) continue;
+        const view = blockersViewOf(run, w.readiness[m.id] ?? null, w.now);
+        const step = run.results.find((r) => r.status === 'skipped' && r.reason === 'blocked');
+        if (view?.state === 'blocked') out.blockerCount = view.current.length;
+        else if (view?.state === 'ready') out.blockerCount = 0;
+        else out.blockerCount = blockerLines({ blockers: step?.blockers ?? [] }).length;
       }
       return out;
     },

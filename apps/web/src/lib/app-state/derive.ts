@@ -291,7 +291,14 @@ function recordContext(
     failure,
     blockers: failure === null ? null : blockersViewOf(failure, facts.readiness?.[record.id], facts.now),
     appPublishing,
-    pending: { count: whole(p.count), blocking: whole(p.blocking) },
+    pending: {
+      count: whole(p.count),
+      blocking: whole(p.blocking),
+      stagedUnpushed: whole(p.stagedUnpushed),
+      awaitingSubmit: whole(p.awaitingSubmit),
+      awaitingRelease: whole(p.awaitingRelease),
+      waiting: whole(p.waiting),
+    },
     publishBatchEnabled: facts.publishBatchEnabled,
     now: facts.now,
   };
@@ -359,6 +366,10 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
   const open = failures.filter((f) => !fixedNow(f));
   const pendingCount = contexts.reduce((n, c) => n + c.pending.count, 0);
   const blockingCount = contexts.reduce((n, c) => n + c.pending.blocking, 0);
+  const stagedCount = contexts.reduce((n, c) => n + (c.pending.stagedUnpushed ?? 0), 0);
+  const awaitingSubmitCount = contexts.reduce((n, c) => n + (c.pending.awaitingSubmit ?? 0), 0);
+  const awaitingReleaseCount = contexts.reduce((n, c) => n + (c.pending.awaitingRelease ?? 0), 0);
+  const waitingCount = contexts.reduce((n, c) => n + (c.pending.waiting ?? 0), 0);
   const pendingKnown = facts.pendingKnown;
 
   const elsewhere: Elsewhere = { platforms: [], pendingCount: 0, publishing: false, failed: false };
@@ -778,6 +789,10 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
     badge,
     pendingCount,
     blockingCount,
+    stagedCount,
+    awaitingSubmitCount,
+    awaitingReleaseCount,
+    waitingCount,
     pendingKnown,
     publishing,
     failures,

@@ -166,7 +166,7 @@ export function cartItemCount(w: World, appId: string): number {
   return unpushedTexts(s).length + unpushedAssets(s).length + unpushedRelease(s).length;
 }
 
-/** mirrors: apps/server/src/modules/publish/cart.ts:685 `cartSummary` (a line per app that holds something). */
+/** mirrors: apps/server/src/modules/publish/app-facts.ts `cartSummary` (a line per app that holds something). */
 export function cartSummaryOf(w: World): CartSummary {
   const apps = w.records
     .map((r) => ({ r, count: cartItemCount(w, r.id) }))
@@ -274,7 +274,7 @@ export function totalsOf(items: readonly PendingItem[]): PendingTotals {
   };
 }
 
-/** mirrors: apps/server/src/modules/publish/pending.ts:642 `pendingSummary` (count = actionable items, waiting = the rest). */
+/** mirrors: apps/server/src/modules/publish/app-facts.ts `pendingSummary` (count = the CART count; a pushed draft is `awaitingSubmit`, apart; waiting = informational rows). */
 export function pendingSummaryOf(w: World): PendingSummary {
   const apps: PendingSummaryApp[] = [];
   for (const r of w.records) {
@@ -285,7 +285,10 @@ export function pendingSummaryOf(w: World): PendingSummary {
       appId: r.id,
       id: r.id,
       app: { id: r.id, name: r.name, platform: r.platform, store: storeOf(r) } as PendingSummaryApp['app'],
-      count: t.actionable,
+      count: cartItemCount(w, r.id),
+      stagedUnpushed: cartItemCount(w, r.id),
+      awaitingSubmit: items.filter((i) => i.kind === 'pushed_draft').length,
+      awaitingRelease: 0,
       blocking: t.blocking,
       waiting: t.items - t.actionable,
       kinds: [],
@@ -301,7 +304,7 @@ export function pendingSummaryOf(w: World): PendingSummary {
   };
 }
 
-/** mirrors: apps/server/src/modules/publish/pending.ts:600 `getPending` (`GET /apps/:id/pending`: the per-app view the Pending page reads). */
+/** mirrors: apps/server/src/modules/publish/app-facts.ts `getPending` (`GET /apps/:id/pending`: the per-app view the Pending page reads). */
 export function pendingViewOf(w: World, appId: string): PendingView {
   const rec = w.records.find((r) => r.id === appId) as AppSummary;
   const items = pendingItemsOf(w, appId);
@@ -309,7 +312,15 @@ export function pendingViewOf(w: World, appId: string): PendingView {
   return {
     app: { id: rec.id, name: rec.name, platform: rec.platform, store: storeOf(rec) } as PendingView['app'],
     platforms: [{ platform: rec.platform, store: storeOf(rec), items, totals }] as PendingView['platforms'],
-    totals: { ...totals, platforms: items.length > 0 ? [rec.platform] : [], nextSteps: [] },
+    totals: {
+      ...totals,
+      count: cartItemCount(w, appId),
+      stagedUnpushed: cartItemCount(w, appId),
+      awaitingSubmit: items.filter((i) => i.kind === 'pushed_draft').length,
+      awaitingRelease: 0,
+      platforms: items.length > 0 ? [rec.platform] : [],
+      nextSteps: [],
+    },
     lastSyncedAt: rec.lastSyncedAt,
     publishing: w.publishing[appId] ?? null,
     lastPublish: w.lastRun[appId] ?? null,

@@ -66,6 +66,7 @@
   import { announcePublished } from '../../lib/app-page.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
   import { endedByServer } from '../../lib/publishing.ts';
+  import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
   import { publishingStore } from '../../lib/publishing-store.svelte.ts';
   import { firstFix, readinessView, submitChoice } from '../../lib/publish-readiness.ts';
   import { publishSummary, shownErrors } from '../../lib/publish-summary.ts';
@@ -125,6 +126,13 @@ import { supports, type Role } from '@kiln/core';
   let plan = $state<PublishPlan | null>(null);
   let wanted = $state<PublishStepType[]>([]);
   let result = $state<PublishResult | null>(null);
+  // A run that pushed the draft and had its submit blocked is shown against what the store holds NOW (the model's blockers view), never as if its own list were current.
+  $effect(() => {
+    const run = result?.lastPublish ?? null;
+    const record = app;
+    if (run === null || record === undefined || role === null || role === undefined) return;
+    untrack(() => appStateStore.ensureReadiness(api, workspaceId, role, [record]));
+  });
   let problem = $state('');
   let notice = $state('');
   /** The plan on screen is not the one the server would build now: only "Review again" is possible. */
@@ -571,7 +579,7 @@ import { supports, type Role } from '@kiln/core';
       <section class="stack" aria-label={t('publish:dialog.resultAria')} data-testid="publish-result">
         {#if !result.completed && result.lastPublish && app}
           <!-- the run the server kept: each step, and under the failed one why (the store's own words, its code and HTTP status), with Copy details -->
-          <PublishFailureDetail run={result.lastPublish} appName={app.name} platform={app.platform} onpushsubmit={plan?.combined?.offered === false ? undefined : pushAndSubmit} onreplace={replaceReview} />
+          <PublishFailureDetail run={result.lastPublish} appName={app.name} platform={app.platform} blockers={appStateStore.blockersFor(workspaceId, app.id, result.lastPublish)} oncheck={() => void appStateStore.checkAgain(api, workspaceId, app.id)} onpushsubmit={plan?.combined?.offered === false ? undefined : pushAndSubmit} onreplace={replaceReview} />
           <p class="muted small">{stopNote()}</p>
         {:else}
           <Alert tone={summary.tone} title={summary.title}>

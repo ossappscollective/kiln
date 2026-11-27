@@ -10,7 +10,8 @@
   import type { Api } from '../../lib/api.ts';
   import { type Expanded, expansionOf, PREVIEW_KEYS, noneExpanded, toggleAll, toggleExpanded } from '../../lib/cart-preview.ts';
   import { t } from '../../lib/i18n/t.ts';
-  import { type CartRow, GROUP_KEYS, toRows } from '../../lib/pending-cart.ts';
+  import { cartStore } from '../../lib/app-state/cart-store.svelte.ts';
+  import { type CartRow, GROUP_KEYS } from '../../lib/pending-cart.ts';
   import CartRowPreview from '../app/CartRowPreview.svelte';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -20,32 +21,21 @@
 
   let { api, workspaceId, appIds, id }: { api: Api; workspaceId: string; appIds: readonly string[]; id: string } = $props();
 
-  let rows = $state<CartRow[] | null>(null);
-  let failed = $state(false);
+  /** The carts are read once for every screen (`cartStore`): the cart drawer, the Pending page's previews and this list share one read. */
+  const known = $derived(appIds.every((appId) => cartStore.rows(workspaceId, appId) !== null));
+  const rows = $derived<CartRow[] | null>(known ? appIds.flatMap((appId) => cartStore.rows(workspaceId, appId) ?? []) : null);
+  const failed = $derived(!known && appIds.some((appId) => cartStore.failed(workspaceId, appId)));
   let expanded = $state<Expanded>(noneExpanded);
   const expansion = $derived(expansionOf(expanded, rows ?? []));
 
-  async function load() {
-    failed = false;
-    rows = null;
-    try {
-      const lists = await Promise.all(appIds.map(async (appId) => toRows(appId, (await api.appPendingCart(workspaceId, appId)).cart.items)));
-      rows = lists.flat();
-    } catch {
-      failed = true;
-    }
-  }
-  $effect(() => {
-    void appIds.join('|');
-    void load();
-  });
+  $effect(() => cartStore.watch(api, workspaceId, appIds));
   const platformName = (p: string) => (p === 'ios' ? 'iOS' : p === 'android' ? 'Android' : p);
 </script>
 
 <div class="changes" {id}>
   {#if failed}
     <Alert tone="error">{t('app:workspacePending.changesFailed')}</Alert>
-    <div><Button size="sm" icon="refresh" onclick={() => void load()}>{t('common:action.tryAgain')}</Button></div>
+    <div><Button size="sm" icon="refresh" onclick={() => void cartStore.refresh(api, workspaceId, appIds)}>{t('common:action.tryAgain')}</Button></div>
   {:else if rows === null}
     <div role="status" aria-label={t('app:workspacePending.loading')}><Skeleton width="100%" height="48px" /></div>
   {:else if rows.length === 0}

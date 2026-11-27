@@ -661,6 +661,8 @@
   "pending.totals.forStore": "{{count}} en attente du store",
   "pending.totals.forYou": "{{count}} en attente de votre action",
   "pending.totals.nothing": "Rien en attente",
+  "pending.totals.toRelease": "{{count}} en attente de publication",
+  "pending.totals.toSubmit": "{{count}} à soumettre",
   "pending.waitingOn_many": "{{shown}} modifications en attente sur {{on}}",
   "pending.waitingOn_one": "{{shown}} modification en attente sur {{on}}",
   "pending.waitingOn_other": "{{shown}} modifications en attente sur {{on}}",

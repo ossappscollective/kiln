@@ -45,7 +45,13 @@ import type {
  */
 
 /** The pending line of an app for a chip or a badge: the count, what blocks, what only waits for the store, and whether the last publish failed. */
-export type AppLine = PendingLine & { failed: boolean };
+export type AppLine = PendingLine & {
+  failed: boolean;
+  /** The staged part of `count`, and what waits for a submit or a release APART from it (a pushed draft is never in `count`). */
+  stagedUnpushed: number;
+  awaitingSubmit: number;
+  awaitingRelease: number;
+};
 
 /** What `of` needs from the screen: who is asking, for which records, in which platform scope, and what only the page has loaded. */
 export type StateInput = {
@@ -181,6 +187,9 @@ export const appStateStore = {
       count: line?.count ?? 0,
       blocking: line?.blocking ?? 0,
       waiting: line?.waiting ?? 0,
+      stagedUnpushed: line?.stagedUnpushed ?? 0,
+      awaitingSubmit: line?.awaitingSubmit ?? 0,
+      awaitingRelease: line?.awaitingRelease ?? 0,
       failed,
     };
   },
@@ -234,6 +243,15 @@ export const appStateStore = {
       if (app && run) out.push({ app, run, blockers: blockersViewOf(run, readinessStore.of(workspaceId, id), now) });
     }
     return out;
+  },
+
+  /**
+   * What blocks the submit of a run that pushed the draft and had its submit blocked, NOW: the run's own list is history (what was true when it ran),
+   * held against the last reading of the store. Every screen that shows a run's blockers (the card, the Pending page, the publish dialog, the top
+   * bar) shows this view, never the run's list as if it were current. Null for a run that was not blocked at its submit.
+   */
+  blockersFor(workspaceId: string, appId: string, run: LastPublish): BlockersView | null {
+    return blockersViewOf(run, readinessStore.of(workspaceId, appId), Date.now());
   },
 
   // ---- The top bar --------------------------------------------------------------------------

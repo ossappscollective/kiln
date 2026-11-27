@@ -25,6 +25,13 @@ import type { AppFacts, PendingFacts } from './types.ts';
  *   batch switch    <- `GET /publish/config`
  */
 
+/** The pending line of records: PendingLine plus the staged part of the count and what waits apart from it (never added to `count`). */
+export type RecordsLine = PendingLine & {
+  stagedUnpushed: number;
+  awaitingSubmit: number;
+  awaitingRelease: number;
+};
+
 export type FactSources = {
   cart: CartSummary | null;
   pendingSummary: PendingSummary | null;
@@ -59,6 +66,11 @@ export function countOf(cart: CartSummary | null, appId: string): number {
   return line ? whole(line.count) : 0;
 }
 
+const summaryLineOf = (summary: PendingSummary | null, appId: string) =>
+  summary !== null && Array.isArray(summary.apps)
+    ? summary.apps.find((l) => (l.appId ?? l.id) === appId)
+    : undefined;
+
 /** The items of a record that an error blocks (from the pending summary), never more than its count: a quality of the count. */
 function blockingOf(summary: PendingSummary | null, appId: string, count: number): number {
   if (summary === null || !Array.isArray(summary.apps)) return 0;
@@ -75,7 +87,16 @@ export function assembleFacts(input: FactInput, src: FactSources): AppFacts {
   const readiness: Record<string, ReadinessFact | null> = {};
   for (const r of input.records) {
     const count = countOf(src.cart, r.id);
-    pending[r.id] = { count, blocking: blockingOf(src.pendingSummary, r.id, count) };
+    const line = summaryLineOf(src.pendingSummary, r.id);
+    pending[r.id] = {
+      count,
+      blocking: blockingOf(src.pendingSummary, r.id, count),
+      // The summary states these for the same cart; a count read apart (the cart summary) is never higher than the staged part it knows.
+      stagedUnpushed: Math.min(count, whole(line?.stagedUnpushed)),
+      awaitingSubmit: whole(line?.awaitingSubmit),
+      awaitingRelease: whole(line?.awaitingRelease),
+      waiting: whole(line?.waiting),
+    };
     publishing[r.id] = src.publishing(r.id);
     lastRun[r.id] = src.failure(r.id);
     pipelines[r.id] = src.pipeline(r.id);
@@ -101,24 +122,33 @@ export function assembleFacts(input: FactInput, src: FactSources): AppFacts {
 
 /**
  * The pending line of an app made of these records, for the chips and the badges: the cart count (the one count), the items an error
- * blocks, and the items that only wait for the store (from the pending summary). Null when the cart is not read or nothing is pending.
+ * blocks, the items that only wait for the store, and what waits for a submit or a release apart from the count (from the pending summary).
+ * Null when the cart is not read or nothing is pending.
  */
 export function lineOfRecords(
   src: Pick<FactSources, 'cart' | 'pendingSummary'>,
   appIds: readonly string[],
-): PendingLine | null {
+): RecordsLine | null {
   if (src.cart === null) return null;
   let count = 0;
   let blocking = 0;
   let waiting = 0;
+  let staged = 0;
+  let awaitingSubmit = 0;
+  let awaitingRelease = 0;
   for (const id of appIds) {
     const n = countOf(src.cart, id);
     count += n;
     blocking += blockingOf(src.pendingSummary, id, n);
-    const line = src.pendingSummary?.apps?.find((l) => (l.appId ?? l.id) === id);
-    waiting += line ? whole(line.waiting) : 0;
+    const line = summaryLineOf(src.pendingSummary, id);
+    waiting += whole(line?.waiting);
+    staged += Math.min(n, whole(line?.stagedUnpushed));
+    awaitingSubmit += whole(line?.awaitingSubmit);
+    awaitingRelease += whole(line?.awaitingRelease);
   }
-  return count + waiting === 0 ? null : { count, blocking, waiting };
+  return count + waiting + awaitingSubmit + awaitingRelease === 0
+    ? null
+    : { count, blocking, waiting, stagedUnpushed: staged, awaitingSubmit, awaitingRelease };
 }
 
 /** A store row of the Builds page (`app_builds`) as the model's build fact: only what decides a candidate. */

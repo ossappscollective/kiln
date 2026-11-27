@@ -616,6 +616,8 @@
   "pending.totals.forStore": "{{count}} waiting for the store",
   "pending.totals.forYou": "{{count}} waiting for you",
   "pending.totals.nothing": "Nothing pending",
+  "pending.totals.toRelease": "{{count}} waiting for release",
+  "pending.totals.toSubmit": "{{count}} waiting to be submitted",
   "pending.waitingOn_one": "{{shown}} change waiting on {{on}}",
   "pending.waitingOn_other": "{{shown}} changes waiting on {{on}}",
   "pending.waiting_one": "{{shown}} change waiting",

@@ -41,13 +41,15 @@
     replaceReviewSteps,
     type StepRequest,
     stateBadge,
-    totalsLine,
+    pendingLineText,
     warningsOf,
   } from '../../lib/pending.ts';
-  import { type CartRow, toRows } from '../../lib/pending-cart.ts';
+  import type { CartRow } from '../../lib/pending-cart.ts';
   import { itemKey, needsCart, thumbsOf } from '../../lib/pending-preview.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import { cartStore } from '../../lib/app-state/cart-store.svelte.ts';
+  import { reportShown } from '../../lib/app-state/dev-assert.ts';
   import { openSubmitChecklist } from '../../lib/app-state/panel.svelte.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { canStage, stagingError } from '../../lib/staged.ts';
@@ -112,7 +114,6 @@
   let seq = 0;
   /** The rows whose preview is open (collapsed by default), and the app's cart rows the staged items are previewed through (read lazily, stored state only). */
   let expanded = $state<Expanded>(noneExpanded);
-  let carts = $state<Record<string, CartRow[] | 'failed'>>({});
 
   const ids = $derived(members.map((m) => m.id));
   const views = $derived(members.map((m): PendingView | null => pendingStore.view(m.id)));
@@ -128,6 +129,35 @@
   const empty = $derived(known && totals.items === 0);
   /** The state of the app (the one model every surface reads): what is publishing, what failed, and what may be done now. */
   const appState = $derived(appStateStore.of({ workspaceId, role, records: members, scope: 'both' }));
+  /**
+   * THE numbers of the page (docs/state-model.md "The pending count"): the cart count, what an error blocks, a pushed draft that waits for its submit
+   * and the release steps, named apart, and what only waits for the store. All from the model: the page never adds up its own list.
+   */
+  const numbers = $derived({
+    count: appState.pendingCount,
+    blocking: appState.blockingCount,
+    awaitingSubmit: appState.awaitingSubmitCount,
+    awaitingRelease: appState.awaitingReleaseCount,
+    waiting: appState.waitingCount,
+  });
+  const headline = $derived(numbers.count + numbers.awaitingSubmit + numbers.awaitingRelease + numbers.waiting === 0 ? t('publish:pending.nothing') : pendingLineText(numbers));
+  /** One platform group's numbers, from the same model facts (the group is one record). */
+  const numbersOf = (appId: string) => {
+    const line = appStateStore.lineOf(workspaceId, [appId]);
+    return {
+      count: line?.count ?? 0,
+      blocking: line?.blocking ?? 0,
+      awaitingSubmit: line?.awaitingSubmit ?? 0,
+      awaitingRelease: line?.awaitingRelease ?? 0,
+      waiting: line?.waiting ?? 0,
+      staged: line?.stagedUnpushed ?? 0,
+    };
+  };
+  $effect(() => {
+    if (!appState.pendingKnown) return;
+    reportShown('pendingCount', numbers.count, 'pendingHeader');
+    reportShown('blockingCount', numbers.blocking, 'pendingHeader');
+  });
   /** The records of this app whose publish runs now (polled while one runs). While it runs their items are being written. */
   const publishing = $derived(appState.publishing);
   const publishingOf = (appId: string) => publishing.find((p) => p.appId === appId)?.entry ?? null;
@@ -185,27 +215,13 @@
             : '',
   );
 
-  const cartRowsOf = (appId: string): CartRow[] | null => {
-    const c = carts[appId];
-    return Array.isArray(c) ? c : null;
-  };
-  async function loadCart(appId: string) {
-    try {
-      carts[appId] = toRows(appId, (await api.appPendingCart(workspaceId, appId)).cart.items);
-    } catch {
-      carts[appId] = 'failed';
-    }
-  }
-  /** The cart rows give the thumbnails of a collapsed graphics row and the ids and versions of every staged preview: read again whenever the view is. */
-  let cartsFor = '';
+  /** The cart rows give the thumbnails of a collapsed graphics row and the ids and versions of every staged preview: the ONE read of the cart (`cartStore`), shared with the drawer. */
+  const cartRowsOf = (appId: string): CartRow[] | null => cartStore.rows(workspaceId, appId);
+  const loadCart = (appId: string) => cartStore.refresh(api, workspaceId, [appId]);
+  const cartWanted = $derived(list ? groups.filter((g) => g.platform.items.some(needsCart)).map((g) => g.appId) : []);
   $effect(() => {
-    const wanted = list ? groups.filter((g) => g.platform.items.some(needsCart)).map((g) => g.appId) : [];
-    const key = `${workspaceId}|${views.map((v) => v?.generatedAt ?? 0).join(',')}|${wanted.join(',')}`;
-    if (key === cartsFor) return;
-    cartsFor = key;
-    untrack(() => {
-      for (const id of wanted) void loadCart(id);
-    });
+    const wanted = cartWanted;
+    return untrack(() => cartStore.watch(api, workspaceId, wanted));
   });
   const everyRow = $derived(groups.flatMap((g) => g.platform.items.map((i) => ({ key: itemKey(g.appId, i) }))));
   $effect(() => {
@@ -293,9 +309,6 @@
     }
   }
 
-  const stagedCount = (items: readonly PendingItem[]): number =>
-    items.filter((i) => i.kind === 'listing_text' || i.kind === 'asset_set' || i.kind === 'release_field').reduce((n, i) => n + (i.kind === 'listing_text' ? (i.counts.changes ?? i.refs.length) : 1), 0);
-
   function openPublish() {
     if (publishHeld) return;
     if (availability.state === 'blocked') {
@@ -377,7 +390,7 @@
   <div class="top">
     <div class="lead">
       <p class="line" class:muted={empty || loading}>
-        {#if loading && !known}{t('publish:pending.reading')}{:else if loadProblem && !known}{t('publish:pending.readFailed')}{:else}{empty ? t('publish:pending.nothing') : totalsLine(totals)}{/if}
+        {#if loading && !known}{t('publish:pending.reading')}{:else if loadProblem && !known}{t('publish:pending.readFailed')}{:else}{appState.pendingKnown ? headline : t('publish:pending.reading')}{/if}
       </p>
       {#if !compact && !empty && known}
         <p class="muted small">{t('publish:pending.hint')}</p>
@@ -455,7 +468,8 @@
   {:else}
     {#each groups as g (g.appId + g.platform.platform)}
       {@const app = members.find((m) => m.id === g.appId)}
-      {@const count = stagedCount(g.platform.items)}
+      {@const groupNumbers = numbersOf(g.appId)}
+      {@const count = groupNumbers.staged}
       {@const rows = g.platform.items.map((i) => ({ key: itemKey(g.appId, i) }))}
       {@const allOpen = expansionOf(expanded, rows) === 'all'}
       {@const running = publishingOf(g.appId)}
@@ -463,7 +477,7 @@
         {#if running}<PublishingStatus publishing={running} platform={g.platform.platform} appId={g.appId} {workspaceId} canInterrupt={canPublishBatch(role)} />{/if}
         <div class="group-head">
           {#if members.length > 1 || groups.length > 1}<PlatformBadge platform={g.platform.platform} tinted />{/if}
-          <span class="muted">{totalsLine(g.platform.totals)}</span>
+          <span class="muted">{pendingLineText(groupNumbers)}</span>
           <span class="spacer"></span>
           <Button
             size="sm"
@@ -547,7 +561,7 @@
                       appId={g.appId}
                       {item}
                       cartRows={cartRowsOf(g.appId)}
-                      cartFailed={carts[g.appId] === 'failed'}
+                      cartFailed={cartStore.failed(workspaceId, g.appId) && cartRowsOf(g.appId) === null}
                       id="{uid}-{key}-p"
                       onretry={() => void loadCart(g.appId)}
                     />
