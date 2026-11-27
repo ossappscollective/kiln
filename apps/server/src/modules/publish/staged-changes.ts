@@ -35,9 +35,11 @@ import {
   type StagedSource,
   type StagedTextView,
   isLocaleCode,
+  isUnchangedStaged,
   limitOf,
   slotKey,
   slotLimitProblem,
+  stagedBaselineOf,
   supports,
   validateAssets,
 } from '@kiln/core';
@@ -58,6 +60,7 @@ import {
   sideProblems,
 } from '../listing/drift.ts';
 import { getDrift } from '../listing/live.ts';
+import { getStoreListing } from '../listing/store-view.ts';
 import { storeFor } from '../reviews/sync.ts';
 import { metadataLockedFailure } from './metadata-lock.ts';
 import { deleteUnreferencedBlobs } from './staged-asset-blobs.ts';
@@ -452,21 +455,24 @@ export async function buildStagedView(
 ): Promise<StagedChangesView> {
   const all = rows ?? (await loadStagedRows(ctx.db, workspaceId, app.id));
   const textRows = all.filter((r) => r.kind === 'listing_text');
-  const before = new Map<string, string | null>();
-  if (textRows.length > 0) {
-    const drift = await getDrift(ctx.db, workspaceId, {
-      id: app.id,
-      platform: app.platform,
-      identifier: app.identifier,
-    });
-    for (const locale of drift.locales)
-      for (const f of locale.fields) before.set(fieldKey(locale.locale, f.field), f.live.value);
-  }
+  // The baseline of a staged text is what a push would overwrite: the editable draft's text when the store has one, else the live text
+  // (`stagedBaselineOf`, the same baseline as the push preview).
+  const editable =
+    textRows.length > 0
+      ? (
+          await getStoreListing(ctx.db, workspaceId, {
+            id: app.id,
+            platform: app.platform,
+            identifier: app.identifier,
+          })
+        ).copies.editable
+      : null;
   const problems = textProblems(app.platform, all);
   const text: StagedTextView[] = textRows.map((r) => {
     const spec = fieldSpec(app.platform, r.target);
     const mine = problems.get(fieldKey(r.locale, r.target)) ?? [];
-    const was = before.get(fieldKey(r.locale, r.target)) ?? null;
+    const baseline = editable === null ? null : stagedBaselineOf(editable, r.locale, r.target);
+    const was = baseline === null ? null : baseline.value;
     const value = r.valueText ?? '';
     return {
       id: r.id,
@@ -482,7 +488,7 @@ export async function buildStagedView(
       before: was,
       status: hasError(mine)
         ? 'invalid'
-        : was !== null && normalizeListingValue(was) === value
+        : isUnchangedStaged(value, baseline)
           ? 'unchanged'
           : 'changed',
       problems: mine,

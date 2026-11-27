@@ -38,6 +38,7 @@ import {
   type AssetSlot,
   byFamily,
   isReleaseFieldId,
+  isUnchangedStaged,
   LOCAL_ONLY_RELEASE_FIELDS,
   needsStoreAppId,
   type Platform,
@@ -58,7 +59,6 @@ import { useCredentialSecret } from '../../services/credentials.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { type AssetsContext, openAssets } from '../listing/asset-repo.ts';
-import { normalizeListingValue } from '../listing/drift.ts';
 import { storeFor } from '../reviews/sync.ts';
 import { metadataLockedFailure } from './metadata-lock.ts';
 import { getBlob } from './staged-asset-blobs.ts';
@@ -1078,11 +1078,8 @@ const itemMatches = (state: DraftState, p: Prepared) => ({
   ),
   text: p.texts.map((t) => {
     const found = state.text.find((s) => s.locale === t.locale && s.field === t.field);
-    return (
-      found !== undefined &&
-      found.value !== null &&
-      normalizeListingValue(found.value) === normalizeListingValue(t.value)
-    );
+    // Unchanged = a push would not change what the store's draft holds (`isUnchangedStaged`, the one baseline rule).
+    return found !== undefined && isUnchangedStaged(t.value, found.value);
   }),
   assets: p.sets.map((s) => {
     const found = state.assets.find((a) => a.locale === s.locale && a.target === s.target);

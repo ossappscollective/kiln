@@ -238,8 +238,8 @@ test('counts and why a push cannot start', () => {
 
 // --- staging a text -------------------------------------------------------------------------
 
-test('normalizeText: line breaks and trailing white space', () => {
-  assert.equal(normalizeText('a  \r\nb\t\r\n\r\n'), 'a\nb');
+test('normalizeText is the one normaliser of core: line breaks and white space at the end of the text (the server hashes the same way)', () => {
+  assert.equal(normalizeText('a  \r\nb\t\r\n\r\n'), 'a  \nb');
 });
 
 test('"Stage from repo" is offered for a differing field with a repository value', () => {

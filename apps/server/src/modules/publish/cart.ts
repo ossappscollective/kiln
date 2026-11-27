@@ -3,6 +3,7 @@ import {
   type AssetKind,
   findDisplay,
   groupStoreImages,
+  measureField,
   type Platform,
   type StoreId,
 } from '@kiln/core';
@@ -227,7 +228,7 @@ export async function loadCart(
         publishable: true,
         reason: null,
         version: sha(['listing', t.id, t.valueHash]),
-        counts: { length: t.value.length },
+        counts: { length: measureField({ unit: t.unit }, t.value) },
         thumbs: [],
         problems: t.problems
           .filter((p) => p.severity !== 'info')

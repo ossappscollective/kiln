@@ -9,6 +9,7 @@ import {
   type ListingProblem,
   type LocaleText,
   listingStoreOf,
+  normalizeStoreText,
   PLAY_FIELD_SPECS,
   PLAY_FIELDS,
   type Platform,
@@ -38,12 +39,8 @@ export function fieldSpec(platform: Platform, field: string): ListingFieldSpec |
   return specs[field];
 }
 
-/**
- * What two values are compared as: line breaks as `\n` and no trailing white space. The stores trim
- * and the repository model drops one trailing line break, so these differences are not changes.
- */
-export const normalizeListingValue = (value: string): string =>
-  value.replace(/\r\n?/g, '\n').replace(/\s+$/, '');
+/** What two values are compared as: the ONE normaliser of core (`normalizeStoreText`). */
+export const normalizeListingValue = normalizeStoreText;
 
 /** The hash of an absent value (no file, no field). Different from the hash of an empty string. */
 export const ABSENT_HASH = 'absent';

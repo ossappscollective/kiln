@@ -15,6 +15,53 @@ const IMAGES = 'fastlane/metadata/android/en-US/images';
 // ----- text --------------------------------------------------------------------------------------
 
 dbTest(
+  'a staged text is judged against the store DRAFT when there is one (before = draft, not live)',
+  async (db) => {
+    const t = await bootStaged(db);
+    const app = await t.addApp('ios');
+    const live = 'The live description, long enough to be a description of the app.';
+    const draft = 'The draft description, long enough to be a description of the app.';
+    t.readStores.ios.listing = {
+      platform: 'ios',
+      appStoreId: '1234567890',
+      warnings: [],
+      channels: [
+        {
+          channel: 'live',
+          versionString: '1.0',
+          listing: { appStore: { locales: { 'en-US': { name: 'Acme', description: live } } } },
+        },
+        {
+          channel: 'editable',
+          versionString: '1.1',
+          listing: { appStore: { locales: { 'en-US': { name: 'Acme', description: draft } } } },
+        },
+      ],
+    };
+    assert.equal((await t.call(t.owner, 'POST', `/apps/${app}/sync`)).status, 200);
+    // The text of the draft is what a push would write unchanged: unchanged, whatever the live copy says.
+    const same = await t.stageText(app, {
+      locale: 'en-US',
+      field: 'description',
+      from: 'local',
+      value: draft,
+    });
+    assert.equal(same.status, 200, same.text);
+    assert.equal(same.body.staged.text[0].before, draft);
+    assert.equal(same.body.staged.text[0].status, 'unchanged');
+    // The live text differs from the draft: a push would change the draft, so it is a change.
+    const other = await t.stageText(app, {
+      locale: 'en-US',
+      field: 'description',
+      from: 'local',
+      value: live,
+    });
+    assert.equal(other.body.staged.text[0].before, draft);
+    assert.equal(other.body.staged.text[0].status, 'changed');
+  },
+);
+
+dbTest(
   'a typed text is staged, normalized, shown with its limit, and nothing is sent to a store',
   async (db) => {
     const t = await bootStaged(db);

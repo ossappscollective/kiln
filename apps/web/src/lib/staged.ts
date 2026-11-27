@@ -4,6 +4,7 @@ import {
   assetSlotSupport,
   can,
   isLocaleCode,
+  isUnchangedStaged,
   type Platform,
   PUSHABLE_IMAGE_FORMATS,
   platformMeta,
@@ -15,6 +16,7 @@ import {
   type StagedProblem,
   type StagedTextView,
   slotKey,
+  normalizeStoreText,
   slotMaxFiles,
   supports,
 } from '@kiln/core';
@@ -281,12 +283,8 @@ export const isStageableLocale = (locale: string): boolean => isLocaleCode(local
 export const isStageableTextField = (platform: Platform, field: string): boolean =>
   STAGEABLE_TEXT_FIELDS[platform].indexOf(field) !== -1;
 
-/** Line breaks and trailing white space, as the server normalizes a value. */
-export const normalizeText = (value: string): string =>
-  value
-    .replace(/\r\n?/g, '\n')
-    .replace(/[ \t]+$/gm, '')
-    .replace(/\s+$/, '');
+/** Line breaks and trailing white space, as the server normalizes a value: the ONE normaliser of core (it no longer strips the blanks at the end of every line). */
+export const normalizeText = normalizeStoreText;
 
 export function findStagedText(
   view: StagedChangesView | null,
@@ -323,10 +321,7 @@ export function fieldStage(input: {
   const { field, view } = input;
   const staged = findStagedText(view, field.locale, field.field);
   const repoValue = field.repo.value;
-  const upToDate =
-    staged !== null &&
-    repoValue !== null &&
-    normalizeText(staged.value) === normalizeText(repoValue);
+  const upToDate = staged !== null && isUnchangedStaged(staged.value, repoValue);
   const base = { staged, upToDate };
   if (!isStageableTextField(input.platform, field.field))
     return { state: 'not_pushable', reason: t(NOT_PUSHABLE[input.platform]), ...base };
