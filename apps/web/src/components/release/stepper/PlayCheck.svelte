@@ -17,6 +17,7 @@
   import { t } from '../../../lib/i18n/t.ts';
   import T from '../../ui/T.svelte';
   import type { Api } from '../../../lib/api.ts';
+  import { listingStore } from '../../../lib/app-state/listing-store.svelte.ts';
   import { readCache } from '../../../lib/read-cache.ts';
   import {
     type PlayCheckAnswer,
@@ -60,7 +61,7 @@
   const uid = $props.id();
 
   let editable = $state<EditableRelease | null>(null);
-  let listingLocales = $state<string[]>([]);
+  const listingLocales = $derived(listingStore.noteLocales(workspaceId, app.id));
   let readFailed = $state(false);
   let checking = $state(false);
   let answer = $state<PlayCheckAnswer | null>(null);
@@ -82,7 +83,7 @@
     const mine = ++seq;
     readFailed = false;
     try {
-      const [read, live] = await Promise.all([
+      const [read] = await Promise.all([
         readCache.read({
           workspaceId,
           group: 'store',
@@ -90,16 +91,11 @@
           force,
           load: () => api.releaseEditable(workspaceId, app.id, track.trim()),
         }),
-        readCache
-          .read({ workspaceId, group: 'listing', key: `live/${app.id}`, force, load: () => api.appListingLive(workspaceId, app.id) })
-          .catch(() => null),
+        // The listing's locales come from the one store read (`listingStore`), the draft's copy.
+        listingStore.load(api, workspaceId, app.id, { fresh: force }),
       ]);
       if (mine !== seq) return;
       editable = read.editable;
-      if (live !== null) {
-        const channel = live.channels.filter((c) => c.channel === 'editable')[0] ?? live.channels[0];
-        listingLocales = channel ? Object.keys(channel.locales) : [];
-      }
     } catch {
       if (mine !== seq) return;
       editable = null;

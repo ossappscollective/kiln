@@ -9,6 +9,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { listingStore } from '../../lib/app-state/listing-store.svelte.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { actorText, describeSource, historySteps, usage, usageText } from '../../lib/listing/drift.ts';
@@ -59,7 +60,7 @@
     else loadingMore = true;
     problem = '';
     try {
-      const page = await api.appListingHistory(workspaceId, appId, {
+      const page = await listingStore.history(api, workspaceId, appId, {
         locale: tgt.locale,
         field: tgt.field,
         limit: PAGE,

@@ -19,6 +19,7 @@
   import { ApiError, type Api } from '../../../lib/api.ts';
   import { fitToViewport } from '../../../lib/fit-viewport.ts';
   import { invalidate } from '../../../lib/facts/invalidate.ts';
+  import { listingStore } from '../../../lib/app-state/listing-store.svelte.ts';
   import { readCache } from '../../../lib/read-cache.ts';
   import { t } from '../../../lib/i18n/t.ts';
   import type { PlatformScope } from '../../../lib/app-scope.ts';
@@ -100,7 +101,7 @@
   let candidatesState = $state<EditableState>({ state: 'loading' });
   let sourceCandidates = $state<PlayCandidates | null>(null);
   let pipeline = $state<AppPipeline | null>(null);
-  let listingLocales = $state<string[]>([]);
+  const listingLocales = $derived(listingStore.noteLocales(workspaceId, app.id));
   let track = $state('production');
   let source = $state('beta');
   let drafts = $state<Record<string, string>>({});
@@ -301,16 +302,9 @@
     }
   }
 
-  async function loadLocales() {
-    const mine = seq;
-    try {
-      const out = await readCache.read({ workspaceId, group: 'listing', key: `live/${app.id}`, load: () => api.appListingLive(workspaceId, app.id) });
-      if (mine !== seq) return;
-      const channel = out.channels.filter((c) => c.channel === 'editable')[0] ?? out.channels[0];
-      listingLocales = channel ? Object.keys(channel.locales) : [];
-    } catch {
-      if (mine === seq) listingLocales = [];
-    }
+  /** The listing's locales are the store read's (`listingStore`): the draft's, so a language only the draft has gets notes too. */
+  function loadLocales() {
+    void listingStore.load(api, workspaceId, app.id);
   }
 
   // The buttons "Read again" and "Try again" skip what was kept; the first read when a step opens does not.

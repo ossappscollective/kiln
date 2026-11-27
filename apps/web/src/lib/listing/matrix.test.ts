@@ -296,3 +296,33 @@ test('cellsSummary joins the stores that have the field', () => {
   );
   assert.equal(cellsSummary([{ platform: 'ios', status: 'na' }], true), 'Not on this platform');
 });
+
+test('one row per language: the App Store zh-Hans and the Google Play zh-CN merge (the equivalence table), and fr_FR is fr-FR', () => {
+  const ios = drift('ios', [
+    { locale: 'zh-Hans', fields: [field('identical', { locale: 'zh-Hans' })] },
+    { locale: 'fr-FR', fields: [field('identical', { locale: 'fr-FR' })] },
+  ]);
+  const android = drift('android', [
+    { locale: 'zh-CN', fields: [field('identical', { locale: 'zh-CN', field: 'title' })] },
+    { locale: 'fr_FR', fields: [field('identical', { locale: 'fr_FR', field: 'title' })] },
+  ]);
+  const matrix = buildMatrix([
+    { platform: 'ios', drift: ios },
+    { platform: 'android', drift: android },
+  ]);
+  assert.deepEqual(matrix.rows.map((r) => r.locale), ['zh-Hans', 'fr-FR']);
+  const zh = matrix.rows[0];
+  assert.deepEqual(zh?.platforms, ['ios', 'android']);
+  assert.deepEqual(zh?.codes, { ios: 'zh-Hans', android: 'zh-CN' }, 'each store keeps its own code for staging');
+  assert.equal(zh?.cells.name?.every((c) => c.field !== null), true);
+  assert.equal(matrix.rows[1]?.codes.android, 'fr_FR');
+});
+
+test('"in sync" says "No problems" only for a grid whose apps all skip the repository comparison; no module-global flag', () => {
+  const off = { ...drift('ios', [{ locale: 'en-US', fields: [field('identical')] }]), compare: { repo: false, media: false } };
+  const on = { ...drift('android', [{ locale: 'en-US', fields: [field('identical')] }]), compare: { repo: true, media: true } };
+  assert.equal(buildMatrix([{ platform: 'ios', drift: off }]).storeOnly, true);
+  assert.equal(buildMatrix([{ platform: 'ios', drift: off }, { platform: 'android', drift: on }]).storeOnly, false);
+  assert.equal(cellText({ label: 'Name' }, { platform: 'ios', status: 'sync' }, false, true), 'Name: No problems');
+  assert.equal(cellText({ label: 'Name' }, { platform: 'ios', status: 'sync' }, false), 'Name: In sync');
+});

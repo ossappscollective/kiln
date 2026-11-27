@@ -18,7 +18,7 @@
   import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { provideCompare } from '../../lib/listing/compare-context.ts';
-  import { setStoreOnly } from '../../lib/listing/matrix.ts';
+  import { listingStore } from '../../lib/app-state/listing-store.svelte.ts';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { t } from '../../lib/i18n/t.ts';
@@ -50,10 +50,10 @@
     lastAttemptText,
     scheduleView,
   } from '../../lib/listing/sections.ts';
-  import { describeError, storeName } from '../../lib/portfolio.ts';
+  import { storeName } from '../../lib/portfolio.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { toast } from '../../lib/toast.svelte.ts';
-  import type { AppSummary, DriftField, DriftLocale, ListingDrift, LiveListing, PullResult } from '../../lib/types.ts';
+  import type { AppSummary, DriftField, DriftLocale, ListingDrift, PullResult } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
@@ -89,16 +89,16 @@
   const canSync = $derived(can(role, 'apps.sync'));
   const canReadRepo = $derived(can(role, 'repositories.scan') && app.repositoryId !== null);
 
-  let drift = $state<ListingDrift | null>(null);
+  // The store side of the listing is the ONE store read (`listingStore`): the drift view, the warnings and the scheduled read all come from it.
+  const live = $derived(listingStore.of(workspaceId, app.id));
+  const drift = $derived<ListingDrift | null>(live?.drift ?? null);
   // The repository comparison is a per-app setting, default off: then no status filter, no pull bar, no repository column.
   const compareRepo = $derived(drift?.compare?.repo ?? true);
   provideCompare(() => ({ repo: compareRepo, media: drift?.compare?.media ?? true }));
-  // The warnings and the scheduled read come from the live view. They are extras: a failure to load
-  // them never hides the comparison.
-  let live = $state<LiveListing | null>(null);
-  let loading = $state(true);
-  let reloading = $state(false);
-  let loadProblem = $state('');
+  const readStatus = $derived(listingStore.status(workspaceId, app.id));
+  const loading = $derived(live === null && readStatus.error === null);
+  const reloading = $derived(readStatus.reloading);
+  const loadProblem = $derived(readStatus.error ?? '');
   let filter = $state<DriftFilter>(defaultFilter());
   let repoReading = $state(false);
   let repoProblem = $state('');
@@ -118,33 +118,14 @@
   let pullFieldsList = $state<DriftField[]>([]);
   let lastPull = $state<PullResult | null>(null);
 
-  let generation = 0;
-
   async function load() {
-    const mine = ++generation;
-    if (drift === null) loading = true;
-    else reloading = true;
-    loadProblem = '';
-    try {
-      const [next, nextLive] = await Promise.all([
-        api.appListingDrift(workspaceId, app.id),
-        api.appListingLive(workspaceId, app.id).catch(() => null),
-      ]);
-      if (mine !== generation) return;
-      setStoreOnly(!(next.compare?.repo ?? true));
-      drift = next;
-      if (nextLive !== null) live = nextLive;
-      announcement = t('listing:tab.compared', { summary: driftSummaryText(next) });
-    } catch (e) {
-      if (mine !== generation) return;
-      loadProblem = describeError(e, 'load');
-    } finally {
-      if (mine === generation) {
-        loading = false;
-        reloading = false;
-      }
-    }
+    await listingStore.load(api, workspaceId, app.id, { fresh: true });
   }
+
+  // What a read says in words, for assistive technology.
+  $effect(() => {
+    if (drift !== null) announcement = t('listing:tab.compared', { summary: driftSummaryText(drift) });
+  });
 
   /** The app this tab last showed, so a finished sync reloads without clearing the view. */
   let shownFor = '';
@@ -155,8 +136,6 @@
     const key = `${workspaceId}/${app.id}`;
     if (key !== shownFor) {
       shownFor = key;
-      drift = null;
-      live = null;
       filter = defaultFilter();
       repoProblem = '';
       historyOpen = false;
@@ -165,7 +144,7 @@
       lastPull = null;
     }
     // `load` reads state it also writes; only the keys above should re-run this.
-    untrack(() => void load());
+    untrack(() => void listingStore.load(api, workspaceId, app.id));
   });
 
   async function readRepository() {

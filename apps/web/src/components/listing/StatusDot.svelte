@@ -5,11 +5,14 @@
 -->
 <script lang="ts">
   import { type CellStatus, cellInfo } from '../../lib/listing/matrix.ts';
+  import { useCompare } from '../../lib/listing/compare-context.ts';
   import Icon from '../ui/Icon.svelte';
 
   let { status, label }: { status: CellStatus; label?: string | undefined } = $props();
 
-  const info = $derived(cellInfo(status));
+  // "In sync" reads "No problems" when the repository is not compared (the page's compare context, not a module flag).
+  const compare = useCompare();
+  const info = $derived(cellInfo(status, !compare().repo));
   const name = $derived(label ?? info.label);
 </script>
 

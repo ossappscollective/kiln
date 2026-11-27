@@ -773,6 +773,38 @@ export type LiveListing = {
   channels: LiveListingChannel[];
 };
 
+/** One copy of the store listing for an intent (`StoreCopyView` of `@kiln/core`, as `GET .../listing/store` sends it). */
+export type StoreCopyViewJson = {
+  intent: 'shown' | 'editable' | 'live';
+  codes: string[];
+  channels: { live: boolean; editable: boolean };
+  locales: { locale: string; from: 'live' | 'editable'; held: ('live' | 'editable')[]; fields: Record<string, string> }[];
+};
+
+/** The app's base language and how it was decided (`defaultLocale` of `GET .../listing/store`). */
+export type StoreDefaultLocale = {
+  locale: string | null;
+  /** What the store says (Google Play default language, the App Store primary locale); null: it does not say, or could not be read. */
+  declared: string | null;
+  source: 'declared' | 'english' | 'first' | null;
+  reason: 'declared' | 'not_declared' | 'no_locales';
+};
+
+/** `GET /apps/:id/listing/store`: THE read of the store side of a listing (docs/api/listing.md). */
+export type StoreListingView = {
+  appId: string;
+  platform: Platform;
+  readAt: number | null;
+  error: string | null;
+  warnings: string[];
+  schedule: ListingSchedule;
+  channels: LiveListingChannel[];
+  locales: string[];
+  copies: { shown: StoreCopyViewJson; editable: StoreCopyViewJson; live: StoreCopyViewJson };
+  defaultLocale: StoreDefaultLocale;
+  drift: ListingDrift | null;
+};
+
 export type RepoRefreshResult = {
   ref: string;
   found: boolean;

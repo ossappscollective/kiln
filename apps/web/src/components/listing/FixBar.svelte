@@ -6,7 +6,8 @@
 -->
 <script lang="ts">
   import { can, type CheckIssue, type Role } from '@kiln/core';
-  import { type Api, ApiError } from '../../lib/api.ts';
+  import type { Api } from '../../lib/api.ts';
+  import { listingStore } from '../../lib/app-state/listing-store.svelte.ts';
   import { untrack } from 'svelte';
   import { t } from '../../lib/i18n/t.ts';
   import { fixAllOf, type ListingFixesView } from '../../lib/listing/fixes.ts';
@@ -17,24 +18,15 @@
 
   let { api, workspaceId, role, app, locale, locked = false, refreshKey = 0 }: { api: Api; workspaceId: string; role: Role; app: AppSummary; locale: string; locked?: boolean | undefined; refreshKey?: number | string | undefined } = $props();
 
-  let view = $state<ListingFixesView | null>(null);
-  let checks = $state<CheckIssue[]>([]);
-  let problem = $state('');
-  let generation = 0;
+  // The checks and the fixes are ONE answer of the listing store (the same store read the grid and the Insights checks use): the fix bar shows
+  // rows from both, so they must not be read at different moments or with different base locales.
+  const read = $derived(listingStore.checks(workspaceId, app.id));
+  const view = $derived<ListingFixesView | null>(read.fixes);
+  const checks = $derived((read.checks?.locales.find((l) => l.locale === locale)?.issues ?? []) as CheckIssue[]);
+  const problem = $derived(read.fixes === null ? (read.error ?? '') : '');
 
   async function load() {
-    const mine = ++generation;
-    try {
-      const [fixes, listing] = await Promise.all([api.listingFixes(workspaceId, app.id), api.appListingChecks(workspaceId, app.id)]);
-      if (mine !== generation) return;
-      view = fixes;
-      checks = (listing.locales.find((l) => l.locale === locale)?.issues ?? []) as CheckIssue[];
-      problem = '';
-    } catch (e) {
-      if (mine !== generation) return;
-      view = null;
-      problem = e instanceof ApiError ? e.message : '';
-    }
+    await listingStore.loadChecks(api, workspaceId, app.id, { fresh: true });
   }
 
   $effect(() => {
@@ -42,7 +34,7 @@
     void workspaceId;
     void locale;
     void refreshKey;
-    if (can(role, 'listing.read')) untrack(() => void load());
+    if (can(role, 'listing.read')) untrack(() => void listingStore.loadChecks(api, workspaceId, app.id));
   });
 
   const mine = $derived(view?.locales.find((l) => l.locale === locale));

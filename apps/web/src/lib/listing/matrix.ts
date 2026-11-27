@@ -1,4 +1,4 @@
-import { PLATFORMS, type Platform, platformLabel, sortPlatforms } from '@kiln/core';
+import { localeGroupKey, normalizeLocaleCode, PLATFORMS, type Platform, platformLabel, sortPlatforms } from '@kiln/core';
 import { formatList, formatNumber } from '../i18n/format.ts';
 import { k, t } from '../i18n/t.ts';
 import type { IconName } from '../icons.ts';
@@ -83,16 +83,12 @@ const INFO: Record<CellStatus, CellInfo> = {
 };
 
 /**
- * True while the page shows apps whose repository comparison is off (app listing settings, the default): "in sync" would then claim the
- * repository was compared, so a cell without a store-side problem says "No problems" instead. Set by the listing page when drift loads.
+ * `storeOnly`: the page shows apps whose repository comparison is off (app listing settings, the default): "in sync" would then claim the
+ * repository was compared, so a cell without a store-side problem says "No problems" instead. It is state the page DERIVES from the store
+ * read (`drift.compare.repo` of `listingStore`, the compare context of the components) and passes in; it used to be a module-global flag
+ * that whichever component loaded last set, so the words of the grid depended on which page had been open.
  */
-let storeOnly = false;
-export const setStoreOnly = (value: boolean): void => {
-  storeOnly = value;
-};
-export const isStoreOnly = (): boolean => storeOnly;
-
-export const cellInfo = (status: CellStatus): CellInfo =>
+export const cellInfo = (status: CellStatus, storeOnly = false): CellInfo =>
   status === 'sync' && storeOnly
     ? {
         ...INFO.sync,
@@ -101,7 +97,7 @@ export const cellInfo = (status: CellStatus): CellInfo =>
       }
     : { ...INFO[status], label: t(INFO[status].label), short: t(INFO[status].short) };
 
-const cellLabel = (status: CellStatus): string => cellInfo(status).label;
+const cellLabel = (status: CellStatus, storeOnly = false): string => cellInfo(status, storeOnly).label;
 
 /** The statuses shown in the legend, in the order a person scans them. */
 export const LEGEND_ORDER: readonly CellStatus[] = [
@@ -178,6 +174,11 @@ export type MatrixRow = {
   name: string;
   /** The platforms that have this locale. */
   platforms: Platform[];
+  /**
+   * The code each platform writes this locale with (the App Store's `zh-Hans` and Google Play's `zh-CN` are ONE row: `localeGroupKey`).
+   * `locale` is the first code seen.
+   */
+  codes: Partial<Record<Platform, string>>;
   /** One cell per platform in the grid, per column key. */
   cells: Record<string, MatrixCell[]>;
   /** The fields of the locale, by platform, in the order the API sent them. */
@@ -191,6 +192,8 @@ export type MatrixRow = {
 };
 
 export type Matrix = {
+  /** True when none of the apps compares its repository with the store: "in sync" then reads "No problems". */
+  storeOnly: boolean;
   /** The platforms that have a drift view, iOS first. */
   platforms: Platform[];
   columns: MatrixColumn[];
@@ -258,14 +261,16 @@ export function buildMatrix(sources: readonly MatrixSource[]): Matrix {
     .sort((a, b) => orderIndex(a.column.key) - orderIndex(b.column.key) || a.index - b.index)
     .map((entry) => entry.column);
 
-  // Locales, in the order they first appear.
+  // Locales, in the order they first appear, merged by `localeGroupKey` (core's equivalence table): an iOS `zh-Hans` and an Android `zh-CN`
+  // are one row, `fr_FR` and `fr-FR` too.
   const codes: string[] = [];
   const seen = new Set<string>();
   for (const source of loaded) {
     for (const locale of source.drift.locales) {
-      if (!seen.has(locale.locale)) {
-        seen.add(locale.locale);
-        codes.push(locale.locale);
+      const key = localeGroupKey(locale.locale);
+      if (!seen.has(key)) {
+        seen.add(key);
+        codes.push(normalizeLocaleCode(locale.locale) ?? locale.locale);
       }
     }
   }
@@ -273,11 +278,14 @@ export function buildMatrix(sources: readonly MatrixSource[]): Matrix {
   const rows: MatrixRow[] = codes.map((code) => {
     const fields: Partial<Record<Platform, DriftField[]>> = {};
     const empty: Partial<Record<Platform, string[]>> = {};
+    const ownCodes: Partial<Record<Platform, string>> = {};
     let draftHeld = false;
     let liveHeld = false;
+    const rowKey = localeGroupKey(code);
     for (const source of loaded) {
-      const locale = source.drift.locales.find((l) => l.locale === code);
+      const locale = source.drift.locales.find((l) => localeGroupKey(l.locale) === rowKey);
       if (!locale) continue;
+      ownCodes[source.platform] = locale.locale;
       fields[source.platform] = locale.fields;
       if (locale.emptyRequired && locale.emptyRequired.length > 0)
         empty[source.platform] = locale.emptyRequired;
@@ -310,6 +318,7 @@ export function buildMatrix(sources: readonly MatrixSource[]): Matrix {
       locale: code,
       name: localeName(code),
       platforms: platforms.filter((p) => fields[p] !== undefined),
+      codes: ownCodes,
       cells,
       fields,
       counts,
@@ -318,7 +327,12 @@ export function buildMatrix(sources: readonly MatrixSource[]): Matrix {
     };
   });
 
-  return { platforms, columns: sortedColumns, rows };
+  return {
+    platforms,
+    columns: sortedColumns,
+    rows,
+    storeOnly: loaded.length > 0 && loaded.every((s) => !(s.drift.compare?.repo ?? true)),
+  };
 }
 
 /** "iOS only", "macOS only" or "iOS and macOS only" for a column that fewer than the shown platforms have; null otherwise. */
@@ -448,7 +462,7 @@ export type ListingStatusLine = {
  * The one status line above the grid: "3 locales need attention, 1 with missing fields". The count of locales and the platforms are
  * the context line (`listingContext`), not repeated here.
  */
-export function listingStatusLine(rows: readonly MatrixRow[]): ListingStatusLine {
+export function listingStatusLine(rows: readonly MatrixRow[], storeOnly = false): ListingStatusLine {
   if (rows.length === 0)
     return { tone: 'info', text: t('listing:matrix.status.none'), attention: 0 };
   const counts = modeCounts(rows);
@@ -481,11 +495,12 @@ export function cellText(
   column: Pick<MatrixColumn, 'label'>,
   cell: Pick<MatrixCell, 'platform' | 'status'>,
   withPlatform: boolean,
+  storeOnly = false,
 ): string {
   const platform = platformLabel(cell.platform);
   const text = t('listing:matrix.cellText', {
     field: column.label,
-    status: cellLabel(cell.status),
+    status: cellLabel(cell.status, storeOnly),
   });
   return withPlatform ? t('listing:matrix.cellTextOn', { platform, text }) : text;
 }
@@ -494,6 +509,7 @@ export function cellText(
 export function cellsSummary(
   cells: readonly Pick<MatrixCell, 'platform' | 'status'>[],
   withPlatform: boolean,
+  storeOnly = false,
 ): string {
   const live = cells.filter((c) => c.status !== 'na');
   if (live.length === 0) return cellLabel('na');
@@ -502,9 +518,9 @@ export function cellsSummary(
       withPlatform
         ? t('listing:matrix.platformStatus', {
             platform: platformLabel(c.platform),
-            status: cellLabel(c.status),
+            status: cellLabel(c.status, storeOnly),
           })
-        : cellLabel(c.status),
+        : cellLabel(c.status, storeOnly),
     )
     .join('; ');
 }

@@ -73,7 +73,7 @@
   let showCompare = $state(false);
   const diff = $derived(comparison(field));
   const status = $derived(cellStatus(field));
-  const info = $derived(cellInfo(status));
+  const info = $derived(cellInfo(status, !repoOn));
   const note = $derived(fieldLimitNote(field));
   const lines = $derived(blockingLines(field));
   const columns = $derived([
@@ -102,7 +102,7 @@
   <summary>
     <span class="chev"><Icon name="chevron-right" size={16} /></span>
     <span class="name">{field.label}</span>
-    <Badge tone={info.tone} icon={info.icon}>{fieldWord(status)}</Badge>
+    <Badge tone={info.tone} icon={info.icon}>{fieldWord(status, !repoOn)}</Badge>
     {#if lines.length > 0 && status !== 'over'}
       <Badge tone="warn">{t('listing:compare.limitProblem')}</Badge>
     {/if}

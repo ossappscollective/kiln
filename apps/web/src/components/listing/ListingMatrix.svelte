@@ -31,11 +31,11 @@
   import { formatList } from '../../lib/i18n/format.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { openStatusPopover } from '../../lib/app-page.ts';
+  import { listingStore } from '../../lib/app-state/listing-store.svelte.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { shortRef } from '../../lib/listing/drift.ts';
   import {
     LEGEND_ORDER,
-    setStoreOnly,
     MODE_LABELS,
     MODE_ORDER,
     type CellStatus,
@@ -59,7 +59,7 @@
   import { fieldInfo } from '../../lib/listing/edit.ts';
   import { pullDisabledReason, pullableFields, summarizePull } from '../../lib/listing/pull.ts';
   import { warningCountOf, warningGroups } from '../../lib/listing/warnings.ts';
-  import { describeError, platformLabel, storeName } from '../../lib/portfolio.ts';
+  import { platformLabel, storeName } from '../../lib/portfolio.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { announceCartOpen } from '../../lib/pending-cart.ts';
   import { stagedCellMark, stagedCountForLocale } from '../../lib/staged-marks.ts';
@@ -67,7 +67,7 @@
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { platformById } from '../../lib/stores.ts';
   import { toast } from '../../lib/toast.svelte.ts';
-  import type { AppSummary, DriftField, ListingDrift, LiveListing, PullResult } from '../../lib/types.ts';
+  import type { AppSummary, DriftField, ListingDrift, PullResult, StoreListingView } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
@@ -124,10 +124,17 @@
   const readable = $derived(members.filter((m) => can(role, 'repositories.scan') && m.repositoryId !== null));
   const anySyncing = $derived(members.some((m) => syncing[m.id] === true));
 
-  type View = { drift: ListingDrift | null; live: LiveListing | null; loading: boolean; reloading: boolean; problem: string };
-  const blank = (): View => ({ drift: null, live: null, loading: true, reloading: false, problem: '' });
-
-  let views = $state<Record<string, View | undefined>>({});
+  // The store side of every app in scope is the ONE store read (`listingStore`): the grid, the warnings and the schedule all come from it.
+  type View = { drift: ListingDrift | null; live: StoreListingView | null; loading: boolean; reloading: boolean; problem: string };
+  const views = $derived.by<Record<string, View | undefined>>(() => {
+    const out: Record<string, View | undefined> = {};
+    for (const m of members) {
+      const live = listingStore.of(workspaceId, m.id);
+      const status = listingStore.status(workspaceId, m.id);
+      out[m.id] = { drift: live?.drift ?? null, live, loading: live === null && status.error === null, reloading: status.reloading, problem: status.error ?? '' };
+    }
+    return out;
+  });
   let filter = $state<MatrixFilter>(defaultMatrixFilter());
   let repoReading = $state(false);
   let announcement = $state('');
@@ -170,35 +177,18 @@
 
   // The repository comparison is a per-app setting (default off). The page compares when any app in scope has it on; the field and drawer
   // components read it from the context, and the cell words say "No problems" instead of "In sync" when it is off everywhere.
-  const compareOf: Record<string, boolean> = {};
-  let compareState = $state({ repo: true, media: true });
+  // Derived from what the store read says (`drift.compare`), not from a flag the last loaded component set.
+  const compareState = $derived.by(() => {
+    const read = members.flatMap((m) => (views[m.id]?.drift ? [views[m.id]?.drift as ListingDrift] : []));
+    if (read.length === 0) return { repo: true, media: true };
+    return { repo: read.some((d) => d.compare?.repo ?? true), media: read.some((d) => d.compare?.media ?? true) };
+  });
   provideCompare(() => compareState);
   const repoOn = $derived(compareState.repo);
 
-  /** One counter per app, so a late answer for an earlier load of that app is dropped. */
-  const generations: Record<string, number> = {};
-
   async function load(app: AppSummary) {
-    const mine = (generations[app.id] = (generations[app.id] ?? 0) + 1);
-    const before = views[app.id] ?? blank();
-    views[app.id] = { ...before, loading: before.drift === null, reloading: before.drift !== null, problem: '' };
-    try {
-      const [drift, live] = await Promise.all([
-        api.appListingDrift(workspaceId, app.id),
-        api.appListingLive(workspaceId, app.id).catch(() => null),
-      ]);
-      if (mine !== generations[app.id]) return;
-      compareOf[app.id] = drift.compare?.repo ?? true;
-      const repo = Object.values(compareOf).some(Boolean);
-      setStoreOnly(!repo);
-      compareState = { repo, media: drift.compare?.media ?? true };
-      views[app.id] = { drift, live: live ?? before.live, loading: false, reloading: false, problem: '' };
-      announcement = t('listing:matrixView.compared', { platform: platformLabel(app.platform) });
-    } catch (e) {
-      if (mine !== generations[app.id]) return;
-      const current = views[app.id] ?? before;
-      views[app.id] = { ...current, loading: false, reloading: false, problem: describeError(e, 'load') };
-    }
+    await listingStore.load(api, workspaceId, app.id, { fresh: true });
+    announcement = t('listing:matrixView.compared', { platform: platformLabel(app.platform) });
   }
 
   /** The tracked ASO keywords by app, for the keyword budget in the locale drawer. Best effort: a role without ASO reads none. */
@@ -217,7 +207,7 @@
 
   const reloadAll = () => {
     for (const app of members) {
-      void load(app);
+      void listingStore.load(api, workspaceId, app.id);
       void loadAso(app);
       void stagedStore.load(api, workspaceId, app.id);
     }
@@ -233,7 +223,6 @@
     untrack(() => {
       if (next !== shownFor) {
         shownFor = next;
-        views = {};
         asoKeywords = {};
         filter = defaultMatrixFilter();
         drawerOpen = false;
@@ -250,7 +239,7 @@
   const shown = $derived(matrix.platforms);
   const both = $derived(shown.length > 1);
   const counts = $derived(modeCounts(matrix.rows));
-  const line = $derived(listingStatusLine(matrix.rows));
+  const line = $derived(listingStatusLine(matrix.rows, matrix.storeOnly));
   const rows = $derived(filterRows(matrix.rows, filter));
   const filtering = $derived(filter.mode !== 'all' || filter.query.trim() !== '');
   const loading = $derived(members.some((m) => views[m.id] === undefined || (views[m.id]?.loading === true && views[m.id]?.drift === null)));
@@ -557,7 +546,7 @@
             <p>{t('listing:matrixView.legendIntro', { stores: formatList(members.map((m) => storeName(m.platform))) })}</p>
             <ul class="legend" aria-label={t('listing:matrixView.legendMarksAria')}>
               {#each repoOn ? LEGEND_ORDER : LEGEND_ORDER.filter((s) => s === 'sync' || s === 'over') as status (status)}
-                <li><StatusDot {status} /> <span>{cellInfo(status).short}</span></li>
+                <li><StatusDot {status} /> <span>{cellInfo(status, matrix.storeOnly).short}</span></li>
               {/each}
               {#if both}<li><StatusDot status="na" /> <span>{t('listing:matrixView.notOnStore')}</span></li>{/if}
               <li><span class="edited"><span class="edited-dot" aria-hidden="true"></span>{t('listing:matrixView.stagedEdited')}</span> <span>{t('listing:matrixView.stagedMark')}</span></li>
@@ -767,12 +756,12 @@
                         class="bare dots"
                         class:dim={cells.every((c) => dimmed(c.status))}
                         aria-label={mark.count === 0
-                          ? t('listing:matrixView.cellAria', { column: column.label, locale: row.locale, summary: cellsSummary(cells, both) })
-                          : t('listing:matrixView.cellAriaStaged', { column: column.label, locale: row.locale, summary: cellsSummary(cells, both), staged: mark.text })}
+                          ? t('listing:matrixView.cellAria', { column: column.label, locale: row.locale, summary: cellsSummary(cells, both, matrix.storeOnly) })
+                          : t('listing:matrixView.cellAriaStaged', { column: column.label, locale: row.locale, summary: cellsSummary(cells, both, matrix.storeOnly), staged: mark.text })}
                         onclick={() => openLocale(row.locale)}
                       >
                         {#each cells as cell (cell.platform)}
-                          <StatusDot status={cell.status} label={cellText(column, cell, both)} />
+                          <StatusDot status={cell.status} label={cellText(column, cell, both, matrix.storeOnly)} />
                         {/each}
                         {#if mark.count > 0}<span class="edited" title={mark.text}><span class="edited-dot" aria-hidden="true"></span>{t('listing:matrixView.stagedEdited')}</span>{/if}
                       </button>

@@ -283,6 +283,7 @@ import type {
   ListingSelection,
   ListingTargetInput,
   LiveListing,
+  StoreListingView,
   LocalCheck,
   LocalConfig,
   Me,
@@ -1056,6 +1057,22 @@ export function createApi(options: ApiOptions = {}) {
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing/live`,
       ),
+    /** THE read of the store side of the listing (locales, copy of each intent, base locale, read time, drift): only `lib/app-state/listing-store` calls it. */
+    appListingStore: (
+      workspaceId: string,
+      appId: string,
+      options: { fields?: readonly string[] | 'all'; drift?: boolean } = {},
+    ) => {
+      const query = new URLSearchParams();
+      if (options.fields === 'all') query.set('fields', 'all');
+      else if (options.fields && options.fields.length > 0) query.set('fields', options.fields.join(','));
+      if (options.drift === false) query.set('drift', '0');
+      const text = query.toString();
+      return request<StoreListingView>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing/store${text ? `?${text}` : ''}`,
+      );
+    },
     appListingDrift: (workspaceId: string, appId: string) =>
       request<ListingDrift>(
         'GET',

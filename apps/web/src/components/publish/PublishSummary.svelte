@@ -15,6 +15,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
+  import { listingStore } from '../../lib/app-state/listing-store.svelte.ts';
   import { assetFileUrl } from '../../lib/assets/assets.ts';
   import { stagedBlobUrl } from '../../lib/assets/sync.ts';
   import { formatDateTime, formatRelativeTime } from '../../lib/i18n/format.ts';
@@ -46,9 +47,13 @@
   const uid = $props.id();
 
   // What is read for this app, once per app and only when the block can ask (never a write).
-  let defaultLocale = $state<string | null>(null);
+  // The default language is the store read's base locale (`listingStore`: the language the store declares, the App Store's primary locale
+  // included, else English, else the first): the same one the checks and the fix bar compare with.
   let stored = $state<AppBuild[] | null>(null);
   let readFor = '';
+  const defaultLocale = $derived(
+    workspaceId !== undefined && summary !== null ? (listingStore.defaultLocale(workspaceId, summary.appId)?.locale ?? null) : null,
+  );
 
   $effect(() => {
     const appId = summary?.appId ?? '';
@@ -59,21 +64,8 @@
     untrack(() => {
       if (readFor !== appId) {
         readFor = appId;
-        defaultLocale = null;
         stored = null;
-        reader
-          .appListingLive(ws, appId)
-          .then((live) => {
-            if (readFor !== appId) return;
-            for (const channel of live.channels) {
-              const language = channel.sections?.details?.defaultLanguage;
-              if (typeof language === 'string' && language.trim() !== '') {
-                defaultLocale = language.trim();
-                return;
-              }
-            }
-          })
-          .catch(() => undefined);
+        void listingStore.load(reader, ws, appId);
       }
       if (wantsBuilds && stored === null) {
         reader

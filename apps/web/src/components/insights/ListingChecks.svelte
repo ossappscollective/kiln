@@ -11,7 +11,8 @@
 <script lang="ts">
   import { can, type Fix, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
-  import { type Api, ApiError } from '../../lib/api.ts';
+  import type { Api } from '../../lib/api.ts';
+  import { listingStore } from '../../lib/app-state/listing-store.svelte.ts';
   import { fixAllOf, type ListingFixesView } from '../../lib/listing/fixes.ts';
   import FixAll from '../listing/FixAll.svelte';
   import FixButtons from '../listing/FixButtons.svelte';
@@ -44,37 +45,22 @@
   let { api, workspaceId, role, app, refreshKey, locked = false }: { api: Api; workspaceId: string; role: Role; app: AppSummary; refreshKey: number; locked?: boolean | undefined } = $props();
 
   const mayRead = $derived(can(role, 'listing.read'));
-  let view = $state<ListingChecksView | null>(null);
-  let fixes = $state<ListingFixesView | null>(null);
-  let loading = $state(true);
-  let problem = $state('');
-  let generation = 0;
+  // The checks and the fixes are ONE answer of the listing store (the store read the Listing grid uses): the same locales, the same base locale.
+  const read = $derived(listingStore.checks(workspaceId, app.id));
+  const view = $derived<ListingChecksView | null>(read.checks);
+  const fixes = $derived<ListingFixesView | null>(read.fixes);
+  const loading = $derived(mayRead && read.checks === null && read.error === null);
+  const problem = $derived(read.checks === null && read.error !== null ? t('insights:checks.loadError') : '');
 
   async function load() {
-    const mine = ++generation;
-    loading = true;
-    problem = '';
-    try {
-      const read = await api.appListingChecks(workspaceId, app.id);
-      if (mine !== generation) return;
-      view = read;
-      // The fixes are an extra: the checks stay readable when they cannot be computed.
-      fixes = await api.listingFixes(workspaceId, app.id).catch(() => null);
-      if (mine !== generation) return;
-    } catch (e) {
-      if (mine !== generation) return;
-      view = null;
-      problem = e instanceof ApiError ? e.message : t('insights:checks.loadError');
-    } finally {
-      if (mine === generation) loading = false;
-    }
+    await listingStore.loadChecks(api, workspaceId, app.id, { fresh: true });
   }
 
   $effect(() => {
     void app.id;
     void workspaceId;
     void refreshKey;
-    if (mayRead) untrack(() => void load());
+    if (mayRead) untrack(() => void listingStore.loadChecks(api, workspaceId, app.id));
   });
 
   const fixesOf = (locale: string) => fixes?.locales.find((l) => l.locale === locale);

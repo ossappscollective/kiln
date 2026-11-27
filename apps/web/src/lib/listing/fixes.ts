@@ -26,6 +26,8 @@ export type LocaleFixes = {
 export type ListingFixesView = {
   appId: string;
   store: 'app_store' | 'google_play';
+  /** The base locale the checks compare with: the same one the Insights checks use. */
+  baseLocale?: string | null;
   afterPending: {
     score: number;
     issueCount: number;

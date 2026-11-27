@@ -66,6 +66,8 @@ export type ListingChecksView = {
   appId: string;
   store: ListingStore;
   unavailable: 'no_listing' | null;
+  /** The base locale the others are compared with (declared by the store, else English, else the first). */
+  baseLocale?: string | null;
   score: number | null;
   issueCount: number;
   counts: { problems: number; warnings: number; tips: number };

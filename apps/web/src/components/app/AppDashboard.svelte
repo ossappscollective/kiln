@@ -33,7 +33,8 @@
   import { canSubmit } from '../../lib/store-submit.ts';
   import { submitStore } from '../../lib/store-submit-store.svelte.ts';
   import type { AsoSummary } from '../../lib/aso/aso.ts';
-  import type { ActiveRuns, AppBuild, AppSummary, ListingDrift, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
+  import { listingStore } from '../../lib/app-state/listing-store.svelte.ts';
+  import type { ActiveRuns, AppBuild, AppSummary, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
   import ReleaseStatus from '../portfolio/ReleaseStatus.svelte';
   import SyncStatus from '../portfolio/SyncStatus.svelte';
   import CopyButton from '../ui/CopyButton.svelte';
@@ -73,7 +74,6 @@
 
   let newReviews = $state<Record<string, number | undefined>>({});
   let builds = $state<Record<string, AppBuild[] | undefined>>({});
-  let drifts = $state<Record<string, ListingDrift | undefined>>({});
   let plans = $state<Record<string, PlanSummary[] | undefined>>({});
   let asoSummaries = $state<Record<string, AsoSummary | undefined>>({});
   let generation = 0;
@@ -130,14 +130,8 @@
           .catch(ignore),
       );
       if (can(role, 'listing.read')) {
-        jobs.push(
-          api
-            .appListingDrift(workspaceId, app.id)
-            .then((d) => {
-              if (mine === generation) drifts[app.id] = d;
-            })
-            .catch(ignore),
-        );
+        // The store side of the listing is the one store read: the same view the Listing page draws its grid from.
+        jobs.push(listingStore.load(api, workspaceId, app.id).then(ignore));
         jobs.push(stagedStore.load(api, workspaceId, app.id).then(ignore));
       }
       if (canSubmit(role)) {
@@ -184,7 +178,6 @@
         shownFor = next;
         newReviews = {};
         builds = {};
-        drifts = {};
         plans = {};
         asoSummaries = {};
       }
@@ -199,7 +192,7 @@
       newReviews,
       builds,
       driftLocales: members.reduce<Record<string, number>>((acc, m) => {
-        const drift = drifts[m.id];
+        const drift = listingStore.of(workspaceId, m.id)?.drift ?? null;
         acc[m.id] = drift ? modeCounts(buildMatrix([{ platform: m.platform, drift }]).rows).differing : 0;
         return acc;
       }, {}),
