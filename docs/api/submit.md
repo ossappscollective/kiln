@@ -128,6 +128,29 @@ previewed, nothing is written. Otherwise exactly one submit is sent. **It is nev
 | 504    | `timeout`                                                                                   | A read did not answer in time.                                                                                                |
 | 422    | `credential_*`, `app_not_synced`                                                            | The credential is of the wrong kind, cannot be read, or the App Store id is unknown.                                          |
 
+### A refused submit says why (`explain`)
+
+Apple answers a version that cannot be reviewed with `409 STATE_ERROR.ENTITY_STATE_INVALID` ("This resource cannot be reviewed, please check
+associated errors to see why"); the reasons are in `errors[].meta.associatedErrors`, keyed by resource (`/v1/appStoreReviewDetails/<id>`).
+The connector keeps each as an entry of `store.details` (up to 13: Apple's own error, then the reasons): `code`, `title`, `detail`, `pointer`
+(`source.pointer`) and `resource` (the KIND of resource, the id is dropped). The refusal body adds
+
+```json
+{ "error": "store_rejected", "message": "Apple refused (409). Apple's reasons: The content rights declaration is not set.",
+  "explain": { "source": "apple", "blockers": [{ "code": "apple_content_rights", "message": "The content rights declaration is not set." }] } }
+```
+
+`explain.blockers` are the ONE core mapper's answer (`explainAppleSubmitErrors`, `@kiln/core`): a table of rules that reuses the readiness
+codes where a check exists (`no_review_contact`, `no_review_demo_account`, `no_build`, `build_expired`, `build_not_valid`, `no_screenshots`,
+`already_submitted`) and adds `apple_age_rating`, `apple_content_rights`, `apple_export_compliance`, `apple_privacy_policy`, `apple_copyright`,
+`apple_pricing`, `apple_category`, `apple_privacy_labels`; a reason no rule knows is `apple_reason` with Apple's own words and its resource.
+`source` is `apple` (Apple listed reasons), `read` (it listed none, so Kiln read the usual suspects read-only through
+`readCompliance`: content rights, age rating questions still null, the build's compliance, the privacy policy URL, the primary category;
+an empty `blockers` then means nothing Kiln can read is missing, the reason is one only App Store Connect shows) or `none` (nothing could be
+read). The run keeps the blockers on the failed step (`lastPublish.results[].blockers`, HISTORY: current readiness is shown separately).
+`GET /apps/{id}/publish/readiness` carries the same compliance codes (read-only, App Store only) so they are said BEFORE a push. Kiln cannot
+write these fields (content rights, age rating, privacy labels...): the blocker names the App Store Connect page.
+
 ### An unknown outcome
 
 A lost answer or a 5xx on the submit is **read back, not repeated**:
@@ -156,7 +179,9 @@ relationships `reviewSubmission` and `appStoreVersion`), "Create/Modify a Review
 and Play's `edits.commit` with `changesNotSentForReview` and `changesInReviewBehavior` (`ERROR_IF_IN_REVIEW`). Not
 verified (nothing was run):
 
-- App Store: the request bodies of the three review submission calls (Apple's pages for them are almost empty), the
+- App Store: the shape of `meta.associatedErrors` and the attribute names read by `readCompliance` (`contentRightsDeclaration`, the null questions
+  of `ageRatingDeclarations`, `usesNonExemptEncryption`, `privacyPolicyUrl`, `primaryCategory`) are Apple's documented ones, built into fixtures, never
+  seen in a live answer; the request bodies of the three review submission calls (Apple's pages for them are almost empty), the
   `releaseType` values, the states in which a version counts as "in review", the build attributes, the filter used to
   count unsubmitted review submissions.
 - Google Play: whether a commit of an edit with no change of its own sends the changes an earlier push held back

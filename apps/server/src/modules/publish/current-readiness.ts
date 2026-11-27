@@ -3,7 +3,7 @@ import { getApp } from '../../services/apps.ts';
 import { emitCacheEvent, registerMapCache } from '../../services/cache-registry.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { type DraftContext, previewDraftPush } from './store-draft.ts';
-import { readStateForPlan, type SubmitContext } from './store-submit.ts';
+import { readComplianceBlockers, readStateForPlan, type SubmitContext } from './store-submit.ts';
 import { submitReadinessOf } from './submit-readiness.ts';
 
 export type { CurrentReadiness };
@@ -82,10 +82,14 @@ export async function readCurrentReadiness(
     : null;
   const push = staged?.ok === true ? staged.preview : undefined;
   const plan = submitReadinessOf({ app, state: read.state, push, now });
+  // What Apple checks that the draft does not show (content rights, age rating, build compliance, privacy policy, category): read-only,
+  // judged by the core rule; a version already in review has nothing left to check.
+  const compliance = read.state.alreadySubmitted ? [] : await readComplianceBlockers(ctx.submit, input);
+  const blockers = [...plan.submit.blockers, ...compliance];
   const readiness: CurrentReadiness = {
     appId: app.id,
-    ready: plan.submit.ready,
-    blockers: plan.submit.blockers,
+    ready: blockers.length === 0,
+    blockers,
     unknown: plan.submit.unknown,
     predicted: plan.submit.predicted,
     versionString: read.state.version?.versionString ?? null,

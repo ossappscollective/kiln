@@ -577,7 +577,9 @@ finished run, the newest five per app (deleted with the app), with when it start
 per step. The result carries what a person needs to act: the error code (`store_rejected`, `state_changed`, `step_timeout`, ...), the HTTP
 status of this API, the outcome (`refused`, `not_applied`, `unknown`, `partial`), this server's sentence, the catalogue `code` and `params`
 of that sentence or of the store's cause (`store.google.draftApp`), and `store`: the connector's kind of error, the HTTP status the
-store answered and up to three entries of its own error body (`code`, `title`, `detail`: Google's `reason`, `status` and `message`).
+store answered and up to 13 entries of its own error body (`code`, `title`, `detail`: Google's `reason`, `status` and `message`; Apple's error then its
+`meta.associatedErrors` reasons, each with `pointer` and `resource`). A submit the store refused also keeps `blockers` on its step: what Apple said
+was missing, mapped by `explainAppleSubmitErrors` (docs/api/submit.md "A refused submit says why"). They are HISTORY like every run blocker.
 
 All of it is sanitised before it is kept, logged or sent: the credential of the app, token-shaped strings (`ya29.`, `eyJ...`, `Bearer ...`,
 private keys, any 40 character opaque string) are replaced by `[redacted]`, control characters and runs of white space collapse, the

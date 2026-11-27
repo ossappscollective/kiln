@@ -283,7 +283,14 @@ export type StepResult =
 export type StoreFacts = {
   kind: string;
   httpStatus?: number;
-  details?: { code?: string; title?: string; detail?: string }[];
+  details?: {
+    code?: string;
+    title?: string;
+    detail?: string;
+    pointer?: string;
+    /** Apple `associatedErrors`: the kind of resource the reason is about. */
+    resource?: string;
+  }[];
 };
 
 /** One thing that stood in the way of a step that was not run: the code of the check, the server's sentence, where it is about. */

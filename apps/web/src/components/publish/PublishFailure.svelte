@@ -83,8 +83,21 @@
                 <p class="small muted readiness-where" data-testid="publish-readiness-where">{view.state === 'unverified' ? view.runLabel : view.readLabel}</p>
                 {#if view.state === 'unverified'}
                   <p class="small muted">{t('state:blockers.unverified')}</p>
-                {:else if view.state === 'ready'}
+                {:else if view.state === 'ready' && view.unchecked.length === 0}
                   <p class="readiness-ok" data-testid="publish-readiness-ok"><strong>{t('state:blockers.fixedNow')}</strong></p>
+                {/if}
+                {#if view.state !== 'unverified' && view.unchecked.length > 0}
+                  <!-- Reasons the store gave that Kiln cannot read back: never reported as fixed. -->
+                  <p class="small muted" data-testid="publish-unchecked-note">{t('state:blockers.unchecked')}</p>
+                  <ul class="blockers" data-testid="publish-unchecked" aria-label={t('publish:failure.blocked.aria')}>
+                    {#each view.unchecked as b, i (`${b.code}-${i}`)}
+                      <li class="blocker" data-code={b.code}>
+                        <p class="blocker-message">{b.message}</p>
+                        <p class="small muted blocker-fix"><span class="said-label">{t('publish:failure.blocked.how')}</span> {b.fix}</p>
+                        {#if b.page !== null}<p class="small muted blocker-page">{t('publish:failure.blocked.page', { page: b.page })}</p>{/if}
+                      </li>
+                    {/each}
+                  </ul>
                 {/if}
                 {#if view.state !== 'ready'}
                   <ul class="blockers" data-testid="publish-blockers" aria-label={t('publish:failure.blocked.aria')}>
@@ -92,6 +105,7 @@
                       <li class="blocker" data-code={b.code}>
                         <p class="blocker-message">{b.message}</p>
                         <p class="small muted blocker-fix"><span class="said-label">{t('publish:failure.blocked.how')}</span> {b.fix}{#if b.url !== null} <a class="link-button" href={b.url} target="_blank" rel="noreferrer noopener">{t('publish:failure.blocked.openStore')}</a>{/if}</p>
+                        {#if b.page !== null}<p class="small muted blocker-page">{t('publish:failure.blocked.page', { page: b.page })}</p>{/if}
                       </li>
                     {/each}
                   </ul>
@@ -122,6 +136,7 @@
                   <li class="blocker" data-code={b.code}>
                     <p class="blocker-message">{b.message}</p>
                     <p class="small muted blocker-fix"><span class="said-label">{t('publish:failure.blocked.how')}</span> {b.fix}{#if b.url !== null} <a class="link-button" href={b.url} target="_blank" rel="noreferrer noopener">{t('publish:failure.blocked.openStore')}</a>{/if}</p>
+                        {#if b.page !== null}<p class="small muted blocker-page">{t('publish:failure.blocked.page', { page: b.page })}</p>{/if}
                   </li>
                 {/each}
               </ul>

@@ -557,4 +557,10 @@ export const RECOMPUTABLE_CODES: readonly string[] = [
   'no_build',
   'build_expired',
   'build_not_valid',
+  // What `appleComplianceBlockers` reads (content rights, age rating, export compliance, privacy policy, primary category).
+  'apple_age_rating',
+  'apple_content_rights',
+  'apple_export_compliance',
+  'apple_privacy_policy',
+  'apple_category',
 ];

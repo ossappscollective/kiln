@@ -23,6 +23,7 @@
   "blockers.still_one": "Noch {{count}} Blockade",
   "blockers.still_other": "Noch {{count}} Blockaden",
   "blockers.submitNow": "Jetzt einreichen",
+  "blockers.unchecked": "Kiln kann das in App Store Connect nicht lesen und weiß daher nicht, ob es behoben ist. Beheben Sie es dort und tippen Sie dann auf Jetzt einreichen: Der Store prüft es erneut.",
   "blockers.unverified": "Seit der letzten Veröffentlichung nicht geprüft. Tippe auf Erneut prüfen, um den Store zu lesen.",
   "candidate.attach.text": "Version {{version}} wird ohne Build {{build}} vorbereitet, den neuesten Build in TestFlight.",
   "candidate.attach.title": "Build {{build}} an {{version}} anhängen",

@@ -984,6 +984,30 @@ export async function readStateForPlan(
   }
 }
 
+/**
+ * What Apple would refuse for that the draft does not show (content rights, age rating, export compliance of the build, privacy policy
+ * URL, primary category), read-only and judged by the ONE core rule (`appleComplianceBlockers`), so "Submit would not run yet" can say it
+ * BEFORE the push. App Store only; a part the connector could not read is not judged, and a failed read answers nothing (never a guess).
+ */
+export async function readComplianceBlockers(
+  ctx: SubmitContext,
+  input: { workspaceId: string; appId: string; actor: Actor },
+): Promise<SubmitBlocker[]> {
+  if (!ctx.submitEnabled) return [];
+  const app = await getApp(ctx.db, input.workspaceId, input.appId);
+  if (!app || supports(app.platform, 'transactionalEdits')) return [];
+  const connected = await connect(ctx, input.workspaceId, app, input.actor);
+  if (!connected.ok) return [];
+  try {
+    const facts = await withConnector(ctx, connected.connection.input, async (connector) =>
+      connector.readCompliance ? await connector.readCompliance() : null,
+    );
+    return facts === null ? [] : appleComplianceBlockers(facts, app);
+  } catch {
+    return [];
+  }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Apply
 

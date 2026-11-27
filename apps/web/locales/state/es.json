@@ -27,6 +27,7 @@
   "blockers.still_one": "Aún {{count}} bloqueo",
   "blockers.still_other": "Aún {{count}} bloqueos",
   "blockers.submitNow": "Enviar ahora",
+  "blockers.unchecked": "Kiln no puede leer esto en App Store Connect, así que no sabe si ya está corregido. Corríjalo allí y pulse Enviar ahora: la tienda lo comprueba de nuevo.",
   "blockers.unverified": "Sin comprobar desde la última publicación. Pulsa Comprobar de nuevo para leer la tienda.",
   "candidate.attach.text": "La versión {{version}} se está preparando sin la compilación {{build}}, la más reciente de TestFlight.",
   "candidate.attach.title": "Asociar la compilación {{build}} a {{version}}",

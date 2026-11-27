@@ -605,3 +605,86 @@ test("failureReport with a current reading keeps the run's list as history and a
     /not checked since this run/,
   );
 });
+
+// ---------------------------------------------------------------------------------------------
+// A submit the store refused, with the reasons it gave (Apple `associatedErrors`, or what a read after the refusal found)
+
+const refusedSubmit: RunStep = {
+  type: 'submit',
+  status: 'failed',
+  startedAt: 3_000,
+  finishedAt: 4_000,
+  error: 'store_rejected',
+  httpStatus: 422,
+  outcome: 'refused',
+  message:
+    "Apple refused (409). Apple's reasons: The content rights declaration is not set; The App Review contact is incomplete (contactEmail).",
+  store: {
+    kind: 'unexpected',
+    httpStatus: 409,
+    details: [
+      {
+        code: 'STATE_ERROR.ENTITY_STATE_INVALID',
+        detail: 'This resource cannot be reviewed, please check associated errors to see why.',
+      },
+      {
+        code: 'X',
+        detail: 'Content rights declaration is required',
+        resource: 'apps',
+        pointer: '/data/attributes/contentRightsDeclaration',
+      },
+    ],
+  },
+  blockers: [
+    { code: 'apple_content_rights', message: 'The content rights declaration is not set.' },
+    {
+      code: 'no_review_contact',
+      message: 'The App Review contact is incomplete (contactEmail).',
+      item: 'contactEmail',
+    },
+  ],
+};
+
+test('a refused submit lists what Apple said is missing, with how to fix it and the App Store Connect page; the draft is kept', () => {
+  const r = run([pushed, refusedSubmit], { platform: 'ios' });
+  const lines = stepLines(r);
+  const line = lines[1]!;
+  assert.equal(line.status, 'failed');
+  assert.equal(line.hasBlockers, true);
+  assert.deepEqual(
+    line.blockers.map((b) => b.code),
+    ['apple_content_rights', 'no_review_contact'],
+  );
+  assert.equal(line.blockers[0]?.page, 'App Information > Content Rights');
+  assert.match(line.blockers[0]?.fix ?? '', /Content Rights/);
+  assert.equal(line.blockers[0]?.url !== null, true);
+  assert.equal(line.blockers[1]?.item, 'contactEmail');
+  // The generic sentence of Apple is still shown as what the store said; the list explains it.
+  assert.match(line.reason?.said ?? '', /cannot be reviewed/);
+  assert.equal(submitBlockedOnly(r), true);
+  assert.equal(blockedStep(r)?.refused, true);
+  assert.match(
+    partlyPublished(r, 'ios')?.sentence ?? '',
+    /^Partly published: the draft was pushed to App Store and kept, but not sent for review\. Submit for review was refused: The content rights declaration is not set; /,
+  );
+});
+
+test('a refused submit whose reasons are none stays a plain failure (not "blocked"), and a failed push next to it is never hidden', () => {
+  const plain: RunStep = { ...refusedSubmit, blockers: undefined };
+  assert.equal(blockedStep(run([pushed, plain])), null);
+  assert.equal(submitBlockedOnly(run([pushed, plain])), false);
+  assert.equal(submitBlockedOnly(run([failedPush, refusedSubmit])), false);
+});
+
+test('the copied report of a refused submit carries Apple’s reasons with their resource and pointer, and what each means', () => {
+  const report = failureReport({
+    appName: 'OSS CardWallet',
+    platform: 'ios',
+    run: run([pushed, refusedSubmit], { platform: 'ios' }),
+  });
+  assert.match(report, /Store said: X: Content rights declaration is required \(apps \/data\/attributes\/contentRightsDeclaration\)/);
+  assert.match(report, /Blocker: apple_content_rights: The content rights declaration is not set\./);
+  assert.match(report, /\(App Store Connect: App Information > Content Rights\)/);
+  assert.match(report, /Blocker: no_review_contact: /);
+  assert.doesNotMatch(report, /check associated errors$/m);
+});

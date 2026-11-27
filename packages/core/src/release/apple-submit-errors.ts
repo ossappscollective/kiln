@@ -1,4 +1,4 @@
-import type { ReadinessFixKind, SubmitBlocker } from '../listing/draft-readiness.ts';
+import { fixKindOf, type ReadinessFixKind, type SubmitBlocker } from '../listing/draft-readiness.ts';
 
 /**
  * Why Apple refused to send a version for review, as blockers (docs/state-model.md "Single owners (core)", docs/api/pending.md "Why a
@@ -20,73 +20,63 @@ export type AppleReason = {
   resource?: string | undefined;
 };
 
-/** The codes of the blockers this mapper produces; the web has a how-to sentence for each. */
+/**
+ * The codes this mapper owns, for the reasons the readiness had no check for. The others reuse the codes of the readiness
+ * (`no_review_contact`, `no_review_demo_account`, `no_build`, `build_expired`, `build_not_valid`, `no_screenshots`, `already_submitted`):
+ * one rule, one code, one fix text, whether Apple said it or the draft showed it.
+ */
 export const APPLE_SUBMIT_CODES = [
-  'apple_review_contact',
-  'apple_review_demo_account',
   'apple_age_rating',
   'apple_content_rights',
   'apple_export_compliance',
-  'apple_no_build',
-  'apple_build_not_ready',
-  'apple_screenshots',
   'apple_privacy_policy',
   'apple_copyright',
   'apple_pricing',
   'apple_category',
   'apple_privacy_labels',
-  'apple_already_in_review',
   'apple_reason',
 ] as const;
 export type AppleSubmitCode = (typeof APPLE_SUBMIT_CODES)[number];
 
-/** The App Store Connect page where each code is fixed (the web shows it in the person's language next to the how-to). */
-export const APPLE_SUBMIT_PAGE: Readonly<Record<AppleSubmitCode, string>> = {
-  apple_review_contact: 'App Store > the version > App Review Information',
-  apple_review_demo_account: 'App Store > the version > App Review Information > Sign-in information',
+/** The App Store Connect page where a reason is fixed (the web shows it next to the how-to). */
+export const APPLE_SUBMIT_PAGE: Readonly<Record<string, string>> = {
+  no_review_contact: 'App Store > the version > App Review Information',
+  no_review_demo_account: 'App Store > the version > App Review Information > Sign-in information',
   apple_age_rating: 'App Information > Age Rating',
   apple_content_rights: 'App Information > Content Rights',
-  apple_export_compliance: 'TestFlight > the build > Export Compliance (or the Info.plist key ITSAppUsesNonExemptEncryption)',
-  apple_no_build: 'App Store > the version > Build',
-  apple_build_not_ready: 'TestFlight > Builds',
-  apple_screenshots: 'App Store > the version > Previews and Screenshots',
+  apple_export_compliance:
+    'TestFlight > the build > Export Compliance (or the Info.plist key ITSAppUsesNonExemptEncryption)',
+  no_build: 'App Store > the version > Build',
+  build_expired: 'TestFlight > Builds',
+  build_not_valid: 'TestFlight > Builds',
+  no_screenshots: 'App Store > the version > Previews and Screenshots',
   apple_privacy_policy: 'App Information > Privacy Policy URL',
   apple_copyright: 'App Store > the version > Copyright',
   apple_pricing: 'Pricing and Availability',
   apple_category: 'App Information > Category',
   apple_privacy_labels: 'App Privacy',
-  apple_already_in_review: 'App Store > the version',
+  already_submitted: 'App Store > the version',
   apple_reason: 'App Store Connect',
 };
 
-/** Where each code is fixed in Kiln when it can be: the others are fixed in App Store Connect only. */
-const KIND: Readonly<Record<AppleSubmitCode, ReadinessFixKind>> = {
-  apple_review_contact: 'review',
-  apple_review_demo_account: 'review',
-  apple_age_rating: 'store',
-  apple_content_rights: 'store',
-  apple_export_compliance: 'store',
-  apple_no_build: 'build',
-  apple_build_not_ready: 'build',
-  apple_screenshots: 'screenshots',
-  apple_privacy_policy: 'store',
-  apple_copyright: 'store',
-  apple_pricing: 'store',
-  apple_category: 'store',
-  apple_privacy_labels: 'store',
-  apple_already_in_review: 'store',
-  apple_reason: 'store',
-};
-
-/** The codes of the blockers of this mapper that are fixed in Kiln (the rest are fixed in the page named by `APPLE_SUBMIT_PAGE`). */
 export const isAppleSubmitCode = (code: string): code is AppleSubmitCode =>
   (APPLE_SUBMIT_CODES as readonly string[]).indexOf(code) >= 0;
 
+/** The codes of this mapper that a fresh read of the store can judge again (`appleComplianceBlockers`): the readiness recomputes them. */
+export const APPLE_RECOMPUTABLE_CODES: readonly string[] = [
+  'apple_age_rating',
+  'apple_content_rights',
+  'apple_export_compliance',
+  'apple_privacy_policy',
+  'apple_category',
+];
+
+/** Where a code is fixed: the readiness's own kinds for its codes, App Store Connect for the codes of this mapper. */
 export const appleSubmitFixKind = (code: string): ReadinessFixKind | undefined =>
-  isAppleSubmitCode(code) ? KIND[code] : undefined;
+  isAppleSubmitCode(code) ? 'store' : undefined;
 
 type Rule = {
-  code: AppleSubmitCode;
+  code: string;
   /** English sentence of what is missing; `{fields}` is the list of the attributes Apple named. */
   message: string;
   /** The text of a reason (resource, code, pointer, title, detail) is tested against this. */
@@ -100,13 +90,13 @@ const ATTR = /attribute '([A-Za-z]+)'/;
 /** The rules, first match wins: the more specific before the general. */
 const RULES: readonly Rule[] = [
   {
-    code: 'apple_review_demo_account',
+    code: 'no_review_demo_account',
     message: 'The App Review sign-in information is incomplete ({fields}).',
     match: (_r, text) => /demoAccount/i.test(text),
     fields: /(demoAccount[A-Za-z]*)/g,
   },
   {
-    code: 'apple_review_contact',
+    code: 'no_review_contact',
     message: 'The App Review contact is incomplete ({fields}).',
     match: (_r, text, res) =>
       /contact(FirstName|LastName|Phone|Email)/i.test(text) ||
@@ -131,13 +121,18 @@ const RULES: readonly Rule[] = [
       /usesNonExemptEncryption|encryption|export compliance|exportCompliance/i.test(text),
   },
   {
-    code: 'apple_no_build',
+    code: 'no_build',
     message: 'The version has no build selected.',
     match: (_r, text, res) =>
       /^builds?$/i.test(res) && /required|must (have|provide)|missing|no build|not (been )?(selected|attached)|REQUIRED/i.test(text),
   },
   {
-    code: 'apple_build_not_ready',
+    code: 'build_expired',
+    message: 'The build has expired.',
+    match: (_r, text, res) => /^builds?$/i.test(res) && /expired/i.test(text),
+  },
+  {
+    code: 'build_not_valid',
     message: 'The build is not ready for review (still processing, invalid or expired).',
     match: (_r, text, res) =>
       /^builds?$/i.test(res) ||
@@ -145,7 +140,7 @@ const RULES: readonly Rule[] = [
       /preReleaseVersions|buildBetaDetails/i.test(res),
   },
   {
-    code: 'apple_screenshots',
+    code: 'no_screenshots',
     message: 'A screenshot set is missing or incomplete.',
     match: (_r, text, res) => /screenshot/i.test(`${res} ${text}`) || /appScreenshotSets/i.test(res),
   },
@@ -176,7 +171,7 @@ const RULES: readonly Rule[] = [
     match: (_r, text) => /categor/i.test(text),
   },
   {
-    code: 'apple_already_in_review',
+    code: 'already_submitted',
     message: 'The version is already in review or past it.',
     match: (_r, text) =>
       /already (been )?(submitted|in review)|WAITING_FOR_REVIEW|IN_REVIEW|READY_FOR_REVIEW|in a review submission/i.test(text),
@@ -263,17 +258,17 @@ export function explainAppleSubmitErrors(
 }
 
 function build(
-  code: AppleSubmitCode,
+  code: string,
   message: string,
   fields: string[],
   extra: Record<string, string>,
   app: { id: string; platform: string },
 ): SubmitBlocker {
-  const kind = KIND[code];
+  const kind = isAppleSubmitCode(code) ? 'store' : fixKindOf(code);
   return {
     code,
     message,
-    params: { ...extra, page: APPLE_SUBMIT_PAGE[code], ...(fields.length > 0 ? { fields: fields.join(', ') } : {}) },
+    params: { ...extra, page: APPLE_SUBMIT_PAGE[code] ?? 'App Store Connect', ...(fields.length > 0 ? { fields: fields.join(', ') } : {}) },
     ...(fields.length > 0 ? { item: fields.join(', ') } : {}),
     fix: { kind, href: kind === 'build' ? `#/portfolio/${encodeURIComponent(app.id)}/releases?platform=${encodeURIComponent(app.platform)}&step=build` : kind === 'screenshots' ? `#/portfolio/${encodeURIComponent(app.id)}/listing?platform=${encodeURIComponent(app.platform)}&view=graphics` : null },
   };

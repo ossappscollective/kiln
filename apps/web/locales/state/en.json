@@ -23,6 +23,7 @@
   "blockers.still_one": "Still {{count}} thing in the way",
   "blockers.still_other": "Still {{count}} things in the way",
   "blockers.submitNow": "Submit now",
+  "blockers.unchecked": "Kiln cannot read these from App Store Connect, so it cannot tell whether they are fixed. Fix them there, then press Submit now: the store checks them again.",
   "blockers.unverified": "Not checked since the last publish. Press Check again to read the store.",
   "candidate.attach.text": "Version {{version}} is being prepared without build {{build}}, the newest build in TestFlight.",
   "candidate.attach.title": "Attach build {{build}} to {{version}}",

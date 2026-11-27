@@ -269,3 +269,50 @@ test('over every reading x pending x role x scope the model keeps its promises a
         }
   assert.equal(n, 48);
 });
+
+// A submit the store REFUSED (CardWallet 2.00.1: "This resource cannot be reviewed, please check associated errors"): the reasons it gave
+// are the run's history; the copyright is one Kiln cannot read back, so it is never reported as fixed.
+const refusedRun = (): ReturnType<typeof blockedRun> => {
+  const run = blockedRun('ios', []);
+  return {
+    ...run,
+    results: run.results.map((r) =>
+      r.type === 'submit'
+        ? {
+            ...r,
+            status: 'failed' as const,
+            reason: undefined,
+            error: 'store_rejected',
+            httpStatus: 422,
+            outcome: 'refused' as const,
+            blockers: [
+              { code: 'apple_content_rights', message: 'The content rights declaration is not set.' },
+              { code: 'apple_copyright', message: 'The copyright is missing.' },
+            ],
+          }
+        : r,
+    ),
+  };
+};
+
+test('a refused submit is held against the current reading: the content rights clear when read as set, the copyright stays (unread)', () => {
+  const run = refusedRun();
+  const view = blockersViewOf(run, reading([]), NOW);
+  assert.equal(view?.state, 'ready');
+  assert.deepEqual(view?.run.map((b) => b.code), ['apple_content_rights', 'apple_copyright']);
+  assert.deepEqual(view?.resolved.map((b) => b.code), ['apple_content_rights']);
+  assert.deepEqual(view?.unchecked.map((b) => b.code), ['apple_copyright']);
+  assert.equal(view?.unchecked[0]?.page, 'App Store > the version > Copyright');
+  // Still missing now: it is the current list, with its page.
+  const still: SubmitBlocker = {
+    code: 'apple_content_rights',
+    message: 'The content rights declaration is not set.',
+    params: { page: 'App Information > Content Rights' },
+    fix: { kind: 'store', href: null },
+  };
+  const blocked = blockersViewOf(run, reading([still]), NOW);
+  assert.equal(blocked?.state, 'blocked');
+  assert.equal(blocked?.current[0]?.page, 'App Information > Content Rights');
+  // Not read yet: the run's reasons, as they were.
+  assert.equal(blockersViewOf(run, null, NOW)?.state, 'unverified');
+});

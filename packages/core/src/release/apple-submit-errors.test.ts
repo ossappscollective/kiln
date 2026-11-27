@@ -29,7 +29,7 @@ test('review contact fields of Apple become one blocker that lists them and is f
     required('appStoreReviewDetails', 'contactFirstName'),
   );
   assert.equal(out.length, 1);
-  assert.equal(out[0]?.code, 'apple_review_contact');
+  assert.equal(out[0]?.code, 'no_review_contact');
   assert.equal(out[0]?.fix.kind, 'review');
   assert.match(out[0]?.message ?? '', /contactEmail, contactPhone, contactFirstName/);
 });
@@ -39,7 +39,7 @@ test('a demo account is its own blocker, not a contact one', () => {
     required('appStoreReviewDetails', 'demoAccountName'),
     required('appStoreReviewDetails', 'demoAccountPassword'),
   );
-  assert.deepEqual(out.map((b) => b.code), ['apple_review_demo_account']);
+  assert.deepEqual(out.map((b) => b.code), ['no_review_demo_account']);
   assert.match(out[0]?.message ?? '', /demoAccountName, demoAccountPassword/);
 });
 
@@ -67,10 +67,10 @@ test('age rating, content rights, export compliance and privacy policy are named
 
 test('a version without a build, and a build that is not processed, are told apart', () => {
   const none = explain({ resource: 'build', code: REQUIRED, detail: 'The version must have a build' });
-  assert.equal(none[0]?.code, 'apple_no_build');
+  assert.equal(none[0]?.code, 'no_build');
   assert.equal(none[0]?.fix.kind, 'build');
   const processing = explain({ resource: 'builds', code: 'ENTITY_ERROR', detail: 'The build is still processing' });
-  assert.equal(processing[0]?.code, 'apple_build_not_ready');
+  assert.equal(processing[0]?.code, 'build_not_valid');
 });
 
 test('screenshots, copyright, pricing, category, privacy labels and a version already in review', () => {
@@ -83,12 +83,12 @@ test('screenshots, copyright, pricing, category, privacy labels and a version al
     { resource: 'appStoreVersions', code: 'X', detail: 'The version is already in a review submission' },
   );
   assert.deepEqual(out.map((b) => b.code), [
-    'apple_screenshots',
+    'no_screenshots',
     'apple_copyright',
     'apple_pricing',
     'apple_category',
     'apple_privacy_labels',
-    'apple_already_in_review',
+    'already_submitted',
   ]);
   assert.equal(out[0]?.fix.kind, 'screenshots');
 });
@@ -130,10 +130,12 @@ test('the compliance read: only what is missing is blocked, what was not read is
   });
   assert.deepEqual(ok, []);
   const expired = appleComplianceBlockers({ build: { processingState: 'VALID', expired: true, usesNonExemptEncryption: null } });
-  assert.equal(expired[0]?.code, 'apple_build_not_ready');
+  assert.equal(expired[0]?.code, 'build_expired');
 });
 
-test('fix kinds of the codes', () => {
-  assert.equal(appleSubmitFixKind('apple_review_contact'), 'review');
+test('fix kinds: the readiness codes keep their kind (review, build, screenshots), the codes of this mapper are fixed in App Store Connect', () => {
+  assert.equal(explain(required('appStoreReviewDetails', 'contactEmail'))[0]?.fix.kind, 'review');
+  assert.equal(explain(required('ageRatingDeclarations', 'gambling'))[0]?.fix.kind, 'store');
+  assert.equal(appleSubmitFixKind('apple_content_rights'), 'store');
   assert.equal(appleSubmitFixKind('missing_text'), undefined);
 });

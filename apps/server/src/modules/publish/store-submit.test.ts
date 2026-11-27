@@ -1168,7 +1168,7 @@ dbTest(
     assert.equal(res.status, 422);
     assert.equal(res.body.error, 'store_rejected');
     assert.equal(res.body.explain.source, 'apple');
-    assert.deepEqual(codes(res.body.explain.blockers), ['apple_review_contact', 'apple_content_rights']);
+    assert.deepEqual(codes(res.body.explain.blockers), ['no_review_contact', 'apple_content_rights']);
     assert.match(res.body.message, /Apple's reasons: .*contactEmail.*content rights/);
     assert.equal(res.body.store.details[1].resource, 'appStoreReviewDetails');
     assert.equal(res.body.store.details[1].pointer, '/data/attributes/contactEmail');

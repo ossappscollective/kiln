@@ -472,6 +472,12 @@ and the "Unstage <locale>" action); `DELETE /apps/:id/staged/locale?locale=` rem
 `staged_changed`). The release asset proposal marks an item of a language the store draft lacks `newLanguage`, never ticks it by default and
 stages it only when the person ticked it (`addLanguages`).
 
+A submit Apple refuses (`409 STATE_ERROR.ENTITY_STATE_INVALID`) is explained by ONE core owner: `explainAppleSubmitErrors` maps Apple's
+`associatedErrors` (and, when it lists none, `appleComplianceBlockers` maps a read-only look at content rights, age rating, build compliance,
+privacy policy and category) to the readiness blocker shape, reusing the readiness codes where a check exists. The server keeps the result on
+the failed step (history), `readCurrentReadiness` judges the same compliance facts now (`RECOMPUTABLE_CODES`), and the failure block holds the
+two apart like any run blocker; reasons Kiln cannot read back (copyright, price, privacy labels, unknown) are listed as unchecked, never as fixed.
+
 ## 3. Enforcement (so it cannot regress)
 
 | Test                  | File                           | What fails it                                                                                                                                  |

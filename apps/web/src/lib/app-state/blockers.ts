@@ -42,6 +42,11 @@ export type BlockersView = {
   run: BlockerLine[];
   /** Of the run's blockers, those that no longer hold. */
   resolved: BlockerLine[];
+  /**
+   * A submit the store refused: the reasons it gave that Kiln cannot read back (`RECOMPUTABLE_CODES`: a copyright, the price, the
+   * privacy labels, a reason it has no rule for). They stand until the person fixes them in the store, whatever the reading says.
+   */
+  unchecked: BlockerLine[];
   /** When the run ended, and when the store was last read for the current list (null: not read). */
   runAt: number;
   readAt: number | null;
@@ -93,14 +98,23 @@ export function blockersViewOf(
   now: number,
 ): BlockersView | null {
   if (!submitBlockedOnly(run)) return null;
-  const step = run.results.find((r) => r.status === 'skipped' && r.reason === 'blocked');
+  const step = run.results.find(
+    (r) =>
+      (r.status === 'skipped' && r.reason === 'blocked') ||
+      (r.status === 'failed' && (r.blockers ?? []).length > 0),
+  );
   const raw: RunBlocker[] = step?.blockers ?? [];
   const runLines = blockerLines({ blockers: raw });
   // A reading made before the run ended says nothing about what the run left.
   const reading =
     fact?.reading != null && fact.reading.storeReadAt >= run.finishedAt ? fact.reading : null;
+  const unchecked =
+    step?.status === 'failed'
+      ? runLines.filter((b) => RECOMPUTABLE_CODES.indexOf(b.code) < 0)
+      : [];
   const base = {
     run: runLines,
+    unchecked,
     runAt: run.finishedAt,
     runLabel: t('state:blockers.fromRun', { ago: formatRelativeTime(run.finishedAt, { now }) }),
     checking: fact?.checking === true,

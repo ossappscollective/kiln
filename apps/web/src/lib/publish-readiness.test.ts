@@ -308,3 +308,16 @@ test('a text blocker says where its language comes from: the store draft (with t
   assert.equal(readinessLine('ios', text({})).origin, null);
   assert.equal(readinessLine('ios', blocker('no_build', 'build')).origin, null);
 });
+
+test('a reason of Apple the draft does not show says where it is fixed in App Store Connect (the page and the how-to)', () => {
+  const line = readinessLine('ios', {
+    code: 'apple_content_rights',
+    message: 'The content rights declaration is not set.',
+    params: { page: 'App Information > Content Rights' },
+    fix: { kind: 'store', href: null },
+  });
+  assert.match(line.fix, /Content Rights/);
+  assert.match(line.fix, /App Store Connect page: App Information > Content Rights\.$/);
+  assert.equal(line.external, true);
+  assert.equal(line.where, 'Open App Store Connect');
+});

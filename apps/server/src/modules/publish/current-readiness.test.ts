@@ -194,3 +194,32 @@ dbTest(
     assert.equal(typeof missing.params.version, 'string');
   },
 );
+
+dbTest(
+  'what Apple checks and the draft does not show (content rights, age rating) is in the readiness before any push, and clears once it is fixed',
+  async (db) => {
+    const t = await boot(db);
+    const app = await t.addApp('ios', 'OSS CardWallet');
+    t.submitStores.ios.compliance = {
+      contentRightsDeclaration: null,
+      ageRatingMissing: ['gambling', 'socialMedia'],
+      build: { processingState: 'VALID', expired: false, usesNonExemptEncryption: false },
+    };
+    const first = (await t.readiness(app, true)).body.readiness;
+    assert.equal(first.ready, false);
+    const content = first.blockers.find((b: any) => b.code === 'apple_content_rights');
+    assert.equal(content.fix.kind, 'store');
+    assert.equal(content.params.page, 'App Information > Content Rights');
+    const age = first.blockers.find((b: any) => b.code === 'apple_age_rating');
+    assert.match(age.message, /gambling, socialMedia/);
+    t.submitStores.ios.compliance = {
+      contentRightsDeclaration: 'DOES_NOT_USE_THIRD_PARTY_CONTENT',
+      ageRatingMissing: [],
+    };
+    const later = (await t.readiness(app, true)).body.readiness;
+    assert.equal(
+      later.blockers.some((b: any) => /^apple_/.test(b.code)),
+      false,
+    );
+  },
+);

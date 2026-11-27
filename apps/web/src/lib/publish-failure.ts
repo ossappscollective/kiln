@@ -1,4 +1,4 @@
-import { type Platform, platformMeta, supports } from '@kiln/core';
+import { APPLE_SUBMIT_CODES, APPLE_SUBMIT_PAGE, type Platform, platformMeta, supports } from '@kiln/core';
 import type { BlockersView } from './app-state/blockers.ts';
 import { codedText, paramsOf } from './error-text.ts';
 import { formatList } from './i18n/format.ts';
@@ -128,6 +128,16 @@ const BLOCKER_FIX: Readonly<Record<string, string>> = {
   no_screenshots: k('publish:failure.blocked.fix.noScreenshots'),
   asset_spec: k('publish:failure.blocked.fix.assetSpec'),
   too_many_screenshots: k('publish:failure.blocked.fix.tooManyScreenshots'),
+  // What Apple objected to when it refused a submit (`explainAppleSubmitErrors`, core): fixed in App Store Connect.
+  apple_age_rating: k('publish:failure.blocked.fix.appleAgeRating'),
+  apple_content_rights: k('publish:failure.blocked.fix.appleContentRights'),
+  apple_export_compliance: k('publish:failure.blocked.fix.appleExportCompliance'),
+  apple_privacy_policy: k('publish:failure.blocked.fix.applePrivacyPolicy'),
+  apple_copyright: k('publish:failure.blocked.fix.appleCopyright'),
+  apple_pricing: k('publish:failure.blocked.fix.applePricing'),
+  apple_category: k('publish:failure.blocked.fix.appleCategory'),
+  apple_privacy_labels: k('publish:failure.blocked.fix.applePrivacyLabels'),
+  apple_reason: k('publish:failure.blocked.fix.appleReason'),
   generic: k('publish:failure.blocked.fix.generic'),
 };
 
@@ -143,6 +153,8 @@ const FIXED_IN_STORE: readonly string[] = [
   // App Review Information: copied in the submit checklist, or filled in App Store Connect (the link is offered either way).
   'no_review_contact',
   'no_review_demo_account',
+  // What Apple objected to: the fields are not writable through Kiln.
+  ...APPLE_SUBMIT_CODES,
 ];
 
 /** How to fix the blocker of this code: the sentence of a known code, else the generic one. */
@@ -168,6 +180,10 @@ export type BlockerLine = {
   fix: string;
   /** Where it is fixed when that is a store page (App Store Connect), else null. */
   url: string | null;
+  /** The page of App Store Connect that holds the field (`App Information > Content Rights`), else null. */
+  page: string | null;
+  /** The fields Apple named (`contactEmail, contactPhone`), else null. */
+  item: string | null;
 };
 
 /** The blockers a skipped step carries, ready to show. Pure; an older run has none. */
@@ -177,21 +193,33 @@ export function blockerLines(step: Pick<RunStep, 'blockers'>): BlockerLine[] {
     message: clip(cleanText(b.message), 300).text,
     fix: fixOf(b.code, b.message),
     url: FIXED_IN_STORE.indexOf(b.code) >= 0 ? APP_STORE_CONNECT_APPS_URL : null,
+    page: Object.hasOwn(APPLE_SUBMIT_PAGE, b.code) ? (APPLE_SUBMIT_PAGE[b.code] ?? null) : null,
+    item: b.item ? clip(cleanText(b.item), 120).text : null,
   }));
 }
 
-/** The step of a run that was not run because something stood in the way, with what it was; null when no step was. */
+/**
+ * The step of a run that did not go because something stood in the way, with what it was: a step that was not run (`blocked`), or a submit
+ * the store REFUSED with the reasons it gave (`refused`: Apple's associated errors, or what a read after the refusal found). Null when
+ * no step was.
+ */
 export function blockedStep(
   run: Pick<LastPublish, 'results'>,
-): { type: PublishStepType; blockers: BlockerLine[] } | null {
-  const step = run.results.find((r) => r.status === 'skipped' && r.reason === 'blocked');
-  return step ? { type: step.type, blockers: blockerLines(step) } : null;
+): { type: PublishStepType; blockers: BlockerLine[]; refused: boolean } | null {
+  const step = run.results.find(
+    (r) =>
+      (r.status === 'skipped' && r.reason === 'blocked') ||
+      (r.status === 'failed' && (r.blockers ?? []).length > 0),
+  );
+  return step
+    ? { type: step.type, blockers: blockerLines(step), refused: step.status === 'failed' }
+    : null;
 }
 
 /**
- * The run pushed the draft and only the submit did not run, because of blockers (nothing failed): the app is not broken, the draft is
- * in the store and waits for the blockers to be fixed. Then the submit is not held back by this run (it checks the store itself), and
- * the next step is "Fix the blockers, then submit". Pure.
+ * The run pushed the draft and only the submit did not go, because of blockers or because the store refused it with reasons: the app is
+ * not broken, the draft is in the store and waits for the blockers to be fixed. Then the submit is not held back by this run (it checks
+ * the store itself), and the next step is "Fix the blockers, then submit". Pure.
  */
 export function submitBlockedOnly(run: Pick<LastPublish, 'results'>): boolean {
   const blocked = blockedStep(run);
@@ -199,7 +227,7 @@ export function submitBlockedOnly(run: Pick<LastPublish, 'results'>): boolean {
     blocked !== null &&
     blocked.blockers.length > 0 &&
     run.results.some((r) => r.type === 'push_draft' && r.status === 'applied') &&
-    !run.results.some((r) => r.status === 'failed')
+    run.results.every((r) => r.status !== 'failed' || (blocked.refused && r.type === blocked.type))
   );
 }
 
@@ -235,7 +263,10 @@ export type StepLine = {
 export function stepLines(run: Pick<LastPublish, 'results'>): StepLine[] {
   return run.results.map((step) => {
     const blockers =
-      step.status === 'skipped' && step.reason === 'blocked' ? blockerLines(step) : [];
+      (step.status === 'skipped' && step.reason === 'blocked') ||
+      (step.status === 'failed' && (step.blockers ?? []).length > 0)
+        ? blockerLines(step)
+        : [];
     return {
       key: step.type,
       type: step.type,
@@ -350,8 +381,23 @@ export function failureReport(input: {
           .map((x) => cleanText(x).slice(0, 80))
           .join(' ');
         const said = d.detail ? clip(cleanText(d.detail), 600).text : '';
-        lines.push(`   Store said: ${[what, said].filter((x) => x !== '').join(': ')}`);
+        const where = [d.resource, d.pointer]
+          .filter((x): x is string => Boolean(x))
+          .map((x) => cleanText(x).slice(0, 120))
+          .join(' ');
+        lines.push(
+          `   Store said: ${[what, said].filter((x) => x !== '').join(': ')}${where !== '' ? ` (${where})` : ''}`,
+        );
       }
+    }
+    // What the reasons mean, from the one core mapper (the server kept them with the step): the same list the failure block shows.
+    const explained = blockerLines(step);
+    if (explained.length > 0) {
+      lines.push('   What is missing (as Apple listed it, or as Kiln read it afterwards):');
+      explained.forEach((b) => {
+        lines.push(`   Blocker: ${b.code}: ${b.message}`);
+        lines.push(`      Fix: ${b.fix}${b.page ? ` (App Store Connect: ${b.page})` : ''}${b.url ? ` (${b.url})` : ''}`);
+      });
     }
   });
   const now = input.blockers;
@@ -414,6 +460,14 @@ const NOT_DONE: Readonly<Record<PublishStepType, string>> = {
   rollout: k('publish:failure.partly.not.rollout'),
 };
 
+/** The sentences of a draft that was pushed while its submit did not go: not run (`blocked`) or refused by the store (`refused`), then and now. */
+const PARTLY = {
+  blocked: k('publish:failure.partly.blocked'),
+  blockedNow: k('publish:failure.partly.blockedNow'),
+  refused: k('publish:failure.partly.refused'),
+  refusedNow: k('publish:failure.partly.refusedNow'),
+} as const;
+
 export type PartlyPublished = {
   /** The steps the store took, and the steps it did not (failed or never run). */
   applied: PublishStepType[];
@@ -421,7 +475,7 @@ export type PartlyPublished = {
   /** `Partly published: the texts and graphics were sent to Google Play for review; the release was not.` */
   sentence: string;
   /** The step that did not run because something stood in the way, with what it was (the draft was pushed, the submit is blocked). */
-  blocked: { type: PublishStepType; blockers: BlockerLine[] } | null;
+  blocked: { type: PublishStepType; blockers: BlockerLine[]; refused: boolean } | null;
 };
 
 /**
@@ -444,7 +498,7 @@ export function partlyPublished(
       applied,
       notDone,
       blocked,
-      sentence: t('publish:failure.partly.blocked', {
+      sentence: t(PARTLY[blocked.refused ? 'refused' : 'blocked'], {
         store,
         step: STEP_NAME[blocked.type],
         blockers: blockersSentence(blocked.blockers),
@@ -489,7 +543,7 @@ export function partlyPublishedNow(
     sentence:
       view.state === 'ready'
         ? t('publish:failure.partly.fixed', { store })
-        : t('publish:failure.partly.blockedNow', {
+        : t(PARTLY[partly.blocked.refused ? 'refusedNow' : 'blockedNow'], {
             store,
             step: STEP_NAME[partly.blocked.type],
             blockers: blockersSentence(view.current),

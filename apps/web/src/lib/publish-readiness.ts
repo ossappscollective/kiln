@@ -44,6 +44,15 @@ type FixCode =
   | 'release_not_manual'
   | 'no_review_contact'
   | 'no_review_demo_account'
+  | 'apple_age_rating'
+  | 'apple_content_rights'
+  | 'apple_export_compliance'
+  | 'apple_privacy_policy'
+  | 'apple_copyright'
+  | 'apple_pricing'
+  | 'apple_category'
+  | 'apple_privacy_labels'
+  | 'apple_reason'
   | 'generic';
 
 const FIX: Readonly<Record<FixCode, string>> = {
@@ -60,6 +69,15 @@ const FIX: Readonly<Record<FixCode, string>> = {
   release_not_manual: k('publish:readiness.fix.releaseNotManual'),
   no_review_contact: k('publish:readiness.fix.noReviewContact'),
   no_review_demo_account: k('publish:readiness.fix.noReviewDemoAccount'),
+  apple_age_rating: k('publish:readiness.fix.appleAgeRating'),
+  apple_content_rights: k('publish:readiness.fix.appleContentRights'),
+  apple_export_compliance: k('publish:readiness.fix.appleExportCompliance'),
+  apple_privacy_policy: k('publish:readiness.fix.applePrivacyPolicy'),
+  apple_copyright: k('publish:readiness.fix.appleCopyright'),
+  apple_pricing: k('publish:readiness.fix.applePricing'),
+  apple_category: k('publish:readiness.fix.appleCategory'),
+  apple_privacy_labels: k('publish:readiness.fix.applePrivacyLabels'),
+  apple_reason: k('publish:readiness.fix.appleReason'),
   generic: k('publish:readiness.fix.generic'),
 };
 
@@ -158,6 +176,12 @@ export function originOf(blocker: SubmitBlocker): string | null {
     : t('publish:readiness.origin.storeDraft', { locale });
 }
 
+/** The App Store Connect page of a reason Apple gave (`params.page`), as a sentence to add to the how-to; '' when there is none. */
+const pageOf = (blocker: SubmitBlocker): string =>
+  typeof blocker.params?.page === 'string' && blocker.code.indexOf('apple_') === 0
+    ? ` ${t('publish:readiness.page', { page: blocker.params.page })}`
+    : '';
+
 /** One blocker as a line: the sentence, how to fix it, and where. */
 export function readinessLine(
   platform: Platform,
@@ -174,7 +198,7 @@ export function readinessLine(
     message: clean(blocker.message),
     locale: blocker.locale ?? null,
     item: blocker.item ?? null,
-    fix: t(FIX[known]),
+    fix: t(FIX[known]) + pageOf(blocker),
     kind: blocker.fix.kind,
     where: whereLabel(blocker.fix.kind, platform),
     href,
