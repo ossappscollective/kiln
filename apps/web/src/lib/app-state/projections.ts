@@ -1,4 +1,13 @@
-import { computeReadiness, findDisplay, groupStoreImages, stagedCountsOf } from '@kiln/core';
+import {
+  baseLocaleOf,
+  type CopyChannel,
+  computeReadiness,
+  declaredLocaleOf,
+  findDisplay,
+  groupStoreImages,
+  stagedCountsOf,
+  storeCopyView,
+} from '@kiln/core';
 import { groupApps } from '../app-groups.ts';
 import { stagedUnpushedCount } from '../app-attention.ts';
 import { buildOverviewRows } from '../app-overview.ts';
@@ -9,7 +18,7 @@ import { blockerLines, submitBlockedOnly } from '../publish-failure.ts';
 import { buildDate } from '../publish-summary.ts';
 import type { ReleaseLoad } from '../portfolio.ts';
 import { releaseFactsOf } from './release-facts.ts';
-import { noteLimit, noteRows } from '../release-notes.ts';
+import { noteLimit, releaseNotesView } from '../release-notes.ts';
 import { buildReleaseTable, liveRowKeys, splitCurrent, type ObsoleteInfo } from '../releases-table.ts';
 import { stagedFacts } from '../release-stepper.ts';
 import type { PipelineSummaryApp } from '../release-pipeline.ts';
@@ -99,6 +108,27 @@ const inScope = (w: World) => w.records.filter((r) => w.scope === 'both' || r.pl
 const appState = (w: World, releases: AppFacts['releases'] = w.releases): AppState =>
   deriveAppState(factsOf(w, releases), w.scope);
 const sorted = (list: readonly string[]): string[] => [...list].sort();
+
+/**
+ * The store copy of a record's listing, as the one server read answers it (`GET /apps/:id/listing/store`: core `storeCopyView`): every
+ * surface asks the copy of ITS intent, never the channel. `null` while the world holds no listing for the record.
+ */
+const listingCopyOf = (w: World, id: string, intent: 'shown' | 'editable' | 'live') => {
+  const facts = w.listing[id] ?? [];
+  if (facts.length === 0) return null;
+  const channels: CopyChannel[] = facts.map((c) => ({
+    channel: c.channel,
+    locales: Object.fromEntries(c.locales.map((l) => [l, {}])),
+    sections: c.defaultLanguage === null ? undefined : { details: { defaultLanguage: c.defaultLanguage } },
+  }));
+  return { channels, view: storeCopyView(channels, { intent }) };
+};
+/** The base language of a record: the store's declared one, else en-US, else the first locale (core `baseLocaleOf`, decided once by the server). */
+const defaultLocaleOfRecord = (w: World, id: string): string | null => {
+  const shown = listingCopyOf(w, id, 'shown');
+  if (shown === null) return null;
+  return baseLocaleOf(shown.view.codes, declaredLocaleOf(shown.channels))?.locale ?? null;
+};
 
 /**
  * The release lists a screen holds: the pages load them for their own records, so the sidebar (it holds none) and the Portfolio / the
@@ -471,16 +501,12 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'publishSummary',
     components: ['components/publish/PublishSummary.svelte'],
-    mirrors: [
-      'components/publish/PublishSummary.svelte:62-71 api.appListingLive (own read: the first channel that names a default language)',
-      'components/publish/PublishSummary.svelte:73-80 api.appBuilds + buildDate (own read of the database rows)',
-    ],
+    mirrors: ['components/publish/PublishSummary.svelte:73-80 api.appBuilds + buildDate (own read of the database rows)'],
     project(w) {
       const out: Facts = {};
       const s = appState(w);
       for (const m of inScope(w)) {
-        const channels = w.listing[m.id] ?? [];
-        if (channels.length > 0) out[`defaultLocale:${m.id}`] = channels.map((c) => c.defaultLanguage).find((l) => l !== null && l !== undefined) ?? null;
+        if ((w.listing[m.id] ?? []).length > 0) out[`defaultLocale:${m.id}`] = defaultLocaleOfRecord(w, m.id);
         const best = s.analysis[m.id]?.best;
         if (best && m.platform === 'ios') {
           const d = buildDate(
@@ -657,13 +683,13 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'listingGrid',
     components: ['components/listing/ListingTab.svelte', 'components/listing/ListingMatrix.svelte'],
-    mirrors: ['apps/server/src/modules/listing/live.ts:903-940 getDrift (the live channel, plus every locale of the editable one: `copyOf`)'],
+    mirrors: [],
     project(w) {
       const out: Facts = {};
       for (const m of inScope(w)) {
-        const channels = w.listing[m.id] ?? [];
-        if (channels.length === 0) continue;
-        out[`localeList:${m.id}`] = sorted([...new Set(channels.flatMap((c) => c.locales))]);
+        // The grid, the checks and ASO show the store listing: the union of both copies (intent `shown`).
+        const copy = listingCopyOf(w, m.id, 'shown');
+        if (copy !== null) out[`localeList:${m.id}`] = sorted(copy.view.codes);
       }
       return out;
     },
@@ -671,19 +697,14 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'insightsChecks',
     components: ['components/insights/ListingChecks.svelte'],
-    mirrors: [
-      'apps/server/src/modules/insights/service.ts:184-187 channels.find(live) ONLY, locales whose language key is null dropped',
-      'apps/server/src/modules/insights/service.ts:202 base locale = details.defaultLanguage, else en-US, else the first',
-    ],
+    mirrors: [],
     project(w) {
       const out: Facts = {};
       for (const m of inScope(w)) {
-        const channels = w.listing[m.id] ?? [];
-        if (channels.length === 0) continue;
-        const live = channels.find((c) => c.channel === 'live');
-        if (live) out[`localeList:${m.id}`] = sorted(live.locales);
-        const names = channels.flatMap((c) => c.locales);
-        out[`defaultLocale:${m.id}`] = live?.defaultLanguage ?? (names.indexOf('en-US') >= 0 ? 'en-US' : (names[0] ?? null));
+        const copy = listingCopyOf(w, m.id, 'shown');
+        if (copy === null) continue;
+        out[`localeList:${m.id}`] = sorted(copy.view.codes);
+        out[`defaultLocale:${m.id}`] = defaultLocaleOfRecord(w, m.id);
       }
       return out;
     },
@@ -691,13 +712,13 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'fixBar',
     components: ['components/insights/FixBar.svelte'],
-    mirrors: ['apps/server/src/modules/publish/listing-fixes.ts:73 union of the live then the editable locales (its own read)'],
+    mirrors: [],
     project(w) {
       const out: Facts = {};
       for (const m of inScope(w)) {
-        const channels = w.listing[m.id] ?? [];
-        if (channels.length === 0) continue;
-        out[`localeList:${m.id}`] = sorted([...new Set(channels.flatMap((c) => c.locales))]);
+        // The fixes are written into the draft: the editable copy (the live one stands in when the store has no draft).
+        const copy = listingCopyOf(w, m.id, 'editable');
+        if (copy !== null) out[`localeList:${m.id}`] = sorted(copy.view.codes);
       }
       return out;
     },
@@ -705,25 +726,18 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'releaseStepNotes',
     components: ['components/release/stepper/ReleaseStepper.svelte', 'components/release/stepper/StepNotes.svelte'],
-    mirrors: [
-      'components/release/stepper/ReleaseStepper.svelte:306-309 locales = editable else the first channel',
-      'components/release/stepper/ReleaseStepper.svelte:147 notes { withText, over } from noteRows',
-      'lib/release-notes.ts:436 over: draft.length > limit (UTF-16 units, untrimmed)',
-    ],
+    mirrors: [],
     project(w) {
       const out: Facts = {};
       for (const m of inScope(w)) {
-        const channels = w.listing[m.id] ?? [];
+        const copy = listingCopyOf(w, m.id, 'editable');
         const places = w.notes[m.id];
-        if (channels.length > 0) {
-          const pick = channels.find((c) => c.channel === 'editable') ?? channels[0];
-          out[`localeList:${m.id}`] = sorted(pick?.locales ?? []);
-        }
-        if (places && channels.length > 0) {
-          const pick = channels.find((c) => c.channel === 'editable') ?? channels[0];
-          const rows = noteRows({ platform: m.platform, locales: pick?.locales ?? [], drafts: {}, store: places.store, staged: places.staged });
-          out[`notesFilled:${m.id}`] = rows.filter((r) => r.draft.trim() !== '').length;
-          out[`notesOver:${m.id}`] = rows.filter((r) => r.over).length;
+        if (copy !== null) out[`localeList:${m.id}`] = sorted(copy.view.codes);
+        if (places && copy !== null) {
+          // One status over the typed, staged and stored texts (core `notesView`), counted in code points against the store's limit.
+          const view = releaseNotesView({ platform: m.platform, listingLocales: copy.view.codes, store: places.store, staged: places.staged });
+          out[`notesFilled:${m.id}`] = view.locales.filter((l) => l.from !== null).length;
+          out[`notesOver:${m.id}`] = view.over.length;
         }
       }
       return out;
@@ -732,16 +746,24 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'planReadiness',
     components: ['components/release/PlanOverview.svelte'],
-    mirrors: ['packages/core/src/release/release-plan.ts:118 computeReadiness (plan notes only; code points; its own limit)'],
+    mirrors: [],
     project(w) {
       const out: Facts = {};
       for (const m of inScope(w)) {
         const places = w.notes[m.id];
         if (!places || Object.keys(places.plan).length === 0) continue;
+        // The server computes the plan's readiness over the same places (`planNoteSourcesOf`): the plan's own notes, the staged text and the
+        // store's draft, for the locales of the listing.
+        const copy = listingCopyOf(w, m.id, 'editable');
         const r = computeReadiness({
           items: [],
           notes: Object.keys(places.plan).map((locale) => ({ locale, text: places.plan[locale] ?? '' })),
           platform: m.platform === 'android' ? 'android' : 'ios',
+          sources: {
+            staged: Object.keys(places.staged).map((locale) => ({ locale, text: places.staged[locale] as string })),
+            store: Object.keys(places.store).map((locale) => ({ locale, text: places.store[locale] as string })),
+          },
+          locales: copy?.view.codes ?? [],
         });
         out[`notesFilled:${m.id}`] = r.notes.filled;
         out[`notesOver:${m.id}`] = r.notes.tooLong.length;
