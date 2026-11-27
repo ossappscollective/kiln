@@ -101,7 +101,7 @@ const MAX_LINK_GROUPS = 20;
 /** `limit[appStoreVersions]` of the apps read that asks which platforms each app has (UNVERIFIED maximum; 50 is the builds one). */
 const MAX_INCLUDED_VERSIONS = 50;
 const MAX_ERROR_DETAILS = 5;
-const MAX_ASSOCIATED_ERRORS = 8;
+const MAX_ASSOCIATED_ERRORS = 12;
 /**
  * Most locales whose screenshot and preview sets are read per channel (two requests each). Apple
  * allows about forty; the rest are left out and the media section says `truncated`.
@@ -296,10 +296,13 @@ export function appleErrorDetails(json: unknown): StoreErrorDetail[] {
         const aPointer = clip(text(src.pointer), 200);
         if (sentence === undefined && aCode === undefined) continue;
         more++;
+        const aTitle = clip(text(e.title), 200);
         found.push({
           ...(aCode !== undefined ? { code: aCode } : {}),
-          detail: `${kind}: ${sentence ?? ''}`.trim(),
+          ...(aTitle !== undefined && aTitle !== sentence ? { title: aTitle } : {}),
+          ...(sentence !== undefined ? { detail: sentence } : {}),
           ...(aPointer !== undefined ? { pointer: aPointer } : {}),
+          resource: kind,
         });
       }
     }
@@ -326,6 +329,7 @@ function describeAppleFully(details: StoreErrorDetail[]): string {
       const named = [
         d.parameter !== undefined ? `parameter: ${d.parameter}` : '',
         d.pointer !== undefined ? `pointer: ${d.pointer}` : '',
+        d.resource !== undefined ? `resource: ${d.resource}` : '',
       ].filter(Boolean);
       return [
         head,
@@ -344,7 +348,9 @@ function describeAppleFully(details: StoreErrorDetail[]): string {
  * version cannot be reviewed until every one is answered) lives in App Information, not in the version.
  */
 export function appleFixHint(details: StoreErrorDetail[]): string {
-  const text = details.map((d) => `${d.detail ?? ''} ${d.pointer ?? ''}`).join(' ');
+  const text = details
+    .map((d) => `${d.resource ?? ''} ${d.detail ?? ''} ${d.pointer ?? ''}`)
+    .join(' ');
   return /ageRatingDeclarations/i.test(text)
     ? ' To fix it: in App Store Connect open the app, App Information, Age Rating, answer every question (Apple adds new ones from time to time) and save, then try again.'
     : '';

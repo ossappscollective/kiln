@@ -7,23 +7,28 @@ import {
   PlaySubmitConnector,
   type StoreConnectorInput,
   type StoreSubmitConnector,
+  StoreError,
   SubmitDriftError,
   SubmitOutcomeUnknownError,
   type SubmitState,
   submitKey,
 } from '@kiln/connectors';
 import {
+  type AppleReason,
+  appleComplianceBlockers,
   byFamily,
   STORE_CALL_CLAIM_TTL_MS as DEFAULT_SUBMIT_CLAIM_TTL_MS,
   STORE_CALL_CLAIM_TTL_MS as DRAFT_CLAIM_TTL_MS,
   type DraftContent,
   evaluateDraftContent,
   evaluateReviewInformation,
+  explainAppleSubmitErrors,
   needsStoreAppId,
   type Platform,
   REVIEW_CODES,
   readinessImagesOf,
   STORE_SUBMIT_MAX_DIFFERS_SHOWN,
+  type SubmitBlocker,
   supports,
 } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
@@ -36,6 +41,7 @@ import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { storeFor } from '../reviews/sync.ts';
 import { mapStoreError } from './store-draft.ts';
+import { sanitiseStoreText } from './store-failure.ts';
 import {
   deletePush,
   emptyManifest,
@@ -156,6 +162,71 @@ async function withConnector<T>(
   } finally {
     clearTimeout(timer);
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// A refused submit says why
+
+/**
+ * What Apple objected to, kept with a refused submit (`failure.body.explain`, then the run's step `blockers`). `source` is where the
+ * reasons come from: `apple` (the `associatedErrors` of the refusal), `read` (the refusal listed none, so the usual suspects were read
+ * afterwards, read-only) or `none` (nothing could be read). `blockers` are the ONE core mapper's answer (`explainAppleSubmitErrors`,
+ * `appleComplianceBlockers`), sanitised; an empty list with source `read` says what Kiln can read is complete: the reason is one only
+ * App Store Connect shows.
+ */
+export type RefusalExplanation = {
+  source: 'apple' | 'read' | 'none';
+  blockers: { code: string; message: string; item?: string }[];
+};
+
+const isStateRefusal = (error: StoreError): boolean =>
+  error.store === 'appstoreconnect' &&
+  error.status === 409 &&
+  (error.details ?? []).some((d) => /STATE_ERROR|ENTITY_STATE_INVALID/.test(d.code ?? ''));
+
+const wire = (blockers: readonly SubmitBlocker[]): RefusalExplanation['blockers'] =>
+  blockers.slice(0, 20).map((b) => ({
+    code: sanitiseStoreText(b.code, '', 80),
+    message: sanitiseStoreText(b.message, '', 240),
+    ...(b.item !== undefined ? { item: sanitiseStoreText(b.item, '', 80) } : {}),
+  }));
+
+/**
+ * Explains a refusal of the store for a version that cannot be reviewed. Reads nothing when Apple listed its reasons; otherwise reads
+ * the usual suspects through the connector (one pass, read-only, never retried) and maps them with the same codes. Never throws: a
+ * failed read is `none`.
+ */
+export async function explainRefusal(
+  ctx: SubmitContext,
+  input: Omit<SubmitConnectorInput, 'fetch'>,
+  app: { id: string; platform: Platform },
+  error: unknown,
+): Promise<RefusalExplanation | null> {
+  if (!(error instanceof StoreError) || !isStateRefusal(error)) return null;
+  const listed = explainAppleSubmitErrors((error.details ?? []) as AppleReason[], app);
+  if (listed.length > 0) return { source: 'apple', blockers: wire(listed) };
+  try {
+    const facts = await withConnector(ctx, input, async (connector) =>
+      connector.readCompliance ? await connector.readCompliance() : null,
+    );
+    if (facts === null) return { source: 'none', blockers: [] };
+    return { source: 'read', blockers: wire(appleComplianceBlockers(facts, app)) };
+  } catch {
+    return { source: 'none', blockers: [] };
+  }
+}
+
+/** The failure with the explanation next to Apple's words, and the reasons in the sentence (it used to end at "check associated errors"). */
+export function withExplanation(f: Failure, explanation: RefusalExplanation | null): Failure {
+  if (explanation === null) return f;
+  const said =
+    explanation.blockers.length > 0
+      ? ` Apple's reasons: ${explanation.blockers.map((b) => b.message.replace(/[.]$/, '')).join('; ')}.`
+      : explanation.source === 'read'
+        ? ' Kiln read what it can (review information, age rating, content rights, build compliance, privacy policy, category) and found nothing missing: open the version in App Store Connect, it shows what is incomplete.'
+        : '';
+  const message = typeof f.body.message === 'string' ? `${f.body.message}${said}` : said.trim();
+  return { ...f, body: { ...f.body, message, explain: explanation } };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1166,9 +1237,14 @@ export async function applySubmit(
       unknown = { cause: error instanceof SubmitTimeout ? 'timeout' : 'network' };
     } else {
       const mapped = mapStoreError(error, connection.secret);
-      await auditFailed(ctx, input, app, accepted, { code: mapped.code, outcome: 'failed' });
+      const explanation = await explainRefusal(ctx, connection.input, app, error);
+      await auditFailed(ctx, input, app, accepted, {
+        code: mapped.code,
+        outcome: 'failed',
+        ...(explanation !== null ? { reasons: explanation.blockers.map((b) => b.code).slice(0, 20) } : {}),
+      });
       await releaseClaim(db, claim);
-      return mapped.failure;
+      return withExplanation(mapped.failure, explanation);
     }
   }
 

@@ -1901,6 +1901,40 @@ dbTest(
   },
 );
 
+dbTest('a refused submit keeps its associated reasons and what explained them in the run step', async () => {
+  const step = runStepOf(
+    {
+      type: 'submit',
+      status: 'failed',
+      error: 'store_rejected',
+      httpStatus: 422,
+      outcome: 'refused',
+      message: 'Apple refused (409). Apple\'s reasons: The content rights declaration is not set.',
+      detail: {
+        store: {
+          kind: 'unexpected',
+          httpStatus: 409,
+          details: [
+            { code: 'STATE_ERROR.ENTITY_STATE_INVALID', detail: 'This resource cannot be reviewed.' },
+            { code: 'X', detail: 'Content rights declaration is required', resource: 'apps', pointer: '/data/attributes/contentRightsDeclaration' },
+          ],
+        },
+        explain: {
+          source: 'apple',
+          blockers: [{ code: 'apple_content_rights', message: 'The content rights declaration is not set.' }],
+        },
+      },
+    } as never,
+    1,
+    2,
+  );
+  assert.deepEqual(step.blockers, [
+    { code: 'apple_content_rights', message: 'The content rights declaration is not set.' },
+  ]);
+  assert.equal(step.store?.details?.[1]?.resource, 'apps');
+  assert.match(step.message ?? '', /content rights declaration is not set/);
+});
+
 dbTest('runStepOf and failureLogText keep codes and cut and clean the words', async () => {
   const failed = {
     type: 'push_draft',

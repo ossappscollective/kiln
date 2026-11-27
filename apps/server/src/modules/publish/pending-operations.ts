@@ -72,11 +72,13 @@ const storeFactsSchema = z
           code: z.string().optional(),
           title: z.string().optional(),
           detail: z.string().optional(),
+          pointer: z.string().optional().describe('Apple: the rejected field of the request (`/data/attributes/contactEmail`).'),
+          resource: z.string().optional().describe('Apple `meta.associatedErrors`: the kind of resource the reason is about (`appStoreReviewDetails`, `ageRatingDeclarations`).'),
         }),
       )
       .optional()
       .describe(
-        'The store\u2019s own words (its reason code, status word and sentence), sanitised: no credential or token.',
+        'The store\u2019s own words (its reason code, status word and sentence), sanitised: no credential or token. At most 13: Apple\u2019s error, then the reasons it lists in `meta.associatedErrors` (each with its `resource`).',
       ),
   })
   .describe('What the store answered. Sanitised.');

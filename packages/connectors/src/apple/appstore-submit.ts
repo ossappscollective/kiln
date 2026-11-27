@@ -1,4 +1,5 @@
 import {
+  type AppleComplianceFacts,
   evaluateReviewInformation,
   PLATFORM_META,
   type ReviewDetailFacts,
@@ -85,7 +86,16 @@ export type AppleSubmitConnectorOptions = Omit<StoreHttpOptions, 'store'> & {
 };
 
 const DEFAULT_BASE = 'https://api.appstoreconnect.apple.com';
-const MAX_ERROR_DETAILS = 5;
+const MAX_ERROR_DETAILS = 13;
+
+/** Age rating attributes that Apple leaves null on purpose (an override, a band, an address): not a missing answer. */
+const AGE_RATING_OPTIONAL = new Set([
+  'kidsAgeBand',
+  'ageRatingOverride',
+  'ageRatingOverrideV2',
+  'koreaAgeRatingOverride',
+  'developerAgeRatingInfoUrl',
+]);
 
 type VersionRow = {
   id: string;
@@ -318,6 +328,101 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
     };
   }
 
+  /**
+   * What Apple checks before it takes a version into review, read-only (docs/api/submit.md "A refused submit"). Each part is read on
+   * its own: one that cannot be read is left out, so nothing is said about it. The attribute names are Apple's documented ones
+   * (`contentRightsDeclaration` of an app, the questions of `ageRatingDeclarations`, `usesNonExemptEncryption` of a build,
+   * `privacyPolicyUrl` of an app info localization, the `primaryCategory` of an app info); UNVERIFIED against a live account.
+   */
+  async readCompliance(): Promise<AppleComplianceFacts> {
+    const facts: AppleComplianceFacts = {};
+    const get = async (path: string, what: string): Promise<Json | undefined> => {
+      try {
+        return (await this.#get(`${this.#base}${path}`, what)).json;
+      } catch {
+        return undefined;
+      }
+    };
+    const app = await get(`/v1/apps/${enc(this.#appId)}`, 'reading the content rights declaration');
+    if (app !== undefined && isRecord(app.data)) {
+      const a = isRecord(app.data.attributes) ? app.data.attributes : {};
+      if ('contentRightsDeclaration' in a)
+        facts.contentRightsDeclaration = text(a.contentRightsDeclaration) ?? null;
+    }
+    const infos = await get(
+      `/v1/apps/${enc(this.#appId)}/appInfos?include=ageRatingDeclaration,primaryCategory&limit=10`,
+      'reading the app information',
+    );
+    if (infos !== undefined) {
+      const rows = records(infos.data);
+      const editable =
+        rows.find((r) =>
+          /PREPARE_FOR_SUBMISSION|REJECTED|WAITING_FOR_REVIEW|IN_REVIEW/.test(
+            text((isRecord(r.attributes) ? r.attributes : {}).appStoreState) ?? '',
+          ),
+        ) ?? rows[0];
+      if (editable !== undefined) {
+        const rel = isRecord(editable.relationships) ? editable.relationships : {};
+        const relData = (name: string): unknown =>
+          isRecord(rel[name]) && 'data' in (rel[name] as Json) ? (rel[name] as Json).data : undefined;
+        if (relData('primaryCategory') !== undefined)
+          facts.primaryCategorySet = relData('primaryCategory') !== null;
+        const ageId = isRecord(relData('ageRatingDeclaration'))
+          ? text((relData('ageRatingDeclaration') as Json).id)
+          : undefined;
+        const age = records(infos.included).find(
+          (i) => text(i.type) === 'ageRatingDeclarations' && (ageId === undefined || text(i.id) === ageId),
+        );
+        if (age !== undefined) {
+          const a = isRecord(age.attributes) ? age.attributes : {};
+          facts.ageRatingMissing = Object.keys(a).filter(
+            (key) => a[key] === null && !AGE_RATING_OPTIONAL.has(key),
+          );
+        }
+        const infoId = text(editable.id);
+        if (infoId !== undefined) {
+          const locs = await get(
+            `/v1/appInfos/${enc(infoId)}/appInfoLocalizations?limit=50`,
+            'reading the privacy policy URL',
+          );
+          if (locs !== undefined) {
+            facts.privacyPolicyMissing = records(locs.data)
+              .filter((l) => {
+                const a = isRecord(l.attributes) ? l.attributes : {};
+                return (text(a.privacyPolicyUrl) ?? '') === '';
+              })
+              .map((l) => text((isRecord(l.attributes) ? l.attributes : {}).locale) ?? 'unknown');
+          }
+        }
+      }
+    }
+    try {
+      const version = await this.#version();
+      const reply = await this.#http.send(
+        'GET',
+        `${this.#base}/v1/appStoreVersions/${enc(version.id)}/build`,
+        { headers: { authorization: `Bearer ${this.#bearer()}` } },
+      );
+      if (reply.status === 404) facts.build = null;
+      else if (reply.status >= 200 && reply.status < 300) {
+        const data = isRecord(reply.json) && isRecord(reply.json.data) ? reply.json.data : undefined;
+        if (data === undefined || text(data.id) === undefined) facts.build = null;
+        else {
+          const a = isRecord(data.attributes) ? data.attributes : {};
+          facts.build = {
+            processingState: text(a.processingState) ?? null,
+            expired: typeof a.expired === 'boolean' ? a.expired : null,
+            usesNonExemptEncryption:
+              typeof a.usesNonExemptEncryption === 'boolean' ? a.usesNonExemptEncryption : null,
+          };
+        }
+      }
+    } catch {
+      // no version, or the build could not be read: nothing is said about it
+    }
+    return facts;
+  }
+
   async #openSubmissions(): Promise<number | null> {
     try {
       const body = (
@@ -512,6 +617,7 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
         detail: redact(d.detail),
         parameter: redact(d.parameter),
         pointer: redact(d.pointer),
+        resource: redact(d.resource),
       };
       return Object.fromEntries(
         Object.entries(fields).filter(([, v]) => v !== undefined),

@@ -44,6 +44,7 @@ export * from './listing-facts/text.ts';
 export * from './members.ts';
 export * from './platform.ts';
 export * from './pricing/price-change.ts';
+export * from './release/apple-submit-errors.ts';
 export * from './release/asset-proposal.ts';
 export * from './release/build-patterns.ts';
 export * from './release/lifecycle.ts';

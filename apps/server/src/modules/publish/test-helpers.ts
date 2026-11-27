@@ -47,6 +47,7 @@ import {
   setMatches,
 } from '@kiln/connectors';
 import {
+  type AppleComplianceFacts,
   classifyAppleScreenshot,
   type Platform,
   type ReviewDetailFacts,
@@ -726,6 +727,9 @@ export class FakeSubmitStore implements StoreSubmitConnector {
     processingState: 'VALID',
     expired: false,
   };
+  /** App Store: what the read-only compliance look finds after a refusal that listed no reason. */
+  compliance: AppleComplianceFacts = {};
+  complianceReads = 0;
   /** The version is in review (App Store). */
   submitted = false;
   openReviewSubmissions: number | null = 0;
@@ -752,6 +756,11 @@ export class FakeSubmitStore implements StoreSubmitConnector {
     this.draft = draft;
     this.platform = draft.platform;
     this.store = draft.store;
+  }
+
+  async readCompliance(): Promise<AppleComplianceFacts> {
+    this.complianceReads++;
+    return this.compliance;
   }
 
   #sizeOf(target: string): [number, number] {

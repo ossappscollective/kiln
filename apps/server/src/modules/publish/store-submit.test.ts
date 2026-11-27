@@ -1136,6 +1136,83 @@ dbTest(
   },
 );
 
+const GENERIC_409 = {
+  code: 'STATE_ERROR.ENTITY_STATE_INVALID',
+  title: 'The request cannot be fulfilled because of the state of another resource.',
+  detail: 'This resource cannot be reviewed, please check associated errors to see why.',
+};
+
+dbTest(
+  'a refusal that lists its associated errors is explained: the blockers and the sentence carry them, nothing is read again',
+  async (db) => {
+    const t = await bootStaged(db);
+    const app = await pushedIos(t);
+    const p = (await t.submitPreview(app)).body.preview;
+    t.submitStores.ios.behavior = {
+      kind: 'refuse',
+      error: new StoreError('appstoreconnect', 'unexpected', 'Apple refused (409).', 409, [
+        GENERIC_409,
+        {
+          code: 'ENTITY_ERROR.ATTRIBUTE.REQUIRED',
+          detail: "You must provide a value for the attribute 'contactEmail' with this request",
+          pointer: '/data/attributes/contactEmail',
+          resource: 'appStoreReviewDetails',
+        },
+        { code: 'X', detail: 'Content rights declaration is required', resource: 'apps' },
+      ]),
+    };
+    const res = await t.submitApply(app, {
+      confirmHash: p.confirmHash,
+      confirmation: p.confirmation.phrase,
+    });
+    assert.equal(res.status, 422);
+    assert.equal(res.body.error, 'store_rejected');
+    assert.equal(res.body.explain.source, 'apple');
+    assert.deepEqual(codes(res.body.explain.blockers), ['apple_review_contact', 'apple_content_rights']);
+    assert.match(res.body.message, /Apple's reasons: .*contactEmail.*content rights/);
+    assert.equal(res.body.store.details[1].resource, 'appStoreReviewDetails');
+    assert.equal(res.body.store.details[1].pointer, '/data/attributes/contactEmail');
+    assert.equal(t.submitStores.ios.complianceReads, 0);
+  },
+);
+
+dbTest(
+  'a refusal with no associated error is followed by a read-only look at the usual suspects; what is missing is listed',
+  async (db) => {
+    const t = await bootStaged(db);
+    const app = await pushedIos(t);
+    const p = (await t.submitPreview(app)).body.preview;
+    t.submitStores.ios.behavior = {
+      kind: 'refuse',
+      error: new StoreError('appstoreconnect', 'unexpected', 'Apple refused (409).', 409, [GENERIC_409]),
+    };
+    t.submitStores.ios.compliance = {
+      contentRightsDeclaration: null,
+      ageRatingMissing: ['gambling'],
+      build: { processingState: 'VALID', expired: false, usesNonExemptEncryption: true },
+    };
+    const res = await t.submitApply(app, {
+      confirmHash: p.confirmHash,
+      confirmation: p.confirmation.phrase,
+    });
+    assert.equal(res.body.explain.source, 'read');
+    assert.deepEqual(codes(res.body.explain.blockers), ['apple_content_rights', 'apple_age_rating']);
+    assert.equal(t.submitStores.ios.complianceReads, 1);
+    assert.equal(t.submitStores.ios.submitCalls, 1, 'the submit itself is not sent again');
+    // Nothing missing in what Kiln can read: it says so and points to App Store Connect.
+    await t.submitPreview(app);
+    const again = (await t.submitPreview(app)).body.preview;
+    t.submitStores.ios.compliance = {};
+    const res2 = await t.submitApply(app, {
+      confirmHash: again.confirmHash,
+      confirmation: again.confirmation.phrase,
+    });
+    assert.equal(res2.body.explain.source, 'read');
+    assert.deepEqual(res2.body.explain.blockers, []);
+    assert.match(res2.body.message, /found nothing missing/);
+  },
+);
+
 dbTest('credential problems stop before any store call and give the claim back', async (db) => {
   const t = await bootStaged(db);
   const app = await pushedIos(t);

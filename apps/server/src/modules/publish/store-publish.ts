@@ -1784,8 +1784,22 @@ export function runStepOf(result: StepResult, startedAt: number, finishedAt: num
     ...('code' in coding ? { code: coding.code } : {}),
     ...(params ? { params } : {}),
     ...(isStoreFacts(detail.store) ? { store: detail.store } : {}),
+    ...(explanationOf(detail.explain).length > 0
+      ? { blockers: blockersOf(explanationOf(detail.explain)) }
+      : {}),
   };
 }
+
+/** What a refused submit explained (`explainRefusal`): the blockers it kept, else none. */
+const explanationOf = (value: unknown): { code: string; message: string; item?: string }[] => {
+  const list = (value as { blockers?: unknown } | null)?.blockers;
+  return Array.isArray(list)
+    ? list.filter(
+        (b): b is { code: string; message: string; item?: string } =>
+          typeof b?.code === 'string' && typeof b?.message === 'string',
+      )
+    : [];
+};
 
 /** The log words after `blocked`: which checks stood in the way (codes and where, no sentence of a store). */
 const skippedWhy = (result: StepResult & { status: 'skipped' }): string =>

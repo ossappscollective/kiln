@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { AssetKind, Platform, ReviewDetailFacts } from '@kiln/core';
+import type { AppleComplianceFacts, AssetKind, Platform, ReviewDetailFacts } from '@kiln/core';
 import { StoreError, type StoreName } from './errors.ts';
 import { type DraftReadRequest, type DraftState, draftKey } from './store-draft-types.ts';
 
@@ -146,6 +146,12 @@ export interface StoreSubmitConnector {
   /** Changes nothing. */
   readSubmitState(request: DraftReadRequest): Promise<SubmitState>;
   submit(input: SubmitApplyInput): Promise<SubmitResult>;
+  /**
+   * App Store Connect only: a READ-ONLY look at what Apple checks before it accepts a version for review (content rights, age rating,
+   * export compliance of the build, privacy policy URL, primary category). Used after a refusal that listed no reason. A part that
+   * could not be read is left out of the answer (never guessed).
+   */
+  readCompliance?(): Promise<AppleComplianceFacts>;
 }
 
 const sha = (value: string): string => createHash('sha256').update(value, 'utf8').digest('hex');

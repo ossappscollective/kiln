@@ -338,6 +338,111 @@ test('the last request refused: nothing was submitted, and it is not an unknown 
   });
 });
 
+test('a refused submit keeps every associated error of Apple: resource, code, sentence and pointer, ids dropped', async () => {
+  const { connector } = setup((a) => {
+    a.hook = (s) =>
+      s.method === 'PATCH'
+        ? reply(409, {
+            errors: [
+              {
+                status: '409',
+                code: 'STATE_ERROR.ENTITY_STATE_INVALID',
+                title: 'The request cannot be fulfilled because of the state of another resource.',
+                detail: 'This resource cannot be reviewed, please check associated errors to see why.',
+                meta: {
+                  associatedErrors: {
+                    '/v1/appStoreReviewDetails/6f1c2d3e-0000-4000-8000-000000000001': [
+                      {
+                        code: 'ENTITY_ERROR.ATTRIBUTE.REQUIRED',
+                        title: 'An attribute value is required',
+                        detail: "You must provide a value for the attribute 'contactEmail' with this request",
+                        source: { pointer: '/data/attributes/contactEmail' },
+                      },
+                    ],
+                    '/v1/apps/1074-0000-4000-8000-000000000002': [
+                      { code: 'APP_ERROR.CONTENT_RIGHTS', detail: 'Content rights declaration is required.' },
+                    ],
+                  },
+                },
+              },
+            ],
+          })
+        : undefined;
+  });
+  await assert.rejects(connector.submit({ request: REQUEST, guard: accept }), (e: unknown) => {
+    assert.ok(e instanceof StoreError && !(e instanceof SubmitOutcomeUnknownError));
+    const d = e.details ?? [];
+    assert.equal(d.length, 3);
+    assert.equal(d[0]?.code, 'STATE_ERROR.ENTITY_STATE_INVALID');
+    assert.equal(d[1]?.resource, 'appStoreReviewDetails');
+    assert.equal(d[1]?.pointer, '/data/attributes/contactEmail');
+    assert.equal(d[2]?.resource, 'apps');
+    assert.equal(d[2]?.code, 'APP_ERROR.CONTENT_RIGHTS');
+    assert.ok(!JSON.stringify(d).includes('6f1c2d3e'));
+    return true;
+  });
+});
+
+test('readCompliance reads the usual suspects (content rights, age rating, build compliance, privacy policy, category) and writes nothing', async () => {
+  const { api, connector } = setup((a) => {
+    a.hook = (s) => {
+      if (s.method !== 'GET') return undefined;
+      if (s.path === `/v1/apps/${APP}`)
+        return reply(200, { data: { type: 'apps', id: APP, attributes: { contentRightsDeclaration: null } } });
+      if (s.path === `/v1/apps/${APP}/appInfos`)
+        return reply(200, {
+          data: [
+            {
+              type: 'appInfos',
+              id: 'info-1',
+              attributes: { appStoreState: 'PREPARE_FOR_SUBMISSION' },
+              relationships: {
+                primaryCategory: { data: null },
+                ageRatingDeclaration: { data: { type: 'ageRatingDeclarations', id: 'age-1' } },
+              },
+            },
+          ],
+          included: [
+            {
+              type: 'ageRatingDeclarations',
+              id: 'age-1',
+              attributes: { gambling: false, socialMedia: null, kidsAgeBand: null, violenceCartoon: 'NONE' },
+            },
+          ],
+        });
+      if (s.path === '/v1/appInfos/info-1/appInfoLocalizations')
+        return reply(200, {
+          data: [
+            { type: 'appInfoLocalizations', id: 'l1', attributes: { locale: 'en-US', privacyPolicyUrl: 'https://x.test/p' } },
+            { type: 'appInfoLocalizations', id: 'l2', attributes: { locale: 'fr-FR', privacyPolicyUrl: null } },
+          ],
+        });
+      if (/\/v1\/appStoreVersions\/[^/]+\/build$/.test(s.path))
+        return reply(200, {
+          data: { type: 'builds', id: 'b1', attributes: { version: '7', processingState: 'VALID', expired: false } },
+        });
+      return undefined;
+    };
+  });
+  const facts = await connector.readCompliance();
+  assert.equal(facts.contentRightsDeclaration, null);
+  assert.deepEqual(facts.ageRatingMissing, ['socialMedia']);
+  assert.equal(facts.primaryCategorySet, false);
+  assert.deepEqual(facts.privacyPolicyMissing, ['fr-FR']);
+  assert.deepEqual(facts.build, { processingState: 'VALID', expired: false, usesNonExemptEncryption: null });
+  assert.deepEqual(api.writes(), []);
+});
+
+test('readCompliance leaves out what it could not read instead of guessing', async () => {
+  const { connector } = setup((a) => {
+    a.hook = (s) => (s.method === 'GET' && s.path.startsWith(`/v1/apps/${APP}`) ? reply(500, {}) : undefined);
+  });
+  const facts = await connector.readCompliance();
+  assert.equal(facts.contentRightsDeclaration, undefined);
+  assert.equal(facts.ageRatingMissing, undefined);
+  assert.equal(facts.primaryCategorySet, undefined);
+});
+
 test('a 5xx or a cut connection on the last request is an unknown outcome and is never retried', async () => {
   for (const mode of ['5xx', 'cut'] as const) {
     const { api, connector } = setup((a) => {
@@ -469,10 +574,13 @@ test("Apple associatedErrors of a 409 on a version are kept: the kind of resourc
   assert.equal(details.length, 3);
   assert.equal(
     details[1]?.detail,
-    "ageRatingDeclarations: You must provide a value for the attribute 'gambling' with this request",
+    "You must provide a value for the attribute 'gambling' with this request",
   );
+  assert.equal(details[1]?.resource, 'ageRatingDeclarations');
+  assert.equal(details[1]?.code, 'ENTITY_ERROR.ATTRIBUTE.REQUIRED');
   assert.equal(details[1]?.pointer, '/data/attributes/gambling');
-  assert.equal(details[2]?.detail, 'appScreenshotSets: Screenshots are missing');
+  assert.equal(details[2]?.detail, 'Screenshots are missing');
+  assert.equal(details[2]?.resource, 'appScreenshotSets');
   assert.ok(!JSON.stringify(details).includes('1234-aaaa'));
 });
 
@@ -480,7 +588,10 @@ test('an age rating reason of Apple comes with what to do about it', async () =>
   const { appleFixHint } = await import('./appstoreconnect.ts');
   assert.match(
     appleFixHint([
-      { detail: "ageRatingDeclarations: You must provide a value for the attribute 'socialMedia'" },
+      {
+        resource: 'ageRatingDeclarations',
+        detail: "You must provide a value for the attribute 'socialMedia'",
+      },
     ]),
     /App Information, Age Rating/,
   );

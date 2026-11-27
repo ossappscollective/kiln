@@ -233,6 +233,11 @@ export type StoreErrorDetail = {
   parameter?: string;
   /** A JSON pointer to the rejected field of a request body. */
   pointer?: string;
+  /**
+   * Apple `meta.associatedErrors`: the KIND of resource the reason is about (`ageRatingDeclarations`, `appStoreReviewDetails`; the id is
+   * dropped). Set only on the reasons that came from there, which follow the error that said "check associated errors".
+   */
+  resource?: string;
 };
 
 /**

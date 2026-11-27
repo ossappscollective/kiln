@@ -29,30 +29,45 @@ export function sanitiseStoreText(text: string, secret = '', max = STORE_TEXT_MA
   return redacted.length > max ? `${redacted.slice(0, max - 3)}...` : redacted;
 }
 
-export type StoreFactsDetail = { code?: string; title?: string; detail?: string };
+export type StoreFactsDetail = {
+  code?: string;
+  title?: string;
+  detail?: string;
+  /** Apple `source.pointer` of a rejected field (`/data/attributes/contactEmail`). */
+  pointer?: string;
+  /** Apple `meta.associatedErrors`: the kind of resource the reason is about (`appStoreReviewDetails`). */
+  resource?: string;
+};
+
+/** The most reasons of a store kept: Apple's own error and the associated errors that explain it (`MAX_ASSOCIATED_ERRORS`). */
+export const STORE_FACTS_MAX_DETAILS = 13;
 
 /** What the store answered, as the person-facing report keeps it. */
 export type StoreFacts = {
   /** The connector's kind of error (`unexpected`, `forbidden`, `changes_in_review`, ...). */
   kind: string;
   httpStatus?: number;
-  /** At most three entries of the store's own error body: its reason code, its title or status word, its sentence. */
+  /** At most `STORE_FACTS_MAX_DETAILS` entries of the store's own error body: its reason code, its title or status word, its sentence, and where. */
   details?: StoreFactsDetail[];
 };
 
 /** The facts of a store error, or null when the error is not a store's. */
 export function storeFactsOf(error: unknown, secret = ''): StoreFacts | null {
   if (!(error instanceof StoreError)) return null;
-  const details = (error.details ?? []).slice(0, 3).flatMap((d): StoreFactsDetail[] => {
+  const details = (error.details ?? []).slice(0, STORE_FACTS_MAX_DETAILS).flatMap((d): StoreFactsDetail[] => {
     const code = d.code === undefined ? '' : sanitiseStoreText(d.code, secret, 80);
     const title = d.title === undefined ? '' : sanitiseStoreText(d.title, secret, 120);
     const detail = d.detail === undefined ? '' : sanitiseStoreText(d.detail, secret);
+    const pointer = d.pointer === undefined ? '' : sanitiseStoreText(d.pointer, secret, 160);
+    const resource = d.resource === undefined ? '' : sanitiseStoreText(d.resource, secret, 60);
     if (code === '' && title === '' && detail === '') return [];
     return [
       {
         ...(code !== '' ? { code } : {}),
         ...(title !== '' ? { title } : {}),
         ...(detail !== '' ? { detail } : {}),
+        ...(pointer !== '' ? { pointer } : {}),
+        ...(resource !== '' ? { resource } : {}),
       },
     ];
   });
