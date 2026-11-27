@@ -14,6 +14,7 @@
   import type { Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import { announcePublished } from '../../lib/app-page.ts';
+  import { provideReviewRepair } from '../../lib/review-repair-context.ts';
   import { submitFocus } from '../../lib/submit-focus.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
@@ -87,6 +88,10 @@ import { byFamily } from '@kiln/core';
   );
   const detail = $derived(pushDetail(submitStore.state(app.id)?.push ?? null, (at) => timeAgo(at)));
   const busy = $derived(previewing || applying);
+
+  // A blocker about the App Review Information offers "Copy review information from ..." inside the checklist; afterwards the store is
+  // read again, so the checklist shows what is left.
+  provideReviewRepair(() => ({ api, workspaceId, role, app, onrepaired: () => void startPreview() }));
 
   let shownFor = '';
   $effect(() => {

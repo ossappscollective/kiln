@@ -114,6 +114,8 @@ const BLOCKER_FIX: Readonly<Record<string, string>> = {
   no_version: k('publish:failure.blocked.fix.noVersion'),
   version_changed: k('publish:failure.blocked.fix.versionChanged'),
   release_not_manual: k('publish:failure.blocked.fix.releaseNotManual'),
+  no_review_contact: k('publish:failure.blocked.fix.noReviewContact'),
+  no_review_demo_account: k('publish:failure.blocked.fix.noReviewDemoAccount'),
   no_build: k('publish:failure.blocked.fix.noBuild'),
   build_expired: k('publish:failure.blocked.fix.buildExpired'),
   build_not_valid: k('publish:failure.blocked.fix.buildNotValid'),
@@ -136,6 +138,9 @@ const FIXED_IN_STORE: readonly string[] = [
   'build_expired',
   'build_not_valid',
   'push_outcome_unknown',
+  // App Review Information: copied in the submit checklist, or filled in App Store Connect (the link is offered either way).
+  'no_review_contact',
+  'no_review_demo_account',
 ];
 
 /** How to fix the blocker of this code: the sentence of a known code, else the generic one. */

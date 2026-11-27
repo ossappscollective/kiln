@@ -54,6 +54,8 @@ export type SubmitCheck = {
   rule?: string;
   source?: string;
   verified?: boolean;
+  /** The names of the sentence; `from`: the version the App Review Information can be copied from (docs/api/review-information.md). */
+  params?: Record<string, string | number>;
 };
 
 export type SubmitTrack = {

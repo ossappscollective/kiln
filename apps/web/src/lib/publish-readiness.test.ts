@@ -239,3 +239,35 @@ test('French is used when it is the active language', () => {
     useLocale('en');
   }
 });
+
+test('the App Review Information blockers: the server sentence, how to fix it, the console to open and the version it can be copied from', () => {
+  const review = {
+    code: 'no_review_contact',
+    message: 'The App Review contact information is incomplete: phone number, email address are missing.',
+    params: { missing: 'contactPhone,contactEmail', from: '1.19.0' },
+    fix: { kind: 'review' as const, href: null },
+  };
+  const demo = {
+    code: 'no_review_demo_account',
+    message: 'App Review information says a demo account is required, but its user name or password is empty.',
+    params: { missing: 'demoAccountPassword' },
+    fix: { kind: 'review' as const, href: null },
+  };
+  const v = readinessView({ app: iosApp, readiness: readiness([review as never, demo as never]) });
+  assert.ok(v);
+  assert.equal(v.count, 2);
+  const [a, b] = v.lines;
+  assert.match(a?.fix ?? '', /copy it from the previous version here, or fill it in App Store Connect/);
+  assert.equal(a?.where, 'Open App Review Information in App Store Connect');
+  assert.equal(a?.href, 'https://appstoreconnect.apple.com/apps');
+  assert.equal(a?.external, true);
+  assert.equal(a?.reviewFrom, '1.19.0');
+  assert.equal(a?.kind, 'review');
+  assert.match(b?.fix ?? '', /demo account/);
+  assert.equal(b?.reviewFrom, null);
+  // fixed in the store's console or by copying, never a step of the stepper
+  assert.equal(stepOfLine(a as never), null);
+  assert.deepEqual(firstFix(v), { href: 'https://appstoreconnect.apple.com/apps', external: true });
+  // no value in what a person reads
+  assert.ok(!JSON.stringify(v).includes('@'));
+});

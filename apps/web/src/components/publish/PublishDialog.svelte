@@ -90,13 +90,15 @@
   import PushPreviewBody from './PushPreviewBody.svelte';
   import ReleasePreviewBody from './ReleasePreviewBody.svelte';
   import RolloutPreviewBody from './RolloutPreviewBody.svelte';
+  import { provideReviewRepair } from '../../lib/review-repair-context.ts';
   import SubmitPreviewBody from './SubmitPreviewBody.svelte';
-import { supports } from '@kiln/core';
+import { supports, type Role } from '@kiln/core';
 
   let {
     open = $bindable(false),
     api,
     workspaceId,
+    role = null,
     targets,
     steps = null,
     onchanged,
@@ -104,6 +106,8 @@ import { supports } from '@kiln/core';
     open?: boolean | undefined;
     api: Api;
     workspaceId: string;
+    /** The role of the person, when the caller knows it (it only decides whether "Copy review information" is drawn; the server decides the rest). */
+    role?: Role | null | undefined;
     targets: AppSummary[];
     /** The steps to plan for: null is the default plan (every step that is available and has work); a list keeps the plan to those (the cart drawer's partial selection). */
     steps?: PublishPlan['publishSteps'] | null | undefined;
@@ -174,6 +178,16 @@ import { supports } from '@kiln/core';
   });
 
   const busy = $derived(phase === 'previewing' || phase === 'publishing');
+
+  // A blocker about the App Review Information offers "Copy review information from ..." in the readiness list and the submit preview;
+  // afterwards the plan is made again (same ticked steps), so the blocker is gone or still told.
+  provideReviewRepair(() => ({
+    api,
+    workspaceId,
+    role,
+    app: { id: app?.id ?? '', name: app?.name ?? '', platform: app?.platform ?? 'ios' },
+    onrepaired: () => void review(plan !== null && wanted.length > 0 ? requestsFor(plan, wanted) : steps, ''),
+  }));
   const visible = $derived(plan ? visibleRows(stepRows(plan)) : { shown: [], left: [] });
   const rows = $derived(visible.shown);
   const summary = $derived(result ? resultSummary(result, askedFractionOf(plan)) : null);

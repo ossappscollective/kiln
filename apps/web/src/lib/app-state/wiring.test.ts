@@ -181,6 +181,7 @@ const ON_THE_MODEL = [
   'components/dashboard/Board.svelte',
   'components/listing/StagedTrayApp.svelte',
   'components/listing/SubmitReady.svelte',
+  'components/publish/ReviewInfoCopy.svelte',
   'components/pending/WorkspacePending.svelte',
   'components/Portfolio.svelte',
   'components/publish/PendingChanges.svelte',

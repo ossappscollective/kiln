@@ -9,7 +9,9 @@
 <script lang="ts">
   import { t } from '../../lib/i18n/t.ts';
   import type { ReadinessView } from '../../lib/publish-readiness.ts';
+  import { isReviewCode } from '../../lib/review-information.ts';
   import Icon from '../ui/Icon.svelte';
+  import ReviewInfoCopy from './ReviewInfoCopy.svelte';
 
   let {
     view,
@@ -46,6 +48,7 @@
                 <a class="where small" href={line.href} onclick={() => onnavigate?.()}>{line.where}</a>
               {/if}
             {/if}
+            {#if isReviewCode(line.code)}<ReviewInfoCopy from={line.reviewFrom} />{/if}
           </li>
         {/each}
       </ul>

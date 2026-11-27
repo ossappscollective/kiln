@@ -325,5 +325,5 @@
 />
 
 {#if reviewing}
-  <PublishDialog bind:open={reviewing} {api} {workspaceId} targets={reviewTargets} steps={reviewSteps} onchanged={() => { void refresh(); void appStateStore.refresh(api, workspaceId, ids); }} />
+  <PublishDialog bind:open={reviewing} {api} {workspaceId} {role} targets={reviewTargets} steps={reviewSteps} onchanged={() => { void refresh(); void appStateStore.refresh(api, workspaceId, ids); }} />
 {/if}

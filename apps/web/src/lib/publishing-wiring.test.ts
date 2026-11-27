@@ -135,3 +135,30 @@ test('"Fix the blockers, then submit": the card and the top bar say it, the card
   assert.match(failure, /data-testid="publish-blockers"/);
   assert.match(failure, /line\.blockers/);
 });
+
+test('a blocker about the App Review Information offers "Copy review information" in the submit checklist and the publish plan, from one component that follows the model', () => {
+  const copy = read('../components/publish/ReviewInfoCopy.svelte');
+  // One button, two steps: a masked preview (a store read), then the write with the preview's hash inside `confirmed(...)`.
+  assert.match(copy, /previewStoreReviewInformation\(/);
+  assert.match(copy, /confirmed\(/);
+  assert.match(copy, /copyStoreReviewInformation\(/);
+  assert.match(copy, /appStateStore\.verdict\(.*'create_version'\)/s);
+  assert.match(copy, /summaryText\(/, 'the screen shows the masked line, never a value');
+  for (const path of ['../components/publish/SubmitPreviewBody.svelte', '../components/publish/SubmitReadiness.svelte']) {
+    const list = read(path);
+    assert.match(list, /<ReviewInfoCopy /);
+    assert.match(list, /isReviewCode\(/);
+  }
+  assert.match(read('../components/listing/SubmitReady.svelte'), /provideReviewRepair\(/);
+  assert.match(read('../components/publish/PublishDialog.svelte'), /provideReviewRepair\(/);
+  // The readiness rules are the server's: the lists only draw them, and neither computes whether the contact is missing.
+  for (const path of ['../components/publish/SubmitPreviewBody.svelte', '../components/publish/SubmitReadiness.svelte', '../components/publish/ReviewInfoCopy.svelte'])
+    assert.doesNotMatch(read(path), /contactFirstName|contactPhone|contactEmail|demoAccountPassword/);
+});
+
+test('the create-version form says what is carried over from the previous version, masked, before and after', () => {
+  const form = read('../components/release/stepper/CreateVersion.svelte');
+  assert.match(form, /carryLine\(preview\.reviewInformation, 'preview'\)/);
+  assert.match(form, /carryLine\(done\.result\.reviewInformation, 'result'\)/);
+  assert.match(form, /data-testid="create-version-review-info"/);
+});

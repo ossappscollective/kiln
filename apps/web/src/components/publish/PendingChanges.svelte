@@ -566,7 +566,7 @@
   {/if}
 
   {#if publishOpen && dialogTargets.length > 0}
-    <PublishDialog bind:open={publishOpen} {api} {workspaceId} targets={dialogTargets} steps={dialogSteps} onchanged={changed} />
+    <PublishDialog bind:open={publishOpen} {api} {workspaceId} {role} targets={dialogTargets} steps={dialogSteps} onchanged={changed} />
   {/if}
 </section>
 

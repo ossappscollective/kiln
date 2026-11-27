@@ -1,5 +1,6 @@
 import { newestDottedVersion, nextVersion, type Platform } from '@kiln/core';
 import { ApiError } from './api.ts';
+import type { ReviewInformationView } from './review-information.ts';
 import { k, t } from './i18n/t.ts';
 import { stepUpMessage } from './step-up.ts';
 
@@ -24,11 +25,15 @@ export type VersionPreview = {
   checks: { blocking: VersionCheck[]; warnings: VersionCheck[]; canCreate: boolean };
   confirmHash: string | null;
   request: { versionString: string; releaseType: string | null };
+  /** What the new version would get from the previous version's App Review Information (masked). Null: not looked at (an older server). */
+  reviewInformation?: ReviewInformationView | null;
 };
 export type VersionResult = {
   version: { id: string | null; versionString: string; state: string };
   confirmedByReread: boolean;
   warnings: VersionCheck[];
+  /** What was done with the previous version's App Review Information. Null or absent: nothing was tried (an older server). */
+  reviewInformation?: ReviewInformationView | null;
   note: string;
 };
 

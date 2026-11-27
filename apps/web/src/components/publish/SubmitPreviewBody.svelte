@@ -9,7 +9,9 @@
   import { fullTime } from '../../lib/format.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { type SubmitPreview, buildLine, checkText, localeLine, pushedText, trackLine, versionLine } from '../../lib/store-submit.ts';
+  import { isReviewCode, reviewFromParam } from '../../lib/review-information.ts';
   import Alert from '../ui/Alert.svelte';
+  import ReviewInfoCopy from './ReviewInfoCopy.svelte';
 import { supports } from '@kiln/core';
 
   let { preview }: { preview: SubmitPreview } = $props();
@@ -70,7 +72,7 @@ import { supports } from '@kiln/core';
   {#if blocking.length > 0}
     <Alert tone="error" title={t('publish:submit.blockedTitle')}>
       <ul class="plain" data-testid="submit-blocking">
-        {#each blocking as check (check.code + check.message + (check.locale ?? '') + (check.item ?? ''))}<li>{checkText(check)}</li>{/each}
+        {#each blocking as check (check.code + check.message + (check.locale ?? '') + (check.item ?? ''))}<li>{checkText(check)}{#if isReviewCode(check.code)}<ReviewInfoCopy from={reviewFromParam(check.params)} />{/if}</li>{/each}
       </ul>
       <p class="para">{t('publish:submit.blockedFix')}</p>
     </Alert>

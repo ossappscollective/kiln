@@ -218,6 +218,7 @@ import type {
   SubmitResult,
   SubmitState,
 } from './store-submit.ts';
+import type { ReviewCopyPreview, ReviewCopyResult } from './review-information.ts';
 import type { VersionPreview, VersionResult } from './store-version.ts';
 import type { SyncPlanEntry } from './sync-sources.ts';
 import type {
@@ -2003,6 +2004,27 @@ export function createApi(options: ApiOptions = {}) {
       request<{ result: VersionResult }>(
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-version`,
+        body,
+        undefined,
+        grantHeader(grant),
+      ),
+    // Copy the previous version's App Review Information to the editable version (docs/api/review-information.md). The preview is a store
+    // read and masked (initials and yes/no); the copy writes blank attributes only, is sent once with the preview's hash, never retried.
+    previewStoreReviewInformation: (workspaceId: string, appId: string) =>
+      request<{ preview: ReviewCopyPreview }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/review-information/preview`,
+        {},
+      ),
+    copyStoreReviewInformation: (
+      workspaceId: string,
+      appId: string,
+      body: { confirmHash: string },
+      grant?: string,
+    ) =>
+      request<{ result: ReviewCopyResult }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/review-information`,
         body,
         undefined,
         grantHeader(grant),

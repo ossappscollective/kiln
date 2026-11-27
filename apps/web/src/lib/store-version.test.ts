@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ApiError } from './api.ts';
-import { classifyVersionFailure, suggestedVersion } from './store-version.ts';
+import { classifyVersionFailure, suggestedVersion, type VersionResult } from './store-version.ts';
 
 const release = (platform: 'ios' | 'macos' | 'android', version: string) => ({ platform, version });
 
@@ -72,4 +72,18 @@ test('classifyVersionFailure: a step-up answer gets its own sentence; a network 
     /passkey/,
   );
   assert.match(classifyVersionFailure(new TypeError('fetch failed')).message, /Nothing is known/);
+});
+
+test('a version result and preview may carry the review information (older servers omit it)', () => {
+  const result: VersionResult = {
+    version: { id: 'v', versionString: '1.19.1', state: 'PREPARE_FOR_SUBMISSION' },
+    confirmedByReread: false,
+    warnings: [],
+    reviewInformation: { outcome: 'created', from: '1.19.0', fieldsCopied: 8, summary: null },
+    note: '',
+  };
+  assert.equal(result.reviewInformation?.from, '1.19.0');
+  const old: VersionResult = { ...result };
+  delete old.reviewInformation;
+  assert.equal(old.reviewInformation, undefined);
 });

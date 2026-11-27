@@ -468,3 +468,27 @@ test('the result row of the publish dialog names the blockers of a skipped step,
   const bare = resultRow({ type: 'submit', status: 'skipped', reason: 'blocked' });
   assert.match(bare.text, /something now stands in the way/);
 });
+
+test('a submit blocked because the App Review contact is missing: its sentence, how to fix it (copy it or App Store Connect) and the link', () => {
+  const r = run(
+    [
+      pushed,
+      blockedSubmit([
+        { code: 'no_review_contact', message: 'The App Review contact information is incomplete: phone number is missing.' },
+        { code: 'no_review_demo_account', message: 'App Review information says a demo account is required, but its user name or password is empty.' },
+      ]),
+    ],
+    { platform: 'ios', steps: ['push_draft', 'submit'] },
+  );
+  const submit = stepLines(r)[1]!;
+  assert.deepEqual(
+    submit.blockers.map((b) => b.code),
+    ['no_review_contact', 'no_review_demo_account'],
+  );
+  assert.match(submit.blockers[0]!.fix, /Copy the review information from the previous version in the submit checklist/);
+  assert.match(submit.blockers[1]!.fix, /demo account/);
+  assert.equal(submit.blockers[0]!.url, 'https://appstoreconnect.apple.com/apps');
+  assert.equal(submit.blockers[1]!.url, 'https://appstoreconnect.apple.com/apps');
+  assert.notEqual(submit.blockers[0]!.fix, submit.blockers[1]!.fix);
+  assert.match(blockersSentence(submit.blockers), /contact information is incomplete/);
+});

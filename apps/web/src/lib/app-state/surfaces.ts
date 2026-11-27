@@ -121,6 +121,12 @@ export const VERDICT_SURFACES: readonly VerdictSurface[] = [
     evidence: /appStateStore\.verdict\(workspaceId, role, app, 'create_version'\)/,
   },
   {
+    // "Copy review information from 1.19.0": a store draft write like creating a version, held back the same way.
+    file: 'components/publish/ReviewInfoCopy.svelte',
+    action: 'create_version',
+    evidence: /appStateStore\.verdict\(ctx\.workspaceId, ctx\.role, ctx\.app, 'create_version'\)/,
+  },
+  {
     file: 'components/release/RolloutAppControl.svelte',
     action: 'rollout',
     evidence: /appStateStore\.verdict\(workspaceId, role, app, 'rollout'\)/,

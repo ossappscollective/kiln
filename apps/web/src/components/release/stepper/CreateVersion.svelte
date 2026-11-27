@@ -14,6 +14,7 @@
   import { type Role, can } from '@kiln/core';
   import { announcePublished } from '../../../lib/app-page.ts';
   import type { Api } from '../../../lib/api.ts';
+  import { carryLine } from '../../../lib/review-information.ts';
   import { confirmed } from '../../../lib/step-up-prompt.svelte.ts';
   import { stagedStore } from '../../../lib/staged-store.svelte.ts';
   import {
@@ -60,6 +61,8 @@
   let busy = $state(false);
   let problem = $state('');
   let announcement = $state('');
+  /** "Review information is carried over from 1.19.0 (Contact: M. G., ...)": from the preview, masked, before anything is created. */
+  let reviewNote = $state('');
 
   $effect(() => {
     void stagedStore.loadConfig(api, workspaceId);
@@ -87,9 +90,11 @@
     busy = true;
     problem = '';
     announcement = '';
+    reviewNote = '';
     try {
       const looked = await api.previewStoreVersion(workspaceId, app.id, { versionString: wanted });
       const preview = looked.preview;
+      reviewNote = carryLine(preview.reviewInformation, 'preview') ?? '';
       if (!preview.checks.canCreate || preview.confirmHash === null) {
         problem = t('release-store:version.nothingCreated', { message: blockingText(preview.checks.blocking) });
         return;
@@ -98,7 +103,8 @@
       // The only call that writes to the store. Sent once per click, with the hash of the preview.
       const done = await confirmed((grant) => api.createStoreVersion(workspaceId, app.id, body, grant), body.confirmHash);
       const warnings = done.result.warnings.map((w) => w.message).join(' ');
-      const text = [t('release-stepper:cv.created', { version: done.result.version.versionString }), warnings].filter((s) => s !== '').join(' ');
+      const carried = carryLine(done.result.reviewInformation, 'result') ?? '';
+      const text = [t('release-stepper:cv.created', { version: done.result.version.versionString }), carried, warnings].filter((s) => s !== '').join(' ');
       announcement = text;
       toast.success(text);
       // The app reads its store again (the same announcement a publish makes) and the stepper looks for the version.
@@ -146,6 +152,7 @@
   </form>
   <PublishingNote {verdict} appId={app.id} />
   <p class="small muted">{t(VERSION_NOTE)}</p>
+  {#if reviewNote !== ''}<p class="small muted" data-testid="create-version-review-info">{reviewNote}</p>{/if}
   {#if problem !== ''}<p class="small bad" role="alert">{problem}</p>{/if}
   <p class="visually-hidden" role="status">{announcement}</p>
 {/if}

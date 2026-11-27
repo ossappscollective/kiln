@@ -1,6 +1,7 @@
 import type { Platform, ReadinessFixKind, SubmitBlocker, SubmitReadiness } from '@kiln/core';
 import { supports } from '@kiln/core';
 import { k, t } from './i18n/t.ts';
+import { reviewFromParam } from './review-information.ts';
 import { APP_STORE_CONNECT_APPS_URL, PLAY_CONSOLE_URL } from './store-links.ts';
 
 /**
@@ -29,6 +30,8 @@ type FixCode =
   | 'already_submitted'
   | 'no_version'
   | 'release_not_manual'
+  | 'no_review_contact'
+  | 'no_review_demo_account'
   | 'generic';
 
 const FIX: Readonly<Record<FixCode, string>> = {
@@ -43,6 +46,8 @@ const FIX: Readonly<Record<FixCode, string>> = {
   already_submitted: k('publish:readiness.fix.alreadySubmitted'),
   no_version: k('publish:readiness.fix.noVersion'),
   release_not_manual: k('publish:readiness.fix.releaseNotManual'),
+  no_review_contact: k('publish:readiness.fix.noReviewContact'),
+  no_review_demo_account: k('publish:readiness.fix.noReviewDemoAccount'),
   generic: k('publish:readiness.fix.generic'),
 };
 
@@ -69,6 +74,8 @@ export type ReadinessLine = {
   href: string | null;
   /** `href` is the store's console: opens in a new tab. */
   external: boolean;
+  /** App Review Information (`kind` 'review'): the version it can be copied from, when the server named one; else null. */
+  reviewFrom: string | null;
 };
 
 export type ReadinessView = {
@@ -106,6 +113,8 @@ const whereLabel = (kind: ReadinessFixKind, platform: Platform): string | null =
       return t('publish:readiness.where.notes');
     case 'build':
       return t('publish:readiness.where.build');
+    case 'review':
+      return t('publish:readiness.where.reviewInformation');
     case 'store':
       return supports(platform, 'transactionalEdits')
         ? t('publish:readiness.where.playConsole')
@@ -120,8 +129,9 @@ export function readinessLine(platform: Platform, blocker: SubmitBlocker, index 
   const known: FixCode = Object.prototype.hasOwnProperty.call(FIX, blocker.code)
     ? (blocker.code as FixCode)
     : 'generic';
-  const href =
-    blocker.fix.kind === 'store' ? consoleUrl(platform) : (blocker.fix.href ?? null);
+  // The store's console is where a 'store' blocker and, when it cannot be copied, a 'review' blocker (App Review Information) is fixed.
+  const inConsole = blocker.fix.kind === 'store' || blocker.fix.kind === 'review';
+  const href = inConsole ? consoleUrl(platform) : (blocker.fix.href ?? null);
   return {
     id: `${blocker.code}:${blocker.locale ?? ''}:${blocker.item ?? ''}:${index}`,
     code: blocker.code,
@@ -132,7 +142,8 @@ export function readinessLine(platform: Platform, blocker: SubmitBlocker, index 
     kind: blocker.fix.kind,
     where: whereLabel(blocker.fix.kind, platform),
     href,
-    external: blocker.fix.kind === 'store',
+    external: inConsole,
+    reviewFrom: reviewFromParam(blocker.params),
   };
 }
 
