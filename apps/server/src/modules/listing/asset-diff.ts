@@ -6,11 +6,11 @@ import {
   type AssetKind,
   type AssetPlatform,
   assetStoreOf,
-  compareSet,
+  compareRows,
   compareTotals,
   deviceLabel,
   IMESSAGE_PREFIX,
-  primaryStoreSet,
+  groupStoreImages,
   type RepoSideFile,
   type StoreImageFile,
   type StoreImageSet,
@@ -144,16 +144,11 @@ export async function buildAssetDiff(
   // The repository is compared with the one a push writes (`primaryStoreSet`); the others are sets of their own, listed with their group's
   // name and never dropped or added up: the last of the siblings must not stand for the display.
   const storeSets = new Map<string, StoreImageSet>();
-  const groups = new Map<string, StoreImageSet[]>();
-  for (const s of store.view.sets) {
-    if ((s.device ?? '').startsWith(IMESSAGE_PREFIX)) continue;
-    const key = keyOf(s.locale, s.kind, s.device);
-    groups.set(key, [...(groups.get(key) ?? []), s]);
-  }
-  for (const [key, list] of groups) {
-    const own = primaryStoreSet(list) as StoreImageSet;
-    storeSets.set(key, own);
-    for (const sibling of list) if (sibling !== own) storeSets.set(`${key}\0${sibling.target}`, sibling);
+  for (const d of groupStoreImages(store.view)) {
+    if ((d.device ?? '').startsWith(IMESSAGE_PREFIX)) continue;
+    const key = keyOf(d.locale, d.kind, d.device);
+    storeSets.set(key, d.primaryGroup.set);
+    for (const g of d.groups) if (g !== d.primaryGroup) storeSets.set(`${key}\0${g.target}`, g.set);
   }
   const repoByKey = new Map<string, RepoSet>();
   for (const r of repo.sets.values()) repoByKey.set(keyOf(r.locale, r.kind, r.device), r);
@@ -185,7 +180,7 @@ export async function buildAssetDiff(
       rf.sha256 = read.sha256;
       rf.md5 = read.md5;
     }
-    const rows = compareSet(files, storeFiles);
+    const rows = compareRows(files, s ? { target: s.target, files: storeFiles } : null);
     const totals = compareTotals(rows);
     const locale = (s ?? r)?.locale ?? '';
     const kind = (s ?? r)?.kind as AssetKind;
@@ -197,6 +192,7 @@ export async function buildAssetDiff(
       device,
       deviceLabel: deviceLabel(assetStoreOf(app.platform), device),
       target: s?.target ?? null,
+      primary: key.indexOf('\0') < 0,
       rows,
       totals,
       inSync: totals.differs === 0 && totals.only_repo === 0 && totals.only_store === 0,

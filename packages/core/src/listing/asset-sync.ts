@@ -1,4 +1,5 @@
 import { PLATFORMS, type Platform, supports } from '../platform.ts';
+import type { CompareRow } from '../images/compare.ts';
 import { measuredPathsOf, storeImageFacts, validateImageFacts } from '../images/facts.ts';
 import { STORE_VIEW_TTL_MS } from '../timings.ts';
 import {
@@ -295,10 +296,16 @@ export type AssetDiffSet = {
   device: string | null;
   deviceLabel: string;
   target: string | null;
-  rows: AssetCompareRow[];
+  /** The rows carry `storeRef`, `storePosition`, `group` and `index` (`compareRows` of images/compare.ts): a pull names an image by them. */
+  rows: CompareRow[];
   totals: AssetCompareTotals;
   /** The whole set is the same on both sides. */
   inSync: boolean;
+  /**
+   * The set is the one the repository is compared with and a push writes (`primaryStoreSet`). A sibling group of the same display
+   * (`primary: false`) has nothing in the repository to pair with: every image is `only_store`, and it is never pulled.
+   */
+  primary: boolean;
 };
 
 export type AssetDiffView = {
