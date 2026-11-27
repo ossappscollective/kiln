@@ -61,6 +61,7 @@ their own plans; the web release page shows them side by side.
         "filled": 1,
         "missing": ["de-DE"],
         "tooLong": [],
+        "conflicts": [],
         "complete": false
       },
       "reasons": ["3 required items are not done.", "Release notes are missing for de-DE."]
@@ -99,6 +100,12 @@ their own plans; the web release page shows them side by side.
 - **Readiness** is a summary, not a gate: `ready` is true when every required item is done and the
   plan has at least one locale of release notes, all written (not empty) and within the limit.
   `reasons` says in plain sentences what is missing. The store runs its own checks too.
+  The notes are judged over every place that holds them (core `notesView`): the plan's own notes, the
+  app's staged text and, on the App Store, the stored draft. A locale of the app's listing with a staged
+  or stored note is not `missing`; a listing locale with no note anywhere is. `conflicts` lists the
+  locales whose plan text differs from the staged or stored one (the staged text wins, the difference is
+  said in `reasons`; a staged text never conflicts with the store text it replaces). Length is counted in
+  Unicode code points, trimmed, against the limit of the plan's platform.
 - `blocked` is a flag on the plan with a reason a person wrote (`blockedReason` is always set while
   blocked). It is not a lifecycle state.
 

@@ -365,6 +365,36 @@ Decisions to review:
 - **Notes order**: the first non-empty text in `staged` (unpushed only), `store`, `plan`, `repo`, `section` ships; texts that differ are
   reported as conflicts with every candidate, never merged or dropped.
 
+#### Listing in the web and the server (Wave 2): ONE server read, ONE web store, every consumer on the core owners
+
+- **One server read**: `GET /apps/:id/listing/store` (`modules/listing/store-view.ts`, docs/api/listing.md) answers the locales, the copy of
+  each intent (`shown`, `editable`, `live`), `defaultLocale`, `readAt`, the read error and optionally the drift. Insights checks, the fixes,
+  ASO, the asset proposal, pull and the drift read their copy through `storeCopyView`; none picks a channel itself.
+- **One web store**: `lib/app-state/listing-store.svelte.ts` holds the last read per app, reacts to `invalidate()` and derives the locale lists
+  with the pure selectors of `listing-view.ts`. The Listing page and grid, the checks and the fix bar, the dashboard, the release stepper's
+  notes languages, the Play check and the Publish summary read it. The matrix merges locales by `localeGroupKey` (zh-Hans and zh-CN are one
+  row); the `storeOnly` module flag is gone.
+- **Default locale**: the store's DECLARED one when it says (Google Play `defaultLanguage`; the App Store's `primaryLocale`, which the Apple
+  connector now reads from the app), else en-US, else another English, else the first locale (`defaultLocale.source` says which, `reason`
+  says why none is declared). The Insights checks, the fix bar and the Publish summary use the same one.
+- **One locale module**: `isLocaleDir` accepts `fr_FR` and `FR` (`isRepoLocaleFolder`); the route, MCP, staged, plan and notes validators, the
+  `norm`/`tag`/`normalizeLocale` helpers and the connector `cleanLocale`/`sameLocale` call core. The deprecated `normalizeLocale` and
+  `sameLocale` of the ASO modules delegate to it.
+- **One text check, one severity**: `checkListing` (Insights), `analyzeFixes`, `evaluateDraftContent` (readiness gains the text length and URL
+  checks as `text_problem`) and `validateListing` all go through `checkTextField` / `requiredFieldsOf` / `textLimitOf`. An empty Play title,
+  short or full description is a WARNING everywhere (no page says it is required); an empty iOS keywords field is a problem everywhere.
+  `measureField` is the only counter (the six copies and the `.length` sites of release notes are gone; `notesLengthOf` counts a note).
+- **Release notes**: plan readiness (`computeReadiness`, with the staged text and the stored draft of the app read by the server,
+  `planNoteSourcesOf`) and the stepper's Notes dot (`releaseNotesView`) read `notesView`. A staged text is an edit of the store text and never
+  conflicts with it; a plan text that differs from the staged or stored one is a conflict, said in the readiness reasons. A listing language
+  with no notes at all shows on the Notes dot. Not yet on `notesView`: the Publish summary's per-language preview (it picks the default
+  language from the push's own entries) and the Google Play store place of the plan readiness (the track's notes are not in the listing snapshot).
+- **Review Information**: the connector's `reviewMissing` is `evaluateReviewInformation`, the rule of the submit and the readiness; the Listing
+  page (above the checks) and the Release page show the missing review contact or demo account from the current readiness
+  (`listingStore.review`, `ReviewInfoCheck`).
+- **Staged baseline**: the staged view (count, Pending, cart `before`), the push preview and the web "Stage from repo" state use
+  `stagedBaselineOf` / `isUnchangedStaged`; `normalizeListingValue` and the web `normalizeText` are `normalizeStoreText`.
+
 #### Store images in the web (Wave 2): ONE store, `apps/web/src/lib/app-state/store-images-store.svelte.ts`
 
 Every screen that shows what the store holds (the Graphics tab, the Assets tab, the comparison and pull dialogs, the Assets step of

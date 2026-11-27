@@ -603,7 +603,7 @@ server's sentence, sanitised), in the answer, in the kept run (`store_publish_ru
 
 The codes of the App Store checks (`store-submit.ts` `evaluateChecks`): `push_in_progress`, `push_outcome_unknown`, `already_submitted`,
 `no_version`, `version_changed`, `release_not_manual`, `no_build`, `build_expired`, `build_not_valid`, `draft_unreadable`, `draft_differs`,
-`no_locales`, `missing_text`, `image_not_ready`, `no_screenshots`, `asset_spec`, and for the App Store `no_review_contact` and `no_review_demo_account`
+`no_locales`, `missing_text`, `text_problem` (a listing text over its limit, under its minimum or a URL that is none: the same check and severity as `validateListing`), `release_notes_too_long`, `image_not_ready`, `no_screenshots`, `asset_spec`, and for the App Store `no_review_contact` and `no_review_demo_account`
 (the version's App Review contact and demo account, [review-information](review-information.md); the blocker's `fix.kind` is `review`, with
 `params.from` naming the previous version it can be copied from). Kiln does NOT check what Apple also needs for a review beyond that (age
 rating, export compliance, pricing, privacy answers): a submit that passes Kiln's checks can still be refused by Apple, and then says so as a
