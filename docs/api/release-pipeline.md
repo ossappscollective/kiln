@@ -68,7 +68,20 @@ A token limited to some apps sees only those apps in the summary, and gets `404`
 - `since`: when the thing the state is about last moved; `null` when unknown.
 - `steps`: five fixed rows (`ci`, `build`, `prepare`, `review`, `release`), each `done`, `current`, `waiting`, `failed`,
   `stalled`, `todo` or `unknown`, with the time and a short wording, so a screen can draw the line without logic of its own.
-- `latest`: the run, build and version the judgement rests on (the same facts, as stored).
+- `latest`: the run, build and version the judgement rests on (the same facts, as stored), with ONE rule for what counts:
+  - **What is live** is the serving set: `live`, `rolling_out` and `halted` releases (Google Play: the `production` track only; an
+    internal or closed-testing release is never what is live). The newest is chosen by version, then build, never by the time Kiln first
+    saw it.
+  - **What is left behind is not a release.** A version still in preparation (`draft`, `build_chosen`, `ready`) that is lower than or the
+    same as what is live (Google Play: all its version codes below the production codes) is never `latest.version`, never the state and
+    never a stall; a build lower than the live build is never `latest.build`, never "processing" and never an orphan. The live build
+    itself stays the latest build while nothing newer was uploaded. A phased 1.19.0 over an old draft 1.11.6 reads `rolling_out` (or
+    `build_ready` when a newer TestFlight build waits), never `draft`.
+  - The alerts (`release.stalled`), the events and signed webhooks, the timeline and the screens read this one answer; nothing has to
+    be patched afterwards.
+  - **Google Play "sent for review".** A release this server started in the last 7 days reads `in_review` here and in `GET /apps/{id}`
+    (one overlay, `sentOverlay`), because Google reports it as live. The release watch (`release.stalled`) does NOT apply the overlay:
+    a stall must not be judged on a state Google never reported.
 
 ### `summary`
 

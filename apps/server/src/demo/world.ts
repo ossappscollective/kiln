@@ -1,4 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises';
+import { compareBuildNumbers } from '@kiln/core';
 import {
   type EditableRelease,
   mapAppStoreState,
@@ -254,7 +255,7 @@ export class Side {
   listBuilds(): StoreBuild[] {
     return this.builds
       .map((b) => this.buildState(b))
-      .sort((a, b) => Number(b.buildNumber) - Number(a.buildNumber));
+      .sort((a, b) => compareBuildNumbers(b.buildNumber, a.buildNumber));
   }
 
   listVersions(): StoreVersion[] {

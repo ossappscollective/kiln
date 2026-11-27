@@ -1,4 +1,11 @@
-import type { Platform } from '../platform.ts';
+import { type Platform, supports } from '../platform.ts';
+import { compareReleases, tryCompareReleases } from '../versions/compare.ts';
+import {
+  isObsolete,
+  liveOf,
+  type ReleaseFact,
+  topOfCodes,
+} from '../versions/live.ts';
 import type { ReleaseState } from './lifecycle.ts';
 
 /**
@@ -6,6 +13,14 @@ import type { ReleaseState } from './lifecycle.ts';
  * "it is live", and whether it is STALLED (a run succeeded or a build appeared and nothing moved to the next step for a while).
  * The server collects the facts from its own tables (stored runs, the builds and releases of the last store sync) and the web
  * app shows the answer. Docs: docs/api/release-pipeline.md.
+ *
+ * WHAT IS LEFT BEHIND IS NOT A RELEASE (docs/state-model.md, "Single owners (core)"). The pipeline judges a version or a build only when it
+ * is not left behind by what is live (`liveOf`, `isObsolete`): an old draft (1.11.6 while 1.19.0 is live) is never `latest.version`, never
+ * the state, never a stall; a build that is not newer than the live one (a hotfix for the old 1.18 branch uploaded after 1.19.0) is never
+ * the latest build, never an orphan, never "processing". So the alerts, the `release.stalled` events and webhooks, the timeline and every
+ * screen read the same answer without patching it afterwards. What is live is the serving set (live, rolling out, halted; Google Play:
+ * the production track) and the newest is picked by VERSION, then build, `since` only breaks a tie; before, a draft outranked a live
+ * release by status priority and the newest by the time it was first seen.
  *
  * ES2017 only (the web app imports this package): no flatMap, fromEntries or other newer library calls.
  */
@@ -233,6 +248,37 @@ const newest = <T>(list: readonly T[], at: (item: T) => number): T | null => {
   return best;
 };
 
+/** The newest version: by version, then build; the time it was first seen only breaks a tie. */
+const newestVersion = (list: readonly PipelineVersionFact[]): PipelineVersionFact | null => {
+  let best: PipelineVersionFact | null = null;
+  for (const v of list) {
+    if (
+      best === null ||
+      compareReleases(v, best) > 0 ||
+      (compareReleases(v, best) === 0 && v.since > best.since)
+    )
+      best = v;
+  }
+  return best;
+};
+
+/** The newest build: by version, then build number (a Play code has no version: by code); the upload time only breaks a tie. */
+const newestBuild = (list: readonly PipelineBuildFact[]): PipelineBuildFact | null => {
+  let best: PipelineBuildFact | null = null;
+  for (const b of list) {
+    if (best === null) {
+      best = b;
+      continue;
+    }
+    const order = compareReleases(
+      { version: b.version, build: b.buildNumber },
+      { version: best.version, build: best.buildNumber },
+    );
+    if (order > 0 || (order === 0 && buildAt(b) > buildAt(best))) best = b;
+  }
+  return best;
+};
+
 export function evaluatePipeline(f: PipelineFacts): Pipeline {
   const now = f.now;
   const afterMs = Math.max(0, Math.trunc(f.stalledAfterHours)) * HOUR_MS;
@@ -251,8 +297,43 @@ export function evaluatePipeline(f: PipelineFacts): Pipeline {
     (r) => r.updatedAt,
   );
 
+  // What is live, and what it leaves behind (see the file comment).
+  type Tagged = ReleaseFact & { fact: PipelineVersionFact };
+  const liveFacts = liveOf<Tagged>(
+    f.versions.map((v) => ({
+      fact: v,
+      version: v.version,
+      track: v.track,
+      build: v.build,
+      status: v.status,
+      versionCodes: v.versionCodes,
+      statusSince: v.since,
+    })),
+    { platform: f.platform },
+  );
+  const leftBehind = new Set<PipelineVersionFact>();
+  for (const v of f.versions) {
+    if (isObsolete(v, liveFacts)) leftBehind.add(v);
+  }
+  const buildLeftBehind = (b: PipelineBuildFact): boolean => {
+    const live = liveFacts.ref;
+    if (live === null) return false;
+    if (supports(f.platform, 'releaseTracks')) {
+      const top = topOfCodes(live.codes);
+      const code = Number(b.buildNumber);
+      return top >= 0 && Number.isFinite(code) && code <= top;
+    }
+    if (b.version === null || b.version === '') return false;
+    // Lower than what is live, or not readable (the candidates ignore it too). The live build ITSELF (equal) stays: it is the latest build
+    // while nothing newer was uploaded.
+    const order = tryCompareReleases(
+      { version: b.version, build: b.buildNumber },
+      { version: live.version, build: live.build },
+    );
+    return order === null || order === -1;
+  };
   const inFlight = f.versions.filter(
-    (v) => v.status !== null && IN_FLIGHT.indexOf(v.status) !== -1,
+    (v) => v.status !== null && IN_FLIGHT.indexOf(v.status) !== -1 && !leftBehind.has(v),
   );
   const usedBuilds = new Set<string>();
   for (const v of f.versions) {
@@ -262,10 +343,12 @@ export function evaluatePipeline(f: PipelineFacts): Pipeline {
     }
   }
   const builds = f.builds.filter((b) => b.expired !== true);
+  // The builds the pipeline talks about: not left behind by what is live (a build attached to a release stays in `builds` above).
+  const current = builds.filter((b) => !buildLeftBehind(b));
   let newestUsedAt = 0;
   for (const b of builds)
     if (usedBuilds.has(b.buildNumber)) newestUsedAt = Math.max(newestUsedAt, buildAt(b));
-  const unused = builds.filter((b) => !usedBuilds.has(b.buildNumber) && buildAt(b) > newestUsedAt);
+  const unused = current.filter((b) => !usedBuilds.has(b.buildNumber) && buildAt(b) > newestUsedAt);
   // A newer build of a version string that is already past "Prepare" cannot be attached to it: it is not a release left behind.
   const pastPrepare = new Set<string>();
   for (const v of f.versions) {
@@ -438,35 +521,17 @@ export function evaluatePipeline(f: PipelineFacts): Pipeline {
   const stalled = stalls[0] ?? null;
 
   // ----- state --------------------------------------------------------------------------------
-  const live = f.versions.filter(
-    (v) => v.status === 'live' || v.status === 'rolling_out' || v.status === 'halted',
-  );
-  const processing = newest(
-    builds.filter((b) => b.state === 'processing'),
-    buildAt,
-  );
-  const orphanReady = newest(
-    orphans.filter((b) => b.state === 'processed'),
-    buildAt,
-  );
-  const pick = (status: ReleaseState) =>
-    newest(
-      inFlight.filter((v) => v.status === status),
-      (v) => v.since,
-    );
+  const processing = newestBuild(current.filter((b) => b.state === 'processing'));
+  const orphanReady = newestBuild(orphans.filter((b) => b.state === 'processed'));
+  const pick = (status: ReleaseState) => newestVersion(inFlight.filter((v) => v.status === status));
   const approved = pick('approved');
   const inReview = pick('in_review');
   const rejected = pick('rejected');
   let draft: PipelineVersionFact | null = null;
   for (const s of DRAFT_FAMILY) draft = draft ?? pick(s);
-  const rolling = newest(
-    live.filter((v) => v.status === 'rolling_out'),
-    (v) => v.since,
-  );
-  const halted = newest(
-    live.filter((v) => v.status === 'halted'),
-    (v) => v.since,
-  );
+  const rolling = liveFacts.rollingOut[0]?.fact ?? null;
+  const halted = liveFacts.halted[0]?.fact ?? null;
+  const liveNewest = liveFacts.newestLive?.fact ?? null;
 
   let state: PipelineState;
   let since: number | null = null;
@@ -486,7 +551,7 @@ export function evaluatePipeline(f: PipelineFacts): Pipeline {
     FAILED_CONCLUSIONS.indexOf(lastRun.conclusion) !== -1
   )
     [state, since] = ['ci_failed', lastRun.updatedAt];
-  else if (live.length > 0) [state, since] = ['live', newest(live, (v) => v.since)?.since ?? null];
+  else if (liveNewest !== null) [state, since] = ['live', liveNewest.since];
   else if (
     f.lastSyncedAt === null &&
     runs.length === 0 &&
@@ -512,8 +577,8 @@ export function evaluatePipeline(f: PipelineFacts): Pipeline {
           : null;
 
   const latestVersion =
-    approved ?? inReview ?? rejected ?? draft ?? rolling ?? halted ?? newest(live, (v) => v.since);
-  const latestBuild = newest(builds, buildAt);
+    approved ?? inReview ?? rejected ?? draft ?? rolling ?? halted ?? liveNewest;
+  const latestBuild = newestBuild(current);
   const summary = summarize(state, {
     activeRun,
     lastRun,

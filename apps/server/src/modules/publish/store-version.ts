@@ -12,9 +12,9 @@ import {
   VersionOutcomeUnknownError,
 } from '@kiln/connectors';
 import {
-  compareDottedVersions,
-  isDottedVersion,
-  newestDottedVersion,
+  createReleaseRules,
+  newestNonEditableVersion,
+  sameVersion,
   nextVersion,
   type Platform,
   type ReviewSummary,
@@ -230,45 +230,50 @@ const IN_PROGRESS_STATES = new Set([
 
 const label = (v: StoreVersionRow) => `${v.versionString ?? v.id} (${v.state || 'state unknown'})`;
 
+/** The versions the store lists, as the one rule of @kiln/core reads them (`createReleaseRules`). */
+const factsOf = (versions: readonly StoreVersionRow[]) =>
+  versions.map((v) => ({ version: v.versionString, editable: v.editable }));
+
 /** The newest version the store lists that cannot be edited: the one the next version has to be higher than. */
 export const liveVersionOf = (versions: readonly StoreVersionRow[]): string | null =>
-  newestDottedVersion(versions.filter((v) => !v.editable).map((v) => v.versionString));
+  newestNonEditableVersion(factsOf(versions));
 
+/**
+ * The refusals of creating a version, from the ONE rule in @kiln/core (`createReleaseRules`, which the web asks before it offers a
+ * button; this server stays the authority and words each refusal).
+ */
 export function evaluateChecks(request: VersionInput, state: VersionListState): VersionChecks {
   const blocking: VersionCheck[] = [];
   const warnings: VersionCheck[] = [];
   const wanted = request.versionString;
-  if (!isDottedVersion(wanted)) {
-    blocking.push({
-      code: 'invalid_version',
-      message:
-        'A version is one to three numbers separated by periods, for example 3.1.2. Letters, a leading "v" and suffixes are not allowed.',
-    });
-  }
+  const rules = createReleaseRules(wanted, factsOf(state.versions));
+  const reasons = rules.ok ? [] : rules.reasons;
   const editable = state.versions.filter((v) => v.editable);
-  if (editable.length > 0) {
-    blocking.push({
-      code: 'editable_version_exists',
-      message: `Version ${label(editable[0] as StoreVersionRow)} can still be edited, so there is no need for another. Attach the build to it.`,
-    });
-  }
-  if (isDottedVersion(wanted)) {
-    const same = state.versions.filter(
-      (v) => v.versionString !== null && compareDottedVersions(v.versionString, wanted) === 0,
-    );
-    if (same.length > 0) {
+  for (const reason of reasons) {
+    if (reason === 'invalid_version') {
+      blocking.push({
+        code: 'invalid_version',
+        message:
+          'A version is one to three numbers separated by periods, for example 3.1.2. Letters, a leading "v" and suffixes are not allowed.',
+      });
+    } else if (reason === 'editable_version_exists') {
+      blocking.push({
+        code: 'editable_version_exists',
+        message: `Version ${label(editable[0] as StoreVersionRow)} can still be edited, so there is no need for another. Attach the build to it.`,
+      });
+    } else if (reason === 'version_exists') {
+      const same = state.versions.filter(
+        (v) => v.versionString !== null && sameVersion(v.versionString, wanted),
+      );
       blocking.push({
         code: 'version_exists',
-        message: `Version ${label(same[0] as StoreVersionRow)} already exists in App Store Connect.`,
+        message: `Version ${label((same[0] ?? state.versions[0]) as StoreVersionRow)} already exists in App Store Connect.`,
       });
     } else {
-      const live = liveVersionOf(state.versions);
-      if (live !== null && compareDottedVersions(wanted, live) <= 0) {
-        blocking.push({
-          code: 'not_higher',
-          message: `The new version must be higher than ${live}, the newest version in App Store Connect that cannot be edited.`,
-        });
-      }
+      blocking.push({
+        code: 'not_higher',
+        message: `The new version must be higher than ${liveVersionOf(state.versions)}, the newest version in App Store Connect that cannot be edited.`,
+      });
     }
   }
   const going = state.versions.filter((v) => IN_PROGRESS_STATES.has(v.state));
@@ -710,7 +715,7 @@ export async function applyVersion(
       (v) =>
         !known.has(v.id) &&
         v.versionString !== null &&
-        compareDottedVersions(v.versionString, request.versionString) === 0,
+        sameVersion(v.versionString, request.versionString),
     )[0];
     if (found) {
       return succeed(

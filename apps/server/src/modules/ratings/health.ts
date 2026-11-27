@@ -9,6 +9,7 @@
 // before freezes. It is "worse" when the rate is at least 1.5 times the earlier one AND at least MIN_STEP higher (1 crash per 1,000 sessions on the
 // App Store, 0.2 percentage points on Google Play), or on Google Play when it crossed Google's line (1.09% crashes, 0.47% freezes). "Steady" means at
 // least 200 sessions (App Store) or 200 user-days (Google Play) behind the rate.
+import { compareVersions } from '@kiln/core';
 import { dayRange } from './days.ts';
 
 export type Store = 'appstoreconnect' | 'googleplay';
@@ -103,7 +104,6 @@ export type VersionHealth = {
   freeze: Rate | null;
 };
 
-const numeric = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
 
 /** Newest first: the highest version number (Apple) or build number (Google), never the first day seen. */
 export function versionHealth(data: HealthData): VersionHealth[] {
@@ -128,7 +128,7 @@ export function versionHealth(data: HealthData): VersionHealth[] {
         freeze: rateOver(data, days, version, 'freeze'),
       };
     })
-    .sort((a, b) => numeric(b.version, a.version));
+    .sort((a, b) => compareVersions(b.version, a.version));
 }
 
 export type Finding = {

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { CommitDetail, GitRelease, ReleaseList, TagList } from '@kiln/connectors';
-import type { Platform } from '@kiln/core';
+import { compareBuildNumbers, type Platform } from '@kiln/core';
 import type { Sql } from '@kiln/db';
 import { getApp, listAppReleases, type ManagedApp } from '../../services/apps.ts';
 import { timedCache } from '../../services/timed-cache.ts';
@@ -442,7 +442,7 @@ export async function scanBuildTags(input: {
     const tagData = data;
 
     // Candidates for every wanted build, and the commits that are not known yet.
-    const needed: { sha: string; buildNumber: number }[] = [];
+    const needed: { sha: string; buildNumber: string }[] = [];
     const known = new Map<string, CommitFacts | null>();
     for (const plan of plans) {
       for (const link of plan.links.values()) {
@@ -469,12 +469,12 @@ export async function scanBuildTags(input: {
           known.set(c.sha, cached);
           continue;
         }
-        needed.push({ sha: c.sha, buildNumber: Number(build.buildNumber) || 0 });
+        needed.push({ sha: c.sha, buildNumber: build.buildNumber });
       }
     }
     const seen = new Set<string>();
     const order = needed
-      .sort((a, b) => b.buildNumber - a.buildNumber)
+      .sort((a, b) => compareBuildNumbers(b.buildNumber, a.buildNumber))
       .filter((n) => (seen.has(n.sha) ? false : (seen.add(n.sha), true)));
     for (const { sha } of order.slice(0, MAX_COMMIT_FETCHES)) {
       const detail = await client.getCommit(sha, input.signal);
@@ -499,7 +499,7 @@ export async function scanBuildTags(input: {
             if (
               why.newestFit &&
               (!entry.newestFit ||
-                Number(why.newestFit.buildNumber) > Number(entry.newestFit.buildNumber))
+                compareBuildNumbers(why.newestFit.buildNumber, entry.newestFit.buildNumber) > 0)
             ) {
               entry.newestFit = why.newestFit;
             }

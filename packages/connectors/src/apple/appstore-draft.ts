@@ -1,4 +1,5 @@
 import {
+  compareVersions,
   APPLE_VERSION_LOCALIZATION_ATTRIBUTES,
   classifyAppleScreenshot,
   normalizeReleaseValue,
@@ -1253,7 +1254,7 @@ export class AppleDraftConnector
     listed.sort(
       (a, b) =>
         (b.at ?? Number.NEGATIVE_INFINITY) - (a.at ?? Number.NEGATIVE_INFINITY) ||
-        (b.version ?? '').localeCompare(a.version ?? '', 'en', { numeric: true }) ||
+        compareVersions(b.version, a.version) ||
         a.id.localeCompare(b.id),
     );
     const chosen = listed.slice(0, limit);

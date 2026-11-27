@@ -1,4 +1,4 @@
-import type { ListingSections, LocaleText, MediaSet, PlayField } from '@kiln/core';
+import { compareBuildNumbers, type ListingSections, type LocaleText, type MediaSet, type PlayField } from '@kiln/core';
 import { StoreError, type StoreErrorDetail, StoreRateLimitError } from '../errors.ts';
 import { mapPlayTrackRelease } from '../mappings.ts';
 import {
@@ -444,7 +444,7 @@ export class GooglePlayConnector implements StoreConnector {
           });
         }
       }
-      return builds.sort((a, b) => Number(b.buildNumber) - Number(a.buildNumber));
+      return builds.sort((a, b) => compareBuildNumbers(b.buildNumber, a.buildNumber));
     });
   }
 

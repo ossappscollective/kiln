@@ -402,3 +402,23 @@ test('KILN_RELEASE_WATCH_INTERVAL_MINUTES defaults to 15, 0 is off, and the rang
     );
   }
 });
+
+dbTest(
+  'a draft that is left behind by what is live (1.11.6 under a rolling out 1.19.0) sends no release.stalled; the newer draft does',
+  async (db) => {
+    const t = await setup(db);
+    const app = await t.addApp('ios', 'Acme');
+    await t.version(app, '1.19.0', 'rolling_out', NOW - 200 * HOUR);
+    await t.version(app, '1.11.6', 'draft', NOW - 10 * HOUR);
+    await t.build(app, '240', NOW - 12 * HOUR);
+    const first = await run(t, NOW);
+    assert.equal(first.stalled, 0, 'nothing is stalled: the only draft is obsolete');
+    assert.equal((await t.events('release.stalled')).length, 0);
+
+    await t.version(app, '2.0.0', 'draft', NOW - 10 * HOUR);
+    const next = await run(t, NOW + 60_000);
+    assert.equal(next.stalled, 1);
+    const events = await t.events('release.stalled');
+    assert.equal(events[0]?.payload.version, '2.0.0');
+  },
+);

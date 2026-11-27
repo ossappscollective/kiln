@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { PLATFORMS, type Platform, RELEASE_STATES, type ReleaseState, supports } from '@kiln/core';
+import {
+  compareBuildNumbers,
+  PLATFORMS,
+  type Platform,
+  RELEASE_STATES,
+  type ReleaseState,
+  supports,
+} from '@kiln/core';
 import { oneOf, type Row, type Sql } from '@kiln/db';
 import { type AppRelease, listAppReleases, type ManagedApp } from '../../services/apps.ts';
 import { emitCacheEvent } from '../../services/cache-registry.ts';
@@ -268,7 +275,7 @@ const rank = (status: ReleaseState | null) =>
 
 const buildOrder = (a: StoredBuild, b: StoredBuild) =>
   a.platform.localeCompare(b.platform) ||
-  b.buildNumber.localeCompare(a.buildNumber, 'en', { numeric: true });
+  compareBuildNumbers(b.buildNumber, a.buildNumber);
 
 /**
  * The builds a sync stored. The sync keeps the build attached to each version (iOS: the newest

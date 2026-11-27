@@ -15,7 +15,7 @@ import {
   supports,
 } from '@kiln/core';
 import { nullableNumber, nullableString, oneOf, type Sql } from '@kiln/db';
-import { releasesSentHere, sentAtOf } from '../../services/apps.ts';
+import { releasesSentHere, sentOverlay } from '../../services/apps.ts';
 import { getSettings } from '../../services/workspace-settings.ts';
 import { effectiveConventions, listConventions } from '../ci/conventions.ts';
 import { RUN_COLUMNS, runCountsForApp, runViews, type WorkflowRunView } from '../ci/runs.ts';
@@ -218,14 +218,16 @@ export async function loadPipelineFacts(
         const details = parseDetails(r.details_json);
         const track = nullableString(r.track);
         const known = status !== null && STATES.has(status) ? (status as ReleaseState) : null;
-        const inReview =
-          sent.length > 0 &&
-          (known === 'live' || known === 'rolling_out') &&
-          sentAtOf(sent, track === '' ? null : track, details.versionCodes) !== null;
+        const overlay = sentOverlay(sent, {
+          track: track === null || track === '' ? null : track,
+          status: known,
+          versionCodes: details.versionCodes,
+        });
+        const inReview = overlay.sentForReviewAt !== null && overlay.status !== known;
         return {
           version: String(r.version),
           track: track === null || track === '' ? null : track,
-          status: inReview ? ('in_review' as ReleaseState) : known,
+          status: overlay.status,
           rawState: String(r.raw_state),
           build: nullableString(r.build),
           versionCodes: details.versionCodes,

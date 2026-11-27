@@ -9,6 +9,7 @@ import {
   type TestFlightLinksConnector,
 } from '@kiln/connectors';
 import {
+  compareBuildNumbers,
   BUILD_LIST_TTL_MS,
   BUILD_PROBLEM_TTL_MS,
   can,
@@ -648,7 +649,7 @@ export async function storeBuilds(
   });
   return items.sort(
     (a, b) =>
-      (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0) || Number(b.buildNumber) - Number(a.buildNumber),
+      (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0) || compareBuildNumbers(b.buildNumber, a.buildNumber),
   );
 }
 

@@ -15,6 +15,7 @@ import {
   secretStrings,
 } from '@kiln/connectors';
 import {
+  compareBuildNumbers,
   type ActorType,
   byFamily,
   needsStoreAppId,
@@ -276,19 +277,32 @@ export async function listAppReleases(
   const sent = await releasesSentHere(sql, workspaceId, appId);
   return rows.map((r) => {
     const release = toRelease(r);
-    if (!supports(release.platform, 'releaseTracks') || release.track === null || sent.length === 0)
-      return release;
-    const at = sentAtOf(sent, release.track, release.versionCodes);
-    if (at === null) return release;
-    // Google Play reports a release in review as live (or rolling out). One this server sent in the last days reads "in review"
-    // everywhere (overview, all apps, tables) until the window ends or a newer release replaces it; `rawState` stays Google's.
-    const inReview = release.status === 'live' || release.status === 'rolling_out';
-    return {
-      ...release,
-      ...(inReview ? { status: 'in_review' as const } : {}),
-      sentForReviewAt: at,
-    };
+    if (!supports(release.platform, 'releaseTracks')) return release;
+    const overlay = sentOverlay(sent, release);
+    if (overlay.sentForReviewAt === null) return release;
+    return { ...release, status: overlay.status, sentForReviewAt: overlay.sentForReviewAt };
   });
+}
+
+/**
+ * THE "sent for review" overlay of Google Play, in ONE place (the web's releases, the release pipeline and the timeline all call it).
+ * Google reports a release in review as live (or rolling out). One this server sent in the last `SENT_FOR_REVIEW_DAYS` days reads "in
+ * review" until the window ends or a newer release replaces it; `rawState` stays Google's. `sentForReviewAt` is when it was sent, or null
+ * when this release was not sent from here (then `status` is unchanged).
+ *
+ * NOT applied by the release watch (`release.stalled` events, webhooks, alerts): a stall must not run on a state Google never reported.
+ * `release-watch.test.ts` pins that.
+ */
+export function sentOverlay<S extends string | null>(
+  sent: readonly { track: string; codes: string[]; at: number }[],
+  release: { track: string | null; status: S; versionCodes: readonly string[] | null },
+): { status: S | 'in_review'; sentForReviewAt: number | null } {
+  if (release.track === null || sent.length === 0)
+    return { status: release.status, sentForReviewAt: null };
+  const at = sentAtOf(sent, release.track, release.versionCodes);
+  if (at === null) return { status: release.status, sentForReviewAt: null };
+  const inReview = release.status === 'live' || release.status === 'rolling_out';
+  return { status: inReview ? 'in_review' : release.status, sentForReviewAt: at };
 }
 
 /** When the newest send from here matches a Google Play release (its track and one of its version codes), else null. */
@@ -734,7 +748,7 @@ function seenFromAppleBuilds(builds: readonly StoreBuild[]): BuildSeen[] {
   return [...builds]
     .sort(
       (a, b) =>
-        (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0) || Number(b.buildNumber) - Number(a.buildNumber),
+        (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0) || compareBuildNumbers(b.buildNumber, a.buildNumber),
     )
     .slice(0, MAX_BUILDS_SEEN)
     .map((b) => ({
@@ -767,7 +781,7 @@ function seenFromPlayVersions(versions: readonly StoreVersion[]): BuildSeen[] {
     }
   }
   return [...out.values()]
-    .sort((a, b) => Number(b.buildNumber) - Number(a.buildNumber))
+    .sort((a, b) => compareBuildNumbers(b.buildNumber, a.buildNumber))
     .slice(0, MAX_BUILDS_SEEN);
 }
 
@@ -796,8 +810,7 @@ function pickBuild(version: StoreVersion, builds: StoreBuild[]): StoreBuild | un
   return [...pool].sort(
     (a, b) =>
       (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0) ||
-      Number(b.buildNumber) - Number(a.buildNumber) ||
-      b.buildNumber.localeCompare(a.buildNumber),
+      compareBuildNumbers(b.buildNumber, a.buildNumber),
   )[0];
 }
 

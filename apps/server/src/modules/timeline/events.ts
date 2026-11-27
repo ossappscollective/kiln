@@ -11,7 +11,7 @@ import {
 } from '@kiln/core';
 import type { Sql } from '@kiln/db';
 import { z } from 'zod';
-import type { ManagedApp } from '../../services/apps.ts';
+import { listAppReleases, type ManagedApp } from '../../services/apps.ts';
 
 /**
  * Where the events of the timeline come from (docs/adr/0053-timeline-and-reports.md). Events Kiln knows by itself are READ from where they
@@ -78,17 +78,17 @@ export async function kilnEvents(
   const params = [app.id, workspaceId];
 
   // Versions that came out (or began a staged rollout): the day the tool first saw them in that state.
-  const releases = await sql.query(
-    `SELECT id, version, track, status, status_since, synced_at FROM app_releases
-      WHERE app_id = ? AND workspace_id = ? AND status IN ('live', 'rolling_out') ORDER BY synced_at DESC LIMIT ${KIND_LIMIT}`,
-    params,
-  );
+  // Through `listAppReleases`: a Google Play release sent from here in the last days is "in review" (the one overlay), not out yet.
+  const releases = (await listAppReleases(sql, workspaceId, app.id))
+    .filter((r) => r.status === 'live' || r.status === 'rolling_out')
+    .sort((a, b) => b.syncedAt - a.syncedAt)
+    .slice(0, KIND_LIMIT);
   for (const r of releases) {
-    const since = Number(r.status_since ?? r.synced_at);
+    const since = r.statusSince ?? r.syncedAt;
     const version = clip(r.version, 40);
     out.push(
       base(
-        `k:release:${String(r.id)}`,
+        `k:release:${r.id}`,
         dateToDay(since),
         'release',
         {
