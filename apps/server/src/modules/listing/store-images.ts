@@ -6,6 +6,7 @@ import {
   type AssetStore,
   assetStoreOf,
   deviceLabel,
+  primaryStoreSet,
   type StoreImageSet,
   type StoreImagesView,
   storeImageKey,
@@ -309,16 +310,42 @@ export function lastStoreImages(workspaceId: string, appId: string): StoreImages
 
 export type StoreSide = {
   observedAt: number;
-  counts: { locale: string; kind: StoreImageSet['kind']; device: string | null; count: number }[];
+  counts: {
+    locale: string;
+    kind: StoreImageSet['kind'];
+    device: string | null;
+    /** The images in the ONE set of this display that a push writes and the comparison pairs with the repository (`primaryStoreSet`). */
+    count: number;
+    /** The store's own name of that set, and every set the display has when it has more than one (the siblings are never added up). */
+    target?: string;
+    groups?: { target: string; count: number }[];
+  }[];
 };
 
-/** The counts per locale, kind and device that the Assets tab shows next to the repository's. */
-export const storeSideOf = (view: StoreImagesView): StoreSide => ({
-  observedAt: view.readAt,
-  counts: view.sets
-    .filter((s) => !(s.device ?? '').startsWith('imessage:'))
-    .map((s) => ({ locale: s.locale, kind: s.kind, device: s.device, count: s.files.length })),
-});
+/** The counts per locale, kind and device that the Assets tab shows next to the repository's (one set per display). */
+export const storeSideOf = (view: StoreImagesView): StoreSide => {
+  const byDisplay = new Map<string, StoreImageSet[]>();
+  for (const s of view.sets) {
+    if ((s.device ?? '').startsWith('imessage:')) continue;
+    const key = `${s.locale}\0${s.kind}\0${s.device ?? ''}`;
+    byDisplay.set(key, [...(byDisplay.get(key) ?? []), s]);
+  }
+  const counts: StoreSide['counts'] = [];
+  for (const sets of byDisplay.values()) {
+    const own = primaryStoreSet(sets) as StoreImageSet;
+    counts.push({
+      locale: own.locale,
+      kind: own.kind,
+      device: own.device,
+      count: own.files.length,
+      target: own.target,
+      ...(sets.length > 1
+        ? { groups: sets.map((x) => ({ target: x.target, count: x.files.length })) }
+        : {}),
+    });
+  }
+  return { observedAt: view.readAt, counts };
+};
 
 /**
  * The store's images. A fresh cached view is returned as it is (`cached`); a read that misses the cache costs a store request

@@ -9,6 +9,7 @@ import {
   compareTotals,
   fixAdvice,
   nearestRequiredSize,
+  primaryStoreSet,
   type RepoSideFile,
   requiredSizes,
   requiredSizesText,
@@ -247,4 +248,65 @@ test('checkStoreImages: a size read from the header never makes an error (a down
     measured.every((p) => p.severity === 'info'),
     'measured by us: only notes',
   );
+});
+
+// ---------------------------------------------------------------------------------------------
+// The count of a set: one rule (per store set), the same for the store's own images as for a draft read
+
+const shots = (n: number): StoreImageFile[] =>
+  Array.from({ length: n }, (_, i) => ({
+    ref: `r${i + 1}`,
+    position: i + 1,
+    name: `s${i + 1}.png`,
+    width: 2048,
+    height: 2732,
+    bytes: 1000,
+    sizeFrom: 'store' as const,
+    checksum: null,
+    checksumKind: null,
+    state: null,
+    downloadable: true,
+  }));
+const ipadSet = (target: string, n: number) => ({
+  platform: 'ios' as const,
+  locale: 'en-US',
+  kind: 'screenshot' as const,
+  device: 'ipad_13',
+  deviceLabel: 'iPad 13" / 12.9"',
+  target,
+  files: shots(n),
+});
+const countProblems = (sets: ReturnType<typeof ipadSet>[]) =>
+  checkStoreImages({ platform: 'ios', sets }).filter((p) => /count/.test(p.rule));
+
+test('checkStoreImages: the 13" and 12.9" groups of one display are two sets, never summed (10 + 2 is not 12)', () => {
+  assert.deepEqual(countProblems([ipadSet('APP_IPAD_PRO_3GEN_129', 10), ipadSet('APP_IPAD_PRO_129', 2)]), []);
+  assert.deepEqual(countProblems([ipadSet('APP_IPAD_PRO_3GEN_129', 8), ipadSet('APP_IPAD_PRO_129', 4)]), []);
+});
+
+test('checkStoreImages: 12 in ONE group is the error, and it names the group and how many to remove', () => {
+  const [p, ...rest] = countProblems([ipadSet('APP_IPAD_PRO_3GEN_129', 12), ipadSet('APP_IPAD_PRO_129', 2)]);
+  assert.equal(rest.length, 0);
+  assert.equal(
+    p?.message,
+    'At most 10 screenshots per device size. en-US iPad 13" / 12.9" (APP_IPAD_PRO_3GEN_129): 12 found.',
+  );
+  assert.deepEqual([p?.count, p?.max, p?.set], [12, 10, 'APP_IPAD_PRO_3GEN_129']);
+});
+
+test('checkStoreImages and a draft read count the same way: the same sets give the same problems', () => {
+  // The facts of a store view are the facts of `assetFactsOf` for the same sets: one rule (`validateAssets`), one key (`set`).
+  const sets = [ipadSet('APP_IPAD_PRO_3GEN_129', 12)];
+  const viaView = checkStoreImages({ platform: 'ios', sets }).map((p) => p.message);
+  assert.ok(viaView.some((m) => /\(APP_IPAD_PRO_3GEN_129\): 12 found/.test(m)));
+});
+
+test('primaryStoreSet: of the sibling groups of a display, the one a push writes; else the fullest; one set is itself', () => {
+  const [a, b] = [ipadSet('APP_IPAD_PRO_129', 9), ipadSet('APP_IPAD_PRO_3GEN_129', 4)];
+  assert.equal(primaryStoreSet([a, b]), b);
+  assert.equal(primaryStoreSet([b, a]), b);
+  const [x, y] = [ipadSet('OTHER_A', 2), ipadSet('OTHER_B', 5)];
+  assert.equal(primaryStoreSet([x, y]), y);
+  assert.equal(primaryStoreSet([x]), x);
+  assert.equal(primaryStoreSet([]), undefined);
 });

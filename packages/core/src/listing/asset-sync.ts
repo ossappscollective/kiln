@@ -1,5 +1,10 @@
 import { PLATFORMS, type Platform, supports } from '../platform.ts';
-import { type AssetSlot, assetStoreOf, slotKey } from './staged-changes.ts';
+import {
+  APPLE_DISPLAY_TYPES,
+  type AssetSlot,
+  assetStoreOf,
+  slotKey,
+} from './staged-changes.ts';
 import {
   APPLE_DISPLAYS,
   type AssetKind,
@@ -112,6 +117,30 @@ export type StoreImagesView = {
 };
 
 /**
+ * The ONE of several store sets of a display that Kiln compares with the repository and pushes to. The App Store keeps a display such as
+ * iPad 13" / 12.9" in more than one placement group (`APP_IPAD_PRO_3GEN_129`, the legacy `APP_IPAD_PRO_129`), each with its own limit of 10
+ * images; a push writes `APPLE_DISPLAY_TYPES[device]`. Every consumer that needs ONE set of a display (the comparison
+ * of the release step, the counts next to the repository's) takes it from here, so none of them keeps the last of the siblings by accident.
+ * With no set of the pushed group the one holding the most images stands in. Pure.
+ */
+export function primaryStoreSet<T extends { device: string | null; target: string; files: readonly unknown[] }>(
+  sets: readonly T[],
+): T | undefined {
+  const first = sets[0];
+  if (first === undefined || sets.length === 1) return first;
+  const device = first.device;
+  const pushed =
+    device === null
+      ? undefined
+      : device === 'iphone_6_9'
+        ? ['APP_IPHONE_67', 'APP_IPHONE_69']
+        : [APPLE_DISPLAY_TYPES[device]];
+  const own = sets.filter((s) => pushed !== undefined && pushed.indexOf(s.target) >= 0);
+  const pool = own.length > 0 ? own : sets;
+  return pool.reduce((best, s) => (s.files.length > best.files.length ? s : best));
+}
+
+/**
  * The store's own images judged against the documented specs, with no repository involved (the store-side checks of the graphics: pixel
  * size, byte size, count per set, wrong format). A fact the store did not give (`null` size) is never an error. Pure; the answer is
  * the same list `validateAssets` gives for repository files, with `path` = `locale/kind/device#position` so a message can name its image.
@@ -131,6 +160,8 @@ export function checkStoreImages(view: Pick<StoreImagesView, 'platform' | 'sets'
         locale: set.locale,
         kind: set.kind,
         device: set.device,
+        // The store's own group (the one rule of the count: per set, never summed across sibling display types; see `assetFactsOf`).
+        set: store === 'app_store' ? set.target : null,
         order: f.position,
         bytes: f.bytes,
         width: f.width,

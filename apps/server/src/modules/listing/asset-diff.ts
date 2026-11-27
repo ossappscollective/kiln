@@ -10,6 +10,7 @@ import {
   compareTotals,
   deviceLabel,
   IMESSAGE_PREFIX,
+  primaryStoreSet,
   type RepoSideFile,
   type StoreImageFile,
   type StoreImageSet,
@@ -139,10 +140,20 @@ export async function buildAssetDiff(
 
   const keyOf = (locale: string, kind: AssetKind, device: string | null) =>
     storeSetKey(platform, locale, { kind, device });
+  // A display can sit in several store sets (the App Store's `APP_IPAD_PRO_3GEN_129` and the legacy `APP_IPAD_PRO_129`, each with its own limit).
+  // The repository is compared with the one a push writes (`primaryStoreSet`); the others are sets of their own, listed with their group's
+  // name and never dropped or added up: the last of the siblings must not stand for the display.
   const storeSets = new Map<string, StoreImageSet>();
+  const groups = new Map<string, StoreImageSet[]>();
   for (const s of store.view.sets) {
     if ((s.device ?? '').startsWith(IMESSAGE_PREFIX)) continue;
-    storeSets.set(keyOf(s.locale, s.kind, s.device), s);
+    const key = keyOf(s.locale, s.kind, s.device);
+    groups.set(key, [...(groups.get(key) ?? []), s]);
+  }
+  for (const [key, list] of groups) {
+    const own = primaryStoreSet(list) as StoreImageSet;
+    storeSets.set(key, own);
+    for (const sibling of list) if (sibling !== own) storeSets.set(`${key}\0${sibling.target}`, sibling);
   }
   const repoByKey = new Map<string, RepoSet>();
   for (const r of repo.sets.values()) repoByKey.set(keyOf(r.locale, r.kind, r.device), r);

@@ -1116,3 +1116,49 @@ dbTest('a viewer cannot remove files, and bad bodies are refused with the field 
   assert.equal((await t.call(t.owner, 'POST', `/apps/${app}/staged/assets/remove`, { ...SLOT, files: [{ position: 0 }] })).status, 400);
   assert.equal((await t.rows(app)).length, 0);
 });
+
+dbTest(
+  'a display the store keeps in two groups (13" and legacy 12.9"): the comparison pairs the one a push writes and lists the other as its own set, never summed or dropped',
+  async (db) => {
+    const t = await boot(db, cdn());
+    const app = await t.addApp('ios');
+    const ipad = (position: number, target: string, id: string) =>
+      apple(position, {
+        device: 'ipad_13',
+        target,
+        id,
+        width: 2048,
+        height: 2732,
+      });
+    t.stores.ios.imageRecords = [
+      // The legacy group is read first: the last-wins pairing of the first version of this code would have kept the 8 and lost the 4.
+      ...Array.from({ length: 4 }, (_, i) => ipad(i + 1, 'APP_IPAD_PRO_129', `old${i + 1}`)),
+      ...Array.from({ length: 8 }, (_, i) => ipad(i + 1, 'APP_IPAD_PRO_3GEN_129', `new${i + 1}`)),
+    ];
+    const res = await t.call(t.owner, 'GET', `/apps/${app}/assets/diff?fresh=1`);
+    assert.equal(res.status, 200, res.text);
+    const sets = res.body.diff.sets.filter((s: { device: string }) => s.device === 'ipad_13');
+    assert.deepEqual(
+      sets
+        .map((s: { target: string; rows: { store: unknown }[] }) => [s.target, s.rows.filter((r) => r.store).length])
+        .sort(),
+      [
+        ['APP_IPAD_PRO_129', 4],
+        ['APP_IPAD_PRO_3GEN_129', 8],
+      ],
+    );
+    await t.call(t.owner, 'GET', `/apps/${app}/assets`);
+    const side = (await t.call(t.owner, 'GET', `/apps/${app}/assets`)).body.storeSide;
+    const entries = side.counts.filter((c: { device: string }) => c.device === 'ipad_13');
+    assert.equal(entries.length, 1, 'one count per display');
+    assert.equal(entries[0].count, 8, 'the group a push writes, not the sum (12) and not the last of the siblings (4)');
+    assert.equal(entries[0].target, 'APP_IPAD_PRO_3GEN_129');
+    assert.deepEqual(
+      entries[0].groups.map((g: { target: string; count: number }) => [g.target, g.count]).sort(),
+      [
+        ['APP_IPAD_PRO_129', 4],
+        ['APP_IPAD_PRO_3GEN_129', 8],
+      ],
+    );
+  },
+);
