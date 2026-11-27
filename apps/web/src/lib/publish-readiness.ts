@@ -85,6 +85,8 @@ export type ReadinessLine = {
   external: boolean;
   /** App Review Information (`kind` 'review'): the version it can be copied from, when the server named one; else null. */
   reviewFrom: string | null;
+  /** A missing or invalid text of a language: where that language comes from ("fr-FR exists in the App Store draft for 2.00.1 ..."), else null. */
+  origin: string | null;
 };
 
 export type ReadinessView = {
@@ -133,6 +135,19 @@ const whereLabel = (kind: ReadinessFixKind, platform: Platform): string | null =
   }
 };
 
+/** Where the language of a text blocker comes from, in words: the store's draft (even with no text) or the staged push. Null: not a text blocker. */
+export function originOf(blocker: SubmitBlocker): string | null {
+  const p = blocker.params;
+  if (p === undefined || blocker.locale === undefined) return null;
+  if (blocker.code !== 'missing_text' && blocker.code !== 'text_problem') return null;
+  const locale = blocker.locale;
+  if (p.source === 'staged') return t('publish:readiness.origin.staged', { locale });
+  if (p.source !== 'store_draft') return null;
+  return typeof p.version === 'string' && p.version !== ''
+    ? t('publish:readiness.origin.storeDraftVersion', { locale, version: p.version })
+    : t('publish:readiness.origin.storeDraft', { locale });
+}
+
 /** One blocker as a line: the sentence, how to fix it, and where. */
 export function readinessLine(
   platform: Platform,
@@ -155,6 +170,7 @@ export function readinessLine(
     href,
     external: inConsole,
     reviewFrom: reviewFromParam(blocker.params),
+    origin: originOf(blocker),
   };
 }
 

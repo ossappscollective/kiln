@@ -93,6 +93,8 @@ dbTest(
       field: 'description',
       label: 'Description',
       locale: 'fr-FR',
+      source: 'store_draft',
+      version: '2.1',
     });
     // The push uploads an image: whether it is processed is only known afterwards.
     assert.deepEqual(readiness.unknown, ['image_not_ready']);

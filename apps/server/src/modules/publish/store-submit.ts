@@ -520,7 +520,9 @@ export function evaluateChecks(input: {
   // The listing as the store holds it: the content rules are the pure ones of `@kiln/core` (`evaluateDraftContent`), the same that
   // judge the draft a push WOULD leave before anything is sent (`predictDraft`, the plan's `readiness`). Only what the store alone
   // knows (an image still being processed) is checked here.
-  for (const finding of evaluateDraftContent(draftContentOf(ios, state.locales)))
+  for (const finding of evaluateDraftContent(
+    draftContentOf(ios, state.locales, state.version?.versionString),
+  ))
     add(finding as SubmitCheck);
   // Images no display of the store recognises are in no set (never a blocker): one warning, the same count the Graphics tab shows.
   const unplaced = readinessImagesOf({ sets: [], unplaced: state.unplacedImages ?? 0 }).notice;
@@ -550,11 +552,14 @@ export function evaluateChecks(input: {
 export function draftContentOf(
   ios: boolean,
   locales: readonly SubmitState['locales'][number][],
+  version?: string | null,
 ): DraftContent {
   return {
     store: ios ? 'app_store' : 'google_play',
+    version: version ?? null,
     locales: locales.map((l) => ({
       locale: l.locale,
+      origin: 'store' as const,
       text: l.text,
       assets: l.assets.map((set) => ({
         kind: set.kind,

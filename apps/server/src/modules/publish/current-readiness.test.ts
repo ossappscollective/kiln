@@ -162,3 +162,35 @@ dbTest(
     assert.equal((await images(false)).body.cached, false);
   },
 );
+
+dbTest(
+  'two apps of one workspace with other locales: the readiness of one never carries a locale of the other, cached, fresh or interleaved',
+  async (db) => {
+    const t = await boot(db);
+    const scanner = await t.addApp('ios', 'OSS Document Scanner');
+    const wallet = await t.addApp('ios', 'OSS CardWallet');
+    // The scanner's store holds fr-FR with no text; the wallet's own store holds en-US only.
+    blank(t, ['description', 'keywords', 'support_url']);
+    const walletStore = t.ownStoreFor('com.acme.app2');
+    walletStore.draft.seedSet('en-US', GROUP, files(3));
+    const frOf = (body: any) =>
+      (body.readiness.blockers as { locale?: string }[]).filter((b) => b.locale === 'fr-FR');
+    // Interleaved: both reads are in flight together.
+    const [a, b] = await Promise.all([t.readiness(scanner), t.readiness(wallet)]);
+    assert.equal(a.status, 200, a.text.slice(0, 300));
+    assert.equal(b.status, 200, b.text.slice(0, 300));
+    assert.equal(frOf(a.body).length, 3, 'the scanner has fr-FR');
+    assert.equal(frOf(b.body).length, 0, 'the wallet never gets the scanner locales');
+    // Cached (30 s) and fresh, in the other order.
+    for (const fresh of [false, true, false]) {
+      const w = await t.readiness(wallet, fresh);
+      const s = await t.readiness(scanner, fresh);
+      assert.equal(frOf(w.body).length, 0);
+      assert.equal(frOf(s.body).length, 3);
+    }
+    // Where the locale comes from is named: the scanner's fr-FR is in the store's draft.
+    const missing = a.body.readiness.blockers.find((x: any) => x.code === 'missing_text');
+    assert.equal(missing.params.source, 'store_draft');
+    assert.equal(typeof missing.params.version, 'string');
+  },
+);

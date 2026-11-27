@@ -40,6 +40,7 @@
         {#each view.lines as line (line.id)}
           <li class="line" data-testid="submit-readiness-line" data-code={line.code}>
             <span class="said">{line.message}</span>
+            {#if line.origin !== null}<span class="origin small muted" data-testid="submit-readiness-origin">{line.origin}</span>{/if}
             <span class="how small"><strong>{t('publish:readiness.how')}</strong> {line.fix}</span>
             {#if line.href !== null && line.where !== null}
               {#if line.external}

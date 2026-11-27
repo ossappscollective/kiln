@@ -1116,8 +1116,17 @@ export async function bootStaged(db: Database, options: StagedBootOptions = {}) 
     android: new FakeSubmitStore(stores.android),
   };
   const submitBuilt: SubmitConnectorInput[] = [];
+  /** An app with a store of its own (by bundle id): a second app of the same workspace whose store holds other locales. */
+  const ownSubmitStores = new Map<string, FakeSubmitStore>();
+  const ownStoreFor = (identifier: string): FakeSubmitStore => {
+    const made = ownSubmitStores.get(identifier) ?? new FakeSubmitStore(new FakeDraftStore('ios'));
+    ownSubmitStores.set(identifier, made);
+    return made;
+  };
   const submitFactory: SubmitConnectorFactory = (input) => {
     submitBuilt.push(input);
+    const own = ownSubmitStores.get(input.identifier);
+    if (own !== undefined) return own;
     return input.kind === 'app_store_connect' ? submitStores.ios : submitStores.android;
   };
   const releaseStores = {
@@ -1288,6 +1297,7 @@ export async function bootStaged(db: Database, options: StagedBootOptions = {}) 
     previewAndRelease,
     releaseClaim,
     submitStores,
+    ownStoreFor,
     submitBuilt,
     sub,
     submitState,

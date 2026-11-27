@@ -294,3 +294,17 @@ test('the App Review Information blockers: the server sentence, how to fix it, t
   // no value in what a person reads
   assert.ok(!JSON.stringify(v).includes('@'));
 });
+
+test('a text blocker says where its language comes from: the store draft (with the version), the staged push, or nothing for other codes', () => {
+  const text = (params: Record<string, string>) => ({
+    ...blocker('missing_text', 'listing', { locale: 'fr-FR', item: 'description' }),
+    params,
+  });
+  const store = readinessLine('ios', text({ source: 'store_draft', version: '2.00.1' }));
+  assert.match(store.origin ?? '', /fr-FR exists in the App Store draft for 2\.00\.1 with no text/);
+  const noVersion = readinessLine('ios', text({ source: 'store_draft' }));
+  assert.match(noVersion.origin ?? '', /draft with no text/);
+  assert.match(readinessLine('ios', text({ source: 'staged' })).origin ?? '', /fr-FR is staged/);
+  assert.equal(readinessLine('ios', text({})).origin, null);
+  assert.equal(readinessLine('ios', blocker('no_build', 'build')).origin, null);
+});

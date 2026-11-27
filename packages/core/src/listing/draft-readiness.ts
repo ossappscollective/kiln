@@ -36,8 +36,16 @@ export type DraftSet = {
   images: DraftImage[];
 };
 
+/**
+ * Where a locale of a draft comes from: `store` (the store's own draft holds it, even with no text) or `staged` (only the staged push
+ * adds it). Nothing else makes a locale of the draft: not a folder of the repository, not another app.
+ */
+export type DraftLocaleOrigin = 'store' | 'staged';
+
 export type DraftLocale = {
   locale: string;
+  /** Where the locale comes from (absent: the store, which is what `draftContentOf` reads). */
+  origin?: DraftLocaleOrigin | undefined;
   /** Listing field id -> the draft's value, null when not set. */
   text: Record<string, string | null>;
   assets: DraftSet[];
@@ -47,6 +55,8 @@ export type DraftLocale = {
 export type DraftContent = {
   store: ListingStore;
   locales: DraftLocale[];
+  /** The version the draft is of (App Store), to say which draft holds a locale. */
+  version?: string | null | undefined;
   /** Google Play: the release notes of each language (they are not part of a listing locale), for the length rule. */
   releaseNotes?: { locale: string; text: string }[] | undefined;
 };
@@ -81,6 +91,12 @@ export type ReadinessFinding = {
   /** The numbers and names of the sentence, for a translation. */
   params?: Record<string, string | number>;
 };
+
+/** `source` ('store_draft' | 'staged') and `version` of a locale's findings: a person can tell where a locale they did not expect comes from. */
+const originParams = (content: DraftContent, locale: DraftLocale): Record<string, string> => ({
+  source: locale.origin === 'staged' ? 'staged' : 'store_draft',
+  ...(content.version ? { version: content.version } : {}),
+});
 
 const specsOf = (store: ListingStore): Record<string, ListingFieldSpec> =>
   (store === 'app_store' ? APP_STORE_FIELD_SPECS : PLAY_FIELD_SPECS) as Record<
@@ -172,7 +188,12 @@ export function evaluateDraftContent(content: DraftContent): ReadinessFinding[] 
             item: field,
             source: spec.source,
             verified,
-            params: { field, label: spec.label, locale: locale.locale },
+            params: {
+              field,
+              label: spec.label,
+              locale: locale.locale,
+              ...originParams(content, locale),
+            },
           });
         } else if (
           problem.code === 'too_long' ||
@@ -192,6 +213,7 @@ export function evaluateDraftContent(content: DraftContent): ReadinessFinding[] 
               field,
               label: spec.label,
               locale: locale.locale,
+              ...originParams(content, locale),
               problem: problem.code,
               ...(problem.limit !== undefined ? { limit: problem.limit } : {}),
               ...(problem.actual !== undefined ? { actual: problem.actual } : {}),
@@ -297,6 +319,7 @@ export function predictDraft(current: DraftContent, staged: StagedDraftChanges):
   const fields = draftTextFields(current.store);
   const locales: DraftLocale[] = current.locales.map((l) => ({
     locale: l.locale,
+    origin: l.origin ?? 'store',
     text: { ...l.text },
     assets: l.assets.map((s) => ({ ...s, images: s.images.slice() })),
   }));
@@ -305,7 +328,7 @@ export function predictDraft(current: DraftContent, staged: StagedDraftChanges):
     if (found) return found;
     const text: Record<string, string | null> = {};
     for (const field of fields) text[field] = null;
-    const made: DraftLocale = { locale: code, text, assets: [] };
+    const made: DraftLocale = { locale: code, origin: 'staged', text, assets: [] };
     locales.push(made);
     return made;
   };
@@ -351,7 +374,7 @@ export function predictDraft(current: DraftContent, staged: StagedDraftChanges):
     } else if (at >= 0) notes[at] = { locale: n.locale, text: n.value };
     else notes.push({ locale: n.locale, text: n.value });
   }
-  return { store: current.store, locales, releaseNotes: notes };
+  return { store: current.store, version: current.version, locales, releaseNotes: notes };
 }
 
 // ---------------------------------------------------------------------------------------------

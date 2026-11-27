@@ -82,6 +82,7 @@ test('an empty required text blocks per locale and field, with the same sentence
     field: 'description',
     label: 'Description',
     locale: 'fr-FR',
+    source: 'store_draft',
   });
 });
 
@@ -568,4 +569,46 @@ test('an empty iOS keywords field blocks the submit and is a problem in the Insi
     checks.locales[0]?.issues.find((i) => i.code === 'empty' && i.field === 'keywords')?.severity,
     'problem',
   );
+});
+
+test('the locales of a draft are the store draft locales plus the staged ones, and every finding says which', () => {
+  const empty = { description: '', keywords: '', support_url: '' };
+  const store: DraftContent = {
+    store: 'app_store',
+    version: '2.00.1',
+    locales: [
+      { locale: 'en-US', origin: 'store', text: { ...filled }, assets: [iphone(3)] },
+      { locale: 'fr-FR', origin: 'store', text: { ...filled, ...empty }, assets: [iphone(3)] },
+    ],
+  };
+  const missing = (c: DraftContent) =>
+    evaluateDraftContent(c).filter((f) => f.code === 'missing_text');
+  const fromStore = missing(store);
+  assert.equal(fromStore.length, 3);
+  for (const f of fromStore) {
+    assert.equal(f.locale, 'fr-FR');
+    assert.equal(f.params?.source, 'store_draft');
+    assert.equal(f.params?.version, '2.00.1');
+  }
+  // Nothing else makes a locale: a store with en-US only judges en-US only, whatever else exists elsewhere.
+  const only = { ...store, locales: [store.locales[0] as DraftLocale] };
+  assert.deepEqual(missing(only), []);
+  assert.deepEqual(
+    predictDraft(only, { texts: [], sets: [] }).locales.map((l) => l.locale),
+    ['en-US'],
+  );
+  // A staged text for a locale the store lacks adds it, as staged.
+  const staged = predictDraft(only, {
+    texts: [{ locale: 'de-DE', field: 'description', value: 'Hallo' }],
+    sets: [],
+  });
+  const de = missing(staged).filter((f) => f.locale === 'de-DE');
+  assert.ok(de.length > 0);
+  assert.ok(de.every((f) => f.params?.source === 'staged'));
+  // A staged text for a locale the store has keeps it a store locale.
+  const kept = predictDraft(store, {
+    texts: [{ locale: 'fr-FR', field: 'description', value: 'Bonjour' }],
+    sets: [],
+  });
+  assert.ok(missing(kept).every((f) => f.params?.source === 'store_draft'));
 });
