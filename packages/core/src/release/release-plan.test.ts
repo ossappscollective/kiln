@@ -165,3 +165,20 @@ test('the shipped templates cover the first release checklists', () => {
   assert.equal(defaultTemplate('builtin:nope'), undefined);
   assert.equal(isBuiltinTemplateId('3f2a'), false);
 });
+
+test('readiness reads the notes of every place: a locale the store has is not missing, notes that differ are reported, 501 on Play is over', () => {
+  const r = computeReadiness({
+    items: [],
+    notes: [{ locale: 'en-US', text: 'Plan text' }, { locale: 'fr-FR', text: '' }],
+    platform: 'android',
+    sources: { staged: [{ locale: 'fr-FR', text: 'Corrections' }], store: [{ locale: 'en-US', text: 'Store text' }] },
+    locales: ['en-US', 'fr-FR', 'de-DE'],
+  });
+  assert.deepEqual(r.notes.missing, ['de-DE'], 'fr-FR has the staged text; only de-DE has none anywhere');
+  assert.equal(r.notes.filled, 2);
+  assert.deepEqual(r.notes.conflicts, ['en-US'], 'the store and the plan differ for en-US');
+  assert.equal(r.ready, false);
+  assert.ok(r.reasons.some((x) => x.includes('differ between store and plan')));
+  const over = computeReadiness({ items: [], notes: [{ locale: 'en-US', text: 'x'.repeat(501) }], platform: 'android' });
+  assert.deepEqual(over.notes.tooLong, ['en-US']);
+});

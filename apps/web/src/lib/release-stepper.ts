@@ -345,7 +345,8 @@ export type StepperFacts = {
   chosen: Chosen | null;
   /** Builds (App Store) or codes (Google Play) that can be chosen; null: not read yet. */
   choices: number | null;
-  notes: { withText: number; unsaved: number; over: number };
+  /** From `releaseNotesView`: languages with text, typed and not staged, over the limit, listing languages with no text*/
+  notes: { withText: number; unsaved: number; over: number; missing?: number };
   staged: StagedFacts;
   pipeline: { state: string; waitingOn: 'ci' | 'store' | 'you' | null } | null;
 };
@@ -408,6 +409,12 @@ export function notesStatus(f: StepperFacts): StepStatus {
     };
   if (f.notes.withText === 0)
     return { ...base, level: 'todo', text: t('release-stepper:notes.none') };
+  if ((f.notes.missing ?? 0) > 0)
+    return {
+      ...base,
+      level: 'attention',
+      text: t('release-stepper:notes.partial', { count: f.notes.missing }),
+    };
   return {
     ...base,
     level: 'ready',

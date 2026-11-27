@@ -5,8 +5,14 @@
  */
 
 import { isLocaleOrDefault } from '../listing-facts/locale.ts';
-import { APP_STORE_FIELD_SPECS, measureField, PLAY_CHANGELOG_SPEC } from '../listing/listing.ts';
-import { byFamily, type Platform } from '../platform.ts';
+import { type NoteSources, notesView } from '../listing-facts/notes.ts';
+import {
+  APP_STORE_FIELD_SPECS,
+  type ListingStore,
+  measureField,
+  PLAY_CHANGELOG_SPEC,
+} from '../listing/listing.ts';
+import { byFamily, listingStoreOf, type Platform } from '../platform.ts';
 
 /** `null` means the plan covers both platforms. */
 export type PlanPlatform = Platform | null;
@@ -130,6 +136,8 @@ export type Readiness = {
     missing: string[];
     /** Locales whose text is over the limit. */
     tooLong: string[];
+    /** Locales whose notes differ between two places (plan, store, staged...): the first place wins and the difference is said. */
+    conflicts: string[];
     /** At least one locale, all written, none too long. */
     complete: boolean;
   };
@@ -137,35 +145,59 @@ export type Readiness = {
   reasons: string[];
 };
 
+/** The store whose notes rules judge a plan: its platform's; a plan for both platforms is judged by the stricter store (Google Play). */
+const planStoreOf = (platform: PlanPlatform): ListingStore =>
+  platform === null ? 'google_play' : listingStoreOf(platform);
+
 export function computeReadiness(input: {
   items: readonly ReadinessItem[];
   notes: readonly ReadinessNote[];
   platform: PlanPlatform;
+  /**
+   * The notes of the OTHER places (the store's draft, the staged text, the repository, the Google Play section): with them the status is the
+   * one of `notesView`, so a locale the store already has notes for is not "missing" and notes that differ between two places are reported.
+   * Without them the plan's own notes are judged alone.
+   */
+  sources?: Omit<NoteSources, 'plan'> | undefined;
+  /** The locales that MUST have notes besides the plan's own (the listing's locales). */
+  locales?: readonly string[] | undefined;
 }): Readiness {
   const required = input.items.filter((i) => i.required);
   const done = required.filter((i) => i.done).length;
   const limit = releaseNotesLimit(input.platform);
-  const missing = input.notes.filter((n) => n.text.trim() === '').map((n) => n.locale);
-  const tooLong = input.notes.filter((n) => releaseNotesLength(n.text) > limit).map((n) => n.locale);
-  const complete = input.notes.length > 0 && missing.length === 0 && tooLong.length === 0;
+  const view = notesView(
+    planStoreOf(input.platform),
+    { ...input.sources, plan: input.notes },
+    { locales: [...input.notes.map((n) => n.locale), ...(input.locales ?? [])] },
+  );
+  const missing = view.missing;
+  const tooLong = view.over;
+  const conflicts = view.conflicts.map((c) => c.locale);
+  const filled = view.locales.filter((l) => l.from !== null).length;
+  const complete = view.status === 'complete' && view.locales.length > 0 && tooLong.length === 0;
   const open = required.length - done;
 
   const reasons: string[] = [];
   if (open > 0) reasons.push(`${open} required ${open === 1 ? 'item is' : 'items are'} not done.`);
-  if (input.notes.length === 0) reasons.push('No release notes yet. Add at least one locale.');
+  if (view.locales.length === 0) reasons.push('No release notes yet. Add at least one locale.');
   if (missing.length > 0) reasons.push(`Release notes are missing for ${missing.join(', ')}.`);
   if (tooLong.length > 0)
     reasons.push(`Release notes are over ${limit} characters for ${tooLong.join(', ')}.`);
+  for (const c of view.conflicts)
+    reasons.push(
+      `Release notes differ between ${c.candidates.map((x) => x.source).join(' and ')} for ${c.locale}; the ${c.from ?? 'first'} text is used.`,
+    );
 
   return {
     ready: open === 0 && complete,
     required: { total: required.length, done, open },
     notes: {
       limit,
-      locales: input.notes.length,
-      filled: input.notes.length - missing.length,
+      locales: view.locales.length,
+      filled,
       missing,
       tooLong,
+      conflicts,
       complete,
     },
     reasons,

@@ -1117,3 +1117,27 @@ dbTest('a malformed body is a 400 with the issues, never a 500', async (db) => {
     assert.ok(Array.isArray(r.body.issues));
   }
 });
+
+dbTest('plan readiness reads the staged text of the app too: a locale with a staged note is not missing, and a differing text is said', async (db) => {
+  const t = await setup(db);
+  const plan = (await t.create({ version: '2.0.0', platform: 'ios' })).body.plan;
+  const put = (locale: string, text: string) =>
+    t.call(t.owner.cookie, 'PUT', planPath(t, plan.id, `/notes/${locale}`), { text });
+  await put('en-US', 'Plan text for the release.');
+  const blank = await put('fr-FR', '');
+  assert.deepEqual(blank.body.plan.readiness.notes.missing, ['fr-FR']);
+  await db.execute(
+    "INSERT INTO staged_changes (id, workspace_id, app_id, platform, kind, locale, target, ordinal, source, value_text, value_hash, created_by, created_at, updated_at) VALUES ('s1', ?, ?, 'ios', 'listing_text', 'fr-FR', 'release_notes', 0, 'local', 'Correctifs.', 'h1', 'u', 0, 0)",
+    [t.owner.workspaceId, t.appId],
+  );
+  await db.execute(
+    "INSERT INTO staged_changes (id, workspace_id, app_id, platform, kind, locale, target, ordinal, source, value_text, value_hash, created_by, created_at, updated_at) VALUES ('s2', ?, ?, 'ios', 'listing_text', 'en-US', 'release_notes', 0, 'local', 'A different staged text.', 'h2', 'u', 0, 0)",
+    [t.owner.workspaceId, t.appId],
+  );
+  const got = await t.call(t.owner.cookie, 'GET', `/apps/${t.appId}/plans/${plan.id}`);
+  assert.equal(got.status, 200, got.text);
+  const read = got.body.plan;
+  assert.deepEqual(read.readiness.notes.missing, [], 'fr-FR has the staged text');
+  assert.deepEqual(read.readiness.notes.conflicts, ['en-US'], 'the staged text and the plan differ');
+  assert.ok(read.readiness.reasons.some((r: string) => r.includes('differ between staged and plan')));
+});

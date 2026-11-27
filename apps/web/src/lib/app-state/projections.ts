@@ -186,7 +186,7 @@ export const SURFACES: readonly Surface[] = [
   },
   {
     id: 'appSwitcherChip',
-    components: ['components/Shell.svelte', 'components/app/PendingChip.svelte'],
+    components: ['components/Shell.svelte', 'components/publish/PendingChip.svelte'],
     mirrors: ['components/Shell.svelte:136 switcherList (lineOf per group)'],
     project(w) {
       const line = lineOf(w, ids(w));

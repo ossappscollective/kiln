@@ -267,6 +267,12 @@ test('the Notes dot: unsaved first, then limit, then empty, then ready', () => {
   );
 });
 
+test('the Notes dot says a listing language without notes (every language of the listing needs them)', () => {
+  const status = notesStatus(facts({ notes: { withText: 1, unsaved: 0, over: 0, missing: 2 } }));
+  assert.equal(status.level, 'attention');
+  assert.equal(status.text, '2 listing languages have no notes yet');
+});
+
 test('the Assets and Review dots', () => {
   assert.equal(assetsStatus(facts()).level, 'optional');
   assert.equal(

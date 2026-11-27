@@ -1,5 +1,13 @@
 import type { Platform, StoreId } from '@kiln/core';
-import { isLocaleCode, listingStoreOf, localeKey, notesLengthOf, releaseNotesLimit } from '@kiln/core';
+import {
+  isLocaleCode,
+  listingStoreOf,
+  localeKey,
+  type NotesView,
+  notesLengthOf,
+  notesView,
+  releaseNotesLimit,
+} from '@kiln/core';
 import { k, t } from './i18n/t.ts';
 import type { TestNotes } from './release-candidates.ts';
 
@@ -189,6 +197,40 @@ export function historyStoreLine(store: NotesHistory['store'] | undefined): stri
 // Drafts of the stepper: one text per language, edited here and staged on request
 
 export type Drafts = Record<string, string>;
+
+const asNotes = (texts: Readonly<Record<string, string>>) =>
+  Object.keys(texts).map((locale) => ({ locale, text: texts[locale] as string }));
+
+/**
+ * THE view of the release notes of one release, over the places this screen holds (core `notesView`: one status, one limit, one counting
+ * unit, the first non-empty text of the staged/typed, store, plan, repository, Google Play places, differences reported as conflicts).
+ * `listingLocales` are the locales that must have notes. What is typed in the editors counts as the staged place (the newest intent).
+ */
+export function releaseNotesView(input: {
+  platform: Platform;
+  listingLocales: readonly string[];
+  drafts?: Readonly<Record<string, string>>;
+  staged?: Readonly<Record<string, string>>;
+  store?: Readonly<Record<string, string>>;
+  plan?: Readonly<Record<string, string>>;
+}): NotesView {
+  return notesView(
+    listingStoreOf(input.platform),
+    {
+      staged: [...asNotes(input.staged ?? {}), ...asNotes(input.drafts ?? {})],
+      store: asNotes(input.store ?? {}),
+      plan: asNotes(input.plan ?? {}),
+    },
+    { locales: input.listingLocales },
+  );
+}
+
+/** The counts the stepper shows of a notes view: languages with text, listing languages with none, texts over the limit. */
+export const notesFactsOf = (view: NotesView): { withText: number; missing: number; over: number } => ({
+  withText: view.locales.filter((l) => l.from !== null).length,
+  missing: view.missing.length,
+  over: view.over.length,
+});
 
 /** `drafts` with `text` copied from `from` to every language in `targets` (never to `from` itself). */
 export function copyToLocales(

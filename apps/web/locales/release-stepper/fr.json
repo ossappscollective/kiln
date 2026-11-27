@@ -240,6 +240,8 @@
   "notes.over_many": "{{count}} de textes dépassent la limite du store",
   "notes.over_one": "{{count}} texte dépasse la limite du store",
   "notes.over_other": "{{count}} textes dépassent la limite du store",
+  "notes.partial_one": "{{count}} langue de la fiche n'a pas encore de notes",
+  "notes.partial_other": "{{count}} langues de la fiche n'ont pas encore de notes",
   "notes.ready_many": "{{count}} de langues ont des notes",
   "notes.ready_one": "{{count}} langue a des notes",
   "notes.ready_other": "{{count}} langues ont des notes",

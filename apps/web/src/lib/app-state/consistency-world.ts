@@ -70,7 +70,7 @@ export type StoreImageGroup = { locale: string; device: string; target: string; 
 export type ListingChannelFact = {
   channel: 'live' | 'editable';
   locales: string[];
-  /** Google Play `details.defaultLanguage`; the App Store's primary locale is not read. */
+  /** The store's declared default language: Google Play `details.defaultLanguage`, the App Store's `primaryLocale` (read by the connector); null when it does not say. */
   defaultLanguage: string | null;
 };
 
@@ -649,8 +649,8 @@ function localesFrZh(): World {
     scope: 'both',
     listing: {
       [IOS.id]: [
-        { channel: 'live', locales: ['en-US', 'zh-Hans'], defaultLanguage: null },
-        { channel: 'editable', locales: ['en-US', 'fr-FR', 'zh-Hans'], defaultLanguage: null },
+        { channel: 'live', locales: ['en-US', 'zh-Hans'], defaultLanguage: 'en-US' },
+        { channel: 'editable', locales: ['en-US', 'fr-FR', 'zh-Hans'], defaultLanguage: 'en-US' },
       ],
       [ANDROID.id]: [{ channel: 'live', locales: ['en-US', 'zh-CN'], defaultLanguage: 'en-GB' }],
     },

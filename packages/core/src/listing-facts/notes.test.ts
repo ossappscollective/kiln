@@ -90,3 +90,14 @@ test('plan notes keyed by the default fallback stay their own row', () => {
   const v = notesView('app_store', { plan: [{ locale: 'default', text: 'All' }] });
   assert.deepEqual(v.locales.map((l) => l.locale), ['default']);
 });
+
+test('a staged text that differs from the store text is an edit, not a conflict; against the plan it is one', () => {
+  const edit = notesView('app_store', { staged: [{ locale: 'en-US', text: 'New' }], store: [{ locale: 'en-US', text: 'Old' }] });
+  assert.equal(edit.conflicts.length, 0);
+  const vsPlan = notesView('app_store', {
+    staged: [{ locale: 'en-US', text: 'New' }],
+    store: [{ locale: 'en-US', text: 'Old' }],
+    plan: [{ locale: 'en-US', text: 'Plan' }],
+  });
+  assert.deepEqual(vsPlan.conflicts.map((l) => l.locale), ['en-US']);
+});

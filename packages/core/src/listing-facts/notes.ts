@@ -17,7 +17,8 @@ import { RELEASE_NOTES_FIELD, normalizeStoreText, textLimitOf } from './text.ts'
  *   4. `repo`     the repository's changelog files (fastlane `changelogs`, `release_notes.txt`);
  *   5. `section`  the Google Play section of the last read (the notes of the track's release).
  * The text of a locale is the first non-empty one in that order (`from`). Texts that differ between sources are CONFLICTS: reported with
- * every candidate and the winner, never merged and never silently dropped.
+ * every candidate and the winner, never merged and never silently dropped. (A staged text is an intended edit of the store's text: the two
+ * never conflict with each other.)
  *
  * LOCALES are matched by key and by the store equivalence table (a plan locale `fr_FR` and a store `fr-FR` are one row; `zh-Hans` and `zh-CN`
  * too). `locales` (the listing's locales) are the rows that MUST have notes: a required locale with no text is `missing`.
@@ -113,7 +114,12 @@ export function notesView(
     }).filter((c): c is NoteCandidate => c !== null);
     const first = candidates[0] ?? null;
     const length = first === null ? 0 : measureField({ unit: 'characters' }, first.text);
-    const distinct = new Set(candidates.map((c) => normalizeStoreText(c.text)));
+    // A staged text is an EDIT of the store's text on purpose: it never conflicts with the store copy it replaces (it does with the plan's
+    // or the repository's text, which are meant to say the same thing).
+    const staged = candidates.some((c) => c.source === 'staged');
+    const distinct = new Set(
+      candidates.filter((c) => !(staged && c.source === 'store')).map((c) => normalizeStoreText(c.text)),
+    );
     locales.push({
       locale: r.code,
       text: first === null ? '' : first.text,

@@ -156,3 +156,40 @@ export const VERDICT_SURFACES: readonly VerdictSurface[] = [
 
 /** Guarded actions that no screen draws a button for of its own: the model decides them for the offers only. Say why. */
 export const MODEL_ONLY: Readonly<Partial<Record<GuardedAction, string>>> = {};
+
+/**
+ * The surfaces that only DISPLAY a fact of the state domain (a count, a headline, a badge): no button, so no offer or verdict above.
+ * Each names the files that draw it and the fact families it shows; `display-surfaces.test.ts` asserts that
+ *
+ *  - every id here has a projection in `projections.ts` (`SURFACES`), and every projection that shows a `state` fact has an entry here;
+ *  - the families listed are exactly the `state` families the projection shows in the consistency scenarios;
+ *  - every file named exists, and the projection names the same files.
+ *
+ * So a new screen that draws a count of the state domain cannot appear without a projection (the consistency harness then compares it with
+ * every other surface), and a projection cannot show a fact that no registered screen is known to draw.
+ */
+export type DisplaySurface = {
+  id: string;
+  /** The `state` fact families it shows (`FACTS` in projections.ts). */
+  facts: readonly string[];
+};
+
+export const DISPLAY_SURFACES: readonly DisplaySurface[] = [
+  { id: 'topBar', facts: ['pendingCount', 'phase'] },
+  { id: 'sidebarBadge', facts: ['pendingCount'] },
+  { id: 'appSwitcherChip', facts: ['pendingCount'] },
+  { id: 'boardCard', facts: ['pendingCount'] },
+  { id: 'alertPendingStale', facts: ['stagedUnpushed'] },
+  { id: 'portfolioCard', facts: ['pendingCount'] },
+  { id: 'appDashboardAttention', facts: ['stagedUnpushed'] },
+  { id: 'nextStep', facts: ['blockerCount', 'blockingCount', 'pendingCount', 'phase'] },
+  { id: 'pendingCartDrawer', facts: ['pendingCount'] },
+  { id: 'pendingCartRows', facts: ['pendingCount'] },
+  { id: 'pendingHeader', facts: ['awaitingSubmit', 'blockingCount', 'pendingCount'] },
+  { id: 'pendingChangesStaged', facts: ['blockingCount', 'stagedUnpushed'] },
+  { id: 'workspacePending', facts: ['pendingCount'] },
+  { id: 'stagedTray', facts: ['stagedItems'] },
+  { id: 'releaseStepStaged', facts: ['stagedItems', 'stagedUnpushed'] },
+  { id: 'publishFailure', facts: ['blockerCount'] },
+  { id: 'publishDialogFailure', facts: ['blockerCount'] },
+];

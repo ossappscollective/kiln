@@ -207,6 +207,8 @@
   "notes.none": "Noch keine Versionshinweise",
   "notes.over_one": "{{count}} Text überschreitet das Store-Limit",
   "notes.over_other": "{{count}} Texte überschreiten das Store-Limit",
+  "notes.partial_one": "{{count}} Sprache des Eintrags hat noch keine Hinweise",
+  "notes.partial_other": "{{count}} Sprachen des Eintrags haben noch keine Hinweise",
   "notes.ready_one": "{{count}} Sprache hat Hinweise",
   "notes.ready_other": "{{count}} Sprachen haben Hinweise",
   "notes.unsaved_one": "{{count}} Sprache ist noch nicht vorgemerkt",

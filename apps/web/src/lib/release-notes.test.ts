@@ -14,6 +14,7 @@ import {
   previewOf,
   promoteNotesFill,
   promoteNotesLine,
+  releaseNotesView,
   reuseOptions,
   stateLabel,
   testFlightLine,
@@ -354,4 +355,22 @@ test('promote: the sentence says where the text came from, that nothing is stage
     promoteNotesLine({ status: 'error', message: 'Not allowed.' }, 'beta', []).text,
     /could not be read \(Not allowed\.\)/,
   );
+});
+
+test('releaseNotesView: one status over the typed, staged and store texts; a Play note of 501 characters is over, 500 with an emoji is not', () => {
+  const view = releaseNotesView({
+    platform: 'android',
+    listingLocales: ['en-US', 'fr-FR', 'de-DE'],
+    drafts: { 'en-US': 'x'.repeat(500) },
+    staged: { 'fr-FR': 'Corrections' },
+    store: { 'en-US': 'Old' },
+  });
+  assert.equal(view.status, 'partial');
+  assert.deepEqual(view.missing, ['de-DE']);
+  assert.deepEqual(view.over, []);
+  assert.equal(view.locales.find((l) => l.locale === 'en-US')?.from, 'staged', 'what is typed wins');
+  const over = releaseNotesView({ platform: 'android', listingLocales: [], drafts: { 'en-US': 'x'.repeat(501) } });
+  assert.deepEqual(over.over, ['en-US']);
+  const emoji = releaseNotesView({ platform: 'android', listingLocales: [], drafts: { 'en-US': `${'a'.repeat(470)}${'\u{1F600}'.repeat(30)}` } });
+  assert.deepEqual(emoji.over, [], '500 code points (530 UTF-16 units) are within the limit');
 });

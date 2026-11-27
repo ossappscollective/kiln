@@ -27,7 +27,7 @@
   import { type EditableRelease, type ReleaseCandidates, type PlayCandidates, type BuildCandidate, type ChosenBuildLine, chosenBuildLine, chosenCodeLines } from '../../../lib/release-candidates.ts';
   import { type Promote } from '../../../lib/play-promote.ts';
   import type { StepPrefill } from '../../../lib/release-stepper.ts';
-  import { type PromoteNotesState, noteRows, promoteNotesFill, unsavedLocales } from '../../../lib/release-notes.ts';
+  import { type PromoteNotesState, noteRows, notesFactsOf, promoteNotesFill, releaseNotesView, unsavedLocales } from '../../../lib/release-notes.ts';
   import type { PendingItem } from '../../../lib/pending.ts';
   import { type AppPipeline } from '../../../lib/release-pipeline.ts';
   import {
@@ -133,6 +133,8 @@
     ).sort(),
   );
   const rows = $derived(noteRows({ platform: app.platform, locales, drafts, store: storeNotes(editable), staged: stagedNotes(view, app.platform) }));
+  /** The one status of the notes (core `notesView`): every listing language must have text. */
+  const notesOf = $derived(releaseNotesView({ platform: app.platform, listingLocales: listingLocales, drafts, store: storeNotes(editable), staged: stagedNotes(view, app.platform) }));
   const chosen = $derived(chosenOf({ platform: app.platform, view, editable, builds: buildList, codes: playCodes }));
   const choices = $derived.by((): number | null => {
     if (candidates === null) return null;
@@ -146,7 +148,7 @@
         editable: editableState,
         chosen,
         choices,
-        notes: { withText: rows.filter((r) => r.draft.trim() !== '').length, unsaved: unsavedLocales(rows).length, over: rows.filter((r) => r.over).length },
+        notes: { ...notesFactsOf(notesOf), unsaved: unsavedLocales(rows).length },
         staged: stagedFacts(view),
         pipeline: pipeline ? { state: pipeline.pipeline.state, waitingOn: pipeline.pipeline.waitingOn } : null },
       visible,
@@ -368,7 +370,7 @@
           platform: app.platform,
           version: releaseVersion,
           chosen,
-          notes: { withText: rows.filter((r) => r.draft.trim() !== '').length },
+          notes: { withText: notesFactsOf(notesOf).withText },
           staged: stagedFacts(view),
           confirm: confirmList,
           inReview: pipeline?.pipeline.state === 'in_review' }),

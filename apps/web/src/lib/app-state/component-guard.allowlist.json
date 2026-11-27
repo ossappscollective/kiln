@@ -195,7 +195,6 @@
     {"file":"components/release/Checklist.svelte","rule":"R2","hash":"e0e5f325","snippet":"setInterval(...)","count":1,"domain":"releases","reason":"own cache or clock: the model owns freshness (Wave 2)"},
     {"file":"components/release/Checklist.svelte","rule":"R2","hash":"e147997e","snippet":"Date.now()","count":2,"domain":"releases","reason":"own cache or clock: the model owns freshness (Wave 2)"},
     {"file":"components/release/PlanOverview.svelte","rule":"R3","hash":"aa4a9f5d","snippet":"maxlength=\"500\"","count":1,"domain":"releases","reason":"literal limit or limit table in a component: take it from the facts layer (Wave 2)"},
-    {"file":"components/release/PlanOverview.svelte","rule":"R3","hash":"d7fdfb10","snippet":"maxlength=\"4000\"","count":1,"domain":"releases","reason":"literal limit or limit table in a component: take it from the facts layer (Wave 2)"},
     {"file":"components/release/PlatformPanel.svelte","rule":"R5","hash":"6f8f6f4a","snippet":"releases.length","count":1,"domain":"releases","reason":"own count over a fact collection: read the derived count (Wave 2)"},
     {"file":"components/release/ReleaseDetail.svelte","rule":"R1","hash":"2198746b","snippet":"api.apps","count":1,"domain":"releases","reason":"reads a fact endpoint by itself: move the read into the model (Wave 2)"},
     {"file":"components/release/ReleaseDetail.svelte","rule":"R1","hash":"6de14db9","snippet":"api.app","count":1,"domain":"releases","reason":"reads a fact endpoint by itself: move the read into the model (Wave 2)"},

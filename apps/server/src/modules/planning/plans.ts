@@ -25,6 +25,7 @@ import {
 import { type Database, mapOrNull, oneOf, type Param, type Row, type Sql } from '@kiln/db';
 import { coded } from '../../i18n/problem.ts';
 import { getApp } from '../../services/apps.ts';
+import { type PlanNoteSources, planNoteSourcesOf } from './plan-notes-sources.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { emitCacheEvent } from '../../services/cache-registry.ts';
 import { type Failure, failure, type Outcome } from '../../services/repositories.ts';
@@ -157,6 +158,7 @@ function summarize(
   notes: PlanNote[],
   now: number,
   steps: readonly RolloutStepState[] = [],
+  places?: PlanNoteSources,
 ): PlanSummary {
   const platform = mapOrNull(r.platform, String) as PlanPlatform;
   const targetDate = mapOrNull(r.target_date, String);
@@ -178,7 +180,13 @@ function summarize(
     updatedAt: Number(r.updated_at),
     released,
     due: dueFlags(targetDate, now, { released }),
-    readiness: computeReadiness({ items, notes, platform }),
+    readiness: computeReadiness({
+      items,
+      notes,
+      platform,
+      sources: places?.sources,
+      locales: places?.locales,
+    }),
     checklist: { total: items.length, done: items.filter((i) => i.done).length },
     rollout: rolloutSummaryOf(r.rollout_kind, steps, now),
   };
@@ -216,6 +224,28 @@ function groupBy<T>(rows: Row[], planIds: string[] | undefined, map: (r: Row) =>
   return (planIds ?? [...byPlan.keys()]).map((id) => byPlan.get(id) ?? []);
 }
 
+/** The notes of the other places for each app of these plan rows (one read per app). */
+async function placesOfApps(
+  sql: Sql,
+  workspaceId: string,
+  rows: readonly Row[],
+): Promise<Map<string, PlanNoteSources>> {
+  const out = new Map<string, PlanNoteSources>();
+  for (const r of rows) {
+    const appId = String(r.app_id);
+    if (out.has(appId)) continue;
+    out.set(
+      appId,
+      await planNoteSourcesOf(sql, workspaceId, {
+        id: appId,
+        platform: oneOf(r.app_platform, PLATFORMS, 'platform'),
+        identifier: String(r.app_identifier),
+      }),
+    );
+  }
+  return out;
+}
+
 /** Every plan of the workspace, or of one app. Soonest deadline first, plans without one last. */
 export async function listPlans(
   ctx: PlansContext,
@@ -230,14 +260,22 @@ export async function listPlans(
     : await ctx.db.query(`${SELECT} WHERE p.workspace_id = ?`, [workspaceId]);
   const ids = rows.map((r) => String(r.id));
   const now = ctx.now();
-  const [items, notes, steps] = await Promise.all([
+  const [items, notes, steps, places] = await Promise.all([
     loadItems(ctx.db, workspaceId, ids),
     loadNotes(ctx.db, workspaceId, ids),
     loadRolloutStepsByPlan(ctx.db, workspaceId, now),
+    placesOfApps(ctx.db, workspaceId, rows),
   ]);
   return rows
     .map((r, i) =>
-      summarize(r, items[i] ?? [], notes[i] ?? [], now, steps.get(ids[i] as string) ?? []),
+      summarize(
+        r,
+        items[i] ?? [],
+        notes[i] ?? [],
+        now,
+        steps.get(ids[i] as string) ?? [],
+        places.get(String(r.app_id)),
+      ),
     )
     .sort((a, b) => {
       if (a.targetDate !== b.targetDate) {
@@ -279,7 +317,8 @@ export async function getPlan(
   ).map(toNote);
   const steps =
     row.rollout_kind === 'steps' ? await loadRolloutSteps(sql, workspaceId, planId, now) : [];
-  return { ...summarize(row, items, notes, now, steps), items, releaseNotes: notes };
+  const places = (await placesOfApps(sql, workspaceId, [row])).get(String(row.app_id));
+  return { ...summarize(row, items, notes, now, steps, places), items, releaseNotes: notes };
 }
 
 // ---------------------------------------------------------------------------------------------

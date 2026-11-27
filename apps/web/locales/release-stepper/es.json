@@ -240,6 +240,8 @@
   "notes.over_many": "{{count}} de textos superan el límite de la tienda",
   "notes.over_one": "{{count}} texto supera el límite de la tienda",
   "notes.over_other": "{{count}} textos superan el límite de la tienda",
+  "notes.partial_one": "{{count}} idioma de la ficha aún no tiene notas",
+  "notes.partial_other": "{{count}} idiomas de la ficha aún no tienen notas",
   "notes.ready_many": "{{count}} de idiomas tienen notas",
   "notes.ready_one": "{{count}} idioma tiene notas",
   "notes.ready_other": "{{count}} idiomas tienen notas",

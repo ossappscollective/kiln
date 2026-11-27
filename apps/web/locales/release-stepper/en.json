@@ -207,6 +207,8 @@
   "notes.none": "No release notes yet",
   "notes.over_one": "{{count}} text is over the store limit",
   "notes.over_other": "{{count}} texts are over the store limit",
+  "notes.partial_one": "{{count}} listing language has no notes yet",
+  "notes.partial_other": "{{count}} listing languages have no notes yet",
   "notes.ready_one": "{{count}} language has notes",
   "notes.ready_other": "{{count}} languages have notes",
   "notes.unsaved_one": "{{count}} language is not staged yet",
