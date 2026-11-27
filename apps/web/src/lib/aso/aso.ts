@@ -892,6 +892,12 @@ export function compareRows(ours: OurFacts, others: readonly AsoCompetitor[]): C
 // Fit
 
 /** `labelKey` and `hintKey` are message keys: `t(info.labelKey)` where it is drawn. */
+/** The weak terms the fit card names before it says "and N more" (how many are shown, and how many are left). */
+export const FIT_GAPS_SHOWN = 8;
+export function fitGapsShown<T>(gaps: readonly T[]): { shown: T[]; more: number } {
+  return { shown: gaps.slice(0, FIT_GAPS_SHOWN), more: Math.max(0, gaps.length - FIT_GAPS_SHOWN) };
+}
+
 export const fitStatusInfo: Record<
   FitStatus,
   { labelKey: string; tone: 'ok' | 'warn' | 'bad' | 'neutral'; hintKey: string }

@@ -12,12 +12,13 @@
 -->
 <script lang="ts">
   import {
-    APP_STORE_COPYRIGHT_SPEC,
     type Listing,
+    type ListingFieldSpec,
     type ListingStore,
-    PLAY_CHANGELOG_SPEC,
     type Role,
     can,
+    fieldSpecOf,
+    RELEASE_NOTES_FIELD,
     validateListing,
   } from '@kiln/core';
   import { untrack } from 'svelte';
@@ -27,6 +28,7 @@
     changelogField,
     cloneListing,
     copyrightLocation,
+    errorCountOf,
     emptyListingDescription,
     listingEdits,
     listingForChangeSet,
@@ -174,7 +176,10 @@
     await load();
   }
   const problems = $derived(edited ? validateListing(edited) : []);
-  const errorCount = $derived(problems.filter((p) => p.severity === 'error').length);
+  const errorCount = $derived(errorCountOf(problems));
+  // The specs of the Play release notes and the App Store copyright: the one owner (`fieldSpecOf`), never a table imported here.
+  const changelogSpec = fieldSpecOf('google_play', RELEASE_NOTES_FIELD) as ListingFieldSpec;
+  const copyrightSpec = fieldSpecOf('app_store', 'copyright') as ListingFieldSpec;
   const localesEdited = $derived(new Set(edits.map((e) => `${e.store}:${e.locale ?? ''}`)));
 
   /** The locale in the picker: the code (or what "default" means), and a mark when it has edits. */
@@ -392,7 +397,7 @@
           {:else}
             {#each codes as code (code)}
               <FieldEditor
-                spec={PLAY_CHANGELOG_SPEC}
+                spec={changelogSpec}
                 id="{uid}-{s}-{locale}-changelog-{code}"
                 label={code === 'default' ? t('repositories:lp.releaseNotesDefault') : t('repositories:lp.releaseNotesFor', { code })}
                 value={readField(edited, s, locale, changelogField(code)) ?? ''}
@@ -413,7 +418,7 @@
             </div>
           </div>
           <FieldEditor
-            spec={APP_STORE_COPYRIGHT_SPEC}
+            spec={copyrightSpec}
             id="{uid}-{s}-copyright"
             value={readField(edited, s, undefined, 'copyright') ?? ''}
             original={readField(base, s, undefined, 'copyright')}

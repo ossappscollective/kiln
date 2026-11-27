@@ -20,6 +20,7 @@
     fieldCell,
     fitColumns,
     fitFieldLabels,
+    fitGapsShown,
     fitStatusInfo,
     localesOf,
     priorityLabel,
@@ -165,10 +166,10 @@
             {#if fit.gaps.length > 0}
               <p class="weak">
                 <span class="muted">{t('aso:fit.weak')}</span>
-                {#each fit.gaps.slice(0, 8) as g (g.id)}
+                {#each fitGapsShown(fit.gaps).shown as g (g.id)}
                   <Badge tone={fitStatusInfo[g.status].tone}>{g.priority >= 3 ? t('aso:fit.termHigh', { term: g.term }) : g.term}</Badge>
                 {/each}
-                {#if fit.gaps.length > 8}<span class="muted">{t('aso:coach.more', { count: fit.gaps.length - 8 })}</span>{/if}
+                {#if fitGapsShown(fit.gaps).more > 0}<span class="muted">{t('aso:coach.more', { count: fitGapsShown(fit.gaps).more })}</span>{/if}
               </p>
             {/if}
 

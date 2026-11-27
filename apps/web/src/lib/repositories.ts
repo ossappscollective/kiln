@@ -1217,3 +1217,7 @@ export function choiceNote(choice: ConnectChoice, remote: LocalCheck['remote']):
   }
   return choice.replaces ? t('repositories:choice.noteReplaces', { path }) : null;
 }
+
+/** How many problems of a listing are errors (the ones that block): the rest are advice. */
+export const errorCountOf = (problems: readonly { severity: string }[]): number =>
+  problems.filter((p) => p.severity === 'error').length;
