@@ -72,8 +72,18 @@ const storeFactsSchema = z
           code: z.string().optional(),
           title: z.string().optional(),
           detail: z.string().optional(),
-          pointer: z.string().optional().describe('Apple: the rejected field of the request (`/data/attributes/contactEmail`).'),
-          resource: z.string().optional().describe('Apple `meta.associatedErrors`: the kind of resource the reason is about (`appStoreReviewDetails`, `ageRatingDeclarations`).'),
+          pointer: z
+            .string()
+            .optional()
+            .describe(
+              'Apple: the rejected field of the request (`/data/attributes/contactEmail`).',
+            ),
+          resource: z
+            .string()
+            .optional()
+            .describe(
+              'Apple `meta.associatedErrors`: the kind of resource the reason is about (`appStoreReviewDetails`, `ageRatingDeclarations`).',
+            ),
         }),
       )
       .optional()

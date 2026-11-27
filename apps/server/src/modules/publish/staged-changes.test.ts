@@ -877,8 +877,18 @@ dbTest(
     const app = await t.addApp('ios');
     const other = await t.addApp('ios');
     for (const a of [app, other]) {
-      await t.stageText(a, { locale: 'fr-FR', field: 'description', from: 'local', value: 'Bonjour' });
-      await t.stageText(a, { locale: 'en-US', field: 'description', from: 'local', value: 'Hello' });
+      await t.stageText(a, {
+        locale: 'fr-FR',
+        field: 'description',
+        from: 'local',
+        value: 'Bonjour',
+      });
+      await t.stageText(a, {
+        locale: 'en-US',
+        field: 'description',
+        from: 'local',
+        value: 'Hello',
+      });
       await t.stageAssets(a, { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5' });
     }
     assert.equal((await t.unstageLocale(app, 'not a locale!')).status, 400);

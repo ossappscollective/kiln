@@ -95,7 +95,10 @@ export type ReadinessFinding = {
 };
 
 /** `source` ('store_draft' | 'staged') and `version` of a locale's findings: a person can tell where a locale they did not expect comes from. */
-const originParams = (content: DraftContent, locale: DraftLocale): Record<string, string | number> => ({
+const originParams = (
+  content: DraftContent,
+  locale: DraftLocale,
+): Record<string, string | number> => ({
   source: locale.origin === 'staged' ? 'staged' : 'store_draft',
   ...(locale.origin === 'staged' && locale.stagedItems
     ? { texts: locale.stagedItems.texts, sets: locale.stagedItems.sets }

@@ -103,21 +103,34 @@ test('the create form says what will be carried over (masked) and what was', () 
   );
   assert.equal(
     carryLine(
-      view({ outcome: 'failed', status: 'failed', from: null, summary: null, code: 'store_rejected' }),
+      view({
+        outcome: 'failed',
+        status: 'failed',
+        from: null,
+        summary: null,
+        code: 'store_rejected',
+      }),
       'result',
     ),
     'App Review Information was not copied from the previous version: App Store Connect refused the request. Use “Copy review information” in the checks to try again.',
   );
   assert.match(
-    carryLine(view({ outcome: 'failed', from: null, summary: null, code: 'timeout' }), 'result') ?? '',
+    carryLine(view({ outcome: 'failed', from: null, summary: null, code: 'timeout' }), 'result') ??
+      '',
     /the store did not answer in time/,
   );
   assert.match(
-    carryLine(view({ outcome: 'failed', from: null, summary: null, code: 'not_attempted' }), 'result') ?? '',
+    carryLine(
+      view({ outcome: 'failed', from: null, summary: null, code: 'not_attempted' }),
+      'result',
+    ) ?? '',
     /the copy was not tried/,
   );
   assert.equal(
-    carryLine(view({ outcome: 'failed', status: 'skipped_disabled', from: null, summary: null }), 'result'),
+    carryLine(
+      view({ outcome: 'failed', status: 'skipped_disabled', from: null, summary: null }),
+      'result',
+    ),
     'App Review Information was not copied because store writes are disabled (KILN_STORE_DRAFT_WRITE_ENABLED).',
   );
   assert.match(

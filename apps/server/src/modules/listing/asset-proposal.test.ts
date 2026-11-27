@@ -753,12 +753,18 @@ dbTest(
     const item = view.changes.find((c: { id: string }) => c.id === 'text:fr-FR:description');
     assert.equal(item?.newLanguage, true);
     assert.ok(
-      view.changes.filter((c: { locale: string }) => c.locale === 'en-US').every((c: { newLanguage?: boolean }) => c.newLanguage !== true),
+      view.changes
+        .filter((c: { locale: string }) => c.locale === 'en-US')
+        .every((c: { newLanguage?: boolean }) => c.newLanguage !== true),
     );
     const skipped = await b.stage({ itemIds: ['text:fr-FR:description'] });
     assert.equal(skipped.status, 200, skipped.text);
     assert.equal(skipped.body.results[0].status, 'new_language');
-    assert.equal((await b.t.rows(b.app)).length, 0, 'nothing is staged for a language that was not asked for');
+    assert.equal(
+      (await b.t.rows(b.app)).length,
+      0,
+      'nothing is staged for a language that was not asked for',
+    );
     const asked = await b.stage({ itemIds: ['text:fr-FR:description'], addLanguages: ['fr-FR'] });
     assert.equal(asked.body.results[0].status, 'staged');
   },

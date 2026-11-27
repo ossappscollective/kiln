@@ -39,7 +39,10 @@ test('a demo account is its own blocker, not a contact one', () => {
     required('appStoreReviewDetails', 'demoAccountName'),
     required('appStoreReviewDetails', 'demoAccountPassword'),
   );
-  assert.deepEqual(out.map((b) => b.code), ['no_review_demo_account']);
+  assert.deepEqual(
+    out.map((b) => b.code),
+    ['no_review_demo_account'],
+  );
   assert.match(out[0]?.message ?? '', /demoAccountName, demoAccountPassword/);
 });
 
@@ -47,16 +50,22 @@ test('age rating, content rights, export compliance and privacy policy are named
   const out = explain(
     required('ageRatingDeclarations', 'gambling'),
     required('ageRatingDeclarations', 'socialMedia'),
-    { resource: 'apps', code: REQUIRED, detail: "You must provide a value for the attribute 'contentRightsDeclaration'" },
-    { resource: 'builds', code: REQUIRED, detail: "You must provide a value for the attribute 'usesNonExemptEncryption'" },
+    {
+      resource: 'apps',
+      code: REQUIRED,
+      detail: "You must provide a value for the attribute 'contentRightsDeclaration'",
+    },
+    {
+      resource: 'builds',
+      code: REQUIRED,
+      detail: "You must provide a value for the attribute 'usesNonExemptEncryption'",
+    },
     { resource: 'appInfoLocalizations', code: REQUIRED, title: 'Privacy Policy URL is required' },
   );
-  assert.deepEqual(out.map((b) => b.code), [
-    'apple_age_rating',
-    'apple_content_rights',
-    'apple_export_compliance',
-    'apple_privacy_policy',
-  ]);
+  assert.deepEqual(
+    out.map((b) => b.code),
+    ['apple_age_rating', 'apple_content_rights', 'apple_export_compliance', 'apple_privacy_policy'],
+  );
   assert.match(out[0]?.message ?? '', /gambling, socialMedia/);
   for (const b of out) {
     assert.equal(b.fix.kind, 'store');
@@ -66,35 +75,58 @@ test('age rating, content rights, export compliance and privacy policy are named
 });
 
 test('a version without a build, and a build that is not processed, are told apart', () => {
-  const none = explain({ resource: 'build', code: REQUIRED, detail: 'The version must have a build' });
+  const none = explain({
+    resource: 'build',
+    code: REQUIRED,
+    detail: 'The version must have a build',
+  });
   assert.equal(none[0]?.code, 'no_build');
   assert.equal(none[0]?.fix.kind, 'build');
-  const processing = explain({ resource: 'builds', code: 'ENTITY_ERROR', detail: 'The build is still processing' });
+  const processing = explain({
+    resource: 'builds',
+    code: 'ENTITY_ERROR',
+    detail: 'The build is still processing',
+  });
   assert.equal(processing[0]?.code, 'build_not_valid');
 });
 
 test('screenshots, copyright, pricing, category, privacy labels and a version already in review', () => {
   const out = explain(
-    { resource: 'appScreenshotSets', code: 'X', title: 'Screenshots are required for the display type APP_IPHONE_67' },
+    {
+      resource: 'appScreenshotSets',
+      code: 'X',
+      title: 'Screenshots are required for the display type APP_IPHONE_67',
+    },
     required('appStoreVersions', 'copyright'),
     { resource: 'appPriceSchedules', code: 'X', detail: 'The app has no price set' },
     { resource: 'appInfos', code: 'X', detail: 'A primary category is required' },
     { resource: 'appDataUsages', code: 'X', detail: 'App Privacy details have not been published' },
-    { resource: 'appStoreVersions', code: 'X', detail: 'The version is already in a review submission' },
+    {
+      resource: 'appStoreVersions',
+      code: 'X',
+      detail: 'The version is already in a review submission',
+    },
   );
-  assert.deepEqual(out.map((b) => b.code), [
-    'no_screenshots',
-    'apple_copyright',
-    'apple_pricing',
-    'apple_category',
-    'apple_privacy_labels',
-    'already_submitted',
-  ]);
+  assert.deepEqual(
+    out.map((b) => b.code),
+    [
+      'no_screenshots',
+      'apple_copyright',
+      'apple_pricing',
+      'apple_category',
+      'apple_privacy_labels',
+      'already_submitted',
+    ],
+  );
   assert.equal(out[0]?.fix.kind, 'screenshots');
 });
 
 test('an unknown reason is shown as Apple said it, with its resource, and is never dropped', () => {
-  const out = explain({ resource: 'gameCenterThings', code: 'WEIRD.CODE', detail: 'Something Apple added next year' });
+  const out = explain({
+    resource: 'gameCenterThings',
+    code: 'WEIRD.CODE',
+    detail: 'Something Apple added next year',
+  });
   assert.equal(out.length, 1);
   assert.equal(out[0]?.code, 'apple_reason');
   assert.match(out[0]?.message ?? '', /Something Apple added next year \(gameCenterThings\)/);
@@ -129,7 +161,9 @@ test('the compliance read: only what is missing is blocked, what was not read is
     primaryCategorySet: true,
   });
   assert.deepEqual(ok, []);
-  const expired = appleComplianceBlockers({ build: { processingState: 'VALID', expired: true, usesNonExemptEncryption: null } });
+  const expired = appleComplianceBlockers({
+    build: { processingState: 'VALID', expired: true, usesNonExemptEncryption: null },
+  });
   assert.equal(expired[0]?.code, 'build_expired');
 });
 

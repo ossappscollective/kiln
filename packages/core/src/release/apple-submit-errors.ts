@@ -1,4 +1,8 @@
-import { fixKindOf, type ReadinessFixKind, type SubmitBlocker } from '../listing/draft-readiness.ts';
+import {
+  fixKindOf,
+  type ReadinessFixKind,
+  type SubmitBlocker,
+} from '../listing/draft-readiness.ts';
 
 /**
  * Why Apple refused to send a version for review, as blockers (docs/state-model.md "Single owners (core)", docs/api/pending.md "Why a
@@ -124,7 +128,10 @@ const RULES: readonly Rule[] = [
     code: 'no_build',
     message: 'The version has no build selected.',
     match: (_r, text, res) =>
-      /^builds?$/i.test(res) && /required|must (have|provide)|missing|no build|not (been )?(selected|attached)|REQUIRED/i.test(text),
+      /^builds?$/i.test(res) &&
+      /required|must (have|provide)|missing|no build|not (been )?(selected|attached)|REQUIRED/i.test(
+        text,
+      ),
   },
   {
     code: 'build_expired',
@@ -142,7 +149,8 @@ const RULES: readonly Rule[] = [
   {
     code: 'no_screenshots',
     message: 'A screenshot set is missing or incomplete.',
-    match: (_r, text, res) => /screenshot/i.test(`${res} ${text}`) || /appScreenshotSets/i.test(res),
+    match: (_r, text, res) =>
+      /screenshot/i.test(`${res} ${text}`) || /appScreenshotSets/i.test(res),
   },
   {
     code: 'apple_privacy_policy',
@@ -152,7 +160,8 @@ const RULES: readonly Rule[] = [
   {
     code: 'apple_privacy_labels',
     message: 'The App Privacy answers (privacy nutrition labels) are not published.',
-    match: (_r, text, res) => /appDataUsage|privacy (nutrition|practices|questions)|app privacy/i.test(`${res} ${text}`),
+    match: (_r, text, res) =>
+      /appDataUsage|privacy (nutrition|practices|questions)|app privacy/i.test(`${res} ${text}`),
   },
   {
     code: 'apple_copyright',
@@ -163,7 +172,8 @@ const RULES: readonly Rule[] = [
     code: 'apple_pricing',
     message: 'The price or the availability is not set.',
     match: (_r, text, res) =>
-      /appPrice|appAvailabilit|priceSchedule|territor/i.test(`${res} ${text}`) || /\b(price|pricing|availability)\b/i.test(text),
+      /appPrice|appAvailabilit|priceSchedule|territor/i.test(`${res} ${text}`) ||
+      /\b(price|pricing|availability)\b/i.test(text),
   },
   {
     code: 'apple_category',
@@ -174,12 +184,18 @@ const RULES: readonly Rule[] = [
     code: 'already_submitted',
     message: 'The version is already in review or past it.',
     match: (_r, text) =>
-      /already (been )?(submitted|in review)|WAITING_FOR_REVIEW|IN_REVIEW|READY_FOR_REVIEW|in a review submission/i.test(text),
+      /already (been )?(submitted|in review)|WAITING_FOR_REVIEW|IN_REVIEW|READY_FOR_REVIEW|in a review submission/i.test(
+        text,
+      ),
   },
 ];
 
 const clean = (s: string | undefined, max: number): string =>
-  (s ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+  (s ?? '')
+    .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max);
 
 /** The attribute names a reason is about (from the pointer `/data/attributes/contactEmail` and the sentence `attribute 'contactEmail'`). */
 function fieldsOf(r: AppleReason, rule: Rule | undefined): string[] {
@@ -205,7 +221,9 @@ function fieldsOf(r: AppleReason, rule: Rule | undefined): string[] {
 
 const sentenceOf = (rule: Rule, fields: string[]): string => {
   const list = fields.join(', ');
-  return rule.message.replace(/ \(\{fields\}\)/, list ? ` (${list})` : '').replace('{fields}', list);
+  return rule.message
+    .replace(/ \(\{fields\}\)/, list ? ` (${list})` : '')
+    .replace('{fields}', list);
 };
 
 /** True for the reason that only says "check associated errors" (it names no resource: the reasons are the others). */
@@ -233,16 +251,25 @@ export function explainAppleSubmitErrors(
       const said = clean(r.detail ?? r.title ?? r.code, 240);
       if (said === '' && resource === '') continue;
       out.push(
-        build('apple_reason', `Apple: ${said || 'no sentence'}${resource ? ` (${resource})` : ''}.`, [], {
-          ...(r.code ? { apple: clean(r.code, 80) } : {}),
-          ...(resource ? { resource } : {}),
-        }, app),
+        build(
+          'apple_reason',
+          `Apple: ${said || 'no sentence'}${resource ? ` (${resource})` : ''}.`,
+          [],
+          {
+            ...(r.code ? { apple: clean(r.code, 80) } : {}),
+            ...(resource ? { resource } : {}),
+          },
+          app,
+        ),
       );
       continue;
     }
     const known = byCode.get(rule.code);
     if (known) {
-      const merged = clean(`${(known.params?.fields as string | undefined) ?? ''},${fields.join(',')}`, 200)
+      const merged = clean(
+        `${(known.params?.fields as string | undefined) ?? ''},${fields.join(',')}`,
+        200,
+      )
         .split(/\s*,\s*/)
         .filter((v, i, a) => v !== '' && a.indexOf(v) === i);
       known.params = { ...(known.params ?? {}), fields: merged.join(', ') };
@@ -250,7 +277,13 @@ export function explainAppleSubmitErrors(
       if (merged.length > 0) known.item = merged.join(', ');
       continue;
     }
-    const made = build(rule.code, sentenceOf(rule, fields), fields, resource ? { resource } : {}, app);
+    const made = build(
+      rule.code,
+      sentenceOf(rule, fields),
+      fields,
+      resource ? { resource } : {},
+      app,
+    );
     byCode.set(rule.code, made);
     out.push(made);
   }
@@ -268,9 +301,21 @@ function build(
   return {
     code,
     message,
-    params: { ...extra, page: APPLE_SUBMIT_PAGE[code] ?? 'App Store Connect', ...(fields.length > 0 ? { fields: fields.join(', ') } : {}) },
+    params: {
+      ...extra,
+      page: APPLE_SUBMIT_PAGE[code] ?? 'App Store Connect',
+      ...(fields.length > 0 ? { fields: fields.join(', ') } : {}),
+    },
     ...(fields.length > 0 ? { item: fields.join(', ') } : {}),
-    fix: { kind, href: kind === 'build' ? `#/portfolio/${encodeURIComponent(app.id)}/releases?platform=${encodeURIComponent(app.platform)}&step=build` : kind === 'screenshots' ? `#/portfolio/${encodeURIComponent(app.id)}/listing?platform=${encodeURIComponent(app.platform)}&view=graphics` : null },
+    fix: {
+      kind,
+      href:
+        kind === 'build'
+          ? `#/portfolio/${encodeURIComponent(app.id)}/releases?platform=${encodeURIComponent(app.platform)}&step=build`
+          : kind === 'screenshots'
+            ? `#/portfolio/${encodeURIComponent(app.id)}/listing?platform=${encodeURIComponent(app.platform)}&view=graphics`
+            : null,
+    },
   };
 }
 
@@ -302,19 +347,43 @@ export function appleComplianceBlockers(
 ): SubmitBlocker[] {
   const reasons: AppleReason[] = [];
   if (facts.contentRightsDeclaration === null)
-    reasons.push({ resource: 'apps', code: 'READ', pointer: '/data/attributes/contentRightsDeclaration', detail: 'contentRightsDeclaration is not set' });
+    reasons.push({
+      resource: 'apps',
+      code: 'READ',
+      pointer: '/data/attributes/contentRightsDeclaration',
+      detail: 'contentRightsDeclaration is not set',
+    });
   if (facts.ageRatingMissing !== undefined && facts.ageRatingMissing.length > 0)
     for (const f of facts.ageRatingMissing)
-      reasons.push({ resource: 'ageRatingDeclarations', code: 'READ', pointer: `/data/attributes/${f}`, detail: `${f} is not answered` });
+      reasons.push({
+        resource: 'ageRatingDeclarations',
+        code: 'READ',
+        pointer: `/data/attributes/${f}`,
+        detail: `${f} is not answered`,
+      });
   const b = facts.build;
   if (b) {
     if (b.expired === true || (b.processingState !== null && b.processingState !== 'VALID'))
-      reasons.push({ resource: 'builds', code: 'READ', detail: b.expired === true ? 'The build is expired' : `The build is ${b.processingState}` });
+      reasons.push({
+        resource: 'builds',
+        code: 'READ',
+        detail: b.expired === true ? 'The build is expired' : `The build is ${b.processingState}`,
+      });
     else if (b.usesNonExemptEncryption === null)
-      reasons.push({ resource: 'builds', code: 'READ', pointer: '/data/attributes/usesNonExemptEncryption', detail: 'usesNonExemptEncryption is not answered' });
+      reasons.push({
+        resource: 'builds',
+        code: 'READ',
+        pointer: '/data/attributes/usesNonExemptEncryption',
+        detail: 'usesNonExemptEncryption is not answered',
+      });
   }
   if (facts.privacyPolicyMissing !== undefined && facts.privacyPolicyMissing.length > 0)
-    reasons.push({ resource: 'appInfoLocalizations', code: 'READ', pointer: '/data/attributes/privacyPolicyUrl', detail: 'The privacy policy URL is missing' });
+    reasons.push({
+      resource: 'appInfoLocalizations',
+      code: 'READ',
+      pointer: '/data/attributes/privacyPolicyUrl',
+      detail: 'The privacy policy URL is missing',
+    });
   if (facts.primaryCategorySet === false)
     reasons.push({ resource: 'appInfos', code: 'READ', detail: 'The primary category is not set' });
   return explainAppleSubmitErrors(reasons, app);

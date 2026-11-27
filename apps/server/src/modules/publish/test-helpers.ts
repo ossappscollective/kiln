@@ -630,13 +630,11 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, St
           ...(ghost
             ? {
                 kept: a.files.length,
-                differences: current
-                  .slice(a.files.length)
-                  .map((im, i) => ({
-                    kind: 'still_present' as const,
-                    id: `pl-${i}`,
-                    name: im.name,
-                  })),
+                differences: current.slice(a.files.length).map((im, i) => ({
+                  kind: 'still_present' as const,
+                  id: `pl-${i}`,
+                  name: im.name,
+                })),
               }
             : {}),
         },

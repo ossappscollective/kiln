@@ -7,8 +7,8 @@ import {
   maskedReviewSummary,
   mergeReviewDetail,
   type ReviewDetail,
-  reviewDetailHasContent,
   reviewCarryStatusOf,
+  reviewDetailHasContent,
   reviewFactsOf,
   reviewSourceOrder,
 } from './review-information.ts';
@@ -185,7 +185,9 @@ test('the masked summary holds initials and yes/no only', () => {
 });
 
 test('the status of a carry-over: copied, nothing_to_copy or failed, whatever the outcome (an unknown outcome is failed, never silent)', () => {
-  for (const o of ['created', 'merged', 'already_complete']) assert.equal(reviewCarryStatusOf(o), 'copied');
+  for (const o of ['created', 'merged', 'already_complete'])
+    assert.equal(reviewCarryStatusOf(o), 'copied');
   assert.equal(reviewCarryStatusOf('no_source'), 'nothing_to_copy');
-  for (const o of ['failed', 'not_read', 'whatever']) assert.equal(reviewCarryStatusOf(o), 'failed');
+  for (const o of ['failed', 'not_read', 'whatever'])
+    assert.equal(reviewCarryStatusOf(o), 'failed');
 });

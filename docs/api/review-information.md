@@ -42,14 +42,14 @@ right after the version exists:
 
 `reviewInformation` is `{ outcome, status, from, fieldsCopied, summary, code? }`:
 
-| Field          | Meaning                                                                                                                                  |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `outcome`      | `created`, `merged`, `already_complete`, `no_source`, `failed`, `not_read`. In a preview: what would happen.                             |
+| Field          | Meaning                                                                                                                                                                                                                                                                                                       |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `outcome`      | `created`, `merged`, `already_complete`, `no_source`, `failed`, `not_read`. In a preview: what would happen.                                                                                                                                                                                                  |
 | `status`       | The one word for the outcome (core `reviewCarryStatusOf`): `copied` (`created`, `merged`, `already_complete`), `nothing_to_copy` (`no_source`) or `failed`. `skipped_disabled` is what a screen says when the server answers `store_draft_disabled` (store writes are off: `KILN_STORE_DRAFT_WRITE_ENABLED`). |
-| `from`         | The version string it comes from (`1.19.0`), or null.                                                                                    |
-| `fieldsCopied` | How many attributes are written (a count).                                                                                               |
-| `summary`      | The SOURCE as a screen may show it: `{ contact: "M. G.", phone, email, demoAccount, demoCredentials, notes }`: initials and yes/no only. |
-| `code`         | `failed`: the kind of the failure (`store_rejected`, `network`, ...).                                                                    |
+| `from`         | The version string it comes from (`1.19.0`), or null.                                                                                                                                                                                                                                                         |
+| `fieldsCopied` | How many attributes are written (a count).                                                                                                                                                                                                                                                                    |
+| `summary`      | The SOURCE as a screen may show it: `{ contact: "M. G.", phone, email, demoAccount, demoCredentials, notes }`: initials and yes/no only.                                                                                                                                                                      |
+| `code`         | `failed`: the kind of the failure (`store_rejected`, `network`, ...).                                                                                                                                                                                                                                         |
 
 **Never silent.** A carry-over that could not be tried (no version id in Apple's answer, a connector without the carry-over) is a `failed`
 result with `code: 'not_attempted'` / `'no_version_id'`, not a missing field. A source version whose detail cannot be read is a `failed`

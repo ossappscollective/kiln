@@ -136,8 +136,16 @@ The connector keeps each as an entry of `store.details` (up to 13: Apple's own e
 (`source.pointer`) and `resource` (the KIND of resource, the id is dropped). The refusal body adds
 
 ```json
-{ "error": "store_rejected", "message": "Apple refused (409). Apple's reasons: The content rights declaration is not set.",
-  "explain": { "source": "apple", "blockers": [{ "code": "apple_content_rights", "message": "The content rights declaration is not set." }] } }
+{
+  "error": "store_rejected",
+  "message": "Apple refused (409). Apple's reasons: The content rights declaration is not set.",
+  "explain": {
+    "source": "apple",
+    "blockers": [
+      { "code": "apple_content_rights", "message": "The content rights declaration is not set." }
+    ]
+  }
+}
 ```
 
 `explain.blockers` are the ONE core mapper's answer (`explainAppleSubmitErrors`, `@kiln/core`): a table of rules that reuses the readiness

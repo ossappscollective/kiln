@@ -12,6 +12,7 @@ import {
   isDottedVersion,
   isStageableTextField,
   listingStoreOf,
+  localeKey,
   orderIssues,
   type ProposalFile,
   type ProposalGraphics,
@@ -26,7 +27,6 @@ import {
   STAGED_LIMITS,
   slotKey,
   summarizeProposal,
-  localeKey,
   textItemId,
 } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';

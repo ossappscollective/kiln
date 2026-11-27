@@ -1168,7 +1168,10 @@ dbTest(
     assert.equal(res.status, 422);
     assert.equal(res.body.error, 'store_rejected');
     assert.equal(res.body.explain.source, 'apple');
-    assert.deepEqual(codes(res.body.explain.blockers), ['no_review_contact', 'apple_content_rights']);
+    assert.deepEqual(codes(res.body.explain.blockers), [
+      'no_review_contact',
+      'apple_content_rights',
+    ]);
     assert.match(res.body.message, /Apple's reasons: .*contactEmail.*content rights/);
     assert.equal(res.body.store.details[1].resource, 'appStoreReviewDetails');
     assert.equal(res.body.store.details[1].pointer, '/data/attributes/contactEmail');
@@ -1184,7 +1187,9 @@ dbTest(
     const p = (await t.submitPreview(app)).body.preview;
     t.submitStores.ios.behavior = {
       kind: 'refuse',
-      error: new StoreError('appstoreconnect', 'unexpected', 'Apple refused (409).', 409, [GENERIC_409]),
+      error: new StoreError('appstoreconnect', 'unexpected', 'Apple refused (409).', 409, [
+        GENERIC_409,
+      ]),
     };
     t.submitStores.ios.compliance = {
       contentRightsDeclaration: null,
@@ -1196,7 +1201,10 @@ dbTest(
       confirmation: p.confirmation.phrase,
     });
     assert.equal(res.body.explain.source, 'read');
-    assert.deepEqual(codes(res.body.explain.blockers), ['apple_content_rights', 'apple_age_rating']);
+    assert.deepEqual(codes(res.body.explain.blockers), [
+      'apple_content_rights',
+      'apple_age_rating',
+    ]);
     assert.equal(t.submitStores.ios.complianceReads, 1);
     assert.equal(t.submitStores.ios.submitCalls, 1, 'the submit itself is not sent again');
     // Nothing missing in what Kiln can read: it says so and points to App Store Connect.

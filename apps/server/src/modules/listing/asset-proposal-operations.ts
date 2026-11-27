@@ -234,7 +234,14 @@ export const assetProposalOperations: Draft[] = [
           results: z.array(
             z.object({
               id: z.string(),
-              status: z.enum(['staged', 'already_staged', 'kept_edited', 'not_proposed', 'new_language', 'failed']),
+              status: z.enum([
+                'staged',
+                'already_staged',
+                'kept_edited',
+                'not_proposed',
+                'new_language',
+                'failed',
+              ]),
               code: z.string().optional(),
             }),
           ),

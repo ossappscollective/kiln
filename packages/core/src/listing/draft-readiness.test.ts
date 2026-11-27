@@ -624,8 +624,20 @@ test('a staged set for a language the store lacks adds it, and the findings say 
   const withShots = predictDraft(only, {
     texts: [],
     sets: [
-      { locale: 'fr-FR', kind: 'screenshot', device: 'iphone_6_5', target: 'group-iphone-65', images: shots(3) },
-      { locale: 'fr-FR', kind: 'screenshot', device: 'ipad_13', target: 'group-ipad-13', images: shots(3, IPAD_13) },
+      {
+        locale: 'fr-FR',
+        kind: 'screenshot',
+        device: 'iphone_6_5',
+        target: 'group-iphone-65',
+        images: shots(3),
+      },
+      {
+        locale: 'fr-FR',
+        kind: 'screenshot',
+        device: 'ipad_13',
+        target: 'group-ipad-13',
+        images: shots(3, IPAD_13),
+      },
     ],
   });
   const found = missing(withShots);
@@ -638,7 +650,15 @@ test('a staged set for a language the store lacks adds it, and the findings say 
   // An empty staged text, or a cleared set, for a language the store lacks creates no language and no finding.
   const noop = predictDraft(only, {
     texts: [{ locale: 'fr-FR', field: 'description', value: '' }],
-    sets: [{ locale: 'fr-FR', kind: 'screenshot', device: 'iphone_6_5', target: 'group-iphone-65', images: [] }],
+    sets: [
+      {
+        locale: 'fr-FR',
+        kind: 'screenshot',
+        device: 'iphone_6_5',
+        target: 'group-iphone-65',
+        images: [],
+      },
+    ],
   });
   assert.deepEqual(
     noop.locales.map((l) => l.locale),

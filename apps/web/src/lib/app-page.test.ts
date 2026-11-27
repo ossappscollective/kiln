@@ -102,7 +102,10 @@ test('after a create or publish the page goes to the releases, but never closes 
   const { addressAfterPublished } = await import('./app-page.ts');
   const releases = '#/apps/a1/releases';
   assert.equal(addressAfterPublished('#/apps/a1/releases?step=build', releases), null);
-  assert.equal(addressAfterPublished('#/apps/a1/releases?platform=ios&step=confirm', releases), null);
+  assert.equal(
+    addressAfterPublished('#/apps/a1/releases?platform=ios&step=confirm', releases),
+    null,
+  );
   assert.equal(addressAfterPublished('#/apps/a1/listing', releases), releases);
   assert.equal(addressAfterPublished('#/apps/a1/releases', releases), releases);
 });

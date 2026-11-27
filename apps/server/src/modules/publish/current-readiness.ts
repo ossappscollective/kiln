@@ -84,7 +84,9 @@ export async function readCurrentReadiness(
   const plan = submitReadinessOf({ app, state: read.state, push, now });
   // What Apple checks that the draft does not show (content rights, age rating, build compliance, privacy policy, category): read-only,
   // judged by the core rule; a version already in review has nothing left to check.
-  const compliance = read.state.alreadySubmitted ? [] : await readComplianceBlockers(ctx.submit, input);
+  const compliance = read.state.alreadySubmitted
+    ? []
+    : await readComplianceBlockers(ctx.submit, input);
   const blockers = [...plan.submit.blockers, ...compliance];
   const readiness: CurrentReadiness = {
     appId: app.id,

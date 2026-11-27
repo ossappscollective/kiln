@@ -364,14 +364,18 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
       if (editable !== undefined) {
         const rel = isRecord(editable.relationships) ? editable.relationships : {};
         const relData = (name: string): unknown =>
-          isRecord(rel[name]) && 'data' in (rel[name] as Json) ? (rel[name] as Json).data : undefined;
+          isRecord(rel[name]) && 'data' in (rel[name] as Json)
+            ? (rel[name] as Json).data
+            : undefined;
         if (relData('primaryCategory') !== undefined)
           facts.primaryCategorySet = relData('primaryCategory') !== null;
         const ageId = isRecord(relData('ageRatingDeclaration'))
           ? text((relData('ageRatingDeclaration') as Json).id)
           : undefined;
         const age = records(infos.included).find(
-          (i) => text(i.type) === 'ageRatingDeclarations' && (ageId === undefined || text(i.id) === ageId),
+          (i) =>
+            text(i.type) === 'ageRatingDeclarations' &&
+            (ageId === undefined || text(i.id) === ageId),
         );
         if (age !== undefined) {
           const a = isRecord(age.attributes) ? age.attributes : {};
@@ -405,7 +409,8 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
       );
       if (reply.status === 404) facts.build = null;
       else if (reply.status >= 200 && reply.status < 300) {
-        const data = isRecord(reply.json) && isRecord(reply.json.data) ? reply.json.data : undefined;
+        const data =
+          isRecord(reply.json) && isRecord(reply.json.data) ? reply.json.data : undefined;
         if (data === undefined || text(data.id) === undefined) facts.build = null;
         else {
           const a = isRecord(data.attributes) ? data.attributes : {};

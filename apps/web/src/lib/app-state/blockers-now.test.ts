@@ -286,7 +286,10 @@ const refusedRun = (): ReturnType<typeof blockedRun> => {
             httpStatus: 422,
             outcome: 'refused' as const,
             blockers: [
-              { code: 'apple_content_rights', message: 'The content rights declaration is not set.' },
+              {
+                code: 'apple_content_rights',
+                message: 'The content rights declaration is not set.',
+              },
               { code: 'apple_copyright', message: 'The copyright is missing.' },
             ],
           }
@@ -299,9 +302,18 @@ test('a refused submit is held against the current reading: the content rights c
   const run = refusedRun();
   const view = blockersViewOf(run, reading([]), NOW);
   assert.equal(view?.state, 'ready');
-  assert.deepEqual(view?.run.map((b) => b.code), ['apple_content_rights', 'apple_copyright']);
-  assert.deepEqual(view?.resolved.map((b) => b.code), ['apple_content_rights']);
-  assert.deepEqual(view?.unchecked.map((b) => b.code), ['apple_copyright']);
+  assert.deepEqual(
+    view?.run.map((b) => b.code),
+    ['apple_content_rights', 'apple_copyright'],
+  );
+  assert.deepEqual(
+    view?.resolved.map((b) => b.code),
+    ['apple_content_rights'],
+  );
+  assert.deepEqual(
+    view?.unchecked.map((b) => b.code),
+    ['apple_copyright'],
+  );
   assert.equal(view?.unchecked[0]?.page, 'App Store > the version > Copyright');
   // Still missing now: it is the current list, with its page.
   const still: SubmitBlocker = {

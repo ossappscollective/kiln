@@ -34,7 +34,12 @@ const reviewInformationSchema = z
       .describe(
         'The source as it may be shown: initials and yes/no. Never a name, phone number, email address, account or note.',
       ),
-    code: z.string().optional().describe('`failed`: the kind of the failure (`store_rejected`, `network`, `timeout`, `not_attempted`, `no_version_id`, ...).'),
+    code: z
+      .string()
+      .optional()
+      .describe(
+        '`failed`: the kind of the failure (`store_rejected`, `network`, `timeout`, `not_attempted`, `no_version_id`, ...).',
+      ),
   })
   .describe(
     'What is done with the App Review Information of the previous version (docs/api/review-information.md).',

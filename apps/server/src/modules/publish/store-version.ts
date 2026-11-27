@@ -18,8 +18,8 @@ import {
   nextVersion,
   type Platform,
   type ReviewCarryStatus,
-  reviewCarryStatusOf,
   type ReviewSummary,
+  reviewCarryStatusOf,
   sameVersion,
   supports,
 } from '@kiln/core';

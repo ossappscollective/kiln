@@ -6,8 +6,8 @@ import {
   DRAFT_IMAGE_READY_STATES,
   PlaySubmitConnector,
   type StoreConnectorInput,
-  type StoreSubmitConnector,
   StoreError,
+  type StoreSubmitConnector,
   SubmitDriftError,
   SubmitOutcomeUnknownError,
   type SubmitState,
@@ -41,7 +41,6 @@ import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { storeFor } from '../reviews/sync.ts';
 import { mapStoreError } from './store-draft.ts';
-import { sanitiseStoreText } from './store-failure.ts';
 import {
   deletePush,
   emptyManifest,
@@ -50,6 +49,7 @@ import {
   type PushRecord,
   requestOfManifest,
 } from './store-draft-record.ts';
+import { sanitiseStoreText } from './store-failure.ts';
 
 export { DEFAULT_SUBMIT_CLAIM_TTL_MS };
 
@@ -1265,7 +1265,9 @@ export async function applySubmit(
       await auditFailed(ctx, input, app, accepted, {
         code: mapped.code,
         outcome: 'failed',
-        ...(explanation !== null ? { reasons: explanation.blockers.map((b) => b.code).slice(0, 20) } : {}),
+        ...(explanation !== null
+          ? { reasons: explanation.blockers.map((b) => b.code).slice(0, 20) }
+          : {}),
       });
       await releaseClaim(db, claim);
       return withExplanation(mapped.failure, explanation);

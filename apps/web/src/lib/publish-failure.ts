@@ -1,4 +1,10 @@
-import { APPLE_SUBMIT_CODES, APPLE_SUBMIT_PAGE, type Platform, platformMeta, supports } from '@kiln/core';
+import {
+  APPLE_SUBMIT_CODES,
+  APPLE_SUBMIT_PAGE,
+  type Platform,
+  platformMeta,
+  supports,
+} from '@kiln/core';
 import type { BlockersView } from './app-state/blockers.ts';
 import { codedText, paramsOf } from './error-text.ts';
 import { formatList } from './i18n/format.ts';
@@ -396,7 +402,9 @@ export function failureReport(input: {
       lines.push('   What is missing (as Apple listed it, or as Kiln read it afterwards):');
       explained.forEach((b) => {
         lines.push(`   Blocker: ${b.code}: ${b.message}`);
-        lines.push(`      Fix: ${b.fix}${b.page ? ` (App Store Connect: ${b.page})` : ''}${b.url ? ` (${b.url})` : ''}`);
+        lines.push(
+          `      Fix: ${b.fix}${b.page ? ` (App Store Connect: ${b.page})` : ''}${b.url ? ` (${b.url})` : ''}`,
+        );
       });
     }
   });

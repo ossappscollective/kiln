@@ -682,8 +682,14 @@ test('the copied report of a refused submit carries Apple’s reasons with their
     platform: 'ios',
     run: run([pushed, refusedSubmit], { platform: 'ios' }),
   });
-  assert.match(report, /Store said: X: Content rights declaration is required \(apps \/data\/attributes\/contentRightsDeclaration\)/);
-  assert.match(report, /Blocker: apple_content_rights: The content rights declaration is not set\./);
+  assert.match(
+    report,
+    /Store said: X: Content rights declaration is required \(apps \/data\/attributes\/contentRightsDeclaration\)/,
+  );
+  assert.match(
+    report,
+    /Blocker: apple_content_rights: The content rights declaration is not set\./,
+  );
   assert.match(report, /\(App Store Connect: App Information > Content Rights\)/);
   assert.match(report, /Blocker: no_review_contact: /);
   assert.doesNotMatch(report, /check associated errors$/m);

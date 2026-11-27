@@ -348,19 +348,24 @@ test('a refused submit keeps every associated error of Apple: resource, code, se
                 status: '409',
                 code: 'STATE_ERROR.ENTITY_STATE_INVALID',
                 title: 'The request cannot be fulfilled because of the state of another resource.',
-                detail: 'This resource cannot be reviewed, please check associated errors to see why.',
+                detail:
+                  'This resource cannot be reviewed, please check associated errors to see why.',
                 meta: {
                   associatedErrors: {
                     '/v1/appStoreReviewDetails/6f1c2d3e-0000-4000-8000-000000000001': [
                       {
                         code: 'ENTITY_ERROR.ATTRIBUTE.REQUIRED',
                         title: 'An attribute value is required',
-                        detail: "You must provide a value for the attribute 'contactEmail' with this request",
+                        detail:
+                          "You must provide a value for the attribute 'contactEmail' with this request",
                         source: { pointer: '/data/attributes/contactEmail' },
                       },
                     ],
                     '/v1/apps/1074-0000-4000-8000-000000000002': [
-                      { code: 'APP_ERROR.CONTENT_RIGHTS', detail: 'Content rights declaration is required.' },
+                      {
+                        code: 'APP_ERROR.CONTENT_RIGHTS',
+                        detail: 'Content rights declaration is required.',
+                      },
                     ],
                   },
                 },
@@ -388,7 +393,9 @@ test('readCompliance reads the usual suspects (content rights, age rating, build
     a.hook = (s) => {
       if (s.method !== 'GET') return undefined;
       if (s.path === `/v1/apps/${APP}`)
-        return reply(200, { data: { type: 'apps', id: APP, attributes: { contentRightsDeclaration: null } } });
+        return reply(200, {
+          data: { type: 'apps', id: APP, attributes: { contentRightsDeclaration: null } },
+        });
       if (s.path === `/v1/apps/${APP}/appInfos`)
         return reply(200, {
           data: [
@@ -406,20 +413,37 @@ test('readCompliance reads the usual suspects (content rights, age rating, build
             {
               type: 'ageRatingDeclarations',
               id: 'age-1',
-              attributes: { gambling: false, socialMedia: null, kidsAgeBand: null, violenceCartoon: 'NONE' },
+              attributes: {
+                gambling: false,
+                socialMedia: null,
+                kidsAgeBand: null,
+                violenceCartoon: 'NONE',
+              },
             },
           ],
         });
       if (s.path === '/v1/appInfos/info-1/appInfoLocalizations')
         return reply(200, {
           data: [
-            { type: 'appInfoLocalizations', id: 'l1', attributes: { locale: 'en-US', privacyPolicyUrl: 'https://x.test/p' } },
-            { type: 'appInfoLocalizations', id: 'l2', attributes: { locale: 'fr-FR', privacyPolicyUrl: null } },
+            {
+              type: 'appInfoLocalizations',
+              id: 'l1',
+              attributes: { locale: 'en-US', privacyPolicyUrl: 'https://x.test/p' },
+            },
+            {
+              type: 'appInfoLocalizations',
+              id: 'l2',
+              attributes: { locale: 'fr-FR', privacyPolicyUrl: null },
+            },
           ],
         });
       if (/\/v1\/appStoreVersions\/[^/]+\/build$/.test(s.path))
         return reply(200, {
-          data: { type: 'builds', id: 'b1', attributes: { version: '7', processingState: 'VALID', expired: false } },
+          data: {
+            type: 'builds',
+            id: 'b1',
+            attributes: { version: '7', processingState: 'VALID', expired: false },
+          },
         });
       return undefined;
     };
@@ -429,13 +453,18 @@ test('readCompliance reads the usual suspects (content rights, age rating, build
   assert.deepEqual(facts.ageRatingMissing, ['socialMedia']);
   assert.equal(facts.primaryCategorySet, false);
   assert.deepEqual(facts.privacyPolicyMissing, ['fr-FR']);
-  assert.deepEqual(facts.build, { processingState: 'VALID', expired: false, usesNonExemptEncryption: null });
+  assert.deepEqual(facts.build, {
+    processingState: 'VALID',
+    expired: false,
+    usesNonExemptEncryption: null,
+  });
   assert.deepEqual(api.writes(), []);
 });
 
 test('readCompliance leaves out what it could not read instead of guessing', async () => {
   const { connector } = setup((a) => {
-    a.hook = (s) => (s.method === 'GET' && s.path.startsWith(`/v1/apps/${APP}`) ? reply(500, {}) : undefined);
+    a.hook = (s) =>
+      s.method === 'GET' && s.path.startsWith(`/v1/apps/${APP}`) ? reply(500, {}) : undefined;
   });
   const facts = await connector.readCompliance();
   assert.equal(facts.contentRightsDeclaration, undefined);

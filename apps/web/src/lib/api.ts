@@ -1691,7 +1691,11 @@ export function createApi(options: ApiOptions = {}) {
     stageReleaseAssetProposal: (
       workspaceId: string,
       appId: string,
-      body: ReleaseAssetRef & { itemIds: string[]; acceptIssues?: boolean; addLanguages?: string[] },
+      body: ReleaseAssetRef & {
+        itemIds: string[];
+        acceptIssues?: boolean;
+        addLanguages?: string[];
+      },
       signal?: AbortSignal,
     ) =>
       request<{

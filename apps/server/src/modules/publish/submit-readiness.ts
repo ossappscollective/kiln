@@ -76,13 +76,13 @@ export function stagedChangesOf(push: DraftPreview | undefined): StagedDraftChan
     sets: push.assets
       .filter((a) => a.status !== 'unchanged')
       .map((a) => ({
-      locale: a.locale,
-      kind: a.slot.kind,
-      device: a.slot.device,
-      target: a.target,
-      group: a.placementGroup ?? null,
-      images: a.after.files.map((f) => ({ width: f.width, height: f.height })),
-    })),
+        locale: a.locale,
+        kind: a.slot.kind,
+        device: a.slot.device,
+        target: a.target,
+        group: a.placementGroup ?? null,
+        images: a.after.files.map((f) => ({ width: f.width, height: f.height })),
+      })),
     releaseNotes: push.release
       .filter((r) => r.field === 'release_notes' && !r.localOnly)
       .map((r) => ({ locale: r.locale, value: r.after })),
@@ -104,13 +104,18 @@ export function submitReadinessOf(input: {
   const blockers: SubmitBlocker[] = blockersOf(app, early);
   // A version already in review has no draft to judge: that is the whole answer.
   if (!state.alreadySubmitted) {
-    const predicted = predictDraft(draftContentOf(ios, state.locales, state.version?.versionString), stagedChangesOf(push));
+    const predicted = predictDraft(
+      draftContentOf(ios, state.locales, state.version?.versionString),
+      stagedChangesOf(push),
+    );
     blockers.push(...blockersOf(app, evaluateDraftContent(predicted)));
   }
   const adds = state.alreadySubmitted
     ? []
     : addedLanguagesOf(
-        draftContentOf(ios, state.locales, state.version?.versionString).locales.map((l) => l.locale),
+        draftContentOf(ios, state.locales, state.version?.versionString).locales.map(
+          (l) => l.locale,
+        ),
         stagedChangesOf(push),
       );
   const unknown: string[] = [];

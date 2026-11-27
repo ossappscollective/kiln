@@ -109,9 +109,7 @@ export function blockersViewOf(
   const reading =
     fact?.reading != null && fact.reading.storeReadAt >= run.finishedAt ? fact.reading : null;
   const unchecked =
-    step?.status === 'failed'
-      ? runLines.filter((b) => RECOMPUTABLE_CODES.indexOf(b.code) < 0)
-      : [];
+    step?.status === 'failed' ? runLines.filter((b) => RECOMPUTABLE_CODES.indexOf(b.code) < 0) : [];
   const base = {
     run: runLines,
     unchecked,

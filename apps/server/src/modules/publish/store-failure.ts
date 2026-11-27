@@ -54,23 +54,25 @@ export type StoreFacts = {
 /** The facts of a store error, or null when the error is not a store's. */
 export function storeFactsOf(error: unknown, secret = ''): StoreFacts | null {
   if (!(error instanceof StoreError)) return null;
-  const details = (error.details ?? []).slice(0, STORE_FACTS_MAX_DETAILS).flatMap((d): StoreFactsDetail[] => {
-    const code = d.code === undefined ? '' : sanitiseStoreText(d.code, secret, 80);
-    const title = d.title === undefined ? '' : sanitiseStoreText(d.title, secret, 120);
-    const detail = d.detail === undefined ? '' : sanitiseStoreText(d.detail, secret);
-    const pointer = d.pointer === undefined ? '' : sanitiseStoreText(d.pointer, secret, 160);
-    const resource = d.resource === undefined ? '' : sanitiseStoreText(d.resource, secret, 60);
-    if (code === '' && title === '' && detail === '') return [];
-    return [
-      {
-        ...(code !== '' ? { code } : {}),
-        ...(title !== '' ? { title } : {}),
-        ...(detail !== '' ? { detail } : {}),
-        ...(pointer !== '' ? { pointer } : {}),
-        ...(resource !== '' ? { resource } : {}),
-      },
-    ];
-  });
+  const details = (error.details ?? [])
+    .slice(0, STORE_FACTS_MAX_DETAILS)
+    .flatMap((d): StoreFactsDetail[] => {
+      const code = d.code === undefined ? '' : sanitiseStoreText(d.code, secret, 80);
+      const title = d.title === undefined ? '' : sanitiseStoreText(d.title, secret, 120);
+      const detail = d.detail === undefined ? '' : sanitiseStoreText(d.detail, secret);
+      const pointer = d.pointer === undefined ? '' : sanitiseStoreText(d.pointer, secret, 160);
+      const resource = d.resource === undefined ? '' : sanitiseStoreText(d.resource, secret, 60);
+      if (code === '' && title === '' && detail === '') return [];
+      return [
+        {
+          ...(code !== '' ? { code } : {}),
+          ...(title !== '' ? { title } : {}),
+          ...(detail !== '' ? { detail } : {}),
+          ...(pointer !== '' ? { pointer } : {}),
+          ...(resource !== '' ? { resource } : {}),
+        },
+      ];
+    });
   return {
     kind: error.kind,
     ...(error.status !== undefined ? { httpStatus: error.status } : {}),
