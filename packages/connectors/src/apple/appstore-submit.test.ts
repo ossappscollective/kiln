@@ -93,6 +93,27 @@ test('readSubmitState shows the version, its build, release type, every locale a
   assert.deepEqual(api.writes(), []);
 });
 
+test('the 13-inch and the 12.9-inch placement groups of one display are two sets, each with its own count (never summed)', async () => {
+  const size = { width: 2048, height: 2732 };
+  const file = (name: string) => ({ name, bytes: new Uint8Array([name.length]), size });
+  const { connector } = setup((a) => {
+    a.addPlacements(
+      'loc-en',
+      'IPAD_PRO_3GEN_129_PROFILE',
+      Array.from({ length: 10 }, (_, i) => file(`a${i}.png`)),
+    );
+    a.addPlacements('loc-en', 'IPAD_PRO_129_PROFILE', [file('b0.png'), file('b1.png')]);
+  });
+  const state = await connector.readSubmitState(REQUEST);
+  assert.deepEqual(
+    state.locales[0]?.assets.map((a) => [a.device, a.target, a.images.length]),
+    [
+      ['ipad_13', 'IPAD_PRO_3GEN_129_PROFILE', 10],
+      ['ipad_13', 'IPAD_PRO_129_PROFILE', 2],
+    ],
+  );
+});
+
 test('a version without a build reads as null, not as an error', async () => {
   const { connector } = setup((a) => a.builds.clear());
   assert.equal((await connector.readSubmitState(REQUEST)).build, null);

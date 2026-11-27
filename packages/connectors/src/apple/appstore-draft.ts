@@ -1380,6 +1380,8 @@ export class AppleDraftConnector
       `${this.#base}/v1/appStoreVersionLocalizations/${enc(localizationId)}/placements?${query}`;
     const out: PlacementRef[] = [];
     const images = new Map<string, Json>();
+    // A placement is counted once, whatever page repeats it: the count of a group is the number of its distinct placements.
+    const seen = new Set<string>();
     for (let page = 0; url !== undefined && page < this.#maxPages; page++) {
       const body = (await this.#get(url, what)).json;
       for (const item of records(body.included)) {
@@ -1392,6 +1394,8 @@ export class AppleDraftConnector
         const group = text(a.placementGroup);
         if (!id || !group || (text(a.placementType) ?? 'APP_SCREENSHOT') !== 'APP_SCREENSHOT')
           continue;
+        if (seen.has(id)) continue;
+        seen.add(id);
         const rels = isRecord(item.relationships) ? item.relationships : {};
         const rel = isRecord(rels.image) ? rels.image : {};
         const imageId = isRecord(rel.data) ? text(rel.data.id) : undefined;
