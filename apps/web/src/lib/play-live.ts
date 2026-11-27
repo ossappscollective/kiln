@@ -1,4 +1,4 @@
-import { type ReleaseState, supports } from '@kiln/core';
+import { isProductionTrack, type ReleaseState, supports } from '@kiln/core';
 import { t } from './i18n/t.ts';
 import { statusInfo } from './portfolio.ts';
 import type { ReleaseSummary } from './types.ts';
@@ -16,7 +16,7 @@ export function playLiveUnconfirmed(
 ): boolean {
   return (
     supports(release.platform, 'releaseTracks') &&
-    (release.track ?? '').toLowerCase() === 'production' &&
+    isProductionTrack(release.track) &&
     release.status !== null &&
     SERVING.indexOf(release.status) >= 0
   );

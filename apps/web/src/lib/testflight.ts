@@ -1,6 +1,7 @@
 import { timeAgo } from './format.ts';
 import { formatBytes, formatDateTime, formatDuration } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
+import { APP_STORE_CONNECT_URL } from './store-links.ts';
 
 /**
  * TestFlight beta feedback and crashes of an app (docs/api/testflight-feedback.md, docs/adr/0049-testflight-feedback.md): the types of the API
@@ -357,15 +358,13 @@ export function syncLine(
   return { text: t('testflight:sync.read', { ago }), tone: 'neutral' };
 }
 
-const APP_STORE_CONNECT = 'https://appstoreconnect.apple.com';
-
 /**
  * The app's TestFlight page in App Store Connect, or null without the Apple id. The `/apps/<id>/testflight` path is UNVERIFIED (Apple documents
  * no addresses of its console); the app page `/apps/<id>` is the one the other link-outs of Kiln use, and TestFlight is one click from it.
  */
 export function testflightConsoleUrl(storeAppId: string | null): string | null {
   const id = (storeAppId ?? '').trim();
-  return /^\d+$/.test(id) ? `${APP_STORE_CONNECT}/apps/${id}/testflight` : null;
+  return /^\d+$/.test(id) ? `${APP_STORE_CONNECT_URL}/apps/${id}/testflight` : null;
 }
 
 /** Whether a screenshot link has expired (or is about to, within the margin). */

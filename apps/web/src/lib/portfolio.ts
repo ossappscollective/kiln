@@ -241,6 +241,26 @@ export function liveRelease(
   ).newestLive;
 }
 
+/** Most urgent first: the one order of release states for every list that says what needs the person first. */
+export const RELEASE_URGENCY: readonly ReleaseState[] = [
+  'rejected',
+  'halted',
+  'in_review',
+  'propagating',
+  'rolling_out',
+  'approved',
+  'ready',
+  'build_chosen',
+  'draft',
+  'live',
+];
+
+/** Where a state stands in `RELEASE_URGENCY`: 0 is the most urgent; a release without a known state comes last. */
+export function urgencyOf(status: ReleaseState | null | undefined): number {
+  const i = status === null || status === undefined ? -1 : RELEASE_URGENCY.indexOf(status);
+  return i < 0 ? RELEASE_URGENCY.length : i;
+}
+
 export type ReleaseGroup = {
   key: string;
   platform: Platform;
@@ -249,6 +269,9 @@ export type ReleaseGroup = {
   /** Newest first. */
   releases: ReleaseSummary[];
   latest: ReleaseSummary;
+  /** How many releases the group holds, and how many of them the store reported in a state the lifecycle cannot place. */
+  count: number;
+  unmapped: number;
 };
 
 /** One group per platform and track, iOS before Android, the more public tracks first. */
@@ -273,6 +296,8 @@ export function groupReleases(releases: readonly ReleaseSummary[]): ReleaseGroup
           : `${platformLabel(latest.platform)} · ${trackLabel(latest.track)}`,
       releases: list,
       latest,
+      count: list.length,
+      unmapped: list.filter((r) => r.status === null).length,
     });
   }
   return result.sort(

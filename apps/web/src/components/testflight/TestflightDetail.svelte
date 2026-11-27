@@ -34,6 +34,7 @@
   import Button from '../ui/Button.svelte';
   import CopyButton from '../ui/CopyButton.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -72,7 +73,8 @@
   let links = $state<ScreenshotLink[] | null>(null);
   let linksLoading = $state(false);
   let linksProblem = $state('');
-  let now = $state(Date.now());
+  const clock = useNow({ everyMs: 30_000 });
+  const now = $derived(clock.value);
 
   function reset(from: TestflightItem) {
     draft = { status: from.status, assigneeUserId: from.assigneeUserId ?? '', internalNote: from.internalNote ?? '' };
@@ -85,7 +87,7 @@
       const read = await api.appTestflightItem(workspaceId, appId, id);
       item = read.item;
       reset(read.item);
-      now = Date.now();
+      clock.touch();
     } catch (e) {
       problem = e instanceof ApiError ? e.message : t('testflight:detail.loadError');
     } finally {
@@ -125,7 +127,7 @@
     linksProblem = '';
     try {
       links = (await api.appTestflightScreenshots(workspaceId, appId, id)).screenshots;
-      now = Date.now();
+      clock.touch();
     } catch (e) {
       linksProblem = e instanceof ApiError ? e.message : t('testflight:detail.screenshotsFailed');
     } finally {

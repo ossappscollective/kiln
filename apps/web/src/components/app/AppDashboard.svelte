@@ -16,9 +16,10 @@
 <script lang="ts">
   import { playLiveUnconfirmed } from '../../lib/play-live.ts';
   import { t } from '../../lib/i18n/t.ts';
-  import { can, platformLabel, type Role } from '@kiln/core';
+  import { can, isProductionTrack, platformLabel, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
+  import { releaseFactsStore } from '../../lib/app-state/release-facts-store.svelte.ts';
   import { address } from '../../lib/address.svelte.ts';
   import { type AttentionItem, attentionItems, stagedUnpushedCount } from '../../lib/app-attention.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
@@ -121,8 +122,8 @@
         );
       }
       jobs.push(
-        api
-          .appBuilds(workspaceId, app.id)
+        releaseFactsStore
+          .readAppBuilds(api, workspaceId, app.id)
           .then((b) => {
             if (mine === generation) builds[app.id] = b.builds;
           })
@@ -202,7 +203,7 @@
       plans,
       aso: asoSummaries,
       unfinished: members.reduce<Record<string, SummaryStall | null>>((acc, m) => {
-        acc[m.id] = appStateStore.stalledApps(workspaceId, releases).filter((a) => a.app.id === m.id)[0]?.stalled ?? null;
+        acc[m.id] = appStateStore.unfinished(workspaceId).filter((a) => a.app.id === m.id)[0]?.stalled ?? null;
         return acc;
       }, {}),
       submitReady: members.reduce<Record<string, boolean>>((acc, m) => {
@@ -225,7 +226,6 @@
     scope={address.platform}
     attention={items}
     {releases}
-    refreshKey={syncRuns}
     onstarted={(s) => (startedRun = s)}
     onitems={(list) => (rest = list)}
   />
@@ -316,7 +316,7 @@
             <dd>
               {#if latest}
                 <strong>{latest.version}</strong>
-                {#if latest.track && latest.track !== 'production'}<span class="muted">{trackLabel(latest.track)}</span>{/if}
+                {#if latest.track && !isProductionTrack(latest.track)}<span class="muted">{trackLabel(latest.track)}</span>{/if}
                 <ReleaseStatus status={latest.status} rawState={latest.rawState} rolloutFraction={latest.rolloutFraction} sentForReviewAt={latest.sentForReviewAt} />
                 <a href={appAddress(app.id, 'releases', null, latest.version)} aria-label={t('app:dash.planAndDetailsFor', { version: latest.version })}>{t('app:dash.planAndDetails')}</a>
               {:else}

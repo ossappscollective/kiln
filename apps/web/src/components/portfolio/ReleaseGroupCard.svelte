@@ -16,13 +16,13 @@
   const uid = $props.id();
   const latest = $derived(group.latest);
   const info = $derived(statusInfo(latest.status, latest.rawState));
-  const unmapped = $derived(group.releases.filter((r) => r.status === null).length);
+  const unmapped = $derived(group.unmapped);
 </script>
 
 <section class="card flush" aria-labelledby="{uid}-title">
   <div class="head">
     <h2 id="{uid}-title">{group.title}</h2>
-    <span class="muted">{t('app:board.releaseCount', { count: group.releases.length })}</span>
+    <span class="muted">{t('app:board.releaseCount', { count: group.count })}</span>
   </div>
 
   <div class="lifecycle">

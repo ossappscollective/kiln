@@ -10,6 +10,7 @@
   import { attentionCount, unansweredCount } from '../lib/nav-badges.ts';
   import { navSignals } from '../lib/app-state/pending-facade.ts';
   import { appStateStore } from '../lib/app-state/app-state-store.svelte.ts';
+  import { releaseFactsStore } from '../lib/app-state/release-facts-store.svelte.ts';
   import { invalidate } from '../lib/facts/invalidate.ts';
   import { type ViewMode, readViewMode, saveViewMode } from '../lib/dashboard.ts';
   import {
@@ -27,7 +28,7 @@
   } from '../lib/portfolio.ts';
   import type { WorkspaceReviewsSummary } from '../lib/reviews/reviews.ts';
   import { toast } from '../lib/toast.svelte.ts';
-  import type { AppSummary, ReleaseSummary } from '../lib/types.ts';
+  import type { AppSummary } from '../lib/types.ts';
   import RunningNow from './ci/RunningNow.svelte';
   import Board from './dashboard/Board.svelte';
   import ViewToggle from './dashboard/ViewToggle.svelte';
@@ -86,15 +87,8 @@
 
   const sorted = $derived(apps ? sortApps(apps) : []);
   const groups = $derived(groupApps(apps ?? []));
-  const releaseLists = $derived(
-    Object.keys(releases).reduce<Record<string, ReleaseSummary[]>>((acc, id) => {
-      const load = releases[id];
-      if (load?.state === 'ready') acc[id] = load.releases;
-      return acc;
-    }, {}),
-  );
   // A release left unfinished that is only a version or a build left behind by what is live is not news (the model decides, from the same facts).
-  const pipelineApps = $derived(appStateStore.pipelineSummary(workspaceId) === null ? null : appStateStore.stalledApps(workspaceId, releaseLists));
+  const pipelineApps = $derived(appStateStore.pipelineSummary(workspaceId) === null ? null : appStateStore.unfinished(workspaceId));
   const rows = $derived(buildOverviewRows(groups, releases, reviewSummary?.apps ?? null, pipelineApps, (appIds) => appStateStore.lineOf(workspaceId, appIds)));
   const stats = $derived(overviewStats(rows));
   const batchRunning = $derived(batch?.running === true);
@@ -139,6 +133,7 @@
         const detail = await api.app(workspaceId, app.id);
         if (mine !== generation) return;
         releases[app.id] = { state: 'ready', releases: detail.releases };
+        releaseFactsStore.setReleases(workspaceId, app.id, detail.releases);
         patch(detail.app);
       } catch {
         if (mine === generation) releases[app.id] = { state: 'error' };

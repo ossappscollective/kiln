@@ -22,6 +22,9 @@
   const graphicSets = $derived(previewGraphicSets(preview));
 
   /** The warnings of the server and the store's warning checks, in ONE list under ONE heading (never two alerts that say the same). */
+  const releaseItems = $derived(preview.release ?? []);
+  const hasItems = $derived(releaseItems.length > 0);
+  const itemsShown = $derived(releaseItems.length);
   const readFirst = $derived(
     [...preview.warnings, ...(preview.checks ? preview.checks.warnings.map((c) => c.message) : [])].filter((w, i, all) => w.trim() !== '' && all.indexOf(w) === i),
   );
@@ -46,10 +49,10 @@
     </Alert>
   {/if}
 
-  {#if (preview.release ?? []).length > 0}
+  {#if hasItems}
     <section aria-label={t('publish:push.releaseAria')} class="stack">
-      <h3>{t('publish:push.releaseHeading', { count: (preview.release ?? []).length })}</h3>
-      {#each preview.release ?? [] as r (r.id)}
+      <h3>{t('publish:push.releaseHeading', { count: itemsShown })}</h3>
+      {#each releaseItems as r (r.id)}
         {@const status = previewFieldStatus(r)}
         <div class="item">
           <p class="item-head">

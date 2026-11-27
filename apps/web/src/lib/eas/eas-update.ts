@@ -184,6 +184,21 @@ export function checkLabel(status: RuntimeCheckStatus): string {
   return t(key);
 }
 
+/** How many update groups the channel's branches hold. */
+export function updateGroupTotal(channel: EasUpdateChannel): number {
+  return channel.branches.reduce((n, b) => n + b.groups.length, 0);
+}
+
+/** Whether the branch has an update group to list. */
+export function branchHasUpdates(branch: EasUpdateChannel['branches'][number]): boolean {
+  return branch.groups.length > 0;
+}
+
+/** How many builds the update state compares the channels against. */
+export function comparedBuildTotal(state: EasUpdateState): number {
+  return state.builds.length;
+}
+
 /** The channels whose newest update would not reach what was shipped (an error or a warning), errors first. */
 export function channelsWithMismatch(state: EasUpdateState): EasUpdateChannel[] {
   return state.channels

@@ -76,13 +76,13 @@ const RULES: Rule[] = [
     instead:
       'read the app-state store (one count, one place): `appStateStore.of(...).pendingCount`, `.publishing`, `.failures`',
     pattern:
-      /\b(?:publishingStore|cartSummaryStore)\b|\bpendingStore\.(?:summary|loadSummary|viewsOf)\b|\bpipelineStore\.(?:summary|app|loadSummary)\b/,
+      /\b(?:publishingStore|cartSummaryStore)\b|\bpendingStore\.(?:summary|loadSummary|viewsOf)\b|\breleaseFactsStore\.(?:pipelineSummary|pipelineOf|storeBuildFactsOf|loadPipelineSummary)\b/,
     files: [...COMPONENTS, ...LIB],
     allow: {
       'lib/publishing-store.svelte.ts': 'it IS the claims store the app-state store reads',
       'lib/cart-summary.svelte.ts': 'it IS the cart summary store the app-state store reads',
       'lib/pending-store.svelte.ts':
-        'it IS the pending content store (views, summary) the app-state store reads',
+        'it IS the pending content store (views, summary) the app-state store reads (and asks the pipeline summary again after a publish)',
       'components/publish/PublishDialog.svelte':
         'it reports its own publish to the claims store; it reads nothing back to decide with',
     },

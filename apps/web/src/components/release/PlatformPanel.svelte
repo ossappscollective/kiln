@@ -43,6 +43,7 @@ import { platformMeta, supports } from '@kiln/core';
   } = $props();
 
   const uid = $props.id();
+  const noReleases = $derived(releases.length === 0);
   const store = $derived(storeName(app.platform));
 </script>
 
@@ -73,7 +74,7 @@ import { platformMeta, supports } from '@kiln/core';
     </span>
   </p>
 
-  {#if releases.length === 0}
+  {#if noReleases}
     <p class="none">
       {plan ? t('release:panel.notInSnapshotYet', { version, store }) : t('release:panel.notInSnapshot', { version, store })}
       {#if plan}{t('release:panel.nextSentence', { text: nextAction({ platform: app.platform, status: null, planned: true, readiness: plan.readiness, blocked: plan.blocked ? { kind: 'other', reason: plan.blockedReason ?? '' } : null }).text })}{/if}

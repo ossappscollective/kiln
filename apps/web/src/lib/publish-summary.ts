@@ -24,7 +24,7 @@ import {
 } from './pending.ts';
 import { isReadinessProblem, type ReadinessView, readinessView } from './publish-readiness.ts';
 import type { DraftPreview } from './staged.ts';
-import { PLAY_CONSOLE_URL } from './store-links.ts';
+import { APP_STORE_CONNECT_APPS_URL, PLAY_CONSOLE_URL } from './store-links.ts';
 import { percentText } from './store-release.ts';
 import { testflightConsoleUrl } from './testflight.ts';
 
@@ -447,8 +447,6 @@ export type BuildLink = {
   title: string;
 };
 
-const APP_STORE_CONNECT_APPS = 'https://appstoreconnect.apple.com/apps';
-
 /**
  * Where to look at the build in the store's console. Google Play: the Console itself, because its pages need the developer account id
  * and the numeric app id, which Google Play's API does not give (the app bundle explorer is one click away). App Store Connect: the
@@ -469,7 +467,7 @@ export function buildLink(facts: BuildFacts, storeAppId: string | null | undefin
   }
   const direct = testflightConsoleUrl(storeAppId ?? null);
   return {
-    href: direct ?? APP_STORE_CONNECT_APPS,
+    href: direct ?? APP_STORE_CONNECT_APPS_URL,
     text: t('publish:summary.build.link.apple'),
     label:
       builds === ''

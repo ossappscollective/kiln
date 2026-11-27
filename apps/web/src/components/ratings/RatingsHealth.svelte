@@ -122,6 +122,7 @@
     }),
   );
   const several = $derived(snaps.length > 1);
+  const hasReleases = (s: PlatformSnapshot) => s.releases.length > 0;
   const readOf = (appId: string) => reads[appId];
 
   const parts = $derived(availableParts(snaps));
@@ -344,7 +345,7 @@
     <p class="quiet">{t('ratings:releases.lead')}</p>
     <p class="quiet" data-testid="releases-legend">{t('ratings:releases.legend')}</p>
     {#each snaps as s (s.appId)}
-      {#if s.releases.length > 0}
+      {#if hasReleases(s)}
         <div class="stack">
           {@render platformHead(s)}
           <div class="card flush">

@@ -408,6 +408,22 @@ export function conventionSourceLabel(
   return 'the built-in patterns';
 }
 
+/** How the builds of an app stand against their runs: every screen that says "N of M builds have no run" reads this one count. */
+export function buildLinkCounts(builds: readonly { linkState: string }[]): {
+  all: number;
+  unlinked: number;
+  tagOnly: number;
+  linked: number;
+} {
+  let unlinked = 0;
+  let tagOnly = 0;
+  for (const b of builds) {
+    if (b.linkState === 'unlinked') unlinked++;
+    else if (b.linkState === 'tag') tagOnly++;
+  }
+  return { all: builds.length, unlinked, tagOnly, linked: builds.length - unlinked };
+}
+
 /**
  * Whether the page should ask for a search by itself: only when the repository's tags were never
  * searched, something is unlinked, and the person may ask GitHub. It is tried once per app.

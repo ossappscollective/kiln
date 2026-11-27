@@ -18,6 +18,7 @@
   import Button from '../ui/Button.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
   import TextField from '../ui/TextField.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -38,14 +39,8 @@
   let editText = $state('');
   let templates = $state<ChecklistTemplate[]>([]);
   let templateId = $state('');
-  let now = $state(Date.now());
-
-  $effect(() => {
-    const timer = setInterval(() => {
-      now = Date.now();
-    }, 30_000);
-    return () => clearInterval(timer);
-  });
+  const clock = useNow({ everyMs: 30_000 });
+  const now = $derived(clock.value);
 
   // The picker needs the templates only when the person can add from one.
   $effect(() => {

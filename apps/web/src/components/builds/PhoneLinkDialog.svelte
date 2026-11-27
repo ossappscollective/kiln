@@ -16,6 +16,7 @@
   import Spinner from '../ui/Spinner.svelte';
   import { t } from '../../lib/i18n/t.ts';
   import T from '../ui/T.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let { api, workspaceId, appId, row, onclose }: { api: Api; workspaceId: string; appId: string; row: BuildRow; onclose: () => void } = $props();
 
@@ -23,7 +24,8 @@
   let link = $state<DownloadLink | null>(null);
   let problem = $state('');
   let busy = $state(false);
-  let now = $state(Date.now());
+  const clock = useNow({ everyMs: 1000 });
+  const now = $derived(clock.value);
 
   const url = $derived(link ? phoneUrl(location.origin, link.path) : '');
   const code = $derived.by(() => {
@@ -40,7 +42,7 @@
     problem = '';
     try {
       link = await api.createBuildLink(workspaceId, appId, row.artifact?.id ?? '');
-      now = Date.now();
+      clock.touch();
     } catch (e) {
       link = null;
       problem = e instanceof ApiError ? e.message : t('builds:phone.makeFailed');
@@ -51,8 +53,6 @@
 
   onMount(() => {
     void make();
-    const timer = setInterval(() => (now = Date.now()), 1000);
-    return () => clearInterval(timer);
   });
 </script>
 

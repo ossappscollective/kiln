@@ -7,7 +7,7 @@
   ondelete (called after the plan was deleted).
 -->
 <script lang="ts">
-  import { MAX_PLAN_NOTES_LENGTH } from '@kiln/core';
+  import { MAX_BLOCKED_REASON_LENGTH, MAX_PLAN_NOTES_LENGTH } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { formatTargetDate, planErrorMessage } from '../../lib/release.ts';
   import { planLine } from '../../lib/release-detail.ts';
@@ -172,7 +172,7 @@
         <form class="stack" onsubmit={saveBlock}>
           <div class="field">
             <label for="{uid}-reason">{t('release:plan.whyBlocked')}</label>
-            <textarea id="{uid}-reason" rows="3" maxlength="500" bind:value={reasonDraft} aria-invalid={reasonProblem !== ''} aria-describedby="{uid}-reason-hint"></textarea>
+            <textarea id="{uid}-reason" rows="3" maxlength={MAX_BLOCKED_REASON_LENGTH} bind:value={reasonDraft} aria-invalid={reasonProblem !== ''} aria-describedby="{uid}-reason-hint"></textarea>
             {#if reasonProblem}<p class="field-error" role="alert">{reasonProblem}</p>{/if}
             <p id="{uid}-reason-hint" class="hint">{t('release:plan.whyBlockedHint')}</p>
           </div>

@@ -39,6 +39,7 @@
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -62,7 +63,8 @@
   let busy = $state(false);
   let problem = $state('');
   let announcement = $state('');
-  let now = $state(Date.now());
+  const clock = useNow({ everyMs: 30_000 });
+  const now = $derived(clock.value);
   let editing = $state(false);
   let draft = $state<DraftStep[]>([]);
   let rowProblems = $state<Record<string, string>>({});
@@ -107,13 +109,6 @@
         loadProblem = planErrorMessage(e);
         loading = false;
       });
-  });
-
-  $effect(() => {
-    const timer = setInterval(() => {
-      now = Date.now();
-    }, 30_000);
-    return () => clearInterval(timer);
   });
 
   /** One request at a time, so two quick clicks cannot interleave their answers. */

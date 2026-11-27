@@ -1,5 +1,5 @@
-import type { Api } from './api.ts';
-import type { ReleaseSettingsView } from './release-settings.ts';
+import type { Api } from '../api.ts';
+import type { ReleaseSettingsView } from '../release-settings.ts';
 
 /**
  * The release settings of each app, a read of our own database (no store is contacted). A failed read leaves nothing: the screens then

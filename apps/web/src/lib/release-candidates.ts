@@ -1,4 +1,4 @@
-import { buildNumberOfBuild, compareBuildNumbers, type Platform } from '@kiln/core';
+import { buildNumberOfBuild, compareBuildNumbers, PLAY_TRACKS, type Platform } from '@kiln/core';
 import {
   latestOf,
   type OriginFields,
@@ -522,7 +522,7 @@ export function noCodeSentence(rows: readonly CodeRow[], track: string): string 
 // ---------------------------------------------------------------------------------------------
 // Track names
 
-export const SUGGESTED_TRACKS = ['production', 'beta', 'alpha', 'internal'] as const;
+export const SUGGESTED_TRACKS = [PLAY_TRACKS.production, PLAY_TRACKS.beta, PLAY_TRACKS.alpha, PLAY_TRACKS.internal] as const;
 
 export const isSameTrack = sameTrack;
 
@@ -595,4 +595,19 @@ export function chosenBuildLine(
     sayUnknown: false,
     mismatch: versionMismatch({ version: origin.version }, releasing),
   };
+}
+
+/**
+ * How many builds (App Store) or version codes (Play) the person can pick for the release, or null while the candidates are not read.
+ * The server's per-item verdict decides; an older server without verdicts falls back to the `selectable` flag.
+ */
+export function eligibleChoices(candidates: ReleaseCandidates | null): number | null {
+  if (candidates === null) return null;
+  let n = 0;
+  if (candidates.store === 'appstoreconnect') {
+    for (const b of candidates.builds) if (b.eligibility ? b.eligibility.eligible : b.selectable) n++;
+  } else {
+    for (const c of candidates.codes) if (c.eligibility ? c.eligibility.eligible : true) n++;
+  }
+  return n;
 }

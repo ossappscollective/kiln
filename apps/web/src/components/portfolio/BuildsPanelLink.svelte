@@ -19,6 +19,7 @@
   import Modal from '../ui/Modal.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import TextField from '../ui/TextField.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -47,7 +48,8 @@
   let typed = $state('');
   let submitting = $state(false);
   let problem = $state('');
-  const now = Date.now();
+  const clock = useNow({ everyMs: 30_000 });
+  const now = $derived(clock.value);
 
   async function load() {
     loadProblem = '';

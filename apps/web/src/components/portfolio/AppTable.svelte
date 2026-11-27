@@ -5,6 +5,7 @@
   "Sync all" run owns the sync buttons), onsync (called with an app).
 -->
 <script lang="ts">
+  import { isProductionTrack } from '@kiln/core';
   import { t } from '../../lib/i18n/t.ts';
   import {
     appHref,
@@ -83,7 +84,7 @@
                 <div class="line">
                   <strong class="version">{latest.version}</strong>
                   {#if latest.build}<span class="muted build">{t('app:board.build', { build: latest.build })}</span>{/if}
-                  {#if latest.track && latest.track !== 'production'}
+                  {#if latest.track && !isProductionTrack(latest.track)}
                     <span class="muted">{trackLabel(latest.track)}</span>
                   {/if}
                 </div>

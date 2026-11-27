@@ -26,12 +26,7 @@ import { itemCount } from '../staged.ts';
 import type { ReleaseSummary } from '../types.ts';
 import { blockersViewOf } from './blockers.ts';
 import { deriveAppState } from './derive.ts';
-import {
-  analyzeCandidates,
-  buildsWithPipeline,
-  releasesWithPipeline,
-  stallLeftBehind,
-} from './candidates.ts';
+import { unfinishedApps } from './candidates.ts';
 import { lineOfRecords } from './facts.ts';
 import { deriveImagesFacts } from './store-images.ts';
 import {
@@ -136,22 +131,13 @@ const defaultLocaleOfRecord = (w: World, id: string): string | null => {
  */
 const noReleases: AppFacts['releases'] = {};
 
-/**
- * The apps of the pipeline summary that are left unfinished, as the model answers.
- * mirrors: apps/web/src/lib/app-state/app-state-store.svelte.ts:312 `stalledApps` (a method of the rune store with this exact body).
- */
+/** The apps of the pipeline summary that are left unfinished: the model's own function (`unfinishedApps`), over the world's facts. */
 function stalledOf(w: World, releases: AppFacts['releases'] | undefined): PipelineSummaryApp[] {
-  return (w.pipelineSummary?.apps ?? []).map((a) => {
-    if (a.stalled === null) return a;
-    const id = a.app.id;
-    const p = w.pipelines[id] ?? null;
-    const analysis = analyzeCandidates({
-      appId: id,
-      platform: a.app.platform,
-      releases: releasesWithPipeline(id, a.app.platform, releases?.[id], p),
-      builds: buildsWithPipeline(a.app.platform, w.storeBuilds[id] ?? null, p),
-    });
-    return stallLeftBehind(a.stalled, analysis) ? { ...a, stalled: null } : a;
+  return unfinishedApps({
+    apps: w.pipelineSummary?.apps ?? [],
+    releases: releases ?? {},
+    pipelineOf: (id) => w.pipelines[id] ?? null,
+    buildsOf: (id) => w.storeBuilds[id] ?? null,
   });
 }
 const unfinishedIn = (apps: readonly PipelineSummaryApp[], recordIds: readonly string[]): number =>
@@ -167,6 +153,12 @@ const lineOf = (w: World, appIds: readonly string[]) =>
 
 const versionOf = (r: ReleaseSummary | null | undefined): string | null => r?.version ?? null;
 const displayKey = (locale: string, device: string | null) => `${locale}/${device ?? ''}`;
+
+/** The newest store build of a record by upload date (a build without a date is not placed), or null. */
+const newestStoreBuild = (w: World, appId: string) => {
+  const rows = (w.storeBuilds[appId] ?? []).filter((b) => b.uploadedAt !== null);
+  return rows.slice().sort((a, b) => (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0))[0] ?? null;
+};
 
 /** The model's own newest build per record: the candidate when there is one. */
 const candidateOf = (s: AppState, appId: string): string | null => {
@@ -201,10 +193,8 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'sidebarBadge',
     components: ['components/Shell.svelte'],
-    mirrors: [
-      'components/Shell.svelte:108-126 appCounts (lineOf + appNavCounts)',
-      'components/Shell.svelte:118 stalledApps(workspaceId, navSignals.releasesOf(workspaceId)) (the lists the pages pushed into navSignals)',
-    ],
+    // Shell `appCounts`: `lineOf` and `unfinished(workspaceId)` of the model (one list, the release facts store's), then `appNavCounts`.
+    mirrors: [],
     project(w) {
       const out: Facts = {};
       const line = lineOf(w, ids(w));
@@ -251,11 +241,8 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'portfolioCard',
     components: ['components/Portfolio.svelte', 'components/portfolio/AppTable.svelte'],
-    mirrors: [
-      'components/Portfolio.svelte:94 stalledApps(workspaceId, releaseLists) (the lists this page loaded)',
-      'lib/app-overview.ts:107 buildOverviewRows (composes the row from four sources)',
-      'components/portfolio/AppTable.svelte:58 releaseFactsOf over the page-loaded list',
-    ],
+    // The page passes `unfinished(workspaceId)` of the model to `buildOverviewRows`; the table reads `releaseFactsOf` (core `liveOf`) of the list.
+    mirrors: ['lib/app-overview.ts buildOverviewRows (composes the row from four sources)'],
     project(w) {
       const groups = groupApps(w.records);
       const loads = loadsOf(w);
@@ -278,10 +265,8 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'appDashboardTiles',
     components: ['components/app/AppDashboard.svelte'],
-    mirrors: [
-      'components/app/AppDashboard.svelte:263 releaseFactsOf (live = liveOf: a phased release is live)',
-      'components/app/AppDashboard.svelte:258 modelState.candidates',
-    ],
+    // The tiles read `releaseFactsOf` (live = core `liveOf`: a phased release is live) and the model's `candidates`.
+    mirrors: [],
     project(w) {
       const out: Facts = {};
       const s = appState(w);
@@ -303,8 +288,7 @@ export const SURFACES: readonly Surface[] = [
     id: 'appDashboardAttention',
     components: ['components/app/AppDashboard.svelte'],
     mirrors: [
-      'components/app/AppDashboard.svelte:206 stagedUnpushedCount(stagedStore.view(m.id)) (a third "staged" number)',
-      'components/app/AppDashboard.svelte:212 stalledApps(workspaceId, releases).filter(...)',
+      'components/app/AppDashboard.svelte:200 stagedUnpushedCount(stagedStore.view(m.id)) (a third "staged" number)',
     ],
     project(w) {
       const out: Facts = {};
@@ -450,7 +434,8 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'shellStatus',
     components: ['components/Shell.svelte'],
-    mirrors: ['components/Shell.svelte:129 platformStatusLines(group.members, navSignals.releasesOf) (the lists the pages pushed into navSignals)'],
+    // Shell `platformStatusLines(group.members, releaseFactsStore.releasesOf(workspaceId))`: the one list of the release facts store.
+    mirrors: [],
     project(w) {
       const out: Facts = {};
       for (const line of platformStatusLines(w.records, w.releases))
@@ -464,14 +449,13 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'buildsPanel',
     components: ['components/builds/TestBuilds.svelte', 'components/portfolio/BuildsPanel.svelte'],
-    mirrors: ['components/builds/TestBuilds.svelte: api.buildArtifacts (own read; the model has its own storeBuildsStore of the same rows)'],
+    // TestBuilds and BuildsPanel read the rows from `releaseFactsStore` (the store rows the model's candidates read too).
+    mirrors: [],
     project(w) {
       const out: Facts = {};
       for (const m of inScope(w)) {
-        const rows = (w.storeBuilds[m.id] ?? []).filter((b) => b.uploadedAt !== null);
-        if (rows.length === 0) continue;
-        const newest = rows.slice().sort((a, b) => (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0))[0];
-        if (newest === undefined) continue;
+        const newest = newestStoreBuild(w, m.id);
+        if (newest === null) continue;
         out[`newestBuild:${m.id}`] = `${newest.version}#${newest.buildNumber}`;
         out[`buildDate:${m.id}`] = String(newest.uploadedAt);
       }
@@ -480,16 +464,17 @@ export const SURFACES: readonly Surface[] = [
   },
   {
     id: 'pipelineCard',
-    components: ['components/release/ReleaseStepper.svelte', 'components/release/ReleasePipeline.svelte'],
-    mirrors: ['lib/app-state/candidates.ts:453 buildsWithPipeline (the pipeline knows ONE build: its latest)'],
+    components: ['components/release/stepper/ReleaseStepper.svelte', 'components/release/stepper/StepBuild.svelte'],
+    // The stepper's build step lists the builds of the candidates read (the same store rows as the Builds page); the pipeline only says
+    // where the release waits (its state), never which build is the newest: an obsolete 1.11.6 pipeline is not a build fact.
+    mirrors: [],
     project(w) {
       const out: Facts = {};
       for (const m of inScope(w)) {
-        const b = w.pipelines[m.id]?.pipeline.latest.build;
-        if (b === null || b === undefined) continue;
-        out[`newestBuild:${m.id}`] = `${b.version ?? ''}#${b.buildNumber}`;
-        const at = (b as { uploadedAt?: number | null; firstSeenAt?: number | null }).uploadedAt ?? (b as { firstSeenAt?: number | null }).firstSeenAt ?? null;
-        if (at !== null) out[`buildDate:${m.id}`] = String(at);
+        const newest = newestStoreBuild(w, m.id);
+        if (newest === null) continue;
+        out[`newestBuild:${m.id}`] = `${newest.version}#${newest.buildNumber}`;
+        out[`buildDate:${m.id}`] = String(newest.uploadedAt);
       }
       return out;
     },
@@ -497,7 +482,8 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'publishSummary',
     components: ['components/publish/PublishSummary.svelte'],
-    mirrors: ['components/publish/PublishSummary.svelte:73-80 api.appBuilds + buildDate (own read of the database rows)'],
+    // PublishSummary reads the store rows from `releaseFactsStore.readBuilds`, then `buildDate` of the same rows.
+    mirrors: [],
     project(w) {
       const out: Facts = {};
       const s = appState(w);

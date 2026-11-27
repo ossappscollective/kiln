@@ -1,4 +1,4 @@
-import { liveOf, type PromoteFact, promoteOptionsOf, supports } from '@kiln/core';
+import { liveOf, PLAY_TRACKS, type PromoteFact, promoteOptionsOf, supports } from '@kiln/core';
 import { parseViewPath } from './app-scope.ts';
 import { currentLocale, t } from './i18n/t.ts';
 import { trackLabel } from './portfolio.ts';
@@ -13,7 +13,7 @@ import type { ReleaseSummary } from './types.ts';
  * Pure; written for the ES2017 web build.
  */
 
-export const PRODUCTION = 'production';
+export const PRODUCTION: string = PLAY_TRACKS.production;
 
 export type Promote = {
   /** The track the release is in now. */

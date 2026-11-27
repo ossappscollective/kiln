@@ -11,6 +11,7 @@
   import { can, platformSupports, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import { type Api, ApiError } from '../../lib/api.ts';
+  import { releaseFactsStore } from '../../lib/app-state/release-facts-store.svelte.ts';
   import { formatDateTime } from '../../lib/i18n/format.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -45,6 +46,7 @@
   import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import TestflightDetail from './TestflightDetail.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let { api, workspaceId, role, app, refreshKey }: { api: Api; workspaceId: string; role: Role; app: AppSummary; refreshKey: number } = $props();
 
@@ -61,7 +63,8 @@
   let loadingMore = $state(false);
   let problem = $state('');
   let syncProblem = $state('');
-  let now = $state(Date.now());
+  const clock = useNow({ everyMs: 30_000 });
+  const now = $derived(clock.value);
   let selectedId = $state('');
   let members = $state<Member[]>([]);
   let groups = $state<CrashGroups | null>(null);
@@ -77,12 +80,12 @@
     loading = true;
     problem = '';
     try {
-      const read = await api.appTestflight(workspaceId, app.id, listQuery({ ...filters, kind }));
+      const read = await releaseFactsStore.readTestflight(api, workspaceId, app.id, listQuery({ ...filters, kind }), { force: true });
       if (mine !== generation) return;
       view = read;
+      clock.touch();
       items = read.items;
       nextCursor = read.nextCursor;
-      now = Date.now();
       if (selectedId !== '' && !read.items.some((i) => i.id === selectedId)) selectedId = '';
     } catch (e) {
       if (mine !== generation) return;
@@ -97,7 +100,7 @@
   async function loadGroups(mine: number) {
     groupsProblem = '';
     try {
-      const read = await api.appTestflightCrashGroups(workspaceId, app.id);
+      const read = await releaseFactsStore.readTestflightCrashGroups(api, workspaceId, app.id, { force: true });
       if (mine === generation) groups = read;
     } catch (e) {
       if (mine === generation) groupsProblem = e instanceof ApiError ? e.message : t('testflight:groups.loadError');
@@ -109,7 +112,7 @@
     loadingMore = true;
     const mine = generation;
     try {
-      const read = await api.appTestflight(workspaceId, app.id, listQuery({ ...filters, kind }, nextCursor));
+      const read = await releaseFactsStore.readTestflight(api, workspaceId, app.id, listQuery({ ...filters, kind }, nextCursor), { force: true });
       if (mine !== generation) return;
       items = [...items, ...read.items.filter((i) => !items.some((x) => x.id === i.id))];
       nextCursor = read.nextCursor;
@@ -160,8 +163,8 @@
   /** A triage change in the detail: the row follows, and the counts are read again (a page of one row). */
   function onTriaged(item: TestflightItem) {
     items = items.map((i) => (i.id === item.id ? { ...i, status: item.status, assigneeUserId: item.assigneeUserId, hasNote: (item.internalNote ?? '') !== '' } : i));
-    void api
-      .appTestflight(workspaceId, app.id, `kind=${kind}&limit=1`)
+    void releaseFactsStore
+      .readTestflight(api, workspaceId, app.id, `kind=${kind}&limit=1`, { force: true })
       .then((r) => {
         if (view) view = { ...view, counts: r.counts };
       })

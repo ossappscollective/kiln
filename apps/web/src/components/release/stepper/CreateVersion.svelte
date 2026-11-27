@@ -14,11 +14,12 @@
   import { type Role, can } from '@kiln/core';
   import { announcePublished } from '../../../lib/app-page.ts';
   import type { Api } from '../../../lib/api.ts';
+  import { releaseFactsStore } from '../../../lib/app-state/release-facts-store.svelte.ts';
   import { invalidate } from '../../../lib/facts/invalidate.ts';
   import { carryLine } from '../../../lib/review-information.ts';
   import { type CreateVerdict, createRefusalText, createVerdictFor } from '../../../lib/release-candidates.ts';
   import { confirmed } from '../../../lib/step-up-prompt.svelte.ts';
-  import { stagedStore } from '../../../lib/staged-store.svelte.ts';
+  import { stagedStore } from '../../../lib/app-state/pending-facade.ts';
   import {
     NO_VERSION_SENTENCE,
     VERSION_ENV,
@@ -78,8 +79,8 @@
     // put over something they typed.
     const id = app.id;
     const platform = app.platform;
-    api
-      .app(workspaceId, id)
+    releaseFactsStore
+      .readApp(api, workspaceId, id)
       .then((detail) => {
         if (!touched && id === app.id)
           versionText = prefill !== null && prefill !== '' ? prefill : suggestedVersion(detail.releases, platform);

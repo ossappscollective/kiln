@@ -1,9 +1,9 @@
-import type { Api } from './api.ts';
+import type { Api } from '../api.ts';
 import {
   classifyReleaseFailure,
   type StoreReleaseConfig,
   type StoreReleaseState,
-} from './store-release.ts';
+} from '../store-release.ts';
 
 /**
  * What the screens know about releasing: the server's switch (once per workspace) and, per app, whether a release,

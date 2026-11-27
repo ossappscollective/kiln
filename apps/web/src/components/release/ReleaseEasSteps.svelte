@@ -18,6 +18,7 @@
   import { formatDateTime, formatRelativeTime } from '../../lib/i18n/format.ts';
   import { k, t } from '../../lib/i18n/t.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let { api, workspaceId, role, app, release }: { api: Api; workspaceId: string; role: Role; app: AppSummary; release: ReleaseSummary } = $props();
 
@@ -44,7 +45,8 @@
   let status = $state<EasStatusView | null>(null);
   const allowed = $derived(can(role, 'builds.read') && (app.platform === 'ios' || app.platform === 'android'));
   const match = $derived(matchRelease(release, status));
-  const now = Date.now();
+  const clock = useNow({ everyMs: 30_000 });
+  const now = $derived(clock.value);
 
   $effect(() => {
     const id = app.id;

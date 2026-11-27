@@ -41,6 +41,7 @@
   import Modal from '../ui/Modal.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import TextField from '../ui/TextField.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -91,7 +92,8 @@
   let proposed = $state('');
   let helperMessage = $state('');
 
-  const now = Date.now();
+  const clock = useNow({ everyMs: 30_000 });
+  const now = $derived(clock.value);
   let generation = 0;
 
   async function loadConventions() {
@@ -153,6 +155,12 @@
       ? [...preview.tags.filter((r) => !r.matched).map((r) => r.name), ...preview.releases.filter((r) => !r.matched).map((r) => r.name)].slice(0, 60)
       : [],
   );
+  const found = $derived(forBuild ? forBuild.tags.length + forBuild.releases.length : 0);
+  const tagsBad = $derived(problems.tags.length > 0);
+  const releasesBad = $derived(problems.releases.length > 0);
+  /** What the read found, and what the draft patterns would show of it (zero until read). */
+  const seen = $derived({ tags: names ? names.tags.length : 0, releases: names ? names.releases.length : 0 });
+  const shown = $derived({ tags: preview ? preview.tags.length : 0, releases: preview ? preview.releases.length : 0 });
   const defaults = $derived(view?.defaults ?? { tagPatterns: [], releasePatterns: [] });
 
   function propose() {
@@ -256,14 +264,14 @@
           disabled={!canWrite || saving}
           spellcheck="false"
           autocomplete="off"
-          aria-invalid={tried && problems.tags.length > 0}
+          aria-invalid={tried && tagsBad}
           aria-describedby="{uid}-tags-hint"
           placeholder={defaults.tagPatterns.slice(0, 3).join('\n')}
         ></textarea>
         <p class="hint" id="{uid}-tags-hint">
           <T key="portfolio:conv.tagHint" params={{ count: defaults.tagPatterns.length }} />
         </p>
-        {#if problems.tags.length > 0}
+        {#if tagsBad}
           <ul class="problems" id="{uid}-tags-problems">
             {#each problems.tags as message (message)}<li>{message}</li>{/each}
           </ul>
@@ -279,14 +287,14 @@
           disabled={!canWrite || saving}
           spellcheck="false"
           autocomplete="off"
-          aria-invalid={tried && problems.releases.length > 0}
+          aria-invalid={tried && releasesBad}
           aria-describedby="{uid}-releases-hint"
           placeholder={defaults.releasePatterns.slice(0, 2).join('\n')}
         ></textarea>
         <p class="hint" id="{uid}-releases-hint">
           <T key="portfolio:conv.releaseHint" params={{ count: defaults.releasePatterns.length }} />
         </p>
-        {#if problems.releases.length > 0}
+        {#if releasesBad}
           <ul class="problems" id="{uid}-releases-problems">
             {#each problems.releases as message (message)}<li>{message}</li>{/each}
           </ul>
@@ -343,15 +351,15 @@
           {@const readAt = names.readAt}
           <p class="muted text-sm">
             {#snippet readTime(text: string)}<time datetime={new Date(readAt).toISOString()}>{text}</time>{/snippet}
-            <T key="portfolio:conv.read" params={{ tags: names.tagsTruncated ? t('portfolio:conv.tagCountMore', { count: names.tags.length }) : t('portfolio:conv.tagCount', { count: names.tags.length }), releases: names.releasesTruncated ? t('portfolio:conv.releaseCountMore', { count: names.releases.length }) : t('portfolio:conv.releaseCount', { count: names.releases.length }), when: timeAgo(names.readAt, now) }} tags={{ link: readTime }} />
+            <T key="portfolio:conv.read" params={{ tags: names.tagsTruncated ? t('portfolio:conv.tagCountMore', { count: seen.tags }) : t('portfolio:conv.tagCount', { count: seen.tags }), releases: names.releasesTruncated ? t('portfolio:conv.releaseCountMore', { count: seen.releases }) : t('portfolio:conv.releaseCount', { count: seen.releases }), when: timeAgo(names.readAt, now) }} tags={{ link: readTime }} />
             {t('portfolio:conv.fits', { tags: t('portfolio:conv.tagCount', { count: preview.tagFits }), releases: t('portfolio:conv.releaseCount', { count: preview.releaseFits }), platform: platformLabel(app.platform) })}
           </p>
           {#if names.releasesError}<Alert tone="warn" title={t('portfolio:conv.releasesFailed')}>{names.releasesError}</Alert>{/if}
           {#if build && forBuild}
             <p aria-live="polite">
-              {#if forBuild.tags.length + forBuild.releases.length > 0}
+              {#if found > 0}
                 <Badge tone="ok">{t('portfolio:conv.foundBadge')}</Badge>
-                <T key="portfolio:conv.found" params={{ count: forBuild.tags.length + forBuild.releases.length, build: build.buildNumber, example: (forBuild.tags[0] ?? forBuild.releases[0])?.name ?? '' }} />
+                <T key="portfolio:conv.found" params={{ count: found, build: build.buildNumber, example: (forBuild.tags[0] ?? forBuild.releases[0])?.name ?? '' }} />
               {:else}
                 <Badge tone="warn">{t('portfolio:conv.notFoundBadge')}</Badge>
                 {t('portfolio:conv.notFound', { build: build.buildNumber })}
@@ -359,7 +367,7 @@
             </p>
           {/if}
 
-          {#if names.tags.length > 0}
+          {#if seen.tags > 0}
             <div class="table-wrap">
               <table>
                 <caption class="visually-hidden">{t('portfolio:conv.tagsCaption')}</caption>
@@ -376,12 +384,12 @@
                 </tbody>
               </table>
             </div>
-            {#if preview.tags.length > SHOWN}
-              <div><Button size="sm" variant="ghost" onclick={() => (showAllTags = !showAllTags)}>{showAllTags ? t('portfolio:conv.fewerTags') : t('portfolio:conv.allTags', { count: preview.tags.length })}</Button></div>
+            {#if shown.tags > SHOWN}
+              <div><Button size="sm" variant="ghost" onclick={() => (showAllTags = !showAllTags)}>{showAllTags ? t('portfolio:conv.fewerTags') : t('portfolio:conv.allTags', { count: shown.tags })}</Button></div>
             {/if}
           {/if}
 
-          {#if names.releases.length > 0}
+          {#if seen.releases > 0}
             <div class="table-wrap">
               <table>
                 <caption class="visually-hidden">{t('portfolio:conv.releasesCaption')}</caption>
@@ -398,11 +406,11 @@
                 </tbody>
               </table>
             </div>
-            {#if preview.releases.length > SHOWN}
-              <div><Button size="sm" variant="ghost" onclick={() => (showAllReleases = !showAllReleases)}>{showAllReleases ? t('portfolio:conv.fewerReleases') : t('portfolio:conv.allReleases', { count: preview.releases.length })}</Button></div>
+            {#if shown.releases > SHOWN}
+              <div><Button size="sm" variant="ghost" onclick={() => (showAllReleases = !showAllReleases)}>{showAllReleases ? t('portfolio:conv.fewerReleases') : t('portfolio:conv.allReleases', { count: shown.releases })}</Button></div>
             {/if}
           {/if}
-          {#if names.tags.length === 0 && names.releases.length === 0}
+          {#if seen.tags === 0 && seen.releases === 0}
             <p class="muted">{t('portfolio:conv.noTags')}</p>
           {/if}
         {/if}

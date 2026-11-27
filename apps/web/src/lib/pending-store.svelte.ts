@@ -1,6 +1,6 @@
 import type { Api } from './api.ts';
 import type { PendingSummary, PendingView, PublishConfig } from './pending.ts';
-import { pipelineStore } from './pipeline-store.svelte.ts';
+import { releaseFactsStore } from './app-state/release-facts-store.svelte.ts';
 import { stagingError } from './staged.ts';
 import { stagedStore } from './staged-store.svelte.ts';
 import { submitStore } from './store-submit-store.svelte.ts';
@@ -93,7 +93,7 @@ export const pendingStore = {
   ): Promise<void> {
     const jobs: Promise<unknown>[] = [
       pendingStore.loadSummary(api, workspaceId),
-      pipelineStore.loadSummary(api, workspaceId),
+      releaseFactsStore.loadPipelineSummary(api, workspaceId),
     ];
     for (const id of appIds) {
       jobs.push(pendingStore.loadView(api, workspaceId, id));

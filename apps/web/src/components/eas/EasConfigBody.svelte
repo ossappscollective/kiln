@@ -11,6 +11,7 @@
   import {
     badgeTone,
     buildChips,
+    buildProfileTotal,
     emptyState,
     envText,
     extendsText,
@@ -126,9 +127,10 @@
     {:else if config === null}
       <Alert tone="error" title={t('eas:config.empty.unreadableTitle')}>{t('eas:config.body.unreadableDesc')}</Alert>
     {:else}
+      {@const profileTotal = buildProfileTotal(config)}
       <section class="stack tight" aria-labelledby="eas-build-heading-{app.id}">
-        <h4 id="eas-build-heading-{app.id}">{t('eas:config.body.buildProfiles')} <span class="muted count">{config.build.length}</span></h4>
-        {#if config.build.length === 0}
+        <h4 id="eas-build-heading-{app.id}">{t('eas:config.body.buildProfiles')} <span class="muted count">{profileTotal}</span></h4>
+        {#if profileTotal === 0}
           <p class="muted">{t('eas:config.body.noBuildProfiles')}</p>
         {:else}
           <div class="table-wrap">

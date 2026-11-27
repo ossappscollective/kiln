@@ -36,6 +36,7 @@
   import { canonicalAppHash, canonicalSection, pageTitle, resolveView, showsScope, viewsFor } from '../../lib/app-nav.ts';
   import { PUBLISHED_EVENT } from '../../lib/app-page.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import { releaseFactsStore } from '../../lib/app-state/release-facts-store.svelte.ts';
   import { invalidate, onInvalidated } from '../../lib/facts/invalidate.ts';
   import { batchAppIds } from '../../lib/staged-sync.ts';
   import { canSubmit } from '../../lib/store-submit.ts';
@@ -170,8 +171,27 @@
   $effect(() => {
     const space = workspaceId;
     for (const [appId, list] of Object.entries(releases)) {
-      if (list) untrack(() => navSignals.setReleases(space, appId, list));
+      if (list) untrack(() => releaseFactsStore.setReleases(space, appId, list));
     }
+  });
+
+  // The facts the release candidates are made of (the pipeline of every record, the store builds of an App Store record) are read HERE, for
+  // the records of the open app, whatever page is open: they used to be read only when the Next step card was on screen, so the Releases
+  // table, the stepper and the sidebar had candidates only when that card happened to mount. A finished sync reads them again.
+  let ensuredKey = '';
+  let lastSyncRuns = 0;
+  $effect(() => {
+    const key = `${workspaceId}/${members.map((m) => m.id).join(',')}`;
+    const again = syncRuns;
+    const list = members.map((m) => ({ id: m.id, platform: m.platform }));
+    const space = workspaceId;
+    untrack(() => {
+      const force = key === ensuredKey && again !== lastSyncRuns;
+      ensuredKey = key;
+      lastSyncRuns = again;
+      if (can(role, 'apps.read') && list.length > 0)
+        releaseFactsStore.ensureRecord(api, space, list, { force });
+    });
   });
 
   // Load when the app changes. Moving to the other platform record of the same app keeps what is shown.

@@ -1,6 +1,7 @@
 import {
   can,
   fractionRefusalNotice,
+  PLAY_TRACKS,
   type Platform,
   type Role,
   type StoreId,
@@ -987,7 +988,7 @@ export function releaseInputDefaults(plan: PublishPlan | null): {
   const staged = plan?.direct ?? null;
   const fraction = staged?.stagedFraction ?? null;
   return {
-    track: staged?.track ?? 'production',
+    track: staged?.track ?? PLAY_TRACKS.production,
     sharePercent:
       fraction !== null && fraction > 0 && fraction <= 1
         ? String(Math.round(fraction * 10000) / 100)
@@ -1104,7 +1105,7 @@ export function recommendedSentence(
   const rec = plan?.recommended ?? null;
   if (plan === null || rec === null) return '';
   const first = rec.steps[0];
-  const track = (first?.track ?? plan.direct?.track ?? 'production').trim();
+  const track = (first?.track ?? plan.direct?.track ?? PLAY_TRACKS.production).trim();
   let text: string;
   if (rec.why === 'promotion') text = t('publish:dialog.recommendedPromotion', { track });
   else if (rec.why === 'direct_release') text = t('publish:dialog.recommendedDirect', { track });

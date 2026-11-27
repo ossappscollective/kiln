@@ -27,6 +27,7 @@
   import Icon from '../ui/Icon.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import SubmitReadiness from './SubmitReadiness.svelte';
+  import { releaseFactsStore } from '../../lib/app-state/release-facts-store.svelte.ts';
 
   let {
     summary,
@@ -74,8 +75,8 @@
         void listingStore.load(reader, ws, appId);
       }
       if (wantsBuilds && stored === null) {
-        reader
-          .buildArtifacts(ws, appId)
+        releaseFactsStore
+          .readBuilds(reader, ws, appId)
           .then((list) => {
             if (readFor === appId) stored = list.store;
           })

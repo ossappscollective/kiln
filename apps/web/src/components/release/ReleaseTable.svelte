@@ -58,6 +58,7 @@
   } = $props();
 
   const uid = $props.id();
+  const anyCandidates = $derived(candidates.length > 0);
   const columns = PLANS_ENABLED ? 9 : 8;
 
   let open = $state<Set<string>>(new Set());
@@ -97,7 +98,7 @@
         {#if PLANS_ENABLED}<th scope="col">{t('release:rt.plan')}</th>{/if}
       </tr>
     </thead>
-    {#if candidates.length > 0}
+    {#if anyCandidates}
       <tbody data-testid="release-candidates">
         <tr class="group">
           <th scope="colgroup" colspan={columns}><span class="gv">{t('state:candidate.ready')}</span></th>

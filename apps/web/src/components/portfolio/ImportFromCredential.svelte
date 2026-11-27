@@ -102,6 +102,8 @@
 
   const credential = $derived(usable.find((c) => c.id === credentialId));
   const kind = $derived(credential && isCredentialKind(credential.kind) ? (credential.kind as CredentialKind) : undefined);
+  const foundAny = $derived(discovery !== null && discovery.candidates.length > 0);
+  const failedAny = $derived(discovery !== null && discovery.failures.length > 0);
   const addable = $derived(discovery ? selectableCandidates(discovery.candidates) : []);
   const selectedCount = $derived(addable.filter((c) => selected.has(candidateKey(c))).length);
   const createdApps = $derived<AppSummary[]>(imported ? importedApps(imported) : []);
@@ -403,7 +405,7 @@
         <p class="muted" role="status">{discoverSummaryText(discovery)}</p>
         {#if kind}<p class="muted scope">{importScopeNote(platformForKind(kind))}</p>{/if}
 
-        {#if discovery.candidates.length > 0}
+        {#if foundAny}
           <div class="row wrap between">
             <p class="count" aria-live="polite">{t('portfolio:import.selected', { selected: selectedCount, total: addable.length })}</p>
             {#if addable.length > 0}
@@ -453,7 +455,7 @@
           </fieldset>
         {/if}
 
-        {#if discovery.failures.length > 0}
+        {#if failedAny}
           <div class="failures">
             <h4 class="section-title small">{t('portfolio:import.unverified')}</h4>
             <ul class="results">

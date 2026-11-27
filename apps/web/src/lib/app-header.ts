@@ -11,7 +11,7 @@ import {
 import { parseViewPath } from './app-scope.ts';
 import { formatList } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
-import { compareReleases } from './portfolio.ts';
+import { compareReleases, urgencyOf } from './portfolio.ts';
 import type { ReleaseSummary } from './types.ts';
 
 /**
@@ -125,21 +125,8 @@ export function versionState(status: ReleaseState | null, platform: Platform): V
   }
 }
 
-/** Most urgent first: what the one dot of a version shows when its platforms differ. */
-const URGENCY: (ReleaseState | null)[] = [
-  'rejected',
-  'halted',
-  'in_review',
-  'propagating',
-  'rolling_out',
-  'approved',
-  'ready',
-  'build_chosen',
-  'draft',
-  'live',
-  null,
-];
-const urgency = (status: ReleaseState | null): number => URGENCY.indexOf(status);
+/** What the one dot of a version shows when its platforms differ: the most urgent state (the one order of `RELEASE_URGENCY`). */
+const urgency = urgencyOf;
 
 // ---------------------------------------------------------------------------------------------
 // The versions of an app

@@ -299,10 +299,15 @@ export function collapsedSummary(
   const config = view.config;
   if (config === null) return t('eas:config.collapsed.unparsed');
   return [
-    t('eas:config.profiles.build', { count: config.build.length }),
+    t('eas:config.profiles.build', { count: buildProfileTotal(config) }),
     t('eas:config.profiles.submit', { count: config.submit.length }),
     findingsHeadline(view.findings, true),
   ].join(' · ');
+}
+
+/** How many build profiles the file declares: the number every line of the screen shows. */
+export function buildProfileTotal(config: EasConfig): number {
+  return config.build.length;
 }
 
 /** The empty state of a read without a model. */

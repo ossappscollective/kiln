@@ -12,7 +12,9 @@ import { type Platform, supports } from '@kiln/core';
  */
 export const PLAY_CONSOLE_URL = 'https://play.google.com/console/';
 
-const APP_STORE_CONNECT = 'https://appstoreconnect.apple.com';
+/** App Store Connect: the one address every link-out to Apple's console is built on. */
+export const APP_STORE_CONNECT_URL = 'https://appstoreconnect.apple.com';
+const APP_STORE_CONNECT = APP_STORE_CONNECT_URL;
 
 /** App Store Connect's list of apps: where a blocker of a submit is fixed when the app's own page cannot be built. */
 export const APP_STORE_CONNECT_APPS_URL = `${APP_STORE_CONNECT}/apps`;

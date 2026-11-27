@@ -14,6 +14,7 @@ import { supports } from '@kiln/core';
   let { preview }: { preview: ReleasePreview } = $props();
 
   const blocking = $derived(preview.checks.blocking);
+  const codesLine = $derived(preview.release && preview.release.versionCodes.length > 0 ? preview.release.versionCodes.join(', ') : t('publish:release.none'));
   const android = $derived(supports(preview.app.platform, 'releaseTracks'));
   const console_ = $derived(storeConsole(preview.app.platform));
   const directLine = $derived(directText(preview));
@@ -48,7 +49,7 @@ import { supports } from '@kiln/core';
       <div><dt>{t('publish:release.track')}</dt><dd>{preview.track ?? t('publish:release.notKnown')}</dd></div>
       {#if preview.release}
         <div><dt>{t('publish:release.release')}</dt><dd>{t('publish:release.releaseLine', { name: preview.release.name ?? t('publish:release.unnamed'), status: preview.release.status })}</dd></div>
-        <div><dt>{t('publish:release.versionCodes')}</dt><dd>{preview.release.versionCodes.length > 0 ? preview.release.versionCodes.join(', ') : t('publish:release.none')}</dd></div>
+        <div><dt>{t('publish:release.versionCodes')}</dt><dd>{codesLine}</dd></div>
         <div><dt>{t('publish:release.notes')}</dt><dd>{preview.direct && preview.direct.notesLanguages.length > 0 ? preview.direct.notesLanguages.join(', ') : preview.release.notes === 0 ? t('publish:release.none') : t('publish:release.notesLanguages', { count: preview.release.notes })}</dd></div>
       {/if}
     {:else}

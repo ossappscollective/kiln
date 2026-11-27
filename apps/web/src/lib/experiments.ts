@@ -1,7 +1,7 @@
 import { timeAgo } from './format.ts';
 import { formatDate, formatList } from './i18n/format.ts';
 import { t } from './i18n/t.ts';
-import { PLAY_CONSOLE_URL } from './store-links.ts';
+import { APP_STORE_CONNECT_URL, PLAY_CONSOLE_URL } from './store-links.ts';
 
 /**
  * Store experiments and custom product pages of an app (docs/api/experiments.md, docs/adr/0048-store-experiments.md): the types of the API
@@ -266,12 +266,10 @@ export function syncLine(
   return { text: t('experiments:sync.read', { ago }), tone: 'neutral' };
 }
 
-const APP_STORE_CONNECT = 'https://appstoreconnect.apple.com';
-
 /** The app's page in App Store Connect (its Product Page Optimization and custom product pages are one click away), or null without the Apple id. */
 export function appStoreConnectUrl(storeAppId: string | null): string | null {
   const id = (storeAppId ?? '').trim();
-  return /^\d+$/.test(id) ? `${APP_STORE_CONNECT}/apps/${id}` : null;
+  return /^\d+$/.test(id) ? `${APP_STORE_CONNECT_URL}/apps/${id}` : null;
 }
 
 /** The public address of a Google Play custom store listing (Google's documented format), or null for a missing or invalid parameter. */

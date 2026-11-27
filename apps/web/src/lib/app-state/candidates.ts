@@ -15,7 +15,7 @@ import {
   supports,
 } from '@kiln/core';
 import { type PromoteOption, promoteOptionOf } from '../play-promote.ts';
-import type { AppPipeline } from '../release-pipeline.ts';
+import type { AppPipeline, PipelineSummaryApp } from '../release-pipeline.ts';
 import type { ReleaseSummary } from '../types.ts';
 
 /**
@@ -135,6 +135,31 @@ export function buildsWithPipeline(
       tracks: [],
     },
   ];
+}
+
+/**
+ * The apps of the workspace pipeline summary that are left unfinished: a stall about a version or a build that is left behind (not
+ * newer than what is live) is not news, so it comes back with `stalled` null (`stallLeftBehind` of @kiln/core, from the candidates). The
+ * ONE body of "unfinished": the rune store's `unfinished(workspaceId)` and the consistency harness both call it.
+ */
+export function unfinishedApps(input: {
+  apps: readonly PipelineSummaryApp[];
+  releases: Readonly<Record<string, readonly ReleaseSummary[] | undefined>>;
+  pipelineOf: (appId: string) => PipelineFact | null | undefined;
+  buildsOf: (appId: string) => readonly StoreBuildFact[] | null | undefined;
+}): PipelineSummaryApp[] {
+  return input.apps.map((a) => {
+    if (a.stalled === null) return a;
+    const id = a.app.id;
+    const p = input.pipelineOf(id);
+    const analysis = analyzeCandidates({
+      appId: id,
+      platform: a.app.platform,
+      releases: releasesWithPipeline(id, a.app.platform, input.releases[id], p),
+      builds: buildsWithPipeline(a.app.platform, input.buildsOf(id), p),
+    });
+    return stallLeftBehind(a.stalled, analysis) ? { ...a, stalled: null } : a;
+  });
 }
 
 /** The same pipeline with nothing in preparation: the release flow of a record whose only draft is obsolete is quiet. */

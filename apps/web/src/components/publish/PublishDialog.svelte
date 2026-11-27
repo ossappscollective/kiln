@@ -73,7 +73,7 @@
   import { elapsedText, failureDetail, minutesOf, PUBLISH_SLOW_AFTER_MS, PUBLISH_WAIT_LIMIT_MS, PublishWaitError, withWaitLimit } from '../../lib/publish-run.ts';
   import { foldWarnings, planHeadline, publishDisabledReason, publishTitle, shownStatusWord, stepGist } from '../../lib/readability.ts';
   import { EVERYONE, releaseInputsFor } from '../../lib/release-settings.ts';
-  import { releaseSettingsStore } from '../../lib/release-settings-store.svelte.ts';
+  import { releaseSettingsStore } from '../../lib/app-state/release-settings-store.svelte.ts';
   import { storeName } from '../../lib/staged.ts';
   import { parsePercent, percentText } from '../../lib/store-release.ts';
   import type { AppSummary } from '../../lib/types.ts';
@@ -93,7 +93,7 @@
   import RolloutPreviewBody from './RolloutPreviewBody.svelte';
   import { provideReviewRepair } from '../../lib/review-repair-context.ts';
   import SubmitPreviewBody from './SubmitPreviewBody.svelte';
-import { supports, type Role } from '@kiln/core';
+import { PLAY_TRACKS, supports, type Role } from '@kiln/core';
 
   let {
     open = $bindable(false),
@@ -139,7 +139,7 @@ import { supports, type Role } from '@kiln/core';
   let stale = $state(false);
   let typed = $state('');
   let ack = $state(false);
-  let track = $state('production');
+  let track = $state<string>(PLAY_TRACKS.production);
   let share = $state('');
   let shareError = $state('');
   /** The person typed in the Track or Share fields (or pressed the button): only then is the prompt for them shown as a problem. */

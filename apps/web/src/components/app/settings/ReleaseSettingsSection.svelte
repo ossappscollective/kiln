@@ -11,7 +11,7 @@
   import { type Api, ApiError } from '../../../lib/api.ts';
   import { stagedRolloutHint } from '../../../lib/app-settings.ts';
   import { STAGED_ROLLOUT_LABEL, parseDefaultShare } from '../../../lib/release-settings.ts';
-  import { releaseSettingsStore } from '../../../lib/release-settings-store.svelte.ts';
+  import { releaseSettingsStore } from '../../../lib/app-state/release-settings-store.svelte.ts';
   import { toast } from '../../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../../lib/types.ts';
   import Alert from '../../ui/Alert.svelte';

@@ -15,12 +15,13 @@
   onreadtracks (Google Play: read the tracks the person named).
 -->
 <script lang="ts">
-  import { can, type Role, supports } from '@kiln/core';
+  import { can, PLAY_TRACKS, type Role, supports } from '@kiln/core';
   import { untrack } from 'svelte';
   import { formatList } from '../../../lib/i18n/format.ts';
   import { t } from '../../../lib/i18n/t.ts';
   import T from '../../ui/T.svelte';
   import type { Api } from '../../../lib/api.ts';
+  import { releaseFactsStore } from '../../../lib/app-state/release-facts-store.svelte.ts';
   import { type ReadFromCi, readRecentCiBuilds, testBuildsHref } from '../../../lib/builds.ts';
   import { readHintText, readOutcomeText, readProgressText } from '../../../lib/read-from-ci.ts';
   import {
@@ -42,10 +43,10 @@
   import type { StepPrefill } from '../../../lib/release-stepper.ts';
   import { buildChip, buildHasProblem, orderBuilds, visibleBuilds } from '../../../lib/stepper-layout.ts';
   import { releaseInputsFor } from '../../../lib/release-settings.ts';
-  import { releaseSettingsStore } from '../../../lib/release-settings-store.svelte.ts';
+  import { releaseSettingsStore } from '../../../lib/app-state/release-settings-store.svelte.ts';
   import { parsePercent, percentFromFraction, percentText } from '../../../lib/store-release.ts';
   import { canStage, stagingError } from '../../../lib/staged.ts';
-  import { stagedStore } from '../../../lib/staged-store.svelte.ts';
+  import { stagedStore } from '../../../lib/app-state/pending-facade.ts';
   import type { AppBuild, AppSummary } from '../../../lib/types.ts';
   import type { StagedChangesView } from '@kiln/core';
   import Alert from '../../ui/Alert.svelte';
@@ -56,6 +57,7 @@
   import BuildOriginLine from './BuildOriginLine.svelte';
   import CreateVersion from './CreateVersion.svelte';
   import Skeleton from '../../ui/Skeleton.svelte';
+  import { useNow } from '../../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -69,8 +71,8 @@
     candidatesState,
     sourceCandidates = null,
     appBuilds,
-    track = $bindable('production'),
-    source = $bindable('beta'),
+    track = $bindable<string>(PLAY_TRACKS.production),
+    source = $bindable<string>(PLAY_TRACKS.beta),
     promote = null,
     prefill = null,
     onread,
@@ -138,7 +140,8 @@
   const problemOpen = $derived(buildHasProblem(selectedRow));
   const unstaged = $derived(picked !== '' && picked !== (stagedBuild?.value ?? '') && picked !== attachedId);
 
-  const codes = $derived(playPart ? codeRows(playPart.codes, sourceCandidates ? codesInTrack(sourceCandidates.codes) : [], Date.now(), { ciTried }) : []);
+  const clock = useNow({ everyMs: 30_000 });
+  const codes = $derived(playPart ? codeRows(playPart.codes, sourceCandidates ? codesInTrack(sourceCandidates.codes) : [], clock.value, { ciTried }) : []);
   const noCodes = $derived(playPart ? noCodeSentence(codes, track) : null);
   const stagedCodes = $derived(stagedField(view, 'version_codes'));
   const stagedTrack = $derived(stagedField(view, 'track'));
@@ -199,7 +202,7 @@
     ciProgress = '';
     try {
       const out = await readRecentCiBuilds({
-        list: () => api.buildArtifacts(workspaceId, app.id),
+        list: () => releaseFactsStore.readBuilds(api, workspaceId, app.id, { force: true }),
         inspect: (artifactId) => api.inspectBuildArtifact(workspaceId, app.id, artifactId),
         alive: () => ciAlive,
         onProgress: (p) => (ciProgress = readProgressText(p)) });

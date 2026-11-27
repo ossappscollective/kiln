@@ -14,18 +14,18 @@
   onclose, showPlatform.
 -->
 <script lang="ts">
-  import { type Role, supports } from '@kiln/core';
+  import { PLAY_TRACKS, type Role, supports } from '@kiln/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../../lib/api.ts';
+  import { releaseFactsStore } from '../../../lib/app-state/release-facts-store.svelte.ts';
   import { fitToViewport } from '../../../lib/fit-viewport.ts';
   import { invalidate } from '../../../lib/facts/invalidate.ts';
   import { reportShown } from '../../../lib/app-state/dev-assert.ts';
   import { listingStore } from '../../../lib/app-state/listing-store.svelte.ts';
-  import { readCache } from '../../../lib/read-cache.ts';
   import { t } from '../../../lib/i18n/t.ts';
   import type { PlatformScope } from '../../../lib/app-scope.ts';
   import { platformLabel } from '../../../lib/portfolio.ts';
-  import { type EditableRelease, type ReleaseCandidates, type PlayCandidates, type BuildCandidate, type ChosenBuildLine, chosenBuildLine, chosenCodeLines } from '../../../lib/release-candidates.ts';
+  import { eligibleChoices, type EditableRelease, type ReleaseCandidates, type PlayCandidates, type BuildCandidate, type ChosenBuildLine, chosenBuildLine, chosenCodeLines } from '../../../lib/release-candidates.ts';
   import { type Promote } from '../../../lib/play-promote.ts';
   import type { StepPrefill } from '../../../lib/release-stepper.ts';
   import { type PromoteNotesState, noteRows, notesFactsOf, promoteNotesFill, releaseNotesView, unsavedLocales } from '../../../lib/release-notes.ts';
@@ -45,13 +45,10 @@
     storeNotes,
     visibleSteps } from '../../../lib/release-stepper.ts';
   import { canStage, stagingError } from '../../../lib/staged.ts';
-  import { pendingStore } from '../../../lib/pending-store.svelte.ts';
   import { confirmSteps, footerFor, railMark, stepIntro } from '../../../lib/stepper-layout.ts';
-  import { stagedStore } from '../../../lib/staged-store.svelte.ts';
   import { canSubmit } from '../../../lib/store-submit.ts';
-  import { submitStore } from '../../../lib/store-submit-store.svelte.ts';
   import { canRelease } from '../../../lib/store-release.ts';
-  import { releaseStore } from '../../../lib/store-release-store.svelte.ts';
+  import { releaseStore } from '../../../lib/app-state/store-release-store.svelte.ts';
   import type { AppBuild, AppSummary, ReleaseSummary } from '../../../lib/types.ts';
   import Alert from '../../ui/Alert.svelte';
   import Button from '../../ui/Button.svelte';
@@ -63,6 +60,7 @@
   import StepConfirm from './StepConfirm.svelte';
   import StepNotes from './StepNotes.svelte';
   import StepReview from './StepReview.svelte';
+  import { pendingStore, stagedStore, submitStore } from '../../../lib/app-state/pending-facade.ts';
 
   let {
     api,
@@ -104,8 +102,8 @@
   let sourceCandidates = $state<PlayCandidates | null>(null);
   let pipeline = $state<AppPipeline | null>(null);
   const listingLocales = $derived(listingStore.noteLocales(workspaceId, app.id));
-  let track = $state('production');
-  let source = $state('beta');
+  let track = $state<string>(PLAY_TRACKS.production);
+  let source = $state<string>(PLAY_TRACKS.beta);
   let drafts = $state<Record<string, string>>({});
   let extra = $state<string[]>([]);
   /** "Promote to production": what reading the notes of the source release did (null: not a promotion). */
@@ -148,11 +146,7 @@
     reportShown(`notesOver:${app.id}`, facts.over, 'releaseStepNotes');
   });
   const chosen = $derived(chosenOf({ platform: app.platform, view, editable, builds: buildList, codes: playCodes }));
-  const choices = $derived.by((): number | null => {
-    if (candidates === null) return null;
-    if (candidates.store === 'appstoreconnect') return candidates.builds.filter((b) => b.eligibility ? b.eligibility.eligible : b.selectable).length;
-    return candidates.codes.filter((c) => (c.eligibility ? c.eligibility.eligible : true)).length;
-  });
+  const choices = $derived(eligibleChoices(candidates));
   const statuses = $derived(
     stepStatuses(
       {
@@ -199,12 +193,7 @@
     const mine = seq;
     editableState = { state: 'loading' };
     try {
-      const out = await readCache.read({
-        workspaceId,
-        group: 'store',
-        key: `editable/${app.id}/${apple ? '' : track.trim()}`,
-        force,
-        load: () => api.releaseEditable(workspaceId, app.id, apple ? undefined : track.trim()) });
+      const out = await releaseFactsStore.readEditable(api, workspaceId, app.id, apple ? null : track, { force });
       if (mine !== seq) return;
       editable = out.editable;
       editableState = { state: 'ready' };
@@ -249,7 +238,7 @@
     const mine = seq;
     promoteNotes = { status: 'loading' };
     try {
-      const out = await api.releaseNotesHistory(workspaceId, app.id, { platform: app.platform, track: p.from, codes: p.codes, limit: 100 });
+      const out = await releaseFactsStore.readNotesHistory(api, workspaceId, app.id, { platform: app.platform, track: p.from, codes: p.codes, limit: 100 });
       if (mine !== seq) return;
       const fill = promoteNotesFill({
         history: out.history,
@@ -271,12 +260,7 @@
     const mine = seq;
     candidatesState = { state: 'loading' };
     try {
-      const out = await readCache.read({
-        workspaceId,
-        group: 'store',
-        key: `candidates/${app.id}/${apple ? '' : track.trim()}`,
-        force,
-        load: () => api.releaseCandidates(workspaceId, app.id, apple ? {} : { track: track.trim() }) });
+      const out = await releaseFactsStore.readCandidates(api, workspaceId, app.id, apple ? null : track, { force });
       if (mine !== seq) return;
       candidates = out.candidates;
       candidatesState = { state: 'ready' };
@@ -294,12 +278,7 @@
       return;
     }
     try {
-      const out = await readCache.read({
-        workspaceId,
-        group: 'store',
-        key: `candidates/${app.id}/${source.trim()}`,
-        force,
-        load: () => api.releaseCandidates(workspaceId, app.id, { track: source.trim() }) });
+      const out = await releaseFactsStore.readCandidates(api, workspaceId, app.id, source, { force });
       if (mine === seq && out.candidates.store === 'googleplay') sourceCandidates = out.candidates;
     } catch {
       if (mine === seq) sourceCandidates = null;
@@ -309,7 +288,7 @@
   async function loadPipeline() {
     const mine = seq;
     try {
-      const out = await readCache.read({ workspaceId, group: 'pipeline', key: `pipeline/${app.id}`, load: () => api.releasePipeline(workspaceId, app.id) });
+      const out = await releaseFactsStore.readPipeline(api, workspaceId, app.id);
       if (mine === seq) pipeline = out;
     } catch {
       if (mine === seq) pipeline = null;

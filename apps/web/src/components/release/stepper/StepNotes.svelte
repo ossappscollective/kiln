@@ -15,8 +15,9 @@
   shown), drafts (bindable: the text of each language in the editors), extra (bindable: languages the person added).
 -->
 <script lang="ts">
-  import { can, type Role, type StagedChangesView, supports } from '@kiln/core';
+  import { can, PLAY_TRACKS, type Role, type StagedChangesView, supports } from '@kiln/core';
   import type { Api } from '../../../lib/api.ts';
+  import { releaseFactsStore } from '../../../lib/app-state/release-facts-store.svelte.ts';
   import { type BuildCandidate, type EditableRelease, type ReleaseCandidates, hasTestNotes } from '../../../lib/release-candidates.ts';
   import { type Promote } from '../../../lib/play-promote.ts';
   import { trackLabel } from '../../../lib/portfolio.ts';
@@ -48,11 +49,11 @@
     translateErrorMessage,
     translateLines,
     translatePlan } from '../../../lib/release-notes-translate.ts';
-  import { aiStore } from '../../../lib/ai/store.svelte.ts';
+  import { aiStore } from '../../../lib/app-state/ai-facade.ts';
   import { loadTranslationConfig, type TranslationConfig } from '../../../lib/settings.ts';
   import { stagedField, stagedNotes, storeNotes } from '../../../lib/release-stepper.ts';
   import { canStage, stagingError } from '../../../lib/staged.ts';
-  import { stagedStore } from '../../../lib/staged-store.svelte.ts';
+  import { stagedStore } from '../../../lib/app-state/pending-facade.ts';
   import type { AppSummary } from '../../../lib/types.ts';
   import Alert from '../../ui/Alert.svelte';
   import Badge from '../../ui/Badge.svelte';
@@ -142,7 +143,9 @@
   const shown = $derived(rows.reduce<Record<string, string>>((acc, r) => ({ ...acc, [r.locale]: r.draft }), {}));
   const plan = $derived(trOpen === '' || trSource === '' ? null : translatePlan(shown, locales, trSource, trOpen === '*' ? undefined : [trOpen]));
   const sources = $derived(languagesWithText(shown, locales).filter((l) => trOpen === '*' || l !== trOpen));
-  const mayTranslate = $derived(mayEdit && locales.length > 1 && (machine.visible || aiState.visible));
+  const severalLocales = $derived(locales.length > 1);
+  const noBuilds = $derived(builds.length === 0);
+  const mayTranslate = $derived(mayEdit && severalLocales && (machine.visible || aiState.visible));
 
   function openTranslate(scope: string) {
     trOpen = trOpen === scope ? '' : scope;
@@ -193,7 +196,7 @@
     historyState = 'loading';
     historyMessage = '';
     try {
-      const out = await api.releaseNotesHistory(workspaceId, app.id, { platform: app.platform });
+      const out = await releaseFactsStore.readNotesHistory(api, workspaceId, app.id, { platform: app.platform });
       history = out.history;
       historyState = 'ready';
     } catch (e) {
@@ -255,7 +258,7 @@
     try {
       if (!apple && stagedField(view, 'track') === null) {
         // Google Play: a release note belongs to a track, and the server asks for it whenever anything of the release is staged.
-        const staged = await api.stageReleaseField(workspaceId, app.id, { field: 'track', value: track.trim() === '' ? 'production' : track.trim() });
+        const staged = await api.stageReleaseField(workspaceId, app.id, { field: 'track', value: track.trim() === '' ? PLAY_TRACKS.production : track.trim() });
         last = staged.staged;
       }
       for (const locale of unsaved) {
@@ -346,7 +349,7 @@
     <section class="tf" aria-label={t('release-stepper:sn.tfNotes')}>
       {#if candidates === null}
         <p class="muted small">{t('release-stepper:sn.buildsNotRead')}</p>
-      {:else if builds.length === 0}
+      {:else if noBuilds}
         <p class="muted small">{t('release-stepper:sn.noBuilds')}</p>
       {:else}
         <ul class="tfs">
@@ -389,7 +392,7 @@
         <span class="count" class:over={row.over}>{row.chars} / {row.limit}</span>
         <span class="spacer"></span>
         <Button size="sm" aria-expanded={menuFor === row.locale} disabled={!mayEdit} onclick={() => openMenu(row.locale)}>{t('release-stepper:sn.reuseEarlier')}</Button>
-        {#if locales.length > 1}<Button size="sm" aria-expanded={copyFor === row.locale} disabled={!mayEdit || row.draft.trim() === ''} onclick={() => openCopy(row.locale)}>{t('release-stepper:sn.copyToOthers')}</Button>{/if}
+        {#if severalLocales}<Button size="sm" aria-expanded={copyFor === row.locale} disabled={!mayEdit || row.draft.trim() === ''} onclick={() => openCopy(row.locale)}>{t('release-stepper:sn.copyToOthers')}</Button>{/if}
         {#if mayTranslate}<Button size="sm" aria-expanded={trOpen === row.locale} aria-label={t('release-stepper:sn.translateInto', { locale: row.locale })} disabled={staging || trBusy !== ''} onclick={() => openTranslate(row.locale)}>{t('release-stepper:sn.translateEllipsis')}</Button>{/if}
       </div>
       <label class="visually-hidden" for="{id}-text">{t('release-stepper:sn.whatIsNew', { locale: row.locale })}</label>

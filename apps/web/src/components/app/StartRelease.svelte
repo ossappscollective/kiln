@@ -23,6 +23,7 @@
   import { type Platform, type Role, can } from '@kiln/core';
   import { onDestroy } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { releaseFactsStore } from '../../lib/app-state/release-facts-store.svelte.ts';
   import { appAddress } from '../../lib/app-scope.ts';
   import { isFailedRun } from '../../lib/running.ts';
   import {
@@ -184,7 +185,7 @@
     let found: { appId: string; build: AppBuild } | null = null;
     for (const app of members) {
       try {
-        const builds = (await api.appBuilds(workspaceId, app.id)).builds;
+        const builds = (await releaseFactsStore.readAppBuilds(api, workspaceId, app.id, { force: true })).builds;
         const hit = matchingBuilds(builds, current)[0];
         if (hit) {
           found = { appId: app.id, build: hit };

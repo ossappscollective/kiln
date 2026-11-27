@@ -13,6 +13,7 @@
   import { can, platformLabel, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { releaseFactsStore } from '../../lib/app-state/release-facts-store.svelte.ts';
   import { address } from '../../lib/address.svelte.ts';
   import { parseViewPath } from '../../lib/app-scope.ts';
   import { t } from '../../lib/i18n/t.ts';
@@ -64,6 +65,8 @@
   import InternalShareDialog from './InternalShareDialog.svelte';
   import PhoneLinkDialog from './PhoneLinkDialog.svelte';
   import TestFlightLinks from './TestFlightLinks.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
+  import { createPoller } from '../../lib/poll.ts';
 
   let { api, workspaceId, role, app, refreshKey }: { api: Api; workspaceId: string; role: Role; app: AppSummary; refreshKey: number } = $props();
 
@@ -73,7 +76,8 @@
   let loading = $state(true);
   let loadProblem = $state('');
   let filters = $state<BuildFilters>({ ...defaultFilters });
-  let now = $state(Date.now());
+  const clock = useNow({ everyMs: 30_000 });
+  const now = $derived(clock.value);
   let downloadRow = $state<BuildRow | null>(null);
   let phoneRow = $state<BuildRow | null>(null);
   let shareRow = $state<BuildRow | null>(null);
@@ -164,16 +168,16 @@
 
 
 
-  async function load() {
+  async function load(force = false) {
     const mine = ++generation;
     loading = true;
     loadProblem = '';
     void loadEas();
     try {
-      const read = await api.buildArtifacts(workspaceId, app.id);
+      const read = await releaseFactsStore.readBuilds(api, workspaceId, app.id, { force });
       if (mine !== generation) return;
       data = read;
-      now = Date.now();
+      clock.touch();
     } catch (e) {
       if (mine !== generation) return;
       data = null;
@@ -209,12 +213,16 @@
   // While an EAS build or submission is running the stored status is read again every minute (the server reads Expo every few minutes).
   $effect(() => {
     if (!eas?.active) return;
-    const timer = setInterval(() => {
-      void loadEas().then(() => {
-        now = Date.now();
-      });
-    }, 60_000);
-    return () => clearInterval(timer);
+    const poller = createPoller({
+      intervalMs: 60_000,
+      tick: async () => {
+        await loadEas();
+        clock.touch();
+        return true;
+      },
+    });
+    poller.start();
+    return () => poller.stop();
   });
 
   const rows = $derived(data ? rowsOf(data, eas?.builds ?? [], now) : []);
@@ -263,7 +271,7 @@
   {:else if loadProblem}
     <Alert tone="error" title={t('builds:tests.loadFailedTitle')}>
       {loadProblem}
-      <div class="retry"><Button size="sm" icon="refresh" onclick={() => void load()}>{t('common:action.tryAgain')}</Button></div>
+      <div class="retry"><Button size="sm" icon="refresh" onclick={() => void load(true)}>{t('common:action.tryAgain')}</Button></div>
     </Alert>
   {:else if data}
     {#if status}
@@ -319,7 +327,7 @@
           <p class="flight-note muted text-sm" role="status" title={flightNote.text}>
             <Icon name={flightNote.tone === 'warn' ? 'alert-triangle' : 'info'} size={14} />
             <span>{flightNote.short}</span>
-            {#if flightNote.retry}<button type="button" class="link-button" disabled={loading} onclick={() => void load()}>{t('common:action.retry')}</button>{/if}
+            {#if flightNote.retry}<button type="button" class="link-button" disabled={loading} onclick={() => void load(true)}>{t('common:action.retry')}</button>{/if}
             <InfoTip label={t('builds:tests.aboutFlight')} width="24rem" text={flightNote.text} />
           </p>
         {/if}

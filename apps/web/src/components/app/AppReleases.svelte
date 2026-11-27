@@ -22,6 +22,7 @@
   import { can, type Role, supports } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
+  import { releaseFactsStore } from '../../lib/app-state/release-facts-store.svelte.ts';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
   import { promoteFromHash, withoutPromote } from '../../lib/play-promote.ts';
   import { prefillFromHash, type StepId, stepFromHash, withStep } from '../../lib/release-stepper.ts';
@@ -86,13 +87,13 @@
       list.map(async (app) => {
         if (canReadPlans) {
           try {
-            nextPlans[app.id] = (await api.appPlans(workspaceId, app.id)).plans;
+            nextPlans[app.id] = (await releaseFactsStore.readPlans(api, workspaceId, app.id)).plans;
           } catch {
             allPlans = false;
           }
         }
         try {
-          nextBuilds[app.id] = (await api.appBuilds(workspaceId, app.id)).builds;
+          nextBuilds[app.id] = (await releaseFactsStore.readAppBuilds(api, workspaceId, app.id)).builds;
         } catch {
           // No CI data for this app: its CI cells read "—".
         }
@@ -151,6 +152,8 @@
   const olderShown = $derived(filterGroups(split.older, { query: filter.query, inProgressOnly: false }));
   const olderShownCount = $derived(olderShown.reduce((n, g) => n + g.rows.length, 0));
   const visible = $derived(split.current);
+  const noGroups = $derived(groups.length === 0);
+  const nothingToShow = $derived(visible.length === 0 && appState.candidates.length === 0);
   const apps = $derived(
     members.reduce<Record<string, AppSummary | undefined>>((acc, m) => {
       acc[m.id] = m;
@@ -190,7 +193,7 @@
 
 <div class="stack loose">
   {#if step === null}
-    <NextStep {api} {workspaceId} {role} {members} {all} {scope} {releases} refreshKey={syncRuns} onprepare={canPrepare ? openStepper : undefined} showRunning />
+    <NextStep {api} {workspaceId} {role} {members} {all} {scope} {releases} onprepare={canPrepare ? openStepper : undefined} showRunning />
     {#if canPrepare}
       {#each members as app (app.id)}
         {#if app.repositoryId !== null}
@@ -232,7 +235,7 @@
 
   {#if step !== null}
     <!-- the steps replace the list while they are open -->
-  {:else if groups.length === 0}
+  {:else if noGroups}
     <div class="stack">
       {#each members as app (app.id)}
         <div class="card">
@@ -266,7 +269,7 @@
         </p>
       {/if}
 
-      {#if visible.length === 0 && appState.candidates.length === 0}
+      {#if nothingToShow}
         <div class="card">
           <EmptyState icon="check-circle" title={t('app:releases.nothingInProgress')} description={t('app:releases.noMatchFilter')}>
             {#snippet actions()}

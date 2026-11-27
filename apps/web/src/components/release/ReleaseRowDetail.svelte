@@ -11,6 +11,7 @@
 <script lang="ts">
   import { can, platformMeta, type Role, supports } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
+  import { releaseFactsStore } from '../../lib/app-state/release-facts-store.svelte.ts';
   import { type PlatformScope, appAddress } from '../../lib/app-scope.ts';
   import { runBadge } from '../../lib/ci/ci.ts';
   import { formatDateTime, formatList, formatRelativeTime } from '../../lib/i18n/format.ts';
@@ -79,8 +80,8 @@
     }
     const target = plan;
     planLoading = true;
-    api
-      .plan(workspaceId, target.appId, target.id)
+    releaseFactsStore
+      .readPlan(api, workspaceId, target.appId, target.id)
       .then((r) => {
         if (mine !== generation) return;
         detail = r.plan;

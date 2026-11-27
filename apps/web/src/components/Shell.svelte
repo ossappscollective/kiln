@@ -19,6 +19,7 @@
   import { appStateStore } from '../lib/app-state/app-state-store.svelte.ts';
   import { roleLabel } from '../lib/role-label.ts';
   import { navSignals, pendingAcrossText } from '../lib/app-state/pending-facade.ts';
+  import { releaseFactsStore } from '../lib/app-state/release-facts-store.svelte.ts';
   import { tint } from '../lib/tint/store.svelte.ts';
   import { loadCollapsed, railApplies, saveCollapsed } from '../lib/sidebar-state.ts';
   import { CHORD_TIMEOUT_MS, type ChordState, chordHint, idleChord, isTypingTarget, stepShortcut } from '../lib/shortcuts.ts';
@@ -114,7 +115,7 @@
       ...appNavCounts({
         memberIds: ids,
         unanswered: can(workspace?.role ?? 'viewer', 'reviews.read') ? navSignals.unansweredByAppOf(workspaceId) : {},
-        stalled: appStateStore.stalledApps(workspaceId, navSignals.releasesOf(workspaceId)),
+        stalled: appStateStore.unfinished(workspaceId),
       }),
       pending: line && line.count > 0 ? line.count : null,
       pendingBlocking: (line?.blocking ?? 0) > 0 || line?.failed === true,
@@ -125,7 +126,7 @@
     if (!appAddr || !canApps) return [];
     const apps = navSignals.appsOf(workspaceId);
     const group = apps ? groupApps(apps).filter((g) => g.members.some((m) => m.id === appAddr.id))[0] : undefined;
-    return group ? platformStatusLines(group.members, navSignals.releasesOf(workspaceId)) : [];
+    return group ? platformStatusLines(group.members, releaseFactsStore.releasesOf(workspaceId)) : [];
   });
   const switcherList = $derived.by(() => {
     const apps = canApps ? navSignals.appsOf(workspaceId) : null;

@@ -44,6 +44,14 @@ export const readKeys = {
   candidates: (appId: string, which: string) => `candidates/${appId}/${which}`,
   live: (appId: string) => `live/${appId}`,
   assetDiff: (appId: string) => `assetdiff/${appId}`,
+  /** The builds Kiln linked to CI runs (`GET apps/{id}/builds`). */
+  appBuilds: (appId: string) => `app-builds/${appId}`,
+  /** The release plans of an app, and one plan (`sub` is the plan id, '' for the list). */
+  plans: (appId: string, sub: string) => `plans/${appId}/${sub}`,
+  /** "What is new" of earlier releases: `sub` names the question (platform, track, codes). */
+  notesHistory: (appId: string, sub: string) => `notes-history/${appId}/${sub}`,
+  /** The TestFlight read of an app: `sub` is the query. */
+  testflight: (appId: string, sub: string) => `testflight/${appId}/${sub}`,
 } as const;
 export type KeyFamily = keyof typeof readKeys;
 
@@ -55,6 +63,10 @@ const FAMILY: Readonly<Record<KeyFamily, { group: string; prefix: string }>> = {
   candidates: { group: 'store', prefix: 'candidates/' },
   live: { group: 'listing', prefix: 'live/' },
   assetDiff: { group: 'repo', prefix: 'assetdiff/' },
+  appBuilds: { group: 'builds', prefix: 'app-builds/' },
+  plans: { group: 'plans', prefix: 'plans/' },
+  notesHistory: { group: 'store', prefix: 'notes-history/' },
+  testflight: { group: 'testflight', prefix: 'testflight/' },
 };
 export const KEY_FAMILIES = Object.keys(FAMILY) as KeyFamily[];
 /** The key prefixes, for the test that scans the app for a key of a family that is not listed. */
@@ -63,11 +75,11 @@ export const groupOf = (family: KeyFamily): string => FAMILY[family].group;
 
 /** Which families an event makes old. Exhaustive: a new event or a new family is a compile error until it is placed here. */
 export const FAMILIES_FOR: Readonly<Record<InvalidationEvent, readonly KeyFamily[]>> = {
-  sync: ['pipeline', 'storeBuilds', 'editable', 'candidates', 'live', 'assetDiff'],
-  publish: ['pipeline', 'storeBuilds', 'editable', 'candidates', 'live', 'assetDiff'],
-  release_created: ['pipeline', 'storeBuilds', 'editable', 'candidates', 'live', 'assetDiff'],
-  store_read: ['editable', 'candidates', 'live', 'assetDiff'],
-  build_changed: ['pipeline', 'storeBuilds', 'candidates'],
+  sync: ['pipeline', 'storeBuilds', 'editable', 'candidates', 'live', 'assetDiff', 'appBuilds', 'plans', 'notesHistory', 'testflight'],
+  publish: ['pipeline', 'storeBuilds', 'editable', 'candidates', 'live', 'assetDiff', 'appBuilds', 'plans', 'notesHistory', 'testflight'],
+  release_created: ['pipeline', 'storeBuilds', 'editable', 'candidates', 'live', 'assetDiff', 'appBuilds', 'plans', 'notesHistory', 'testflight'],
+  store_read: ['editable', 'candidates', 'live', 'assetDiff', 'notesHistory'],
+  build_changed: ['pipeline', 'storeBuilds', 'candidates', 'appBuilds', 'testflight'],
   // The comparison of the repository with the store counts what is staged.
   staged_changed: ['assetDiff'],
 };

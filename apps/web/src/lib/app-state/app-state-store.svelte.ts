@@ -7,7 +7,6 @@ import { cartSummaryStore } from '../cart-summary.svelte.ts';
 import { type PendingRow, pendingRows, pendingTotals } from '../cart-summary.ts';
 import { type LastPublish, type PendingLine, staleViewIds } from '../pending.ts';
 import { pendingStore } from '../pending-store.svelte.ts';
-import { pipelineStore } from '../pipeline-store.svelte.ts';
 import { submitBlockedOnly } from '../publish-failure.ts';
 import type { Publishing } from '../publishing.ts';
 import { publishingStore } from '../publishing-store.svelte.ts';
@@ -15,15 +14,10 @@ import type { PipelineSummary, PipelineSummaryApp } from '../release-pipeline.ts
 import type { AppSummary, ReleaseSummary } from '../types.ts';
 import { type BlockersView, blockersViewOf } from './blockers.ts';
 import { activeFailure, deriveAppState, deriveTopBar, promoteOfferFor } from './derive.ts';
-import {
-  analyzeCandidates,
-  buildsWithPipeline,
-  releasesWithPipeline,
-  stallLeftBehind,
-} from './candidates.ts';
+import { unfinishedApps } from './candidates.ts';
 import { assembleFacts, type FactSources, lineOfRecords } from './facts.ts';
 import { readinessStore } from './readiness-store.svelte.ts';
-import { storeBuildsStore } from './store-builds-store.svelte.ts';
+import { releaseFactsStore } from './release-facts-store.svelte.ts';
 import type {
   AppFacts,
   AppState,
@@ -101,8 +95,8 @@ function sourcesOf(workspaceId: string): FactSources {
     pendingSummary: pendingStore.summary(workspaceId),
     publishing: (appId) => publishingStore.of(workspaceId, appId),
     failure: (appId) => publishingStore.failureOf(workspaceId, appId),
-    pipeline: (appId) => pipelineStore.app(appId),
-    builds: (appId) => storeBuildsStore.of(appId),
+    pipeline: (appId) => releaseFactsStore.pipelineOf(appId),
+    builds: (appId) => releaseFactsStore.storeBuildFactsOf(appId),
     readiness: (appId) => readinessStore.of(workspaceId, appId),
     publishBatchEnabled: pendingStore.config(workspaceId)?.enabled ?? null,
   };
@@ -329,48 +323,39 @@ export const appStateStore = {
 
   /** The workspace summary of the release pipelines (which releases are left unfinished); null until read. */
   pipelineSummary(workspaceId: string): PipelineSummary | null {
-    return pipelineStore.summary(workspaceId);
+    return releaseFactsStore.pipelineSummary(workspaceId);
   },
 
   /**
-   * The apps of that summary (empty until read): what the sidebar badge and the Overview count as "left unfinished". A stall about a
-   * version or a build that is left behind (not newer than what is live) is not news: it comes back with `stalled` null (the candidate
-   * rules of candidates.ts decide, from the releases the screen has, else from the pipeline).
+   * The apps of that summary (empty until read): what the sidebar badge, the Overview and the app Dashboard count as "left unfinished". A
+   * stall about a version or a build that is left behind (not newer than what is live) is not news: it comes back with `stalled` null
+   * (the candidate rules of @kiln/core decide, from the releases the release facts store holds, else from the pipeline). Every screen
+   * reads this one answer: none passes releases of its own.
    */
-  stalledApps(
-    workspaceId: string,
-    releases?: Readonly<Record<string, readonly ReleaseSummary[] | undefined>>,
-  ): PipelineSummaryApp[] {
-    const apps = pipelineStore.summary(workspaceId)?.apps ?? [];
-    return apps.map((a) => {
-      if (a.stalled === null) return a;
-      const id = a.app.id;
-      const p = pipelineStore.app(id);
-      const analysis = analyzeCandidates({
-        appId: id,
-        platform: a.app.platform,
-        releases: releasesWithPipeline(id, a.app.platform, releases?.[id], p),
-        builds: buildsWithPipeline(a.app.platform, storeBuildsStore.of(id), p),
-      });
-      return stallLeftBehind(a.stalled, analysis) ? { ...a, stalled: null } : a;
+  unfinished(workspaceId: string): PipelineSummaryApp[] {
+    return unfinishedApps({
+      apps: releaseFactsStore.pipelineSummary(workspaceId)?.apps ?? [],
+      releases: releaseFactsStore.releasesOf(workspaceId),
+      pipelineOf: (id) => releaseFactsStore.pipelineOf(id),
+      buildsOf: (id) => releaseFactsStore.storeBuildFactsOf(id),
     });
   },
 
   /** Reads the release pipeline summary of the workspace. */
   loadPipelineSummary(api: Api, workspaceId: string): void {
-    void pipelineStore.loadSummary(api, workspaceId);
+    void releaseFactsStore.loadPipelineSummary(api, workspaceId);
   },
 
   /** The release pipelines of these records (the next step is built from them). A finished sync passes `force`. */
   loadPipelines(api: Api, workspaceId: string, appIds: readonly string[], force = false): void {
-    for (const id of appIds) void pipelineStore.loadApp(api, workspaceId, id, force);
+    for (const id of appIds) void releaseFactsStore.loadPipeline(api, workspaceId, id, force);
   },
 
   /** The store builds of these records (the release candidates' source); read with the pipelines, in the same refresh. */
   loadBuilds(api: Api, workspaceId: string, records: readonly AppSummary[], force = false): void {
     for (const r of records)
       if (!supports(r.platform, 'releaseTracks'))
-        void storeBuildsStore.load(api, workspaceId, r.id, force);
+        void releaseFactsStore.loadBuilds(api, workspaceId, r.id, force);
   },
 
   /**
@@ -466,10 +451,10 @@ export const appStateStore = {
       cartSummaryStore.refresh(api, workspaceId),
       pendingStore.loadSummary(api, workspaceId),
       publishingStore.refresh(api, workspaceId),
-      ...appIds.map((id) => pipelineStore.loadApp(api, workspaceId, id, true)),
+      ...appIds.map((id) => releaseFactsStore.loadPipeline(api, workspaceId, id, true)),
       ...appIds
-        .filter((id) => storeBuildsStore.of(id) !== null)
-        .map((id) => storeBuildsStore.load(api, workspaceId, id, true)),
+        .filter((id) => releaseFactsStore.storeBuildFactsOf(id) !== null)
+        .map((id) => releaseFactsStore.loadBuilds(api, workspaceId, id, true)),
       // What blocks a blocked submit is read again with everything else (the run's own list is history).
       ...appIds
         .filter((id) => {

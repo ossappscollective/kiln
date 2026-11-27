@@ -8,10 +8,9 @@
   "Nothing is waiting for you" is only ever said by the model when nothing is pending, nothing failed and nothing runs.
   The five steps of the release on its way sit in the card; the other releases on their way are one quiet line each; the rest of "Needs
   attention" goes to the screen (`onitems`, drawn as "Also worth a look") or is listed under the card. It reads the release pipelines
-  through the state store and writes nothing: "Start release" only opens its dialog (StartRelease), whose confirmation is the one action.
+  through the state model (the app page reads them: `releaseFactsStore.ensureRecord`) and writes nothing: "Start release" only opens its dialog (StartRelease), whose confirmation is the one action.
   Props: api, workspaceId, role, members (the records in scope), all? (every record, for the dispatch dialog and the state), scope (platform
-  scope for links), releases? (store releases by app id, for Promote), attention? (items of "Needs attention"; default none), refreshKey
-  (changes when the screen synced), onprepare? (open the release steps in place, on Releases; without it the card links to them), showRunning
+  scope for links), releases? (store releases by app id, for Promote), attention? (items of "Needs attention"; default none), onprepare? (open the release steps in place, on Releases; without it the card links to them), showRunning
   = false (draw the run "Start release" started under the card; the Overview draws its own list), onstarted? (the run "Start release" started),
   onitems? (hands the rest of "Needs attention" to the screen).
   Exports: observe(data) takes a RunningNow answer, so the screen's own feed is read once.
@@ -49,7 +48,6 @@
     scope,
     attention = [],
     releases,
-    refreshKey = 0,
     showRunning = false,
     onprepare,
     onstarted,
@@ -63,7 +61,6 @@
     scope: PlatformScope | null;
     attention?: AttentionItem[] | undefined;
     releases?: Record<string, ReleaseSummary[]> | undefined;
-    refreshKey?: number | undefined;
     showRunning?: boolean | undefined;
     onprepare?: (() => void) | undefined;
     onstarted?: ((started: StartedRun | null) => void) | undefined;
@@ -107,24 +104,7 @@
     if (onitems) untrack(() => onitems(rest));
   });
 
-  let loadedKey = '';
-  let lastRefresh = 0;
-  $effect(() => {
-    const key = `${workspaceId}/${records.map((m) => m.id).join(',')}`;
-    const again = refreshKey;
-    const list = records.map((m) => m.id);
-    untrack(() => {
-      // A finished sync reads again; opening the page or changing the scope reuses what was read a moment ago.
-      const force = key === loadedKey && again !== lastRefresh;
-      loadedKey = key;
-      lastRefresh = again;
-      if (can(role, 'apps.read')) {
-        appStateStore.loadPipelines(api, workspaceId, list, force);
-        // The store builds (TestFlight) the release candidates come from: read in the same refresh as the pipelines.
-        appStateStore.loadBuilds(api, workspaceId, records, force);
-      }
-    });
-  });
+  // The facts behind the candidates (pipelines, store builds) are read by the app page (`releaseFactsStore.ensureRecord`), not by this card.
 </script>
 
 {#snippet offerButton(offer: ActionOffer, variant: 'primary' | 'secondary', size: 'md' | 'lg')}

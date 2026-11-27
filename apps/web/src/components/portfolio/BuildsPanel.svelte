@@ -17,6 +17,7 @@
   import { type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { releaseFactsStore } from '../../lib/app-state/release-facts-store.svelte.ts';
   import {
     buildLinkLabel,
     buildName,
@@ -27,6 +28,7 @@
     isUncertain,
     linkSourceLabel,
     shortSha,
+    buildLinkCounts,
     shouldAutoRematch,
     tagFoundText,
   } from '../../lib/ci/ci.ts';
@@ -49,6 +51,7 @@
   import PageLead from '../ui/PageLead.svelte';
   import Section from '../ui/Section.svelte';
   import ReleaseStatus from './ReleaseStatus.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let {
     api,
@@ -73,23 +76,23 @@
   /** Apps whose first automatic search was tried, so a failed one is not repeated by itself. */
   const autoTried = new Set<string>();
   let announcement = $state('');
-  const now = $derived.by(() => {
-    void data;
-    return Date.now();
-  });
+  const clock = useNow({ everyMs: 30_000 });
+  const now = $derived(clock.value);
 
   let generation = 0;
 
+  const hasTracks = (build: Pick<AppBuild, 'tracks'>) => build.tracks.length > 0;
   const keyOf = (build: Pick<AppBuild, 'platform' | 'buildNumber'>) => `${build.platform}:${build.buildNumber}`;
 
-  async function load() {
+  async function load(force = false) {
     const mine = ++generation;
     loading = true;
     loadProblem = '';
     try {
-      const read = await api.appBuilds(workspaceId, app.id);
+      const read = await releaseFactsStore.readAppBuilds(api, workspaceId, app.id, { force });
       if (mine !== generation) return;
       data = read;
+      clock.touch();
     } catch (e) {
       if (mine !== generation) return;
       data = null;
@@ -135,9 +138,10 @@
     announcement = t('portfolio:builds.linkedAnnounce', { build: updated.buildNumber });
   }
 
-  const unlinkedCount = $derived(data?.builds.filter((b) => b.linkState === 'unlinked').length ?? 0);
-  const lead = $derived(buildsLead(data?.builds.length ?? 0, unlinkedCount));
-  const tagOnlyCount = $derived(data?.builds.filter((b) => b.linkState === 'tag').length ?? 0);
+  const links = $derived(buildLinkCounts(data?.builds ?? []));
+  const unlinkedCount = $derived(links.unlinked);
+  const lead = $derived(buildsLead(links.all, links.unlinked));
+  const tagOnlyCount = $derived(links.tagOnly);
   /** The newest build without a run: what the conventions dialog takes its example number from. */
   const exampleBuild = $derived(
     data?.builds.find((b) => b.linkState === 'unlinked' && b.platform === app.platform) ?? data?.builds.find((b) => b.platform === app.platform) ?? null,
@@ -152,19 +156,20 @@
       const { rematch: result, ...rest } = done;
       data = rest;
       open = {};
-      const linkedNow = rest.builds.filter((b) => b.linkState !== 'unlinked').length;
+      const after = buildLinkCounts(rest.builds);
+      const linkedNow = after.linked;
       if (result.error) {
         toast.error(t('portfolio:builds.matchTagsFailed', { error: result.error }));
         announcement = t('portfolio:builds.matchTagsFailedAnnounce');
       } else if (!quiet) {
         toast.success(
           result.scanned
-            ? t('portfolio:builds.matchedAgain', { count: rest.builds.length, linked: linkedNow })
+            ? t('portfolio:builds.matchedAgain', { count: after.all, linked: linkedNow })
             : t('portfolio:builds.nothingSearched'),
         );
-        announcement = t('portfolio:builds.matchedAgainAnnounce', { count: rest.builds.length, linked: linkedNow });
+        announcement = t('portfolio:builds.matchedAgainAnnounce', { count: after.all, linked: linkedNow });
       } else {
-        announcement = t('portfolio:builds.searchedTags', { count: rest.builds.length, linked: linkedNow });
+        announcement = t('portfolio:builds.searchedTags', { count: after.all, linked: linkedNow });
       }
     } catch (e) {
       if (!quiet) toast.error(e instanceof ApiError ? e.message : t('portfolio:builds.matchFailed'));
@@ -181,7 +186,7 @@
       hasRepository: read.repository !== null,
       canScan: canMatch,
       diagnostics: read.diagnostics,
-      unlinked: read.builds.filter((b) => b.linkState === 'unlinked').length,
+      unlinked: buildLinkCounts(read.builds).unlinked,
       alreadyTried: autoTried.has(app.id),
     });
     if (!go) return;
@@ -191,7 +196,7 @@
 
   function conventionsSaved(result: { rematch: boolean }) {
     if (result.rematch && canMatch) void rematch();
-    else void load();
+    else void load(true);
   }
 
   const tagLinkOf = (link: BuildLink | null) => (link && link.state === 'tag' ? link : null);
@@ -214,7 +219,7 @@
       <div><Button icon="refresh" onclick={load}>{t('common:action.tryAgain')}</Button></div>
     </div>
   {:else if data}
-    {#if data.builds.length === 0}
+    {#if links.all === 0}
       <div class="card">
         <EmptyState
           icon="box"
@@ -243,7 +248,7 @@
         {/snippet}
       </PageLead>
 
-      <Section title={t('app:nav.builds')} key="builds" count={data.builds.length} flush>
+      <Section title={t('app:nav.builds')} key="builds" count={links.all} flush>
       <div class="table-wrap">
         <table>
           <caption class="visually-hidden">{t('portfolio:builds.caption', { name: app.name })}</caption>
@@ -265,7 +270,7 @@
                   <div class="cell">
                     <span class="line"><PlatformBadge platform={build.platform} /> <strong>{build.version}</strong></span>
                     <span class="muted text-sm">{buildNumberLabel(build.platform)} <code>{build.buildNumber}</code></span>
-                    {#if build.tracks.length > 0}<span class="muted text-sm">{build.tracks.join(', ')}</span>{/if}
+                    {#if hasTracks(build)}<span class="muted text-sm">{build.tracks.join(', ')}</span>{/if}
                   </div>
                 </td>
                 <td>
@@ -391,7 +396,7 @@
         <summary>{t('portfolio:builds.how')}</summary>
         <p class="muted">
           {t('portfolio:builds.howIntro')}
-          {#if unlinkedCount > 0}{t('portfolio:builds.howUnlinked', { count: unlinkedCount, total: data.builds.length })}{/if}
+          {#if unlinkedCount > 0}{t('portfolio:builds.howUnlinked', { count: unlinkedCount, total: links.all })}{/if}
           {#if tagOnlyCount > 0}{t('portfolio:builds.howTagOnly', { count: tagOnlyCount })}{/if}
           {t('portfolio:builds.howMatchers')}
         </p>

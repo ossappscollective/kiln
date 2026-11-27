@@ -13,7 +13,6 @@ import {
   type InvalidationEvent,
   invalidate,
   KEY_FAMILIES,
-  KEY_PREFIXES,
   type KeyFamily,
   onInvalidated,
   readFact,
@@ -41,7 +40,15 @@ const keyOf = (family: KeyFamily, app: string): string =>
           ? readKeys.candidates(app, 'production')
           : family === 'live'
             ? readKeys.live(app)
-            : readKeys.assetDiff(app);
+            : family === 'assetDiff'
+              ? readKeys.assetDiff(app)
+              : family === 'appBuilds'
+                ? readKeys.appBuilds(app)
+                : family === 'plans'
+                  ? readKeys.plans(app, '')
+                  : family === 'notesHistory'
+                    ? readKeys.notesHistory(app, 'x')
+                    : readKeys.testflight(app, '');
 
 const touch = (workspaceId: string, family: KeyFamily, app: string) => {
   const key = `${workspaceId}/${keyOf(family, app)}`;
@@ -59,11 +66,11 @@ const loadedTimes = (workspaceId: string, family: KeyFamily, app: string) =>
 
 /** What each event must make old: written out here so a change to FAMILIES_FOR is a change to this table and to docs/state-model.md. */
 const EXPECTED: Record<InvalidationEvent, readonly KeyFamily[]> = {
-  sync: ['pipeline', 'storeBuilds', 'editable', 'candidates', 'live', 'assetDiff'],
-  publish: ['pipeline', 'storeBuilds', 'editable', 'candidates', 'live', 'assetDiff'],
-  release_created: ['pipeline', 'storeBuilds', 'editable', 'candidates', 'live', 'assetDiff'],
-  store_read: ['editable', 'candidates', 'live', 'assetDiff'],
-  build_changed: ['pipeline', 'storeBuilds', 'candidates'],
+  sync: ['pipeline', 'storeBuilds', 'editable', 'candidates', 'live', 'assetDiff', 'appBuilds', 'plans', 'notesHistory', 'testflight'],
+  publish: ['pipeline', 'storeBuilds', 'editable', 'candidates', 'live', 'assetDiff', 'appBuilds', 'plans', 'notesHistory', 'testflight'],
+  release_created: ['pipeline', 'storeBuilds', 'editable', 'candidates', 'live', 'assetDiff', 'appBuilds', 'plans', 'notesHistory', 'testflight'],
+  store_read: ['editable', 'candidates', 'live', 'assetDiff', 'notesHistory'],
+  build_changed: ['pipeline', 'storeBuilds', 'candidates', 'appBuilds', 'testflight'],
   staged_changed: ['assetDiff'],
 };
 
@@ -230,20 +237,26 @@ test('the browser event kiln:staged-changed has ONE subscriber (facts/invalidate
   assert.deepEqual(offenders, []);
 });
 
-test('every readCache.read( in the app uses a key of a listed family (an unknown family is a test failure)', () => {
+test('no raw readCache.read( outside facts/invalidate.ts: a read of a fact goes through `readFact` (a typed family)', () => {
+  const offenders = sources(SRC)
+    .filter((f) => !['lib/read-cache.ts', 'lib/facts/invalidate.ts'].includes(rel(f)))
+    .filter((f) => /\breadCache\s*\.\s*read\s*(?:<[^(]*>)?\s*\(/.test(strip(readFileSync(f, 'utf8'))))
+    .map(rel);
+  assert.deepEqual(offenders, [], 'use `readFact(family, { workspaceId, key: readKeys.<family>(...), load })`');
+});
+
+test('every readFact( in the app names its key with `readKeys.` (a key of a listed family: an unknown one is a type error)', () => {
   const offenders: string[] = [];
   let seen = 0;
   for (const file of sources(SRC)) {
     if (['lib/read-cache.ts', 'lib/facts/invalidate.ts'].includes(rel(file))) continue;
     const text = strip(readFileSync(file, 'utf8'));
-    for (const m of text.matchAll(/\breadCache\s*\.\s*read\s*(?:<[^(]*>)?\s*\(/g)) {
+    for (const m of text.matchAll(/\breadFact\s*(?:<[^(]*>)?\s*\(/g)) {
       seen += 1;
       const call = text.slice(m.index ?? 0, (m.index ?? 0) + 400);
-      const key = /\bkey:\s*`([^`$]*)/.exec(call)?.[1];
-      if (key === undefined || !KEY_PREFIXES.some((p) => key.startsWith(p)))
-        offenders.push(`${rel(file)}: key ${key === undefined ? '(not a template literal)' : `"${key}"`}`);
+      if (!/\bkey:\s*readKeys\.\w+\(/.test(call)) offenders.push(rel(file));
     }
   }
-  assert.ok(seen >= 6, `the scan found ${seen} readCache.read calls`);
-  assert.deepEqual(offenders, [], `known prefixes: ${KEY_PREFIXES.join(' ')}`);
+  assert.ok(seen >= 6, `the scan found ${seen} readFact calls`);
+  assert.deepEqual(offenders, []);
 });

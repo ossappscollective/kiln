@@ -17,8 +17,8 @@
   import { t } from '../../../lib/i18n/t.ts';
   import T from '../../ui/T.svelte';
   import type { Api } from '../../../lib/api.ts';
+  import { releaseFactsStore } from '../../../lib/app-state/release-facts-store.svelte.ts';
   import { listingStore } from '../../../lib/app-state/listing-store.svelte.ts';
-  import { readCache } from '../../../lib/read-cache.ts';
   import {
     type PlayCheckAnswer,
     bodyKey,
@@ -33,7 +33,7 @@
   } from '../../../lib/play-check.ts';
   import type { EditableRelease } from '../../../lib/release-candidates.ts';
   import { stagingError } from '../../../lib/staged.ts';
-  import { stagedStore } from '../../../lib/staged-store.svelte.ts';
+  import { stagedStore } from '../../../lib/app-state/pending-facade.ts';
   import type { AppSummary } from '../../../lib/types.ts';
   import Alert from '../../ui/Alert.svelte';
   import Badge from '../../ui/Badge.svelte';
@@ -84,13 +84,7 @@
     readFailed = false;
     try {
       const [read] = await Promise.all([
-        readCache.read({
-          workspaceId,
-          group: 'store',
-          key: `editable/${app.id}/${track.trim()}`,
-          force,
-          load: () => api.releaseEditable(workspaceId, app.id, track.trim()),
-        }),
+        releaseFactsStore.readEditable(api, workspaceId, app.id, track, { force }),
         // The listing's locales come from the one store read (`listingStore`), the draft's copy.
         listingStore.load(api, workspaceId, app.id, { fresh: force }),
       ]);

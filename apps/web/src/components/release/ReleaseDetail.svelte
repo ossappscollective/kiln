@@ -9,6 +9,7 @@
 <script lang="ts">
   import { type Role, can } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { releaseFactsStore } from '../../lib/app-state/release-facts-store.svelte.ts';
   import { address } from '../../lib/address.svelte.ts';
   import { appAddress } from '../../lib/app-scope.ts';
   import { appLabel, describeError, platformLabel, platformRank, portfolioHref } from '../../lib/portfolio.ts';
@@ -37,6 +38,7 @@
   import ReleaseEasSteps from './ReleaseEasSteps.svelte';
   import ReleaseNotes from './ReleaseNotes.svelte';
   import Rollout from './Rollout.svelte';
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
 
   let { api, workspaceId, role, appId, version }: { api: Api; workspaceId: string; role: Role; appId: string; version: string } = $props();
 
@@ -57,7 +59,8 @@
   let plansProblem = $state('');
   let loading = $state(true);
   let loadError = $state<{ message: string; notFound: boolean } | null>(null);
-  let now = $state(Date.now());
+  const clock = useNow({ everyMs: 30_000 });
+  const now = $derived(clock.value);
   let announcement = $state('');
 
   /** Ignores a late answer for a release that is no longer open. */
@@ -69,7 +72,7 @@
     loadError = null;
     plansProblem = '';
     try {
-      const detail = await api.app(workspaceId, appId);
+      const detail = await releaseFactsStore.readApp(api, workspaceId, appId);
       if (mine !== generation) return;
       app = detail.app;
       releases = detail.releases;
@@ -91,18 +94,18 @@
 
   async function loadSibling(current: AppSummary, mine: number) {
     try {
-      const list = (await api.apps(workspaceId)).apps;
+      const list = await releaseFactsStore.readApps(api, workspaceId);
       const others = findSiblings(list, current);
       if (others.length === 0) {
         if (mine === generation) siblings = [];
         return;
       }
-      const details = await Promise.all(others.map((o) => api.app(workspaceId, o.id)));
+      const details = await Promise.all(others.map((o) => releaseFactsStore.readApp(api, workspaceId, o.id)));
       if (mine !== generation) return;
       siblings = details.map((d) => ({ app: d.app, releases: d.releases }));
       if (canReadPlans) {
         for (const other of siblings) {
-          const theirs = (await api.appPlans(workspaceId, other.app.id)).plans.find((p) => p.version === version) ?? null;
+          const theirs = (await releaseFactsStore.readPlans(api, workspaceId, other.app.id)).plans.find((p) => p.version === version) ?? null;
           if (mine !== generation) return;
           if (theirs) {
             siblingPlan = { plan: theirs, app: other.app };
@@ -124,7 +127,7 @@
       return;
     }
     try {
-      const list = (await api.appPlans(workspaceId, current.id)).plans;
+      const list = (await releaseFactsStore.readPlans(api, workspaceId, current.id)).plans;
       if (mine !== generation) return;
       hasPlans = list.length > 0;
       const found = list.find((p) => p.version === version);
@@ -132,7 +135,7 @@
         plan = null;
         return;
       }
-      const detail = (await api.plan(workspaceId, current.id, found.id)).plan;
+      const detail = (await releaseFactsStore.readPlan(api, workspaceId, current.id, found.id)).plan;
       if (mine === generation) plan = detail;
     } catch (e) {
       if (mine === generation) {
@@ -152,13 +155,6 @@
     siblingPlan = null;
     releases = [];
     void load();
-  });
-
-  $effect(() => {
-    const timer = setInterval(() => {
-      now = Date.now();
-    }, 30_000);
-    return () => clearInterval(timer);
   });
 
   const mine = $derived(releasesOfVersion(releases, version));

@@ -4,8 +4,10 @@
  * (iOS, macOS) comes before all of them. One helper, so no list sorts tracks by its own rule. Pure; written for the ES2017 web build.
  */
 
+import { PLAY_TRACKS } from '@kiln/core';
+
 /** Closed-testing tracks that Google names itself; every other name is a custom closed track. */
-const FIXED = ['production', 'beta', 'alpha'];
+const FIXED: string[] = [PLAY_TRACKS.production, PLAY_TRACKS.beta, PLAY_TRACKS.alpha];
 const CUSTOM_RANK = FIXED.length;
 const INTERNAL_RANK = CUSTOM_RANK + 1;
 const SHARING_RANK = INTERNAL_RANK + 1;
@@ -18,7 +20,7 @@ export function trackRank(track: string | null): number {
   const name = track.toLowerCase();
   const i = FIXED.indexOf(name);
   if (i >= 0) return i;
-  if (name === 'internal') return INTERNAL_RANK;
+  if (name === PLAY_TRACKS.internal) return INTERNAL_RANK;
   if (isSharing(name)) return SHARING_RANK;
   return CUSTOM_RANK;
 }

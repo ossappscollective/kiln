@@ -1,6 +1,6 @@
 {
   "$comment": "Disagreements between two display surfaces TODAY (the migration burn-down list). See docs/state-model.md, Consistency contract. The list only shrinks.",
   "entries": [
-    {"scenario":"ios-phased-obsolete-testflight","factKey":"newestBuild:ios-1","domain":"releases","surfaces":["appDashboardTiles","buildsPanel","nextStep","pipelineCard"],"mirrors":["components/app/AppDashboard.svelte:258 modelState.candidates","components/app/AppDashboard.svelte:263 releaseFactsOf (live = liveOf: a phased release is live)","components/app/NextStep.svelte:86 blocked = appState.failures.find(...)","components/builds/TestBuilds.svelte: api.buildArtifacts (own read; the model has its own storeBuildsStore of the same rows)","lib/app-state/candidates.ts:453 buildsWithPipeline (the pipeline knows ONE build: its latest)","lib/app-state/derive.ts:329 deriveAppState (model)"],"note":"The release pipeline knows ONE build (its latest: 1.11.6 build 92); the Builds page and the model's candidate know the newest TestFlight build (2.00.1 build 95)."}
+
   ]
 }

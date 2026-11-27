@@ -3,7 +3,7 @@ import type { AppGroup } from './app-groups.ts';
 import { appAddress } from './app-scope.ts';
 import { t } from './i18n/t.ts';
 import { chipFor, type PendingLine } from './pending.ts';
-import { latestRelease, type ReleaseLoad } from './portfolio.ts';
+import { latestRelease, type ReleaseLoad, urgencyOf } from './portfolio.ts';
 import {
   type PipelineSummaryApp,
   type SummaryStall,
@@ -44,23 +44,7 @@ export type OverviewRow = {
   pending?: OverviewPending | null;
 };
 
-/** Most urgent first. */
-const urgency: ReleaseState[] = [
-  'rejected',
-  'halted',
-  'in_review',
-  'propagating',
-  'rolling_out',
-  'approved',
-  'ready',
-  'build_chosen',
-  'draft',
-  'live',
-];
-const rank = (r: ReleaseSummary) => {
-  const i = r.status === null ? -1 : urgency.indexOf(r.status);
-  return i < 0 ? urgency.length : i;
-};
+const rank = (r: ReleaseSummary) => urgencyOf(r.status);
 
 /** The states worth a pill of their own on a row (a released version is the quiet default). */
 const FLIGHT_STATES: ReleaseState[] = [

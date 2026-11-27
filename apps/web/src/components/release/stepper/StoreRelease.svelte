@@ -40,9 +40,9 @@
     shouldReloadState,
   } from '../../../lib/store-release.ts';
   import { EVERYONE, releaseInputsFor } from '../../../lib/release-settings.ts';
-  import { releaseSettingsStore } from '../../../lib/release-settings-store.svelte.ts';
+  import { releaseSettingsStore } from '../../../lib/app-state/release-settings-store.svelte.ts';
   import { appStateStore } from '../../../lib/app-state/app-state-store.svelte.ts';
-  import { releaseStore } from '../../../lib/store-release-store.svelte.ts';
+  import { releaseStore } from '../../../lib/app-state/store-release-store.svelte.ts';
   import { toast } from '../../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../../lib/types.ts';
   import Alert from '../../ui/Alert.svelte';

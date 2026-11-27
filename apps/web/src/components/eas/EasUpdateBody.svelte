@@ -14,7 +14,10 @@
     type EasUpdateChannel,
     type EasUpdateInsights,
     type EasUpdateState,
+    branchHasUpdates,
     channelsWithMismatch,
+    comparedBuildTotal,
+    updateGroupTotal,
     checkLabel,
     checkTone,
     easUpdateErrorText,
@@ -105,6 +108,7 @@
   }
 
   const problems = $derived(view ? channelsWithMismatch(view) : []);
+  const anyProblems = $derived(problems.length > 0);
   const mayRaise = $derived(view !== null && view.rolloutWriteEnabled && can(role, 'releases.rollout'));
 
   function raise(channel: EasUpdateChannel, r: EasUpdateChannel['rollouts'][number]) {
@@ -139,7 +143,7 @@
       <Button size="sm" icon="refresh" {loading} onclick={load}>{t('eas:config.body.readAgain')}</Button>
     </div>
 
-    {#if problems.length > 0}
+    {#if anyProblems}
       <div class="stack tight" data-testid="eas-update-warnings">
         {#each problems as channel (channel.id)}
           <Alert tone={channel.runtimeCheck.severity === 'error' ? 'error' : 'warn'} title={t('eas:update.body.channelAlert', { name: channel.name, check: checkLabel(channel.runtimeCheck.status) })}>
@@ -153,7 +157,7 @@
       <EmptyState icon="git-branch" title={t('eas:update.body.noChannelsTitle')} description={t('eas:update.body.noChannelsDesc')} />
     {:else}
       {#each view.channels as channel (channel.id)}
-        {@const updateCount = channel.branches.reduce((n, b) => n + b.groups.length, 0)}
+        {@const updateCount = updateGroupTotal(channel)}
         <section class="channel stack tight" aria-label={t('eas:update.body.channelLabel', { name: channel.name })}>
           <div class="row head">
             <strong>{channel.name}</strong>
@@ -186,7 +190,7 @@
             <Disclosure summary={t('eas:update.body.newest', { count: updateCount })} stateKey="eas-update-{app.id}-{channel.id}">
               <div class="stack tight">
                 {#each channel.branches as branch (branch.id)}
-                  {#if branch.groups.length > 0}
+                  {#if branchHasUpdates(branch)}
                     <div class="stack tight">
                       <span class="text-sm"><strong>{t('eas:update.body.branch', { name: branch.name })}</strong>{#if !branch.mapped} <span class="muted">{t('eas:update.body.notMapped')}</span>{/if}</span>
                       <ul class="plain stack tight">
@@ -230,8 +234,8 @@
       {/if}
     {/if}
 
-    {#if view.builds.length > 0}
-      <Disclosure summary={t('eas:update.body.buildsCompared', { count: view.builds.length })} stateKey="eas-update-builds-{app.id}">
+    {#if comparedBuildTotal(view) > 0}
+      <Disclosure summary={t('eas:update.body.buildsCompared', { count: comparedBuildTotal(view) })} stateKey="eas-update-builds-{app.id}">
         <div class="table-wrap">
           <table class="compact">
             <caption class="visually-hidden">{t('eas:update.body.buildsCaption')}</caption>

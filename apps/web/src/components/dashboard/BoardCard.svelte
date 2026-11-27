@@ -7,6 +7,7 @@
   Props: card (from buildBoard), now (epoch ms, so relative times update), pending? (the app's pending line, from the app-state store's lineOf).
 -->
 <script lang="ts">
+  import { isProductionTrack } from '@kiln/core';
   import T from '../ui/T.svelte';
   import { t } from '../../lib/i18n/t.ts';
   import type { BoardCard } from '../../lib/dashboard.ts';
@@ -28,7 +29,7 @@
   const uid = $props.id();
   const due = $derived(card.due ? dueText(card.due) : null);
   const rollout = $derived(rolloutBadge(card.rollout));
-  const showTrack = $derived(card.track !== null && card.track !== 'production');
+  const showTrack = $derived(card.track !== null && !isProductionTrack(card.track));
 </script>
 
 <article class="card-box" class:blocked={card.blocked !== null} aria-labelledby="{uid}-name">
