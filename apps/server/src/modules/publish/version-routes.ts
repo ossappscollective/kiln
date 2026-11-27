@@ -9,8 +9,10 @@ import type { Failure } from '../../services/repositories.ts';
 import { requireStepUp } from '../../services/step-up.ts';
 import { notWhilePublishing } from './publishing.ts';
 import {
+  applyReviewCopy,
   applyVersion,
   defaultVersionConnectorFactory,
+  previewReviewCopy,
   previewVersion,
   type VersionConnectorFactory,
   type VersionContext,
@@ -56,6 +58,14 @@ export const versionPreviewBody = z.object(what).strict();
 export const versionApplyBody = z
   .object({
     ...what,
+    confirmHash: z
+      .string()
+      .regex(hash64, 'The confirmHash of the preview, 64 hexadecimal characters.'),
+  })
+  .strict();
+
+export const reviewCopyBody = z
+  .object({
     confirmHash: z
       .string()
       .regex(hash64, 'The confirmHash of the preview, 64 hexadecimal characters.'),
@@ -127,6 +137,47 @@ export function storeVersionRoutes(ctx: VersionRoutesContext) {
         confirmHash: body.data.confirmHash,
         actor: actor(c),
       });
+      return done.ok ? c.json({ result: done.result }) : respond(c, done);
+    },
+  );
+
+  // The App Review Information of the previous version, copied to the editable version that has none (docs/api/review-information.md).
+  // Preview: a store read, masked (initials and yes/no), writes nothing. Apply: blank attributes only, never over a filled one.
+  routes.post(
+    '/:workspaceId/apps/:id/review-information/preview',
+    needs('store.push_draft'),
+    async (c) => {
+      if (!version.versionEnabled) return respond(c, versionDisabledFailure());
+      const done = await previewReviewCopy(version, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        actor: actor(c),
+      });
+      c.header('Cache-Control', 'no-store');
+      return done.ok ? c.json({ preview: done.preview }) : respond(c, done);
+    },
+  );
+
+  routes.post(
+    '/:workspaceId/apps/:id/review-information',
+    needs('store.push_draft'),
+    notPublishing,
+    async (c) => {
+      if (!version.versionEnabled) return respond(c, versionDisabledFailure());
+      const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.push_draft', {
+        id: param(c, 'id'),
+        hashField: 'confirmHash',
+      });
+      if (stepUpRefusal) return stepUpRefusal;
+      const body = await parseBody(c, reviewCopyBody);
+      if (!body.ok) return body.response;
+      const done = await applyReviewCopy(version, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        confirmHash: body.data.confirmHash,
+        actor: actor(c),
+      });
+      c.header('Cache-Control', 'no-store');
       return done.ok ? c.json({ result: done.result }) : respond(c, done);
     },
   );

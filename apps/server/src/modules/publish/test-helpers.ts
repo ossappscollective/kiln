@@ -46,7 +46,12 @@ import {
   type SubmitTrack,
   setMatches,
 } from '@kiln/connectors';
-import { classifyAppleScreenshot, type Platform, type StagedChangesView } from '@kiln/core';
+import {
+  classifyAppleScreenshot,
+  type Platform,
+  type ReviewDetailFacts,
+  type StagedChangesView,
+} from '@kiln/core';
 import type { Database } from '@kiln/db';
 import { weatherApp } from '../../../../../packages/connectors/src/fastlane.fixtures.ts';
 import { bootRepoApp, FakeRepo } from '../../repo-test-helpers.ts';
@@ -730,6 +735,9 @@ export class FakeSubmitStore implements StoreSubmitConnector {
   imageState: string | null | undefined;
   /** Text values that override the defaults (`locale\0field`; null: not set). */
   textOverrides = new Map<string, string | null>();
+  /** App Store: the presence facts of the version's App Review Information (undefined: not read, so the review checks stay silent). */
+  reviewDetail: ReviewDetailFacts | null | undefined = undefined;
+  reviewSource: { id: string; versionString: string | null } | null = null;
   reads = 0;
   submitCalls = 0;
   submissions: string[] = [];
@@ -799,6 +807,9 @@ export class FakeSubmitStore implements StoreSubmitConnector {
       tracks: structuredClone(this.tracks),
       locales,
       draft: alreadySubmitted ? null : await this.draft.readDraft(request),
+      ...(ios && !alreadySubmitted && this.reviewDetail !== undefined
+        ? { reviewDetail: this.reviewDetail, reviewSource: this.reviewSource }
+        : {}),
     };
   }
 

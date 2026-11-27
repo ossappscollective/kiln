@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { StoreError } from '@kiln/connectors';
+import type { ReviewDetailFacts } from '@kiln/core';
 import { dbTest } from '@kiln/db/testing';
 import { bootRepoApp } from '../../repo-test-helpers.ts';
 import { ASC_SECRET, bootStaged, PLAY_SECRET, type StagedBoot } from './test-helpers.ts';
@@ -425,7 +426,34 @@ type Break = {
   code: string;
   arrange: (t: StagedBoot, app: string) => void | Promise<void>;
 };
+const reviewFacts = (over: Partial<ReviewDetailFacts> = {}): ReviewDetailFacts => ({
+  exists: true,
+  contactFirstName: true,
+  contactLastName: true,
+  contactPhone: true,
+  contactEmail: true,
+  demoAccountRequired: false,
+  demoAccountName: false,
+  demoAccountPassword: false,
+  ...over,
+});
+
 const breaks: Break[] = [
+  {
+    name: 'no App Review contact on the version',
+    code: 'no_review_contact',
+    arrange: (t) => void (t.submitStores.ios.reviewDetail = reviewFacts({ exists: false, contactFirstName: false, contactLastName: false, contactPhone: false, contactEmail: false })),
+  },
+  {
+    name: 'a blank App Review phone number',
+    code: 'no_review_contact',
+    arrange: (t) => void (t.submitStores.ios.reviewDetail = reviewFacts({ contactPhone: false })),
+  },
+  {
+    name: 'a demo account that is required and has no password',
+    code: 'no_review_demo_account',
+    arrange: (t) => void (t.submitStores.ios.reviewDetail = reviewFacts({ demoAccountRequired: true, demoAccountName: true })),
+  },
   {
     name: 'a release type that could not be read',
     code: 'release_not_manual',
@@ -1190,5 +1218,31 @@ dbTest(
       1,
       'whoever can read listings sees it',
     );
+  },
+);
+
+// ----- App Review Information -------------------------------------------------------------------------------------
+
+dbTest(
+  'App Review Information: complete or not read is no blocker; missing names the version it can be copied from and the attributes, and the submit is refused',
+  async (db) => {
+    const t = await bootStaged(db);
+    const app = await pushedIos(t);
+    for (const quiet of [undefined, null, reviewFacts()]) {
+      t.submitStores.ios.reviewDetail = quiet;
+      const p = (await t.submitPreview(app)).body.preview;
+      assert.deepEqual(codes(p.checks.blocking), [], String(quiet));
+    }
+    t.submitStores.ios.reviewDetail = reviewFacts({ contactFirstName: false, contactEmail: false });
+    t.submitStores.ios.reviewSource = { id: 'v-live', versionString: '1.19.0' };
+    const res = await t.submitPreview(app);
+    const p = res.body.preview;
+    assert.deepEqual(codes(p.checks.blocking), ['no_review_contact']);
+    assert.deepEqual(p.checks.blocking[0].params, { missing: 'contactFirstName,contactEmail', from: '1.19.0' });
+    assert.match(p.checks.blocking[0].message, /first name, email address are missing/);
+    assert.equal(p.confirmHash, null);
+    // nothing personal can be in the answer: the fake holds presence only, and the sentence names attributes
+    assert.ok(!/@|\+\d/.test(JSON.stringify(p.checks)));
+    assert.equal(t.submitStores.ios.submitCalls, 0);
   },
 );

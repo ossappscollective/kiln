@@ -179,3 +179,80 @@ dbTest('the plan says nothing extra when nothing stands in the way, or the store
     ['previewed_after_push'],
   );
 });
+
+// ----- App Review Information ---------------------------------------------------------------------------------------
+
+const noContact = {
+  exists: false,
+  contactFirstName: false,
+  contactLastName: false,
+  contactPhone: false,
+  contactEmail: false,
+  demoAccountRequired: null,
+  demoAccountName: false,
+  demoAccountPassword: false,
+};
+
+dbTest(
+  'the plan says before the push that the version has no App Review contact: a blocker fixed in the review information, with the version it can be copied from',
+  async (db) => {
+    const t = await boot(db);
+    const app = await stageIos(t);
+    t.submitStores.ios.reviewDetail = noContact;
+    t.submitStores.ios.reviewSource = { id: 'v-live', versionString: '1.19.0' };
+    const res = await t.plan(app, [{ type: 'push_draft' }, { type: 'submit' }]);
+    assert.equal(res.status, 200, res.text.slice(0, 300));
+    const blockers = res.body.plan.readiness.submit.blockers;
+    assert.deepEqual(
+      blockers.map((b: any) => b.code),
+      ['no_review_contact'],
+    );
+    assert.deepEqual(blockers[0].fix, { kind: 'review', href: null });
+    assert.deepEqual(blockers[0].params, {
+      missing: 'contactFirstName,contactLastName,contactPhone,contactEmail',
+      from: '1.19.0',
+    });
+    const submit = res.body.plan.steps.find((s: any) => s.type === 'submit');
+    assert.equal(submit.availability, 'blocked');
+    assert.ok(submit.problems.some((x: any) => x.code === 'submit_blocked_no_review_contact'));
+    assert.equal(res.body.plan.confirmable, false);
+    // The push alone stays allowed, and a complete detail is no blocker.
+    assert.equal((await t.plan(app)).body.plan.confirmable, true);
+    t.submitStores.ios.reviewDetail = { ...noContact, exists: true, contactFirstName: true, contactLastName: true, contactPhone: true, contactEmail: true };
+    assert.deepEqual((await t.plan(app)).body.plan.readiness.submit.blockers, []);
+  },
+);
+
+dbTest(
+  'a submit blocked after the push because the review contact is blank: the skipped step carries the blocker, the log names the code and nothing personal',
+  async (db) => {
+    const lines: string[] = [];
+    const t = await boot(db, { log: (l) => lines.push(l) });
+    const app = await stageIos(t);
+    const p = await publishPlan(t, app);
+    const store = t.stores.ios;
+    const original = store.applyDraft.bind(store);
+    store.applyDraft = async (input) => {
+      const result = await original(input);
+      t.submitStores.ios.reviewDetail = { ...noContact, exists: true, contactFirstName: true };
+      return result;
+    };
+    const done = await t.publish(app, {
+      planHash: p.planHash,
+      phrase: p.confirmation.phrase,
+      steps: p.publishSteps,
+    });
+    const submit = done.body.result.steps.find((s: any) => s.type === 'submit');
+    assert.equal(submit.reason, 'blocked');
+    assert.deepEqual(submit.checks, ['no_review_contact']);
+    assert.match(submit.blockers[0].message, /last name, phone number, email address are missing/);
+    const [run] = await listRuns(db, { workspaceId: t.workspaceId, appId: app });
+    assert.deepEqual(
+      run?.results.find((x) => x.type === 'submit')?.blockers?.map((b) => b.code),
+      ['no_review_contact'],
+    );
+    assert.ok(lines.some((l) => /skipped \(blocked: no_review_contact/.test(l)), lines.join('\n'));
+    assert.doesNotMatch(`${lines.join('\n')}${JSON.stringify(run?.results)}`, /@|\+\d{4}/);
+    assert.equal(t.submitStores.ios.submitCalls, 0);
+  },
+);

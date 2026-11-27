@@ -16,7 +16,9 @@ import {
   byFamily,
   type DraftContent,
   evaluateDraftContent,
+  evaluateReviewInformation,
   needsStoreAppId,
+  REVIEW_CODES,
   type Platform,
   supports,
 } from '@kiln/core';
@@ -338,6 +340,8 @@ export type SubmitCheck = {
   rule?: string;
   source?: string;
   verified?: boolean;
+  /** The names and numbers of the sentence (`missing`: the attributes; `from`: the version the review information can be copied from). */
+  params?: Record<string, string | number>;
 };
 
 export type SubmitChecks = { blocking: SubmitCheck[]; warnings: SubmitCheck[]; canSubmit: boolean };
@@ -437,6 +441,15 @@ export function evaluateChecks(input: {
         code: 'build_not_valid',
         severity: 'blocking',
         message: `Build ${state.build.version ?? state.build.id} is not ready (${state.build.processingState}).`,
+      });
+    }
+    // App Review Information: judged from presence facts (`evaluateReviewInformation`, one pure rule for the submit and the plan). A
+    // version whose review information was not read is not judged. The version it can be copied from is named when there is one.
+    for (const finding of evaluateReviewInformation(state.reviewDetail)) {
+      const from = state.reviewSource?.versionString ?? null;
+      add({
+        ...(finding as SubmitCheck),
+        params: { ...(finding.params ?? {}), ...(from !== null ? { from } : {}) },
       });
     }
     if (state.openReviewSubmissions !== null && state.openReviewSubmissions > 0) {
@@ -828,6 +841,7 @@ export const EARLY_CODES: readonly string[] = [
   'no_build',
   'build_expired',
   'build_not_valid',
+  ...REVIEW_CODES,
 ];
 /** Of those, the ones a push of the staged release fields can fix (it attaches the build). */
 export const BUILD_CODES: readonly string[] = ['no_build', 'build_expired', 'build_not_valid'];

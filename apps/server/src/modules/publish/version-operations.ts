@@ -1,7 +1,7 @@
 import { PLATFORMS } from '@kiln/core';
 import { z } from 'zod';
 import type { Operation } from '../../operations/openapi.ts';
-import { versionApplyBody, versionPreviewBody } from './version-routes.ts';
+import { reviewCopyBody, versionApplyBody, versionPreviewBody } from './version-routes.ts';
 
 /**
  * The operations that create the next App Store version (docs/api/store-version.md, docs/adr/0031-create-app-store-version.md),
@@ -10,6 +10,26 @@ import { versionApplyBody, versionPreviewBody } from './version-routes.ts';
 
 const W = '/api/workspaces/{workspaceId}';
 const check = z.object({ code: z.string(), message: z.string() });
+
+const reviewInformationSchema = z
+  .object({
+    outcome: z.enum(['created', 'merged', 'already_complete', 'no_source', 'failed', 'not_read']),
+    from: z.string().nullable().describe('The version string the review information comes from.'),
+    fieldsCopied: z.number().int().describe('How many attributes are (or would be) written.'),
+    summary: z
+      .object({
+        contact: z.string().nullable().describe('The initials of the contact, `M. G.`.'),
+        phone: z.boolean(),
+        email: z.boolean(),
+        demoAccount: z.enum(['not_required', 'required', 'unknown']),
+        demoCredentials: z.boolean(),
+        notes: z.boolean(),
+      })
+      .nullable()
+      .describe('The source as it may be shown: initials and yes/no. Never a name, phone number, email address, account or note.'),
+    code: z.string().optional().describe('`failed`: the kind of the failure.'),
+  })
+  .describe('What is done with the App Review Information of the previous version (docs/api/review-information.md).');
 
 const previewSchema = z.object({
   app: z.object({
@@ -29,6 +49,9 @@ const previewSchema = z.object({
     warnings: z.array(check),
     canCreate: z.boolean(),
   }),
+  reviewInformation: reviewInformationSchema
+    .nullable()
+    .describe('What the new version would get from the previous version’s App Review Information (masked). Null: not looked at.'),
   confirmHash: z.string().nullable().describe('Null while a check blocks.'),
   reversible: z.literal(true),
   note: z.string(),
@@ -45,7 +68,32 @@ const resultSchema = z.object({
   reversible: z.literal(true),
   confirmedByReread: z.boolean(),
   warnings: z.array(check),
+  reviewInformation: reviewInformationSchema
+    .nullable()
+    .describe('What was done with the previous version’s App Review Information. A failure is here and in `warnings`, the version stays created.'),
   createdAt: z.number().int().describe('Epoch milliseconds.'),
+  note: z.string(),
+});
+
+const copyAppSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  platform: z.enum(PLATFORMS),
+  store: z.string(),
+});
+const copyPreviewSchema = z.object({
+  app: copyAppSchema,
+  version: z.object({ versionString: z.string().nullable(), state: z.string() }),
+  reviewInformation: reviewInformationSchema,
+  canCopy: z.boolean(),
+  confirmHash: z.string().nullable().describe('Null while there is nothing to copy.'),
+  note: z.string(),
+});
+const copyResultSchema = z.object({
+  app: copyAppSchema,
+  version: z.object({ versionString: z.string().nullable(), state: z.string() }),
+  reviewInformation: reviewInformationSchema,
+  copiedAt: z.number().int().describe('Epoch milliseconds.'),
   note: z.string(),
 });
 
@@ -84,6 +132,39 @@ export const storeVersionOperations: Operation[] = [
         description: 'The version that was created.',
         schema: z.object({ result: resultSchema }),
       },
+    },
+  },
+  {
+    id: 'previewStoreReviewInformationCopy',
+    method: 'post',
+    path: `${W}/apps/{id}/review-information/preview`,
+    tags: ['staged-changes'],
+    summary:
+      'Preview copying the previous version’s App Review Information to the editable version (masked)',
+    description:
+      'Needs `store.push_draft` and `KILN_STORE_DRAFT_WRITE_ENABLED=true`. READS the versions and the App Review Information of the editable version and of the best previous version from App Store Connect, writes nothing. The answer is masked: the initials of the contact and yes/no for phone, email, demo account and notes, never the values. `canCopy` is true when something would be written; then `confirmHash` is set. `409 no_editable_version` / `several_editable_versions`; `422 not_supported` for Google Play.',
+    risk: 'read',
+    access: { action: 'store.push_draft' },
+    appScope: { kind: 'param', name: 'id' },
+    responses: {
+      '200': { description: 'The preview.', schema: z.object({ preview: copyPreviewSchema }) },
+    },
+  },
+  {
+    id: 'copyStoreReviewInformation',
+    method: 'post',
+    path: `${W}/apps/{id}/review-information`,
+    tags: ['staged-changes'],
+    summary:
+      'COPY the previous version’s App Review Information to the editable version (blank attributes only)',
+    description:
+      'A STORE WRITE, additive and repeatable: `POST /v1/appStoreReviewDetails` when the editable version has none, a `PATCH` of its blank attributes otherwise; a value that is already filled in is never changed; attachments are not copied. Needs `store.push_draft` and `KILN_STORE_DRAFT_WRITE_ENABLED=true`; a workspace that covers `store.push_draft` with a step-up asks for the person’s confirmation. `confirmHash` must come from a preview: the store is READ AGAIN and a different state is `409 state_changed` (with a new `preview`). One write per app and platform at a time (`409 write_in_progress`). Audited as `store.review_information_copied` / `store.review_information_copy_failed`: ids, the version it came from, an outcome and a count, never a name, phone number, email address, demo account or note. Apple’s refusal is `502 store_rejected` with the kind of the failure and no value.',
+    risk: 'destructive',
+    access: { action: 'store.push_draft' },
+    appScope: { kind: 'param', name: 'id' },
+    body: reviewCopyBody,
+    responses: {
+      '200': { description: 'What was copied.', schema: z.object({ result: copyResultSchema }) },
     },
   },
 ];

@@ -404,20 +404,20 @@ const submitBlockerSchema = z.object({
   code: z
     .string()
     .describe(
-      'A check of the submit: `missing_text`, `asset_spec`, `no_screenshots`, `no_locales`, `release_notes_too_long`, `no_build`, `build_expired`, `build_not_valid`, `already_submitted`, `no_version`, `release_not_manual`.',
+      'A check of the submit: `missing_text`, `asset_spec`, `no_screenshots`, `no_locales`, `release_notes_too_long`, `no_build`, `build_expired`, `build_not_valid`, `already_submitted`, `no_version`, `release_not_manual`, `no_review_contact` (the App Review contact: first and last name, phone number, email address), `no_review_demo_account` (a demo account is required and its user name or password is blank).',
     ),
   message: z.string().describe('The sentence the submit itself would give (English).'),
   params: z
     .record(z.union([z.string(), z.number()]))
     .optional()
-    .describe('The names and numbers of the sentence (`field`, `label`, `locale`, `count`, `max`).'),
+    .describe('The names and numbers of the sentence (`field`, `label`, `locale`, `count`, `max`; `missing` and `from` for the review information: the attributes that are blank, and the version it can be copied from).'),
   locale: z.string().optional(),
   item: z.string().optional().describe('The field, the set or the file the blocker is about.'),
   fix: z.object({
     kind: z
-      .enum(['listing', 'screenshots', 'notes', 'build', 'store', 'push'])
+      .enum(['listing', 'screenshots', 'notes', 'build', 'store', 'push', 'review'])
       .describe(
-        'Where it is fixed: the listing text, the graphics, the release notes, the build, the store’s own console, or by pushing the draft again.',
+        'Where it is fixed: the listing text, the graphics, the release notes, the build, the store’s own console, by pushing the draft again, or the App Review Information (copied from the previous version here, or filled in App Store Connect).',
       ),
     href: z
       .string()

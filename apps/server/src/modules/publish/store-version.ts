@@ -3,6 +3,7 @@ import {
   AppleVersionConnector,
   CREATABLE_RELEASE_TYPES,
   type CreatableReleaseType,
+  type ReviewCarryResult,
   StoreError,
   type StoreVersionRow,
   type VersionCreateRequest,
@@ -16,6 +17,7 @@ import {
   newestDottedVersion,
   nextVersion,
   type Platform,
+  type ReviewSummary,
   supports,
 } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
@@ -41,10 +43,14 @@ import { connect, DRAFT_ENV, mapStoreError } from './store-draft.ts';
  * - One write in flight per app and platform: the claim table of the draft push (`store_draft_claims`), so a push and a create
  *   exclude each other. Never retried. A lost answer: the versions are read back (`confirmedByReread`) or the answer is
  *   `409 outcome_unknown` (look in App Store Connect; a new preview settles it).
- * - Writes the version only: no text, no build, no review submission, no release. Google Play has no such thing: a version is a
- *   release (`422 not_supported`).
- * - Audit (`store.version_created`, `store.version_create_failed`) holds ids, the version string and hashes. Never a credential,
- *   a token or a store response body.
+ * - Writes the version, and then the App Review Information of the previous version onto it (docs/api/review-information.md): a version
+ *   made through the API starts without it, and a submit needs the contact there. Blank attributes only, never over a filled one, a failure
+ *   is a warning (the version stays created). No text, no build, no review submission, no release. Google Play has no such thing: a
+ *   version is a release (`422 not_supported`).
+ * - Audit (`store.version_created`, `store.version_create_failed`) holds ids, the version string and hashes, and for the review information
+ *   an outcome, the version it came from and a COUNT of attributes. Never a credential, a token, a store response body, or a contact name,
+ *   phone number, email address, demo account or note.
+ * - `previewReviewCopy` / `applyReviewCopy`: the same copy for a version that already exists (the repair of one made without it).
  */
 
 type Actor = { type: 'user' | 'token' | 'system'; id: string };
@@ -58,7 +64,8 @@ export const DEFAULT_VERSION_CLAIM_TTL_MS = 300_000;
 // ---------------------------------------------------------------------------------------------
 // Context
 
-export type VersionConnector = Pick<AppleVersionConnector, 'readVersions' | 'createVersion'>;
+export type VersionConnector = Pick<AppleVersionConnector, 'readVersions' | 'createVersion'> &
+  Partial<Pick<AppleVersionConnector, 'previewReviewInformation' | 'carryOverReviewInformation'>>;
 export type VersionConnectorInput = {
   secret: string;
   storeAppId?: string | null;
@@ -325,6 +332,8 @@ export type VersionPreview = {
   suggested: string;
   versions: { versionString: string | null; state: string; editable: boolean }[];
   checks: VersionChecks;
+  /** What will be carried over from the previous version's App Review Information (masked). Null: not looked at. */
+  reviewInformation: ReviewInformationView | null;
   /** Null while a check blocks. */
   confirmHash: string | null;
   /** Always true: a version in Prepare for Submission can be deleted in App Store Connect. */
@@ -333,13 +342,33 @@ export type VersionPreview = {
 };
 
 const NOTE =
-  'Creates an editable draft version in App Store Connect. Nothing is submitted. A version in Prepare for Submission can be deleted in App Store Connect.';
+  'Creates an editable draft version in App Store Connect and copies the App Review Information of the previous version to it when that has some. Nothing is submitted. A version in Prepare for Submission can be deleted in App Store Connect.';
+
+/** The App Review Information of a version as the API and the screens show it: an outcome, where it came from, a count and a masked summary. */
+export type ReviewInformationView = {
+  outcome: ReviewCarryResult['outcome'];
+  /** The version string it comes from (null: there is none). */
+  from: string | null;
+  fieldsCopied: number;
+  summary: ReviewSummary | null;
+  /** `failed`: the kind of the failure. */
+  code?: string;
+};
+
+const reviewViewOf = (r: ReviewCarryResult): ReviewInformationView => ({
+  outcome: r.outcome,
+  from: r.from?.versionString ?? null,
+  fieldsCopied: r.fieldsCopied,
+  summary: r.summary,
+  ...(r.code !== undefined ? { code: r.code } : {}),
+});
 
 function previewOf(
   workspaceId: string,
   app: ManagedApp,
   request: VersionInput,
   state: VersionListState,
+  review: ReviewCarryResult | null = null,
 ): VersionPreview {
   const checks = evaluateChecks(request, state);
   const live = liveVersionOf(state.versions);
@@ -354,6 +383,7 @@ function previewOf(
       editable: v.editable,
     })),
     checks,
+    reviewInformation: review === null ? null : reviewViewOf(review),
     confirmHash: checks.canCreate ? versionConfirmHash({ workspaceId, app, request, state }) : null,
     reversible: true,
     note: NOTE,
@@ -383,8 +413,16 @@ export async function previewVersion(
   if (!connected.ok) return connected;
   const { connection } = connected;
   let state: VersionListState;
+  let review: ReviewCarryResult | null = null;
   try {
-    state = await withConnector(ctx, connection.input, (c) => c.readVersions());
+    const read = await withConnector(ctx, connection.input, async (c) => {
+      const versions = await c.readVersions();
+      // The previous version's App Review Information, masked: a read that never throws (a failure is part of the answer).
+      const look = c.previewReviewInformation ? await c.previewReviewInformation(versions.versions) : null;
+      return { versions, look };
+    });
+    state = read.versions;
+    review = read.look;
   } catch (error) {
     if (error instanceof VersionTimeout)
       return failure(
@@ -396,7 +434,7 @@ export async function previewVersion(
     return mapped(error, connection.secret).failure;
   }
   await clearUnknown(ctx.db, app);
-  return { ok: true, preview: previewOf(input.workspaceId, app, request, state) };
+  return { ok: true, preview: previewOf(input.workspaceId, app, request, state, review) };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -410,6 +448,8 @@ export type VersionResult = {
   /** True when the store did not answer and reading it back showed the version. */
   confirmedByReread: boolean;
   warnings: VersionCheck[];
+  /** What was done with the previous version's App Review Information (a count and a masked summary). Null: not tried. */
+  reviewInformation: ReviewInformationView | null;
   createdAt: number;
   note: string;
 };
@@ -418,7 +458,11 @@ async function audit(
   ctx: VersionContext,
   input: { workspaceId: string; actor: Actor; confirmHash: string },
   app: ManagedApp,
-  action: 'store.version_created' | 'store.version_create_failed',
+  action:
+    | 'store.version_created'
+    | 'store.version_create_failed'
+    | 'store.review_information_copied'
+    | 'store.review_information_copy_failed',
   detail: Record<string, unknown>,
   sql: Sql = ctx.db,
 ): Promise<void> {
@@ -438,6 +482,53 @@ async function audit(
     },
     at: ctx.now(),
   });
+}
+
+/** The audit record of a carry-over: an outcome, where it came from, a count. */
+const reviewAuditOf = (r: ReviewCarryResult): Record<string, unknown> => ({
+  outcome: r.outcome,
+  ...(r.from ? { fromVersion: r.from.versionString, fromVersionId: r.from.id } : {}),
+  fieldsCopied: r.fieldsCopied,
+  ...(r.code !== undefined ? { code: r.code } : {}),
+});
+
+/** The warning a person reads when the review information could not be carried over (no value in it). */
+const reviewWarning = (r: ReviewCarryResult): VersionCheck =>
+  r.outcome === 'no_source'
+    ? {
+        code: 'review_information_missing',
+        message:
+          'No earlier version has App Review Information to copy, so the new version has none. Fill in App Review Information (contact first and last name, phone number, email address) in App Store Connect before submitting.',
+      }
+    : {
+        code: 'review_information_not_copied',
+        message:
+          'The App Review Information of the previous version could not be copied to the new version. Copy it from the submit checklist, or fill it in App Store Connect before submitting.',
+      };
+
+/** Carries the review information onto the version; null when it cannot be tried (no version id, or a connector without it). Never throws. */
+async function carryReview(
+  ctx: VersionContext,
+  input: Omit<VersionConnectorInput, 'fetch'>,
+  versions: readonly StoreVersionRow[],
+  versionId: string | null,
+): Promise<ReviewCarryResult | null> {
+  if (versionId === null) return null;
+  try {
+    return await withConnector(ctx, input, async (c) =>
+      c.carryOverReviewInformation
+        ? c.carryOverReviewInformation(versions, versionId)
+        : null,
+    );
+  } catch (error) {
+    return {
+      outcome: 'failed',
+      from: null,
+      fieldsCopied: 0,
+      summary: null,
+      code: error instanceof VersionTimeout ? 'timeout' : 'unexpected',
+    };
+  }
 }
 
 /**
@@ -488,6 +579,9 @@ export async function applyVersion(
     cause?: string,
   ): Promise<{ ok: true; result: VersionResult }> => {
     const at = ctx.now();
+    // The previous version's App Review Information goes onto the new version (blank attributes only). It never fails the create: the
+    // version exists either way, and a failure is a warning with the repair action behind it.
+    const review = await carryReview(ctx, connection.input, before.versions, version.id);
     await db.transaction(async (tx) => {
       await audit(
         ctx,
@@ -500,11 +594,16 @@ export async function applyVersion(
           ...(request.releaseType ? { releaseType: request.releaseType } : {}),
           confirmedByReread: reread,
           ...(cause ? { cause } : {}),
+          // Counts and the version it came from: never a name, a phone number, an email address, a demo account or a note.
+          ...(review ? { reviewInformation: reviewAuditOf(review) } : {}),
         },
         tx,
       );
     });
     await releaseClaim(db, claim);
+    const warnings = evaluateChecks(request, before).warnings;
+    if (review && (review.outcome === 'failed' || review.outcome === 'no_source'))
+      warnings.push(reviewWarning(review));
     return {
       ok: true,
       result: {
@@ -512,7 +611,8 @@ export async function applyVersion(
         version,
         reversible: true,
         confirmedByReread: reread,
-        warnings: evaluateChecks(request, before).warnings,
+        warnings,
+        reviewInformation: review ? reviewViewOf(review) : null,
         createdAt: at,
         note: 'The version was created as an editable draft. Sync this app, then attach a build to it. Nothing was submitted.',
       },
@@ -630,6 +730,259 @@ export async function applyVersion(
     'It is not known whether the version was created: App Store Connect did not answer in a way that says. Look at the app in App Store Connect, then preview again. Nothing is created until you confirm a new preview.',
     coded('publish.unknown.version'),
   );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Copy the App Review Information to a version that already exists (the repair)
+
+/** The editable version the copy is for, and what copying would do. Masked: no name, phone number, email address, account or note. */
+export type ReviewCopyPreview = {
+  app: { id: string; name: string; platform: Platform; store: string };
+  /** The one editable version (the one that would go to review). */
+  version: { versionString: string | null; state: string };
+  reviewInformation: ReviewInformationView;
+  /** True when copying would write something (`created` or `merged`). */
+  canCopy: boolean;
+  /** Null while nothing would be copied. */
+  confirmHash: string | null;
+  note: string;
+};
+
+const COPY_NOTE =
+  'Copies the contact, demo account and notes of the previous version onto the draft version where the draft has nothing. A value that is already filled in is never changed. Attachments are not copied. Nothing is submitted.';
+
+const reviewCopyHash = (input: {
+  workspaceId: string;
+  appId: string;
+  targetId: string;
+  look: ReviewCarryResult;
+}): string =>
+  sha(
+    JSON.stringify({
+      v: 1,
+      workspaceId: input.workspaceId,
+      appId: input.appId,
+      targetId: input.targetId,
+      fromId: input.look.from?.id ?? null,
+      outcome: input.look.outcome,
+      fieldsCopied: input.look.fieldsCopied,
+    }),
+  );
+
+type ReviewCopyRead =
+  | { kind: 'unsupported' }
+  | { kind: 'no_version' }
+  | { kind: 'several' }
+  | {
+      kind: 'read';
+      target: StoreVersionRow;
+      versions: StoreVersionRow[];
+      look: ReviewCarryResult;
+    };
+
+/** Reads the versions and what a copy would do for the one editable version. Never writes. */
+async function readReviewCopy(c: VersionConnector): Promise<ReviewCopyRead> {
+  if (!c.previewReviewInformation || !c.carryOverReviewInformation) return { kind: 'unsupported' };
+  const state = await c.readVersions();
+  const editable = state.versions.filter((v) => v.editable);
+  if (editable.length === 0) return { kind: 'no_version' };
+  if (editable.length > 1) return { kind: 'several' };
+  const target = editable[0] as StoreVersionRow;
+  const look = await c.previewReviewInformation(state.versions, target.id);
+  return { kind: 'read', target, versions: state.versions, look };
+}
+
+const reviewCopyRefusal = (read: Exclude<ReviewCopyRead, { kind: 'read' }>): Failure =>
+  read.kind === 'unsupported'
+    ? failure(422, 'not_supported', 'This server cannot copy App Review Information.')
+    : read.kind === 'several'
+      ? failure(
+          409,
+          'several_editable_versions',
+          'App Store Connect has more than one editable version of this app, so it is not clear which one to copy the review information to. Remove the extra one first.',
+        )
+      : failure(
+          409,
+          'no_editable_version',
+          'There is no editable App Store version to copy the review information to.',
+        );
+
+/** `POST .../review-information/preview`: what copying would do (a store read). Writes nothing. */
+export async function previewReviewCopy(
+  ctx: VersionContext,
+  input: { workspaceId: string; appId: string; actor: Actor },
+): Promise<{ ok: true; preview: ReviewCopyPreview } | Failure> {
+  if (!ctx.versionEnabled) return versionDisabledFailure();
+  const app = await getApp(ctx.db, input.workspaceId, input.appId);
+  if (!app) return failure(404, 'not_found');
+  const unsupported = ready(app);
+  if (unsupported) return unsupported;
+  const connected = await connect(ctx, input.workspaceId, app, input.actor, VERSION_PURPOSE);
+  if (!connected.ok) return connected;
+  const { connection } = connected;
+  let read: ReviewCopyRead;
+  try {
+    read = await withConnector(ctx, connection.input, readReviewCopy);
+  } catch (error) {
+    if (error instanceof VersionTimeout)
+      return failure(
+        504,
+        'timeout',
+        'The store did not answer in time. Nothing was changed.',
+        coded('store.noAnswerNothingChanged'),
+      );
+    return mapped(error, connection.secret).failure;
+  }
+  if (read.kind !== 'read') return reviewCopyRefusal(read);
+  return {
+    ok: true,
+    preview: reviewCopyPreviewOf(input.workspaceId, app, read.target, read.look),
+  };
+}
+
+function reviewCopyPreviewOf(
+  workspaceId: string,
+  app: ManagedApp,
+  target: StoreVersionRow,
+  look: ReviewCarryResult,
+): ReviewCopyPreview {
+  const canCopy = look.outcome === 'created' || look.outcome === 'merged';
+  return {
+    app: { id: app.id, name: app.name, platform: app.platform, store: storeFor(app.platform) },
+    version: { versionString: target.versionString, state: target.state },
+    reviewInformation: reviewViewOf(look),
+    canCopy,
+    confirmHash: canCopy
+      ? reviewCopyHash({ workspaceId, appId: app.id, targetId: target.id, look })
+      : null,
+    note: COPY_NOTE,
+  };
+}
+
+export type ReviewCopyResult = {
+  app: { id: string; name: string; platform: Platform; store: string };
+  version: { versionString: string | null; state: string };
+  reviewInformation: ReviewInformationView;
+  copiedAt: number;
+  note: string;
+};
+
+/**
+ * `POST .../review-information`: re-reads, checks the preview's hash, writes the blank attributes once (a POST when the version has no
+ * detail, a PATCH of its blank attributes otherwise). Idempotent: it can be done again after a lost answer. The audit holds ids, an
+ * outcome and a count.
+ */
+export async function applyReviewCopy(
+  ctx: VersionContext,
+  input: { workspaceId: string; appId: string; confirmHash: string; actor: Actor },
+): Promise<{ ok: true; result: ReviewCopyResult } | Failure> {
+  if (!ctx.versionEnabled) return versionDisabledFailure();
+  const { db } = ctx;
+  const app = await getApp(db, input.workspaceId, input.appId);
+  if (!app) return failure(404, 'not_found');
+  const unsupported = ready(app);
+  if (unsupported) return unsupported;
+  const taken = await takeClaim(ctx, { workspaceId: input.workspaceId, app, actor: input.actor });
+  if (!taken.ok) return taken;
+  const claim = taken.claim;
+  const stop = async (f: Failure): Promise<Failure> => {
+    await releaseClaim(db, claim);
+    return f;
+  };
+  const connected = await connect(ctx, input.workspaceId, app, input.actor, VERSION_PURPOSE);
+  if (!connected.ok) return stop(connected);
+  const { connection } = connected;
+  const failed = async (code: string, outcome: string, f: Failure, extra: Record<string, unknown> = {}) => {
+    await audit(ctx, { ...input }, app, 'store.review_information_copy_failed', { code, outcome, ...extra });
+    return stop(f);
+  };
+
+  type Done =
+    | { kind: 'refused'; failure: Failure; code: string }
+    | { kind: 'changed'; target: StoreVersionRow; look: ReviewCarryResult }
+    | { kind: 'done'; target: StoreVersionRow; done: ReviewCarryResult };
+  let outcome: Done;
+  try {
+    outcome = await withConnector(ctx, connection.input, async (c): Promise<Done> => {
+      const read = await readReviewCopy(c);
+      if (read.kind !== 'read')
+        return { kind: 'refused', failure: reviewCopyRefusal(read), code: read.kind };
+      const hash = reviewCopyHash({
+        workspaceId: input.workspaceId,
+        appId: app.id,
+        targetId: read.target.id,
+        look: read.look,
+      });
+      const canCopy = read.look.outcome === 'created' || read.look.outcome === 'merged';
+      if (!canCopy || hash !== input.confirmHash)
+        return { kind: 'changed', target: read.target, look: read.look };
+      const done = await (c.carryOverReviewInformation as NonNullable<VersionConnector['carryOverReviewInformation']>)(
+        read.versions,
+        read.target.id,
+      );
+      return { kind: 'done', target: read.target, done };
+    });
+  } catch (error) {
+    if (error instanceof VersionTimeout)
+      return failed(
+        'timeout',
+        'unknown',
+        failure(
+          504,
+          'timeout',
+          'The store did not answer in time. Preview again to see what the version holds now; copying again is safe.',
+        ),
+      );
+    const m = mapped(error, connection.secret);
+    return failed(m.code, 'failed', m.failure);
+  }
+  if (outcome.kind === 'refused') return failed(outcome.code, 'refused', outcome.failure);
+  if (outcome.kind === 'changed') {
+    return failed(
+      'state_changed',
+      'refused',
+      failure(
+        409,
+        'state_changed',
+        'What the store holds changed since this was previewed, or there is nothing left to copy, so nothing was written. Review the new preview.',
+        { preview: reviewCopyPreviewOf(input.workspaceId, app, outcome.target, outcome.look) },
+      ),
+    );
+  }
+  const { done, target } = outcome;
+  if (done.outcome === 'failed')
+    return failed(
+      done.code ?? 'failed',
+      'failed',
+      failure(
+        502,
+        'store_rejected',
+        'App Store Connect did not accept the review information. Fill it in App Store Connect (the version page, App Review Information), or try again.',
+        { cause: done.code ?? 'failed', ...(done.httpStatus !== undefined ? { storeStatus: done.httpStatus } : {}) },
+      ),
+    );
+  const at = ctx.now();
+  await db.transaction(async (tx) => {
+    await audit(
+      ctx,
+      { ...input },
+      app,
+      'store.review_information_copied',
+      { versionId: target.id, versionString: target.versionString, ...reviewAuditOf(done) },
+      tx,
+    );
+  });
+  await releaseClaim(db, claim);
+  return {
+    ok: true,
+    result: {
+      app: { id: app.id, name: app.name, platform: app.platform, store: storeFor(app.platform) },
+      version: { versionString: target.versionString, state: target.state },
+      reviewInformation: reviewViewOf(done),
+      copiedAt: at,
+      note: 'The review information was copied to the draft version. Nothing was submitted.',
+    },
+  };
 }
 
 export { CREATABLE_RELEASE_TYPES };
