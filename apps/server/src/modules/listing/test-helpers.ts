@@ -93,7 +93,11 @@ export class FakeStore implements StoreConnector {
   }
   async verifyCredentials() {}
   async listApps(): Promise<StoreApp[]> {
-    return [{ storeId: '1234567890', platform: 'ios', name: 'Acme', bundleId: 'com.acme.app' }];
+    return [
+      { storeId: '1234567890', platform: 'ios', name: 'Acme', bundleId: 'com.acme.app' },
+      // An app of the workspace that has no repository (compare-deadline.test.ts): the store knows it, so adding it succeeds.
+      { storeId: '1234567891', platform: 'ios', name: 'No repo', bundleId: 'com.acme.other' },
+    ];
   }
   async listVersions(): Promise<StoreVersion[]> {
     return [];
