@@ -252,11 +252,6 @@ export function assetSlotSupport(platform: Platform, slot: AssetSlot): SlotSuppo
     : { ok: true };
 }
 
-/** The most files one set can hold (a push replaces the whole set), from the stores' documented limits. */
-export function slotMaxFiles(platform: Platform, slot: AssetSlot): number {
-  return limitOf(assetStoreOf(platform), slot.kind, slot.device).stagedMax;
-}
-
 export const assetStoreOf = (platform: Platform): AssetStore => listingStoreOf(platform);
 
 export type SlotLimitProblem = {
@@ -282,9 +277,10 @@ export function slotLimitProblem(
   slot: AssetSlot,
   count: number,
 ): SlotLimitProblem | null {
-  const max = slotMaxFiles(platform, slot);
-  if (count <= max) return null;
+  // The most files one staged set can hold (a push replaces the whole set): `limitOf` is the only limit table.
   const store = assetStoreOf(platform);
+  const max = limitOf(store, slot.kind, slot.device).stagedMax;
+  if (count <= max) return null;
   const screenshots = slot.kind === 'screenshot';
   const label = screenshots
     ? describeDevice(store, slot.kind, slot.device)

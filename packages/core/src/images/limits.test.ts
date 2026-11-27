@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ASSET_RULES } from '../listing/store-asset-specs.ts';
-import { slotLimitProblem, slotMaxFiles } from '../listing/staged-changes.ts';
+import { assetStoreOf, slotLimitProblem } from '../listing/staged-changes.ts';
 import { limitOf } from './limits.ts';
 
 test('the limit table: screenshots 10 (Apple) and 8 (Play), previews 3, everything else none', () => {
@@ -14,11 +14,11 @@ test('the limit table: screenshots 10 (Apple) and 8 (Play), previews 3, everythi
   }
 });
 
-test('slotMaxFiles (staging) and the rule text read this table, never their own numbers', () => {
-  assert.equal(slotMaxFiles('ios', { kind: 'screenshot', device: 'iphone_6_9' }), limitOf('app_store', 'screenshot').stagedMax);
-  assert.equal(slotMaxFiles('macos', { kind: 'screenshot', device: 'mac' }), 10);
-  assert.equal(slotMaxFiles('android', { kind: 'screenshot', device: 'phone' }), 8);
-  assert.equal(slotMaxFiles('android', { kind: 'feature_graphic', device: null }), 1);
+test('the staged limit (slotLimitProblem) and the rule text read this table, never their own numbers', () => {
+  assert.equal(limitOf(assetStoreOf('ios'), 'screenshot', 'iphone_6_9').stagedMax, limitOf('app_store', 'screenshot').stagedMax);
+  assert.equal(limitOf(assetStoreOf('macos'), 'screenshot', 'mac').stagedMax, 10);
+  assert.equal(limitOf(assetStoreOf('android'), 'screenshot', 'phone').stagedMax, 8);
+  assert.equal(limitOf(assetStoreOf('android'), 'feature_graphic', null).stagedMax, 1);
   const over = slotLimitProblem('ios', { kind: 'screenshot', device: 'ipad_13' }, 11);
   assert.equal(over?.max, 10);
   assert.equal(over?.rule, limitOf('app_store', 'screenshot').rule);

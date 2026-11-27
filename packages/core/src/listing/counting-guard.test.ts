@@ -62,7 +62,7 @@ test('facts built from the store\'s sets carry the set (the key of the count): O
 });
 
 test('no screen or server module counts the images of a store set against the limit itself', () => {
-  // `slotMaxFiles` is the limit for a display of ONE set (what the grid shows as "N of 10"); nothing may compare a count to it to raise a problem.
+  // `limitOf(...).stagedMax` is the limit for a display of ONE set (what the grid shows as "N of 10"); nothing may compare a count to it to raise a problem.
   const raising = using(/files\.length\s*>\s*(?:\w+\.)?max\b|rows\.length\s*>\s*(?:\w+\.)?max\b/);
   assert.deepEqual(raising, [
     'apps/server/src/modules/publish/staged-changes.ts', // the size of the ONE staged set a push writes (`slotLimitProblem`)

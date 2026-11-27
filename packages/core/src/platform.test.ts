@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { limitOf } from './images/limits.ts';
 import { ASSET_PLATFORMS, requiredSizes, storeSetKey } from './listing/asset-sync.ts';
 import {
   appleDisplayType,
   assetSlotSupport,
   assetStoreOf,
   isStageableTextField,
-  slotMaxFiles,
 } from './listing/staged-changes.ts';
 import { deviceFitsPlatform } from './listing/store-asset-specs.ts';
 import {
@@ -81,7 +81,7 @@ test('macOS stages the version localization fields and the Mac display only', ()
   assert.equal(isStageableTextField('macos', 'promotional_text'), true);
   assert.equal(isStageableTextField('macos', 'short_description'), false);
   assert.equal(assetStoreOf('macos'), 'app_store');
-  assert.equal(slotMaxFiles('macos', { kind: 'screenshot', device: 'mac' }), 10);
+  assert.equal(limitOf(assetStoreOf('macos'), 'screenshot', 'mac').stagedMax, 10);
   assert.equal(assetSlotSupport('macos', { kind: 'screenshot', device: 'mac' }).ok, true);
   const phone = assetSlotSupport('macos', { kind: 'screenshot', device: 'iphone_6_9' });
   assert.equal(phone.ok, false);

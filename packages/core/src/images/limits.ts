@@ -2,7 +2,7 @@ import { type AssetKind, type AssetStore, assetCountLimit } from '../listing/sto
 
 /**
  * THE image limit table (docs/state-model.md, "Single owners (core)"). Before this file the numbers lived in `maxFor` of
- * store-asset-specs.ts (10 Apple screenshots, 3 previews, 8 Play screenshots) AND `slotMaxFiles` of staged-changes.ts (10, 8, 1) AND in
+ * store-asset-specs.ts (10 Apple screenshots, 3 previews, 8 Play screenshots) AND `slotMaxFiles` of staged-changes.ts (10, 8, 1; deleted: `slotLimitProblem` reads this table) AND in
  * the text of `ASSET_RULES['apple.screenshot.count']`, and the web retyped them for the Add button. This is a view over the first (it
  * does not fork it): change a number in `store-asset-specs.ts` and every consumer follows.
  *

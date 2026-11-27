@@ -1,16 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { limitOf } from '../images/limits.ts';
 import {
   APPLE_VERSION_LOCALIZATION_ATTRIBUTES,
   appleDisplayType,
   assetSlotSupport,
+  assetStoreOf,
   isStageableTextField,
   PLAY_LISTING_MEMBERS,
   parseSlotKey,
   playImageType,
   STAGEABLE_TEXT_FIELDS,
   slotKey,
-  slotMaxFiles,
 } from './staged-changes.ts';
 
 test('only the version localization fields of the App Store are stageable; Play has all four', () => {
@@ -79,7 +80,7 @@ test('App Store: only screenshots of a known display can be pushed; previews and
 });
 
 test('set sizes follow the stores documented limits', () => {
-  assert.equal(slotMaxFiles('ios', { kind: 'screenshot', device: 'iphone_6_5' }), 10);
-  assert.equal(slotMaxFiles('android', { kind: 'screenshot', device: 'phone' }), 8);
-  assert.equal(slotMaxFiles('android', { kind: 'icon', device: null }), 1);
+  assert.equal(limitOf(assetStoreOf('ios'), 'screenshot', 'iphone_6_5').stagedMax, 10);
+  assert.equal(limitOf(assetStoreOf('android'), 'screenshot', 'phone').stagedMax, 8);
+  assert.equal(limitOf(assetStoreOf('android'), 'icon', null).stagedMax, 1);
 });
