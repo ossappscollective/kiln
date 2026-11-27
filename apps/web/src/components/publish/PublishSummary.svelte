@@ -15,6 +15,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
+  import { reportShown } from '../../lib/app-state/dev-assert.ts';
   import { listingStore } from '../../lib/app-state/listing-store.svelte.ts';
   import { assetFileUrl } from '../../lib/assets/assets.ts';
   import { stagedBlobUrl } from '../../lib/assets/sync.ts';
@@ -54,6 +55,11 @@
   const defaultLocale = $derived(
     workspaceId !== undefined && summary !== null ? (listingStore.defaultLocale(workspaceId, summary.appId)?.locale ?? null) : null,
   );
+
+  // Dev monitor: the default language this block compares notes with is the one the checks and the fix bar use.
+  $effect(() => {
+    if (summary !== null && defaultLocale !== null) reportShown(`defaultLocale:${summary.appId}`, defaultLocale, 'publishSummary');
+  });
 
   $effect(() => {
     const appId = summary?.appId ?? '';

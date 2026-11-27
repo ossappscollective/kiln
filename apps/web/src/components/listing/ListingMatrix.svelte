@@ -31,6 +31,7 @@
   import { formatList } from '../../lib/i18n/format.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { openStatusPopover } from '../../lib/app-page.ts';
+  import { reportShown } from '../../lib/app-state/dev-assert.ts';
   import { listingStore } from '../../lib/app-state/listing-store.svelte.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { shortRef } from '../../lib/listing/drift.ts';
@@ -134,6 +135,13 @@
       out[m.id] = { drift: live?.drift ?? null, live, loading: live === null && status.error === null, reloading: status.reloading, problem: status.error ?? '' };
     }
     return out;
+  });
+  // Dev monitor: the locales of each app the grid draws are the ones every other listing surface shows.
+  $effect(() => {
+    for (const m of members) {
+      const codes = listingStore.locales(workspaceId, m.id, 'shown');
+      if (codes.length > 0) reportShown(`localeList:${m.id}`, [...codes].sort(), 'listingGrid');
+    }
   });
   let filter = $state<MatrixFilter>(defaultMatrixFilter());
   let repoReading = $state(false);

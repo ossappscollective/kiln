@@ -12,6 +12,7 @@
   import { can, type Fix, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
+  import { reportShown } from '../../lib/app-state/dev-assert.ts';
   import { listingStore } from '../../lib/app-state/listing-store.svelte.ts';
   import { fixAllOf, type ListingFixesView } from '../../lib/listing/fixes.ts';
   import FixAll from '../listing/FixAll.svelte';
@@ -62,6 +63,15 @@
     void workspaceId;
     void refreshKey;
     if (mayRead) untrack(() => void listingStore.loadChecks(api, workspaceId, app.id));
+  });
+
+  // Dev monitor: the locales and the base language this card (and the fix bar) draw are the ones every other listing surface shows.
+  $effect(() => {
+    if (view !== null) {
+      reportShown(`localeList:${app.id}`, view.locales.map((l) => l.locale).sort(), 'insightsChecks');
+      reportShown(`defaultLocale:${app.id}`, view.baseLocale ?? null, 'insightsChecks');
+    }
+    if (fixes !== null) reportShown(`localeList:${app.id}`, fixes.locales.map((l) => l.locale).sort(), 'fixBar');
   });
 
   const fixesOf = (locale: string) => fixes?.locales.find((l) => l.locale === locale);

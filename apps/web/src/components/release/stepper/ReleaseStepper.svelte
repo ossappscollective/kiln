@@ -19,6 +19,7 @@
   import { ApiError, type Api } from '../../../lib/api.ts';
   import { fitToViewport } from '../../../lib/fit-viewport.ts';
   import { invalidate } from '../../../lib/facts/invalidate.ts';
+  import { reportShown } from '../../../lib/app-state/dev-assert.ts';
   import { listingStore } from '../../../lib/app-state/listing-store.svelte.ts';
   import { readCache } from '../../../lib/read-cache.ts';
   import { t } from '../../../lib/i18n/t.ts';
@@ -136,6 +137,16 @@
   const rows = $derived(noteRows({ platform: app.platform, locales, drafts, store: storeNotes(editable), staged: stagedNotes(view, app.platform) }));
   /** The one status of the notes (core `notesView`): every listing language must have text. */
   const notesOf = $derived(releaseNotesView({ platform: app.platform, listingLocales: listingLocales, drafts, store: storeNotes(editable), staged: stagedNotes(view, app.platform) }));
+  // Dev monitor: the languages the notes step is written for, and what the notes say, are the ones every other surface shows (the typed text is
+  // not a fact of the store yet: reported once nothing is waiting to be staged).
+  $effect(() => {
+    if (listingLocales.length === 0) return;
+    reportShown(`localeList:${app.id}`, [...listingLocales].sort(), 'releaseStepNotes');
+    if (unsavedLocales(rows).length > 0) return;
+    const facts = notesFactsOf(notesOf);
+    reportShown(`notesFilled:${app.id}`, facts.withText, 'releaseStepNotes');
+    reportShown(`notesOver:${app.id}`, facts.over, 'releaseStepNotes');
+  });
   const chosen = $derived(chosenOf({ platform: app.platform, view, editable, builds: buildList, codes: playCodes }));
   const choices = $derived.by((): number | null => {
     if (candidates === null) return null;
