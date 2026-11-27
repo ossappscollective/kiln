@@ -136,8 +136,9 @@ Releases table (rows and "Ready to release"), the overview tile, the pipeline su
 - **Priority**: publishing, publish_failed and changes_pending stay above everything; the candidate comes with the release flow (it is the
   quiet second button of `changes_pending`, off while a publish runs or has failed, with the reason). The platform scope applies as for
   every flow: iOS shows iOS only; with Both the most urgent leads and names its platform; Android keeps Promote.
-- **Facts**: the loader reads the store rows of `GET /apps/{id}/builds/artifacts` once per record (`storeBuildsStore`, shared with the
-  Builds page through the read cache) in the same refresh as the pipelines; until they are read the model knows the newest build of the
+- **Facts**: the loader reads the store rows of `GET /apps/{id}/builds/artifacts` once per record (`storeBuildsStore`, kept in the read cache
+  under `store-builds/<app>`; the Test builds page and the release step's build picker read the same endpoint DIRECTLY, with no cache shared
+  with the model, so they can be older or newer than the model's copy until they move onto it) in the same refresh as the pipelines; until they are read the model knows the newest build of the
   release pipeline, and the version the pipeline names when the page did not load the releases. Nothing is added to the server.
 
 ### The pending count
@@ -170,6 +171,95 @@ another number).
 `deriveTopBar` returns `idle | pending(count) | publishing | failed(count)` (`failed` carries `ready: true` when every kept blocker is fixed: the bar then says it is ready to submit). Priority: the open app publishing, then another app of the
 workspace publishing (the button follows it), then a failure in scope, then pending in scope. It never shows `idle` while the card
 says something is pending, because both read the same `AppState`.
+
+## 2b. Caches, freshness and invalidation (one cache, one list, one event)
+
+The rule: a fact has ONE reader, ONE cache and ONE invalidation event. Nobody writes `readCache.forget(...)` or a hand-made `dropXCaches()`:
+a change says WHAT happened (`sync`, `publish`, `staged_changed`, ...) and the registry drops what declared that event.
+
+### Times that server and browser must agree on: `packages/core/src/timings.ts`
+
+Every TTL, freshness window and liveness threshold that two parts depend on lives there with its relation to the others in code
+(`timings.test.ts` pins the relations). The browser's value is DERIVED from the server's, never a second literal:
+
+| Constant                                           | Value  | Server user                          | Browser user                                          | Relation                                                |
+| -------------------------------------------------- | ------ | ------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------- |
+| `STORE_VIEW_TTL_MS`                                | 60 s   | store images view                    | (`READ_CACHE_TTL_MS`)                                 | `ASSET_SYNC_LIMITS.storeCacheSeconds` derives from it   |
+| `CURRENT_READINESS_TTL_MS`                         | 30 s   | `GET publish/readiness`              | `READINESS_FRESH_MS` = same                           | readiness <= store view                                 |
+| `GRAPHICS_FRESH_MS`                                | 20 s   | -                                    | Graphics tab (`storeMediaCache`)                      | <= store view                                           |
+| `READ_CACHE_TTL_MS`                                | 60 s   | -                                    | `readCache` default                                   | = store view                                            |
+| `STORE_BUILDS_READ_TTL_MS`                         | 120 s  | -                                    | `storeBuildsStore`                                    | >= server build list; `build_changed`/`sync` drop it    |
+| `BUILD_LIST_TTL_MS` / `BUILD_PROBLEM_TTL_MS`       | 30/60 s | build artifacts, TestFlight groups  | -                                                     |                                                         |
+| `IMAGE_REF_TTL_MS`                                 | 15 min | image refs                           | -                                                     | >= store view; also dropped WITH the view's events      |
+| `NOTES_HISTORY_TTL_MS`, `PROPOSAL_SUMMARY_TTL_MS`  | 10 min | notes history, proposal summary      | -                                                     |                                                         |
+| `PUBLISH_SILENT_AFTER_MS`                          | 60 s   | a person may end a silent claim      | `QUIET_AFTER_MS` = same ("the server has not reported") | was 45 s in the browser, 60 s on the server: 60 kept  |
+| `PUBLISH_STUCK_AFTER_MS`, `PUBLISH_CLAIM_TTL_MS`, `PUBLISH_HEARTBEAT_MS` | 15 min / 2 min / 20 s | claim liveness | `STUCK_AFTER_MS` = same | heartbeat x 3 <= claim TTL |
+| `PUBLISH_POLL_*_MS`                                | 5/30/60 s | -                                 | claims poll (visible / hidden / back-off cap)         |                                                         |
+
+### Server: `apps/server/src/services/cache-registry.ts`
+
+Every in-memory cache is born on the list: `timedCache(ttl, max, { name, owner, invalidatedBy, keys })`, `registerMapCache(map, ...)` or
+`registerCache(...)`. A cache that no event can make stale must say why (`why`). `emitCacheEvent(event, { workspaceId, appId })` drops what
+declared the event for that app (a cache keyed by repository drops the workspace's entries). `cache-registry.test.ts` fails when a
+`timedCache(` has no declaration, when a module-level `Map` is neither registered nor listed as not a cache, when the registered caches differ
+from this table, or when this file does not name a cache or an event; `cache-events.test.ts` checks that the code that changes things fires the event.
+
+| Cache (`name`)                                                                                                                  | TTL     | Dropped by (`invalidatedBy`)                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------- |
+| `publish.current_readiness`                                                                                                     | 30 s    | `store_read`, `sync`, `publish`, `release_changed`, `build_changed`, `staged_changed`  |
+| `listing.store_images_view`                                                                                                     | 60 s    | `store_read`, `sync`, `publish`, `release_changed`                                     |
+| `listing.image_refs` (an app's refs go WITH its view)                                                                           | 15 min  | `store_read`, `sync`, `publish`, `release_changed`                                     |
+| `listing.proposal_summary`                                                                                                      | 10 min  | `sync`, `staged_changed`, `release_changed`, `build_changed`, `publish`                |
+| `notes.history`                                                                                                                 | 10 min  | `store_read`, `sync`, `publish`, `release_changed`                                     |
+| `builds.repo_artifacts`, `builds.artifact_trouble`, `builds.testflight_groups`, `builds.testflight_trouble`                     | 30/60 s | `sync`, `build_changed`                                                                |
+| `ci.active_runs`                                                                                                                | 5 s     | `build_changed`                                                                        |
+| `listing.image_thumbs`, `listing.image_probes`, `listing.asset_index`, `builds.repo_artifacts_etag`                             | none    | none: keyed by content (checksum, commit) or only used for conditional requests        |
+| `listing.asset_repo_opened`                                                                                                     | 30 s    | none: an opened connector, not a fact                                                  |
+| `ci.tag_data`, `ci.commit_facts`, `ci.workflows`, `ci.workflow_inputs`, `ci.compare`, `ci.tags_preview`, `ci.run_actor`, `ci.run_jobs`, `repo.snapshot` | 5 s - 24 h | none: reads of the CI host / repository keyed by repository, sha or ref   |
+| `aso.competitor_search_refs`, `aso.competitor_thumbs`, `aso.searches`, `aso.lookups`, `aso.app_searches`, `aso.hint_lists`      | by `cacheMs` | none: public store pages of other apps                                            |
+
+Where each event is fired on the server:
+
+- `store_read`: `GET .../assets/store?fresh=1` and `GET .../publish/readiness?fresh=1` ("Read again", "Check again").
+- `sync`: `syncApp`, after the release rows are written (the Sync button, the sync job, the scheduled listing read that goes through it, the
+  change-set fix-up) and `syncListing` (the scheduled listing read on its own, `modules/listing/schedule.ts`).
+- `publish`: a push that succeeded, partly succeeded, applied with differences or whose outcome is unknown (`store-draft.ts`), the end of every
+  `applyPublish` run whatever its outcome, a submit that succeeded.
+- `staged_changed`: `stageText`, `stageAssets`, `unstage`, `clearStaged`, `stageReleaseField`, `replaceAssetSet`.
+- `release_changed`: `applyVersion` (a version was created), `applyRelease`, `createPlan` / `updatePlan` / `deletePlan`.
+- `build_changed`: `putBuildLink` / `removeBuildLink` (a build attached or detached), a CI run that finished (`announce`).
+- There is no inbound store webhook: the store is seen by a sync, a read or the person's own action.
+
+### Browser: `apps/web/src/lib/facts/invalidate.ts`
+
+`invalidate(event, { workspaceId, appId | appIds })` with `event` one of `sync | publish | staged_changed | store_read | release_created |
+build_changed` (`release_created` is the server's `release_changed`). It (1) forgets the read-cache key families of the event
+(`FAMILIES_FOR`: `pipeline/`, `store-builds/`, `editable/`, `candidates/`, `live/`, `assetdiff/`; keys are built by `readKeys`, and
+`readFact` reads with a typed family), (2) drops the Graphics tab's last read (`storeMediaCache`) for the events that may change the store,
+(3) tells the screens that subscribed with `onInvalidated`, and (4) lets the model read again (`appStateStore.react`: `refresh` with the apps
+named, collected for 150 ms so twenty syncs are one refresh; `staged_changed` has the lighter cart + pending summary reaction).
+
+| Event             | Read-cache families forgotten                                   | Graphics read | Model                       | Raised by                                                                                       |
+| ----------------- | --------------------------------------------------------------- | ------------- | --------------------------- | ----------------------------------------------------------------------------------------------- |
+| `sync`            | pipeline, storeBuilds, editable, candidates, live, assetDiff    | dropped       | `refresh(appIds)`           | AppShell, Portfolio (each app and the batch), AppDetail, ImportFromCredential                    |
+| `publish`         | the same                                                        | dropped       | `refresh(appIds)`           | `api.publish*` (the browser event, success or failure), so the publish dialog and the cart       |
+| `staged_changed`  | assetDiff                                                       | kept          | cart count + pending summary | `api.stage*`, unstage, discard (the browser event `kiln:staged-changed`)                         |
+| `store_read`      | editable, candidates, live, assetDiff                           | dropped (kept by the screen that just read) | readiness of a blocked run, by the caller | Graphics "Read again", "Check again" (`appStateStore.checkAgain`) |
+| `release_created` | the same as `sync`                                              | dropped       | `refresh(appIds)`           | CreateVersion, NewPlan, ReleaseStepper after a release started                                   |
+| `build_changed`   | pipeline, storeBuilds, candidates                               | kept          | `refresh(appIds)`           | AppShell after the rest of a sync (TestFlight, CI runs)                                          |
+
+`kiln:staged-changed` is still the transport from `lib/api.ts` (which cannot import the stores), but it has ONE subscriber: `bindInvalidation`,
+bound by `appStateStore.watch`. Announcements that arrive together become one `invalidate` per event. AppShell, the cart, the Graphics tab,
+the release step's comparison and the proposal hint listen with `onInvalidated`. `invalidate.test.ts` fails when an event forgets the wrong
+families, when anything but `facts/invalidate.ts` calls `readCache.forget(` or `onStagedChanged(`, and when a `readCache.read(` key is not of
+a listed family.
+
+Gaps (not done, on purpose or not yet): the browser has no push channel. `GET /workspaces/:id/events/stream` (SSE) exists on the server for
+external consumers (role `events.read`, at most 5 streams per person), but it is not per app and is not a browser contract, so another tab,
+another person or an MCP caller is still seen only at the next focus, poll or page read; the scheduled listing read is seen at the next
+`sync`/focus. A client for `app.synced` over that stream is the next step (then `invalidate('sync', ...)` from it, no other change). The model
+also still reads `readinessStore` only for blocked runs. The browser's `navSignals`, `cartSummaryStore`, `pendingStore` and `publishingStore`
+keep their own freshness (generation counters and timers) and are refreshed through `appStateStore.refresh`, not registered as key families.
 
 ## 3. Enforcement (so it cannot regress)
 
