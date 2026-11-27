@@ -1,5 +1,7 @@
 import {
   byFamily,
+  compareBuildNumbers,
+  compareVersions,
   type DueFlags,
   isPlanLocale,
   MAX_ROLLOUT_STEPS,
@@ -21,7 +23,7 @@ import { rolloutIssueMessage } from './core-text.ts';
 import { formatDate, formatDateTime, formatPercent as formatShare } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
 import { compareTracks } from './play-tracks.ts';
-import { compareVersions, platformLabel } from './portfolio.ts';
+import { platformLabel } from './portfolio.ts';
 import type { AppSummary, ReleaseSummary, RolloutStep } from './types.ts';
 
 // ---------------------------------------------------------------------------------------------
@@ -98,7 +100,7 @@ export function releasesOfVersion(
   return releases
     .filter((r) => r.version === version)
     .sort(
-      (a, b) => compareTracks(a.track, b.track) || compareVersions(b.build ?? '', a.build ?? ''),
+      (a, b) => compareTracks(a.track, b.track) || compareBuildNumbers(b.build, a.build),
     );
 }
 

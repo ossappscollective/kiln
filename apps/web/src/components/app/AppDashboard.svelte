@@ -27,7 +27,8 @@
   import { scopeRunsToApps } from '../../lib/running.ts';
   import { type StartedRun, isStartedRun } from '../../lib/start-release.ts';
   import { buildMatrix, modeCounts } from '../../lib/listing/matrix.ts';
-  import { copyIdentifierLabel, identifierLabel, latestRelease, liveRelease, trackLabel } from '../../lib/portfolio.ts';
+  import { releaseFactsOf } from '../../lib/app-state/release-facts.ts';
+  import { copyIdentifierLabel, identifierLabel, trackLabel } from '../../lib/portfolio.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { canSubmit } from '../../lib/store-submit.ts';
   import { submitStore } from '../../lib/store-submit-store.svelte.ts';
@@ -260,10 +261,10 @@
   <div class="tiles">
     {#each members as app (app.id)}
       {@const list = releases[app.id] ?? []}
-      {@const latest = latestRelease(list, app.platform)}
-      {@const live = liveRelease(list, app.platform)}
+      {@const facts = releaseFactsOf(list, app.platform)}
+      {@const live = facts.live}
       {@const candidate = modelState.candidates.filter((c) => c.appId === app.id)[0]}
-      {@const inFlight = latest && (!live || latest.version !== live.version || latest.status !== 'live') ? latest : null}
+      {@const inFlight = facts.inFlight}
       <section class="card tile {app.platform}" aria-label={t('app:dash.tileLabel', { platform: platformLabel(app.platform) })}>
         <div class="tile-head">
           <PlatformBadge platform={app.platform} tinted />
@@ -307,7 +308,7 @@
   <Section title={t('app:dash.details')} key="details" defaultOpen={false} summary={members.map((m) => m.identifier).join(' · ')}>
     <div class="stack">
       {#each members as app (app.id)}
-        {@const latest = latestRelease(releases[app.id] ?? [], app.platform)}
+        {@const latest = releaseFactsOf(releases[app.id] ?? [], app.platform).latest}
         <section class="group" aria-label={t('app:dash.detailsLabel', { platform: platformLabel(app.platform) })}>
         <h3 class="group-head"><PlatformBadge platform={app.platform} tinted /></h3>
         <dl class="detail">

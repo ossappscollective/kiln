@@ -1,12 +1,11 @@
 import type { Platform, ReleaseState } from '@kiln/core';
-import { isDesktop, platformMeta, supports } from '@kiln/core';
+import { compareBuildNumbers, isDesktop, liveOf, platformMeta, supports } from '@kiln/core';
 import { runBadge } from './ci/ci.ts';
 import { formatDate } from './i18n/format.ts';
 import { t } from './i18n/t.ts';
 import {
   type BadgeTone,
   compareReleases,
-  compareVersions,
   formatRollout,
   platformRank,
   trackLabel,
@@ -48,7 +47,7 @@ export function buildsForRelease(
     .sort(
       (a, b) =>
         (b.uploadedAt ?? b.syncedAt) - (a.uploadedAt ?? a.syncedAt) ||
-        compareVersions(b.buildNumber, a.buildNumber),
+        compareBuildNumbers(b.buildNumber, a.buildNumber),
     );
 }
 
@@ -378,6 +377,30 @@ export type CurrentSplit = {
   olderCount: number;
 };
 
+/** The row that is live on each platform of the table (`liveOf` of @kiln/core), by platform: the one `splitCurrent` keeps as current. */
+export function liveRowKeys(groups: readonly VersionGroup[]): Map<Platform, string> {
+  const rowsOf = new Map<Platform, ReleaseRow[]>();
+  for (const group of groups) {
+    for (const row of group.rows) {
+      const list = rowsOf.get(row.platform);
+      if (list) list.push(row);
+      else rowsOf.set(row.platform, [row]);
+    }
+  }
+  // What is live is the core owner's answer (`liveOf`: live, rolling out or halted; Google Play: production), not "the first row whose
+  // status is live": a phased 1.19.0 over a live 1.18.0 is the live release.
+  const out = new Map<Platform, string>();
+  for (const [platform, rows] of rowsOf) {
+    const live = liveOf(
+      rows.map((r) => r.release),
+      { platform },
+    ).newestLive;
+    const row = live === null ? undefined : rows.find((r) => r.release === live);
+    if (row !== undefined) out.set(platform, row.key);
+  }
+  return out;
+}
+
 /**
  * Splits the table into the releases that matter now and the rest. A release is current when it is
  * in the newest version of its platform (every track of it), is the newest one that is live on its
@@ -387,14 +410,12 @@ export type CurrentSplit = {
  */
 export function splitCurrent(groups: readonly VersionGroup[]): CurrentSplit {
   const newestVersion = new Map<Platform, string>();
-  const newestLive = new Map<Platform, string>();
   for (const group of groups) {
     for (const row of group.rows) {
       if (!newestVersion.has(row.platform)) newestVersion.set(row.platform, group.version);
-      if (row.status === 'live' && !newestLive.has(row.platform))
-        newestLive.set(row.platform, row.key);
     }
   }
+  const newestLive = liveRowKeys(groups);
   const isCurrent = (group: VersionGroup, row: ReleaseRow): boolean =>
     row.obsolete === null &&
     (newestVersion.get(row.platform) === group.version ||

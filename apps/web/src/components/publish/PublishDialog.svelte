@@ -195,11 +195,11 @@ import { supports, type Role } from '@kiln/core';
   const inputs = $derived(releaseInputsFor({ view: app ? releaseSettingsStore.get(app.id) : null, track, stagedPercent: '' }));
   const offered = $derived(inputs.offer.offered);
   // The Track and Share fields while the release step is not added yet: the summary shows them live (never sent from here).
-  const liveRelease = $derived(
+  const typedRelease = $derived(
     rows.some((r) => r.needsInput) ? { track, fraction: offered ? parsePercent(share) : EVERYONE } : null,
   );
   const whatSummary = $derived(
-    plan ? publishSummary({ plan, wanted, identifier: app?.identifier ?? '', typed: liveRelease }) : null,
+    plan ? publishSummary({ plan, wanted, identifier: app?.identifier ?? '', typed: typedRelease }) : null,
   );
   const stepOf = (type: PublishStepType): PlanStep | undefined => plan?.steps.filter((s) => s.type === type)[0];
   // A push and a submit asked together while the submit certainly cannot run: the person chooses (push the draft only, or fix first).

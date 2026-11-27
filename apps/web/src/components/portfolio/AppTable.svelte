@@ -9,11 +9,10 @@
   import {
     appHref,
     appLabel,
-    latestRelease,
-    liveRelease,
     trackLabel,
     type ReleaseLoad,
   } from '../../lib/portfolio.ts';
+  import { releaseFactsOf } from '../../lib/app-state/release-facts.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import AppIcon from '../ui/AppIcon.svelte';
   import Button from '../ui/Button.svelte';
@@ -55,8 +54,9 @@
     <tbody>
       {#each apps as app (app.id)}
         {@const load = releases[app.id]}
-        {@const latest = load?.state === 'ready' ? latestRelease(load.releases, app.platform) : null}
-        {@const live = load?.state === 'ready' ? liveRelease(load.releases, app.platform) : null}
+        {@const facts = load?.state === 'ready' ? releaseFactsOf(load.releases, app.platform) : null}
+        {@const latest = facts?.latest ?? null}
+        {@const live = facts?.live ?? null}
         <tr>
           <td>
             <div class="app">

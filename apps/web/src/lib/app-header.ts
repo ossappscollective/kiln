@@ -1,5 +1,6 @@
 import {
   byFamily,
+  compareVersions,
   LOCKED_RELEASE_STATES,
   type Platform,
   platformLabel,
@@ -10,7 +11,7 @@ import {
 import { parseViewPath } from './app-scope.ts';
 import { formatList } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
-import { compareReleases, compareVersions } from './portfolio.ts';
+import { compareReleases } from './portfolio.ts';
 import type { ReleaseSummary } from './types.ts';
 
 /**

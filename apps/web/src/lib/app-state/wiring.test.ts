@@ -94,7 +94,7 @@ const RULES: Rule[] = [
     instead:
       'read `appStateStore.of(...)` (`primaryAction`, `secondaryActions`, `promotion`, `candidates`, `obsolete`, `notices`, `flow`) or `appStateStore.lineOf(...)`',
     pattern:
-      /\b(?:lineFor|chooseNextStep|nextStepTrains|orderTrains|releaseTrains|releaseTrainsByPlatform|trainInputOf|promoteOptions?|promoteHref|analyzeCandidates|candidateTrain|compareVersionStrings|compareBuildNumbers|obsoleteVersions|pipelineIsObsolete)\b/,
+      /\b(?:lineFor|chooseNextStep|nextStepTrains|orderTrains|releaseTrains|releaseTrainsByPlatform|trainInputOf|promoteOptions?|promoteHref|analyzeCandidates|candidateTrain|compareVersionStrings|obsoleteVersions|pipelineIsObsolete)\b/,
     files: [...COMPONENTS, ...LIB],
     allow: {
       'lib/play-promote.ts': 'it DEFINES the promote option the model offers',

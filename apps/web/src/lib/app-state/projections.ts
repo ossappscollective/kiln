@@ -8,9 +8,10 @@ import { appNavCounts } from '../nav-badges.ts';
 import { combineTotals, platformGroups, blockingItems } from '../pending.ts';
 import { blockerLines, submitBlockedOnly } from '../publish-failure.ts';
 import { buildDate } from '../publish-summary.ts';
-import { latestRelease, liveRelease, type ReleaseLoad } from '../portfolio.ts';
+import type { ReleaseLoad } from '../portfolio.ts';
+import { releaseFactsOf } from './release-facts.ts';
 import { noteLimit, noteRows } from '../release-notes.ts';
-import { buildReleaseTable, splitCurrent, type ObsoleteInfo } from '../releases-table.ts';
+import { buildReleaseTable, liveRowKeys, splitCurrent, type ObsoleteInfo } from '../releases-table.ts';
 import { stagedFacts } from '../release-stepper.ts';
 import type { PipelineSummaryApp } from '../release-pipeline.ts';
 import { itemCount } from '../staged.ts';
@@ -170,13 +171,13 @@ export const SURFACES: readonly Surface[] = [
     components: ['components/Shell.svelte'],
     mirrors: [
       'components/Shell.svelte:108-126 appCounts (lineOf + appNavCounts)',
-      'components/Shell.svelte:118 stalledApps(workspaceId) WITHOUT the release lists (the Portfolio and the Dashboard pass theirs)',
+      'components/Shell.svelte:118 stalledApps(workspaceId, navSignals.releasesOf(workspaceId)) (the lists the pages pushed into navSignals)',
     ],
     project(w) {
       const out: Facts = {};
       const line = lineOf(w, ids(w));
       if (line !== null && line.count > 0) out.pendingCount = line.count;
-      const unfinished = appNavCounts({ memberIds: ids(w), unanswered: {}, stalled: stalledOf(w, undefined) }).releases;
+      const unfinished = appNavCounts({ memberIds: ids(w), unanswered: {}, stalled: stalledOf(w, w.releases) }).releases;
       if (unfinished !== null) out.unfinishedReleases = unfinished;
       return out;
     },
@@ -199,7 +200,7 @@ export const SURFACES: readonly Surface[] = [
     mirrors: [
       'components/Portfolio.svelte:94 stalledApps(workspaceId, releaseLists) (the lists this page loaded)',
       'lib/app-overview.ts:107 buildOverviewRows (composes the row from four sources)',
-      'components/portfolio/AppTable.svelte:58-59 latestRelease / liveRelease over the page-loaded list',
+      'components/portfolio/AppTable.svelte:58 releaseFactsOf over the page-loaded list',
     ],
     project(w) {
       const groups = groupApps(w.records);
@@ -212,8 +213,9 @@ export const SURFACES: readonly Surface[] = [
         if (row.unfinished.length > 0) out.unfinishedReleases = row.unfinished.length;
         for (const m of row.group.members) {
           const list = w.releases[m.id] ?? [];
-          out[`latestVersion:${m.id}`] = versionOf(latestRelease(list, m.platform));
-          out[`liveVersion:${m.id}`] = versionOf(liveRelease(list, m.platform));
+          const facts = releaseFactsOf(list, m.platform);
+          out[`latestVersion:${m.id}`] = versionOf(facts.latest);
+          out[`liveVersion:${m.id}`] = versionOf(facts.live);
         }
       }
       return out;
@@ -223,7 +225,7 @@ export const SURFACES: readonly Surface[] = [
     id: 'appDashboardTiles',
     components: ['components/app/AppDashboard.svelte'],
     mirrors: [
-      'components/app/AppDashboard.svelte:253-254 liveRelease / latestRelease (status "live" only: a phased release does not count)',
+      'components/app/AppDashboard.svelte:263 releaseFactsOf (live = liveOf: a phased release is live)',
       'components/app/AppDashboard.svelte:258 modelState.candidates',
     ],
     project(w) {
@@ -231,8 +233,9 @@ export const SURFACES: readonly Surface[] = [
       const s = appState(w);
       for (const m of inScope(w)) {
         const list = w.releases[m.id] ?? [];
-        out[`liveVersion:${m.id}`] = versionOf(liveRelease(list, m.platform));
-        out[`latestVersion:${m.id}`] = versionOf(latestRelease(list, m.platform));
+        const facts = releaseFactsOf(list, m.platform);
+        out[`liveVersion:${m.id}`] = versionOf(facts.live);
+        out[`latestVersion:${m.id}`] = versionOf(facts.latest);
         const c = candidateOf(s, m.id);
         if (c !== null) {
           out[`candidate:${m.id}`] = c;
@@ -343,7 +346,7 @@ export const SURFACES: readonly Surface[] = [
     id: 'releasesTable',
     components: ['components/release/ReleaseTable.svelte', 'components/app/AppReleases.svelte'],
     mirrors: [
-      'lib/releases-table.ts:394 splitCurrent (newestLive = the first row whose status is "live")',
+      'lib/releases-table.ts:381 liveRowKeys (liveOf over the rows)',
       'lib/releases-table.ts:284 buildReleaseTable (sorts with its own compareReleases)',
       'components/release/ReleaseTable.svelte:180 row.obsolete.liveVersion (the model)',
     ],
@@ -354,11 +357,12 @@ export const SURFACES: readonly Surface[] = [
       for (const o of s.obsolete) obsolete[o.releaseId] = { liveVersion: o.liveVersion, href: null, linkLabel: null };
       const groups = buildReleaseTable({ releases: w.releases, plans: null, builds: {}, appIds: members.map((m) => m.id), obsolete });
       const split = splitCurrent(groups);
+      const liveKeys = liveRowKeys(groups);
       const out: Facts = {};
       for (const m of members) {
         const live = split.current
           .flatMap((g) => g.rows)
-          .filter((r) => r.appId === m.id && r.status === 'live')
+          .filter((r) => r.appId === m.id && liveKeys.get(r.platform) === r.key)
           .map((r) => r.version)[0];
         out[`liveVersion:${m.id}`] = live ?? null;
         const c = candidateOf(s, m.id);

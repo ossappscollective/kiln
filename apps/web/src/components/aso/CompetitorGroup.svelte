@@ -18,7 +18,8 @@
     compareRows,
   } from '../../lib/aso/aso.ts';
   import { t } from '../../lib/i18n/t.ts';
-  import { liveRelease, platformLabel, runLimited } from '../../lib/portfolio.ts';
+  import { releaseFactsOf } from '../../lib/app-state/release-facts.ts';
+  import { platformLabel, runLimited } from '../../lib/portfolio.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -144,7 +145,7 @@
   let ourRating = $state<{ rating: number | null; count: number | null }>({ rating: null, count: null });
   const picked = $derived(compare.map((id) => competitors.find((c) => c.id === id)).filter((c): c is AsoCompetitor => c !== undefined));
   const ours = $derived<OurFacts>({
-    version: liveRelease(releases, app.platform)?.version ?? null,
+    version: releaseFactsOf(releases, app.platform).live?.version ?? null,
     rating: ourRating.rating,
     ratingCount: ourRating.count,
   });

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { compareBuildNumbers, compareVersions } from '@kiln/core';
 import { ApiError, createApi } from './api.ts';
 import {
   type AppDraft,
@@ -14,7 +15,6 @@ import {
   candidateKey,
   chunk,
   classifySyncError,
-  compareVersions,
   credentialsFor,
   describeError,
   discoverableCredentials,
@@ -109,8 +109,9 @@ test('versions compare by number, not by text', () => {
   assert.ok(compareVersions('1.0.0-beta', '1.0.0') < 0);
   assert.ok(compareVersions('1.0.0', '1.0.0-beta') > 0);
   assert.ok(compareVersions('1.0.1', '1.0') > 0);
-  assert.ok(compareVersions('1.0.0-beta2', '1.0.0-beta10') < 0);
-  assert.ok(compareVersions('240,241', '240') > 0);
+  // The one comparator of @kiln/core: a pre-release word is compared as text, so beta10 sorts before beta2 (use beta.2 / beta.10 for numbers).
+  assert.ok(compareVersions('1.0.0-beta.2', '1.0.0-beta.10') < 0);
+  assert.ok(compareBuildNumbers('240', '99') > 0);
   assert.equal(compareVersions('', ''), 0);
 });
 

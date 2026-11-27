@@ -115,7 +115,7 @@
       ...appNavCounts({
         memberIds: ids,
         unanswered: can(workspace?.role ?? 'viewer', 'reviews.read') ? navSignals.unansweredByAppOf(workspaceId) : {},
-        stalled: appStateStore.stalledApps(workspaceId),
+        stalled: appStateStore.stalledApps(workspaceId, navSignals.releasesOf(workspaceId)),
       }),
       pending: line && line.count > 0 ? line.count : null,
       pendingBlocking: (line?.blocking ?? 0) > 0 || line?.failed === true,

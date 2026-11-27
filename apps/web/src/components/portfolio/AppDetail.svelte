@@ -17,13 +17,13 @@
     describeError,
     groupReleases,
     identifierLabel,
-    latestRelease,
     platformLabel,
     portfolioHref,
     storeName,
     syncApp,
     syncSummaryText,
   } from '../../lib/portfolio.ts';
+  import { releaseFactsOf } from '../../lib/app-state/release-facts.ts';
   import { releaseHref } from '../../lib/release.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
@@ -159,7 +159,7 @@
   }
 
   const groups = $derived(groupReleases(releases));
-  const latest = $derived(app ? latestRelease(releases, app.platform) : null);
+  const latest = $derived(app ? releaseFactsOf(releases, app.platform).latest : null);
   const failure = $derived(syncProblem || app?.lastSyncError?.trim() || '');
   /** Builds are readable by everyone who can read the app; the listing has its own right. */
   const sections = $derived([

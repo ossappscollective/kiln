@@ -1,5 +1,9 @@
 import {
   byFamily,
+  compareBuildNumbers,
+  compareVersions,
+  isObsolete,
+  liveOf,
   PLATFORMS,
   type Platform,
   platformMeta,
@@ -169,63 +173,42 @@ export function formatRollout(fraction: number | null | undefined): string | nul
 // ---------------------------------------------------------------------------------------------
 // Sorting and grouping releases
 
-const tokens = (version: string) => version.match(/\d+|[A-Za-z]+/g) ?? [];
-const isNumber = (token: string) => /^\d/.test(token);
-
-/**
- * Orders version strings: 2.10.0 is after 2.9.0, 1.0 equals 1.0.0, and a pre-release such as
- * 1.0.0-beta is before 1.0.0. Anything it cannot read as numbers and words compares as text.
- */
-export function compareVersions(a: string, b: string): number {
-  const left = tokens(a);
-  const right = tokens(b);
-  for (let i = 0; i < Math.max(left.length, right.length); i++) {
-    const x = left[i];
-    const y = right[i];
-    if (x === undefined || y === undefined) {
-      const extra = (x ?? y) as string;
-      // The longer one is a pre-release (a word follows) or a later part (a number follows).
-      if (isNumber(extra) && Number(extra) === 0) continue;
-      const longerIsGreater = isNumber(extra);
-      return (x === undefined ? -1 : 1) * (longerIsGreater ? 1 : -1);
-    }
-    if (isNumber(x) && isNumber(y)) {
-      const diff = Number(x) - Number(y);
-      if (diff !== 0) return diff < 0 ? -1 : 1;
-    } else if (isNumber(x) !== isNumber(y)) {
-      return isNumber(x) ? 1 : -1;
-    } else if (x.toLowerCase() !== y.toLowerCase()) {
-      return x.toLowerCase() < y.toLowerCase() ? -1 : 1;
-    }
-  }
-  return 0;
-}
-
 /** Newest version first. A tie goes to the more public track, then the higher build. */
 export function compareReleases(a: ReleaseSummary, b: ReleaseSummary): number {
   const byVersion = compareVersions(b.version, a.version);
   if (byVersion !== 0) return byVersion;
   const byTrack = compareTracks(a.track, b.track);
   if (byTrack !== 0) return byTrack;
-  if (a.build !== null && b.build !== null) {
-    const byBuild = compareVersions(b.build, a.build);
-    if (byBuild !== 0) return byBuild;
-  } else if (a.build !== b.build) {
-    return a.build === null ? 1 : -1;
-  }
+  const byBuild = compareBuildNumbers(b.build, a.build);
+  if (byBuild !== 0) return byBuild;
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
 export const sortReleases = (releases: readonly ReleaseSummary[]): ReleaseSummary[] =>
   [...releases].sort(compareReleases);
 
-/** The newest release, optionally of one platform. `null` when there is none. */
+/**
+ * The newest release, optionally of one platform, that is not left behind by what is live (an old draft is never "the latest release").
+ * `null` when there is none. Order and "live" are the core owners' (`compareVersions`, `liveOf`).
+ */
 export function latestRelease(
   releases: readonly ReleaseSummary[],
   platform?: Platform,
 ): ReleaseSummary | null {
   const pool = platform ? releases.filter((r) => r.platform === platform) : releases;
-  return sortReleases(pool)[0] ?? null;
+  const live = new Map<Platform, ReturnType<typeof liveOf>>();
+  const behind = (r: ReleaseSummary): boolean => {
+    let facts = live.get(r.platform);
+    if (facts === undefined) {
+      facts = liveOf(
+        pool.filter((x) => x.platform === r.platform),
+        { platform: r.platform },
+      );
+      live.set(r.platform, facts);
+    }
+    return isObsolete(r, facts);
+  };
+  return sortReleases(pool.filter((r) => !behind(r)))[0] ?? null;
 }
 
 /** The newest release of each platform that has one. */
@@ -240,13 +223,22 @@ export function latestByPlatform(
   return result;
 }
 
-/** The newest release that is fully live. Used to show what users have while a newer one is in progress. */
+/**
+ * The release that is LIVE: the newest serving one (`live`, `rolling_out`, `halted`; Google Play: the production track), by `liveOf`.
+ * A phased 1.19.0 over a live 1.18.0 is 1.19.0.
+ */
 export function liveRelease(
   releases: readonly ReleaseSummary[],
   platform?: Platform,
 ): ReleaseSummary | null {
   const pool = platform ? releases.filter((r) => r.platform === platform) : releases;
-  return sortReleases(pool).find((r) => r.status === 'live') ?? null;
+  const first = pool[0];
+  if (first === undefined) return null;
+  const alike = platform ?? first.platform;
+  return liveOf(
+    pool.filter((r) => r.platform === alike),
+    { platform: alike },
+  ).newestLive;
 }
 
 export type ReleaseGroup = {

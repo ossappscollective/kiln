@@ -1,5 +1,6 @@
 import {
   type Blocked,
+  compareVersions,
   DASHBOARD_BUCKETS,
   type DashboardBucket,
   type DueFlags,
@@ -16,7 +17,6 @@ import { formatList, formatPercent } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
 import {
   appHref,
-  compareVersions,
   latestRelease,
   platformRank,
   type ReleaseLoad,
