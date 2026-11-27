@@ -498,6 +498,8 @@
   "pushDialog.push": "In den Entwurf übertragen",
   "pushDialog.title": "An den {{store}}-Entwurf übertragen: bestätigen",
   "pushDialog.typeName": "Geben Sie <strong>{{phrase}}</strong> zur Bestätigung ein",
+  "reviewCheck.title_one": "Die App-Review-Informationen sind unvollständig: {{count}} Punkt vor dem Einreichen beheben",
+  "reviewCheck.title_other": "Die App-Review-Informationen sind unvollständig: {{count}} Punkte vor dem Einreichen beheben",
   "sections.ahead.days_one": "in {{count}} Tag",
   "sections.ahead.days_other": "in {{count}} Tagen",
   "sections.ahead.hours_one": "in {{count}} Stunde",

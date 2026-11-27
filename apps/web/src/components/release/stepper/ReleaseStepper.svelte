@@ -57,6 +57,7 @@
   import Icon from '../../ui/Icon.svelte';
   import PlatformBadge from '../../ui/PlatformBadge.svelte';
   import StepAssets from './StepAssets.svelte';
+  import ReviewInfoCheck from '../../listing/ReviewInfoCheck.svelte';
   import StepBuild from './StepBuild.svelte';
   import StepConfirm from './StepConfirm.svelte';
   import StepNotes from './StepNotes.svelte';
@@ -411,6 +412,8 @@
 
     <div class="main">
       {#if promoteStageProblem}<div class="problem"><Alert tone="error" ondismiss={() => (promoteStageProblem = '')}>{t('release-stepper:rs.promoteStageFailed', { detail: promoteStageProblem })}</Alert></div>{/if}
+
+      <ReviewInfoCheck {api} {workspaceId} {role} {app} />
 
       <div class="body" id="{uid}-body">
         {#if intro}

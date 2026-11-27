@@ -548,6 +548,8 @@
   "pushDialog.push": "Envoyer au brouillon",
   "pushDialog.title": "Envoyer au brouillon {{store}} : confirmer",
   "pushDialog.typeName": "Saisissez <strong>{{phrase}}</strong> pour confirmer",
+  "reviewCheck.title_one": "Les informations pour App Review sont incomplètes : {{count}} point à corriger avant de soumettre",
+  "reviewCheck.title_other": "Les informations pour App Review sont incomplètes : {{count}} points à corriger avant de soumettre",
   "sections.ahead.days_many": "dans {{count}} de jours",
   "sections.ahead.days_one": "dans {{count}} jour",
   "sections.ahead.days_other": "dans {{count}} jours",

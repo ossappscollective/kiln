@@ -1,6 +1,9 @@
+import { can, type Platform, type Role, supports } from '@kiln/core';
 import type { Api } from '../api.ts';
 import { ApiError } from '../api.ts';
 import { onInvalidated, readFact, readKeys, type Invalidation } from '../facts/invalidate.ts';
+import type { ReadinessFact } from './blockers.ts';
+import { readinessStore } from './readiness-store.svelte.ts';
 import type { ListingFixesView } from '../listing/fixes.ts';
 import type { ListingChecksView } from '../insights/insights.ts';
 import type { ListingHistoryPage, StoreCopyViewJson, StoreDefaultLocale, StoreListingView } from '../types.ts';
@@ -200,6 +203,18 @@ export const listingStore = {
     filter: { locale?: string; field?: string; cursor?: string; limit?: number } = {},
   ): Promise<ListingHistoryPage> {
     return api.appListingHistory(workspaceId, appId, filter);
+  },
+
+  /**
+   * The App Review Information check, early: the current readiness (the server judges the store's draft with the ONE core rule of the submit);
+   * the reading is kept 30 seconds like every other. A role that may not submit, and Google Play (no review information), are not asked.
+   */
+  review(workspaceId: string, appId: string): ReadinessFact | null {
+    return readinessStore.of(workspaceId, appId);
+  },
+  loadReview(api: Api, workspaceId: string, role: Role, app: { id: string; platform: Platform }): Promise<void> {
+    if (!can(role, 'store.submit') || supports(app.platform, 'releaseTracks')) return Promise.resolve();
+    return readinessStore.load(api, workspaceId, app.id);
   },
 
   /** Forgets an app (it left the workspace). */

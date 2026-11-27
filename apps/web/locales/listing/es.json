@@ -548,6 +548,8 @@
   "pushDialog.push": "Enviar al borrador",
   "pushDialog.title": "Enviar al borrador de {{store}}: confirmar",
   "pushDialog.typeName": "Escribe <strong>{{phrase}}</strong> para confirmar",
+  "reviewCheck.title_one": "La información de App Review está incompleta: {{count}} punto por corregir antes de enviar",
+  "reviewCheck.title_other": "La información de App Review está incompleta: {{count}} puntos por corregir antes de enviar",
   "sections.ahead.days_many": "en {{count}} de días",
   "sections.ahead.days_one": "en {{count}} día",
   "sections.ahead.days_other": "en {{count}} días",

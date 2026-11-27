@@ -498,6 +498,8 @@
   "pushDialog.push": "Push to the draft",
   "pushDialog.title": "Push to the {{store}} draft: confirm",
   "pushDialog.typeName": "Type <strong>{{phrase}}</strong> to confirm",
+  "reviewCheck.title_one": "App Review information is incomplete: {{count}} thing to fix before you submit",
+  "reviewCheck.title_other": "App Review information is incomplete: {{count}} things to fix before you submit",
   "sections.ahead.days_one": "in {{count}} day",
   "sections.ahead.days_other": "in {{count}} days",
   "sections.ahead.hours_one": "in {{count}} hour",

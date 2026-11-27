@@ -16,6 +16,7 @@
   import { fixAllOf, type ListingFixesView } from '../../lib/listing/fixes.ts';
   import FixAll from '../listing/FixAll.svelte';
   import FixButtons from '../listing/FixButtons.svelte';
+  import ReviewInfoCheck from '../listing/ReviewInfoCheck.svelte';
   import { appAddress } from '../../lib/app-scope.ts';
   import {
     CHECK_ICON,
@@ -75,6 +76,8 @@
 </script>
 
 {#if mayRead}
+  <!-- The App Review Information is a check of its own, early: the submit refuses a blank contact or demo account. -->
+  <ReviewInfoCheck {api} {workspaceId} {role} {app} />
   <Section title={t('insights:checks.title')} key="listing-checks-{app.id}" summary={sectionSummary} defaultOpen={false}>
     <div class="stack loose" data-testid="listing-checks">
       {#if loading}

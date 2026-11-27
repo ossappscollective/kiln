@@ -1,5 +1,5 @@
 import {
-  missingContactFields,
+  evaluateReviewInformation,
   PLATFORM_META,
   type ReviewDetailFacts,
   type ReviewSourceCandidate,
@@ -95,9 +95,7 @@ type VersionRow = {
 };
 
 /** The review information is missing something a check reports (so a source to copy from is worth looking for). */
-const reviewMissing = (facts: ReviewDetailFacts): boolean =>
-  missingContactFields(facts).length > 0 ||
-  (facts.demoAccountRequired === true && (!facts.demoAccountName || !facts.demoAccountPassword));
+const reviewMissing = (facts: ReviewDetailFacts): boolean => evaluateReviewInformation(facts).length > 0;
 
 export class AppleSubmitConnector implements StoreSubmitConnector {
   readonly store = 'appstoreconnect' as const;
