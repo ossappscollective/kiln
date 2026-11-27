@@ -3,6 +3,7 @@ import {
   ASSET_KINDS,
   ASSET_SYNC_LIMITS,
   type AssetFacts,
+  assetFact,
   type AssetKind,
   type AssetProblem,
   type AssetSlot,
@@ -192,13 +193,13 @@ export function inspectImage(
     };
   const name = safeUploadName(input.name, format);
   const claimed = ((input.name ?? '').split('.').pop() ?? '').toLowerCase();
-  const facts: AssetFacts = {
-    path: uploadPathOf(gitBlobOid(bytes), name),
+  const facts: AssetFacts = assetFact({
     store: assetStoreOf(platform),
     locale: input.locale,
     kind: slot.kind,
     device: slot.device,
-    order: input.position + 1,
+    position: input.position + 1,
+    path: uploadPathOf(gitBlobOid(bytes), name),
     bytes: bytes.length,
     width: header.width,
     height: header.height,
@@ -208,7 +209,7 @@ export function inspectImage(
       claimed === '' ? (format === 'png' ? 'png' : 'jpg') : claimed === 'jpeg' ? 'jpg' : claimed,
     hasAlpha: header.hasAlpha,
     read: 'read',
-  };
+  });
   const problems = validateAssets(assetStoreOf(platform), [facts]).filter(
     (p) => p.path === facts.path,
   );

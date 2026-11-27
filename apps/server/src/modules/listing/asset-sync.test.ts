@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import type { StoreImageRecord } from '@kiln/connectors';
-import { ASSET_SYNC_LIMITS, readImageHeader, storeSideOf } from '@kiln/core';
+import { ASSET_SYNC_LIMITS, groupStoreImages, readImageHeader, storeSideOf } from '@kiln/core';
 import { dbTest } from '@kiln/db/testing';
 import { rgbaPng, rgbPng } from '../../png-test-helpers.ts';
 import { decodePng } from '../../services/png-codec.ts';
@@ -1185,5 +1185,45 @@ dbTest(
     });
     assert.equal(first.status, 200, first.text);
     assert.equal(first.body.pull.written, 1, 'store position 5 is the FIRST image of the primary group: it goes to place 1 of the repository set');
+  },
+);
+
+dbTest(
+  'a display held in 10 + 2 images: the cart says 12 before (the display a push replaces), the seed is the display, and the two extra images are removed in one step (a single removal would leave 11, over the staged limit)',
+  async (db) => {
+    const png = rgbPng(2048, 2732, () => [9, 9, 9]);
+    const t = await boot(db, cdn({ '*': png }));
+    const app = await t.addApp('ios');
+    const ipad = (position: number, target: string, id: string) =>
+      apple(position, { device: 'ipad_13', target, id, width: 2048, height: 2732, url: `https://is1.mzstatic.com/image/thumb/P${id}/{w}x{h}bb.{f}` });
+    t.stores.ios.imageRecords = [
+      ...Array.from({ length: 10 }, (_, i) => ipad(i + 1, 'APP_IPAD_PRO_3GEN_129', `new${i + 1}`)),
+      ...Array.from({ length: 2 }, (_, i) => ipad(i + 11, 'APP_IPAD_PRO_129', `old${i + 1}`)),
+    ];
+    const view = (await t.call(t.owner, 'GET', `/apps/${app}/assets/store?fresh=1`)).body.store;
+    const display = groupStoreImages(view).find((d) => d.device === 'ipad_13');
+    assert.deepEqual(display?.counts.perGroup.map((g) => g.count).sort(), [10, 2]);
+    assert.equal(display?.counts.merged, 12);
+    assert.equal(display?.overLimit.length, 0, 'each store group is within its own limit');
+    assert.equal(display?.stagedFits, false);
+    const slotBody = { locale: 'en-US', kind: 'screenshot', device: 'ipad_13', base: 'store' };
+    const one = await t.call(t.owner, 'POST', `/apps/${app}/staged/assets/remove`, {
+      ...slotBody,
+      files: [{ ref: display?.files[10]?.ref }],
+    });
+    assert.equal(one.status, 422, 'one removal leaves 11: a staged set holds at most 10 (trim the extra images in one step)');
+    assert.equal(one.body.error, 'set_too_large');
+    // The two images of the sibling group in one step (refs of the display, the sibling group's included) leave 10.
+    const out = await t.call(t.owner, 'POST', `/apps/${app}/staged/assets/remove`, {
+      ...slotBody,
+      files: [{ ref: display?.files[10]?.ref }, { ref: display?.files[11]?.ref }],
+    });
+    assert.equal(out.status, 200, out.text);
+    assert.deepEqual(out.body.results.map((r: { outcome: string }) => r.outcome), ['removed', 'removed']);
+    assert.equal(out.body.staged.assets[0].files.length, 10, 'the display seeded 12, two removed');
+    const cart = await t.call(t.owner, 'GET', `/apps/${app}/pending/cart`);
+    const item = cart.body.cart.items.find((i: { kind: string }) => i.kind === 'graphics');
+    assert.equal(item.counts.before, 12, 'before is the merged display of the last store read, once');
+    assert.equal(item.counts.files, 10);
   },
 );

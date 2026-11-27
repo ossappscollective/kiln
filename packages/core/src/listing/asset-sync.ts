@@ -9,6 +9,7 @@ import {
 } from './staged-changes.ts';
 import {
   APPLE_DISPLAYS,
+  ASSET_UPLOAD_MAX_BYTES,
   type AssetKind,
   type AssetProblem,
   type AssetStore,
@@ -57,7 +58,7 @@ export const ASSET_SYNC_LIMITS = {
   maxPullBytes: 48 * 1024 * 1024,
   maxPullFiles: 120,
   /** One uploaded file (the same cap as a push). */
-  maxUploadBytes: 8 * 1024 * 1024,
+  maxUploadBytes: ASSET_UPLOAD_MAX_BYTES,
   /** All uploaded files kept for an app at once. */
   maxStagedUploadBytes: 64 * 1024 * 1024,
   maxStagedUploadFiles: 100,

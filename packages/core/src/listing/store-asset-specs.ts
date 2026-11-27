@@ -603,6 +603,12 @@ export type AssetSet = {
 
 const KB = 1024;
 const MB = 1024 * 1024;
+/**
+ * The most bytes of ONE image this server uploads or takes from a store (its own cap: the stores state none for a screenshot). THE constant:
+ * `ASSET_SYNC_LIMITS.maxUploadBytes`, `STAGED_LIMITS.maxAssetFileBytes` and the browser's upload check all read it (before, two literals and a third
+ * `8 * MiB` in the web's `staged.ts`).
+ */
+export const ASSET_UPLOAD_MAX_BYTES = 8 * MB;
 /** Play: "at most 1024 KB". */
 export const PLAY_ICON_MAX_BYTES = 1024 * KB;
 /** Apple: "Maximum: 500 MB". */

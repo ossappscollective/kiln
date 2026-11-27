@@ -3,6 +3,7 @@ import {
   ASSET_KIND_LABELS,
   ASSET_KINDS,
   type AssetFacts,
+  assetFact,
   type AssetKind,
   type AssetProblem,
   type AssetSlot,
@@ -33,9 +34,9 @@ import {
   type StagedReleaseFieldView,
   type StagedSource,
   type StagedTextView,
+  limitOf,
   slotKey,
   slotLimitProblem,
-  slotMaxFiles,
   supports,
   validateAssets,
 } from '@kiln/core';
@@ -255,28 +256,25 @@ const setLabel = (platform: Platform, _locale: string, slot: AssetSlot): string 
     : `${kind}, ${deviceLabel(assetStoreOf(platform), slot.device)}`;
 };
 
-const extensionOf = (path: string): string => {
-  const base = path.split('/').pop() ?? '';
-  const at = base.lastIndexOf('.');
-  return at === -1 ? '' : base.slice(at + 1).toLowerCase();
-};
-
+/** The facts of a staged set, by the one builder of `@kiln/core` (`assetFact`); the staged file's own path stays its path (problems are matched to rows by it). */
 function factsOf(platform: Platform, set: AssetSet): AssetFacts[] {
-  return set.rows.map((r) => ({
-    path: r.assetPath ?? '',
-    store: assetStoreOf(platform),
-    locale: set.locale,
-    kind: set.slot.kind,
-    device: set.slot.device,
-    order: r.ordinal + 1,
-    bytes: r.assetBytes,
-    width: r.assetWidth,
-    height: r.assetHeight,
-    format: (r.assetFormat as AssetFacts['format']) ?? null,
-    extension: extensionOf(r.assetPath ?? ''),
-    hasAlpha: r.assetAlpha,
-    read: 'read' as const,
-  }));
+  return set.rows.map((r) =>
+    assetFact({
+      store: assetStoreOf(platform),
+      locale: set.locale,
+      kind: set.slot.kind,
+      device: set.slot.device,
+      position: r.ordinal + 1,
+      name: r.assetPath,
+      width: r.assetWidth,
+      height: r.assetHeight,
+      bytes: r.assetBytes,
+      hasAlpha: r.assetAlpha,
+      format: (r.assetFormat as AssetFacts['format']) ?? null,
+      path: r.assetPath ?? '',
+      read: 'read',
+    }),
+  );
 }
 
 /** What a push needs beyond the documented specs. Errors here block a push. */
@@ -285,7 +283,7 @@ function pushProblems(platform: Platform, set: AssetSet): StagedProblem[] {
   const support = assetSlotSupport(platform, set.slot);
   if (!support.ok)
     out.push({ severity: 'error', code: 'slot_not_pushable', message: support.reason });
-  const max = slotMaxFiles(platform, set.slot);
+  const max = limitOf(assetStoreOf(platform), set.slot.kind, set.slot.device).stagedMax;
   if (set.rows.length > max) {
     out.push({
       severity: 'error',

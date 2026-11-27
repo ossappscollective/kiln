@@ -11,6 +11,7 @@ import { limitOf } from '../images/limits.ts';
 import {
   ASSET_KIND_LABELS,
   ASSET_RULES,
+  ASSET_UPLOAD_MAX_BYTES,
   type AssetKind,
   type AssetStore,
   describeDevice,
@@ -60,7 +61,7 @@ export const STAGED_LIMITS = {
   maxAssetFilesPerPush: 100,
   maxAssetBytesPerPush: 64 * 1024 * 1024,
   /** One uploaded file. The stores state no maximum for screenshots; this is this server's own cap. */
-  maxAssetFileBytes: 8 * 1024 * 1024,
+  maxAssetFileBytes: ASSET_UPLOAD_MAX_BYTES,
 } as const;
 
 /** Formats a push uploads. Everything else (webp, gif, video, an unread file) is refused at staging. */
