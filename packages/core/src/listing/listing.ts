@@ -329,8 +329,22 @@ export function countBytes(value: string): number {
   return new TextEncoder().encode(value).length;
 }
 
-const measure = (spec: ListingFieldSpec, value: string) =>
-  spec.unit === 'bytes' ? countBytes(value) : countCharacters(value);
+/**
+ * THE counting unit of a listing text (docs/state-model.md, "Single owners (core)"): the length of `value` in the unit of its spec,
+ * Unicode CODE POINTS (an emoji is one, not two UTF-16 units) or UTF-8 BYTES (keywords), after TRIMMING white space at both ends.
+ *
+ * Why trimmed: the text that is pushed is normalised first (line breaks as `\n`, no trailing white space, `normalizeListingValue` of the
+ * server), so a trailing newline is not sent and must not count; readiness already trimmed, `countCharacters` did not. The decision for
+ * every surface: validators, readiness, the notes row, the cart and the staged cap all call this, never `value.length` (UTF-16, which put a
+ * 480-code-point Play note with 30 emoji at 510 "over") and never `countCharacters` on a raw value. Leading white space is trimmed too
+ * although the push keeps it: at most a few units of under-count, never a false "over".
+ */
+export function measureField(spec: Pick<ListingFieldSpec, 'unit'>, value: string): number {
+  const text = value.trim();
+  return spec.unit === 'bytes' ? countBytes(text) : countCharacters(text);
+}
+
+const measure = measureField;
 
 const isBlank = (value: string | undefined) => value === undefined || value.trim() === '';
 
@@ -456,20 +470,40 @@ function checkField(
   if (spec.kind === 'keywords') checkKeywords(problems, spec, where, value);
 }
 
+/** One field of one locale against its spec (required, length, URL, keyword advice). The one check every surface calls. */
+export { checkField as checkListingField };
+
+/**
+ * The text problems of ONE locale of a store: every field of the store against its spec, in the order of the store's field list. The
+ * `default` locale only fills gaps and is never "missing" a field; `fallback` is the `default` locale's text (repository only).
+ */
+export function validateLocaleText(
+  store: ListingStore,
+  locale: string,
+  text: Readonly<Record<string, string | undefined>>,
+  fallback?: Readonly<Record<string, string | undefined>>,
+): ListingProblem[] {
+  const problems: ListingProblem[] = [];
+  const fields: readonly string[] = store === 'app_store' ? APP_STORE_FIELDS : PLAY_FIELDS;
+  const specs: Record<string, ListingFieldSpec> =
+    store === 'app_store' ? APP_STORE_FIELD_SPECS : PLAY_FIELD_SPECS;
+  for (const field of fields) {
+    const spec = specs[field] as ListingFieldSpec;
+    if (locale === DEFAULT_LOCALE) {
+      // The fallback folder only fills gaps; it is never "missing" a field.
+      checkField(problems, { ...spec, required: false }, { locale, field }, text[field]);
+    } else {
+      checkField(problems, spec, { locale, field }, text[field], fallback?.[field]);
+    }
+  }
+  return problems;
+}
+
 function validateAppStore(listing: AppStoreListing): ListingProblem[] {
   const problems: ListingProblem[] = [];
   const fallback = listing.locales[DEFAULT_LOCALE];
   for (const locale of Object.keys(listing.locales).sort()) {
-    const text = listing.locales[locale] ?? {};
-    for (const field of APP_STORE_FIELDS) {
-      const spec = APP_STORE_FIELD_SPECS[field];
-      if (locale === DEFAULT_LOCALE) {
-        // The fallback folder only fills gaps; it is never "missing" a field.
-        checkField(problems, { ...spec, required: false }, { locale, field }, text[field]);
-      } else {
-        checkField(problems, spec, { locale, field }, text[field], fallback?.[field]);
-      }
-    }
+    problems.push(...validateLocaleText('app_store', locale, listing.locales[locale] ?? {}, fallback));
   }
   checkField(problems, APP_STORE_COPYRIGHT_SPEC, { field: 'copyright' }, listing.copyright);
   return problems;
@@ -478,10 +512,7 @@ function validateAppStore(listing: AppStoreListing): ListingProblem[] {
 function validatePlay(listing: PlayListing): ListingProblem[] {
   const problems: ListingProblem[] = [];
   for (const locale of Object.keys(listing.locales).sort()) {
-    const text = listing.locales[locale] ?? {};
-    for (const field of PLAY_FIELDS) {
-      checkField(problems, PLAY_FIELD_SPECS[field], { locale, field }, text[field]);
-    }
+    problems.push(...validateLocaleText('google_play', locale, listing.locales[locale] ?? {}));
   }
   for (const locale of Object.keys(listing.changelogs).sort()) {
     const notes = listing.changelogs[locale] ?? {};

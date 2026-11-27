@@ -12,10 +12,11 @@
  * UNVERIFIED: whether Play refuses a version code that is lower than the one a track holds (it is only a warning here).
  */
 
+import { measureField, PLAY_CHANGELOG_SPEC } from '../listing/listing.ts';
 import { type CoreText, coreText } from '../text.ts';
 
 /** The most characters of release notes per language (VERIFIED, see above). */
-export const PLAY_NOTES_LIMIT = 500;
+export const PLAY_NOTES_LIMIT: number = PLAY_CHANGELOG_SPEC.maxLength ?? 500;
 
 export type PlayStatus = 'draft' | 'inProgress' | 'completed';
 
@@ -178,7 +179,7 @@ export function checkPlayProposal(
   // The release notes
   const written = proposal.notes.filter((n) => n.text.trim() !== '');
   for (const note of written) {
-    const length = Array.from(note.text.trim()).length;
+    const length = measureField(PLAY_CHANGELOG_SPEC, note.text);
     if (length > PLAY_NOTES_LIMIT) {
       add(
         {

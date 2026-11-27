@@ -1,3 +1,5 @@
+import { isLocaleCode } from '../listing-facts/locale.ts';
+import { measureField, PLAY_CHANGELOG_SPEC } from '../listing/listing.ts';
 import type { StagedProblem } from '../listing/staged-changes.ts';
 import { byFamily, type Platform, supports } from '../platform.ts';
 
@@ -161,8 +163,10 @@ export const RELEASE_FIELD_SPECS: Readonly<Record<ReleaseFieldId, ReleaseFieldSp
     label: 'Release notes',
     family: 'google',
     perLocale: true,
-    maxLength: 500,
-    limitUnverified: true,
+    // The limit is the one of the verified changelog spec (listing.ts), not a second number: it was 500 and UNVERIFIED here, 500 and
+    // verified for readiness, so a 520 character note staged with a warning and then blocked the submit.
+    maxLength: PLAY_CHANGELOG_SPEC.maxLength ?? null,
+    limitUnverified: PLAY_CHANGELOG_SPEC.unverified.indexOf('max') >= 0,
     help: 'What is new, per language (Play Console shows 500 characters a language).',
   },
 };
@@ -279,7 +283,6 @@ export const versionCodesOf = (value: string): string[] => (value === '' ? [] : 
 // ---------------------------------------------------------------------------------------------
 // Checking
 
-const LANGUAGE = /^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8}){0,3}$/;
 const VERSION_STRING = /^[0-9]+(?:\.[0-9]+){0,2}$/;
 const BUILD_ID = /^[A-Za-z0-9._-]{1,100}$/;
 const TRACK = /^[A-Za-z0-9][A-Za-z0-9_:.-]{0,99}$/;
@@ -317,18 +320,20 @@ export function checkReleaseField(
     return out;
   }
   if (spec.perLocale) {
-    if (!LANGUAGE.test(locale))
+    if (!isLocaleCode(locale))
       out.push(problem('error', 'invalid_locale', 'The language must be a code such as en-US.'));
   } else if (locale !== '') {
     out.push(problem('error', 'invalid_locale', `${spec.label} has no language.`));
   }
-  if (spec.maxLength !== null && value.length > spec.maxLength) {
+  // The one counting unit (code points, trimmed): `value.length` counted UTF-16 units, so emoji made a note "over".
+  const length = measureField({ unit: 'characters' }, value);
+  if (spec.maxLength !== null && length > spec.maxLength) {
     out.push(
       problem(
         spec.limitUnverified ? 'warning' : 'error',
         'too_long',
-        `${spec.label} is ${value.length} characters; the limit is ${spec.maxLength}${spec.limitUnverified ? ' (UNVERIFIED: no official page states it, so this is only a warning)' : ''}.`,
-        { limit: spec.maxLength, actual: value.length, unit: 'characters' },
+        `${spec.label} is ${length} characters; the limit is ${spec.maxLength}${spec.limitUnverified ? ' (UNVERIFIED: no official page states it, so this is only a warning)' : ''}.`,
+        { limit: spec.maxLength, actual: length, unit: 'characters' },
       ),
     );
   }

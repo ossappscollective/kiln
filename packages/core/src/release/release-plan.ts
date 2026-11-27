@@ -4,7 +4,8 @@
  * writes a store. Pure functions only, so both sides compute the same readiness and due flags.
  */
 
-import { APP_STORE_FIELD_SPECS, countCharacters, PLAY_CHANGELOG_SPEC } from '../listing/listing.ts';
+import { isLocaleOrDefault } from '../listing-facts/locale.ts';
+import { APP_STORE_FIELD_SPECS, measureField, PLAY_CHANGELOG_SPEC } from '../listing/listing.ts';
 import { byFamily, type Platform } from '../platform.ts';
 
 /** `null` means the plan covers both platforms. */
@@ -42,8 +43,8 @@ export function releaseNotesLimit(platform: PlanPlatform): number {
   return Math.min(APP_STORE_RELEASE_NOTES_LIMIT, PLAY_RELEASE_NOTES_LIMIT);
 }
 
-/** Length as the listing rules count it (Unicode code points). */
-export const releaseNotesLength = countCharacters;
+/** Length as the listing rules count it: the one counting unit (`measureField`: code points, trimmed). */
+export const releaseNotesLength = (value: string): number => measureField({ unit: 'characters' }, value);
 
 // ---------------------------------------------------------------------------------------------
 // Values
@@ -53,12 +54,12 @@ export function isPlanVersion(value: string): boolean {
   return value.length <= MAX_PLAN_VERSION_LENGTH && /^[A-Za-z0-9][A-Za-z0-9._+-]*$/.test(value);
 }
 
-/** `default` (the fallback folder of fastlane) or a locale code such as `en-US`, `de`, `pt_BR`. */
+/**
+ * `default` (the fallback folder of fastlane) or a locale code such as `en-US`, `de`, `pt_BR`.
+ * @deprecated Delegates to `isLocaleOrDefault` (listing-facts/locale.ts), the one locale validator.
+ */
 export function isPlanLocale(value: string): boolean {
-  return (
-    value === 'default' ||
-    (value.length <= 35 && /^[A-Za-z]{2,3}([-_][A-Za-z0-9]{2,8})*$/.test(value))
-  );
+  return isLocaleOrDefault(value);
 }
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -143,7 +144,7 @@ export function computeReadiness(input: {
   const done = required.filter((i) => i.done).length;
   const limit = releaseNotesLimit(input.platform);
   const missing = input.notes.filter((n) => n.text.trim() === '').map((n) => n.locale);
-  const tooLong = input.notes.filter((n) => countCharacters(n.text) > limit).map((n) => n.locale);
+  const tooLong = input.notes.filter((n) => releaseNotesLength(n.text) > limit).map((n) => n.locale);
   const complete = input.notes.length > 0 && missing.length === 0 && tooLong.length === 0;
   const open = required.length - done;
 

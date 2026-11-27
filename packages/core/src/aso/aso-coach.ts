@@ -16,6 +16,7 @@ import {
   countCharacters,
   PLAY_FIELD_SPECS,
 } from '../listing/listing.ts';
+import { localeKey, localesMatch } from '../listing-facts/locale.ts';
 import { supports } from '../platform.ts';
 import { type CoreText, coreText } from '../text.ts';
 import {
@@ -41,17 +42,14 @@ import {
 // ---------------------------------------------------------------------------------------------
 // Locale helpers
 
-const tagOf = (locale: string): string => locale.replace(/_/g, '-').toLowerCase();
+const tagOf = (locale: string): string => localeKey(locale);
 
-/** `es-MX` against `es-mx`, and a bare language (`it`) against any locale of that language (`it-IT`). */
+/**
+ * `es-MX` against `es-mx`, and a bare language (`it`) against any locale of that language (`it-IT`).
+ * @deprecated Delegates to `localesMatch(a, b, { mode: 'language' })` (listing-facts/locale.ts), the one "same locale".
+ */
 export function sameLocale(a: string, b: string): boolean {
-  const x = tagOf(a);
-  const y = tagOf(b);
-  if (x === y) return true;
-  const xs = x.split('-');
-  const ys = y.split('-');
-  if (xs[0] !== ys[0]) return false;
-  return xs.length === 1 || ys.length === 1;
+  return localesMatch(a, b, { mode: 'language' });
 }
 
 /** The listing locale that holds the text for a keyword locale: the same tag, else another locale of the language (as the fit view does). */

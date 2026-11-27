@@ -261,6 +261,102 @@ another person or an MCP caller is still seen only at the next focus, poll or pa
 also still reads `readinessStore` only for blocked runs. The browser's `navSignals`, `cartSummaryStore`, `pendingStore` and `publishingStore`
 keep their own freshness (generation counters and timers) and are refreshed through `appStateStore.refresh`, not registered as key families.
 
+## 2c. Single owners (core)
+
+One fact, one function. Each row names the function in `packages/core` that now OWNS a cross-page fact and what it replaces. The
+"replaces" column gives the duplicates found by the audits (`file:line` as of the audit); they stay as thin delegates or are removed by the
+consumer migration (Wave 2). `packages/core/src/facts-owners.test.ts` pins the export surface (functions, values and the kept old names), so
+a rename or a removal fails a test instead of a page.
+
+### Versions, live, obsolete, create rules (`versions/`)
+
+| Fact | Owner | Replaces |
+| ---- | ----- | -------- |
+| Version order (dotted, tolerant, total) | `compareVersions`, `tryCompareVersions` (null when unreadable), `sameVersion`, `newestVersionFirst` | web `lib/app-state/candidates.ts:43`, web `lib/portfolio.ts:179`, core `release/store-version.ts:18` (`compareDottedVersions`, now a delegate), core `insights/engine.ts:179` (re-exports), web `lib/build-origin.ts:305-322`, `localeCompare(..., {numeric})` on versions in connectors `apple/appstore-draft.ts:1292`, server `modules/ci/links.ts:212,270`, `modules/ratings/health.ts:106` |
+| Build number order | `compareBuildNumbers` (total), `tryCompareBuildNumbers`, `newestBuildFirst`, `compareReleases` | `Number(buildNumber)` sorts: server `services/apps.ts:737,770,799`, `modules/builds/service.ts:614`, `modules/ci/scan.ts:460,490`, `modules/ci/tags.ts:224`, connectors `google/googleplay.ts:447`, web `release-candidates.ts:311,417,445` |
+| Which statuses are serving / preparing / past prepare | `SERVING_STATUSES`, `PREPARING_STATUSES`, `PAST_PREPARE_STATUSES`, `isServingStatus`, `isPreparingStatus`, `isPastPrepareStatus` | the status lists inside `portfolio.ts:244`, `releases-table.ts:390-395`, core `release-pipeline.ts:441,546`, server `publish/store-version.ts:233`, `play-live.ts:12`, `play-promote.ts:49`, core `play-rollout-offer.ts:32`, `metadata-lock.ts`, `lifecycle.ts:117`, server `services/apps.ts:285` (overlay), model `candidates.ts:194` |
+| What is live for a platform | `liveOf(releases, { platform })` giving `{ serving, live, rollingOut, halted, newestLive, ref }` | `liveRelease` (`portfolio.ts:244`), `newestLive` (`releases-table.ts:390-395`), `liveVersionOf` (`publish/store-version.ts:233`) and the others above |
+| Play version codes of a release, the top code | `codesOfRelease`, `topCodeOf`, `topOfCodes` | per-page `Math.max` over `versionCodes` |
+| Is a version obsolete (and why) | `isObsolete`, `obsoleteReasonOf`, `isObsoleteVersion`, `isNewerThanLive` | `candidates.ts:252,478,500,525`, `play-promote.ts:60`, `candidates.ts:300` |
+| May a release be created (refusals) | `createReleaseRules(version, versions)` giving `invalid_version`, `editable_version_exists`, `version_exists`, `not_higher`; `isCreatableVersion`, `newestNonEditableVersion`, `storeVersionsOf` | the server's refusals at `publish/store-version.ts:~247-265`, and `isDottedVersion` (now a delegate) |
+| Release candidates, promote options, stalls | `analyzeCandidates`, `promoteOptionsOf`, `obsoleteVersionsOf`, `pipelineIsObsolete`, `stallLeftBehind` | web `lib/app-state/candidates.ts` (ported; the web file becomes a thin adapter) |
+| Play tracks | `PLAY_TRACKS`, `PLAY_TRACK_ORDER`, `trackKind`, `isProductionTrack`, `isInternalTrack`, `isOptInTrack`, `playChannelOf`, `sameTrack` | `candidates.ts:179,243`, `play-promote.ts:21`, server `builds/service.ts:605`, `release-candidates.ts:476`, `ReleaseStepper.svelte:104`, `StepBuild.svelte:73`, `expo/eas-config.ts:236` |
+| Where a build came from, its number | `joinBuildOrigin`, `originOfBuild`, `buildNumberOfBuild` | server `publish/candidate-origin.ts`, `publish-summary.ts:498`, `candidate-trains.ts:565`, `builds.ts:990` (`buildNumberOfTitle`), `StepBuild.svelte:172,307` |
+
+Decisions to review:
+
+- **Serving set**: `SERVING_STATUSES` is `live`, `rolling_out`, `halted` (a halted rollout is still the current version for the people who got
+  it, and its number is taken). `propagating` (Play, committed but not visible yet), `approved`, `in_review`, `rejected` and the preparing
+  states do not serve. On Google Play only the PRODUCTION track serves; an internal release that is `live` is not what is live (the pipeline
+  used to count it). `liveOf` returns `serving` (newest first by version, then build, then highest version code on Play, `statusSince` only
+  breaks a tie), `live`, `rollingOut` and `halted` as separate lists, `newestLive` (the first serving release) and `ref`, so no page
+  re-filters. Before, "live" was only `live` in one place, live + rolling_out + halted in another and ordered by `status_since` in a third.
+- **Orders are total**: `compareVersions` and `compareBuildNumbers` never return `NaN`; unreadable values sort below readable ones and then
+  naturally. Code that needs "unknown" uses the `try*` variants (null).
+- **Create rules mirror the server**: the browser may say "not higher than 2.3.0" before the call, the server stays the authority.
+
+### Store images (`images/`)
+
+| Fact | Owner | Replaces |
+| ---- | ----- | -------- |
+| Count limit of a slot, saved and staged | `limitOf(store, kind, device?)` giving `{ max, rule, stagedMax }`; `assetCountLimit` in `listing/store-asset-specs.ts` | `maxFor` (`store-asset-specs.ts:616`), `slotMaxFiles` (`staged-changes.ts:254`, now a delegate), web `staged.ts:427`, `AssetSetEditor.svelte:95`, `over-limit.ts:324` |
+| Display sets (an iPad 13" display spans several Apple placement groups, each with its own limit of 10) | `groupStoreImages`, `displayKeyOf`, `findDisplay`, `findStoreImage`, `refsOfDisplay` | `graphic-sets.ts:81-116,114,159,118`, `storeSideOf` (`store-images.ts:326`), `asset-diff.ts:141-157`, `staged-store-seed.ts:37-41`, `asset-sync-routes.ts:530-545`, `cart.ts:228-236,607-621,229`, `asset-pull.ts:138-148` |
+| One image fact for every check (path `locale/kind/device#position`) | `assetFact`, `storeImageFacts`, `displayImageFacts`, `validateImageFacts`, `measuredPathsOf`, `imagePathOf` | the four builders `checkStoreImages` (`asset-sync.ts`, now a delegate), `assetFactsOf` (`draft-readiness.ts`), `staged-changes.ts:263-280`, `asset-index.ts:331-351` |
+| Compare sentence and compare rows (carry `storeRef`, so a pull needs no second lookup) | `compareRows`, `compareDisplay`, `compareSentence`, `pullRefOf`, `pullRefsOfDisplay` | `compareSet` (`asset-sync.ts:287`), `pullableKeys` (`sync.ts:294`), `AssetCompareDialog:132`, `compareSummary` (`sync.ts:242`), `assetsLine` (`release-assets.ts:14`) |
+| What the store will show after the staged changes | `predictedImagesOf(view, staged, { pushed })` | `cart.ts` and the stepper's own predictions |
+| Staged counts | `isUnpushed`, `stagedCountsOf` | `release-stepper.ts:180-186`, `app-attention.ts:90`, `staged.ts:210,220-225`, `StepAssets.svelte:100-101`, `staged-marks.ts:61` |
+| What the submit gates read about images | `readinessImagesOf(view)` | `appstore-submit.ts:170-181`, `play-submit.ts:79,169-290` |
+
+Decisions to review:
+
+- **Unknown size** (an Apple image no display classifies): it belongs to no set and is counted as `unplaced` ONCE, never added to a group's
+  count. Readiness reports it as a WARNING (`images_unplaced`, with the number), never a blocker, and the Graphics tab shows the same
+  number. Before, the Graphics tab left it out of every set while readiness counted it in the group of the first image with a size, so
+  "over the limit of 10" held in one and not in the other. Google Play: every image type counts (TV, Wear, TV banner included); no size at
+  all is never an error.
+- **Item path changed**: the readiness item for an image is now `asset_spec:<locale>:<locale>/<kind>/<device>#<position>` (was
+  `.../group-iphone-65/1`). A blocker persisted under the old key shows once as history.
+
+### Listing text, locales, copy and notes (`listing-facts/`)
+
+| Fact | Owner | Replaces |
+| ---- | ----- | -------- |
+| Locale codes: parse, normalise, equal, equivalent, base locale | `parseLocale`, `normalizeLocaleCode`, `isLocaleCode`, `isLocaleOrDefault`, `localeKey`, `localesMatch(a, b, { mode: 'exact' \| 'equivalent' \| 'language' })`, `matchLocale`, `mergeLocales`, `baseLocaleOf`, `LOCALE_EQUIVALENTS` | validators and normalisers: fastlane `fastlane.ts:91`, staged `LOCALE`, routes `routes.ts:54`, `routes/repositories.ts:114`, `isNoteLocale` (server `release-notes-translate.ts:40`, web `release-notes.ts:455`), `canonicalLocale` (`listing/locales.ts:23`), `notes-history.ts:71`, `aso/insights.ts:64`, web `aso/budget.ts:97`, the three `sameLocale` |
+| Which copy of the store listing a page reads (live or editable) | `storeCopyView(channels, { intent })` with `shown`, `editable`, `live`; `pickCopy(view, locale)`; `COPY_INTENT_CONSUMERS` | channel picks: `insights/service.ts:184`, `aso/insights.ts:101,127`, `listing-fixes.ts:73`, `asset-proposal.ts:767`, `pull.ts:601`, `ReleaseStepper.svelte:306-309`, `PublishSummary.svelte:62-71`, `live.ts:903-940` (`getDrift`) |
+| Length of a text and its unit | `measureField` (`listing/listing.ts`), `normalizeStoreText`, `sameListingText` | counting: web `edit.ts:140`, `drift.ts:91`, `repositories.ts:405`, `TextDiff.svelte:41`, server `ai-task-listing.ts:123`, `ai-task-aso.ts:68`, web `release-notes.ts:159,325,436`, `cart.ts:~215` (`.length`, `[...s].length`, trimmed or not) |
+| The limit of a field | `textLimitOf(store, field)`, `releaseNotesLimitOf(store)`, `fieldSpecOf` | `noteLimitOf` (`release-notes-translate.ts:44-45`, `{apple: 4000, google: 500}`), web `release-notes-translate.ts:26`, `release-plan.ts:30`, `draft-readiness.ts:169`, the `?? 500` / `?? 4000` fallbacks |
+| Which fields are required | `requiredFieldsOf(store, { stageableFor })`, `emptyRequiredTexts(platform, values)` | `emptyRequiredFields` (`drift.ts:100`) |
+| The one check of a text | `checkTextField(spec, value, opts)`, `validateListingText(store, locales, { copyright })` | `checkListingField` callers in readiness, PlayCheck, the staged view and the Insights `empty` check |
+| Release notes over five sources | `notesView(store, sources, { locales })` with `NOTE_SOURCE_ORDER` (`staged`, `store`, `plan`, `repo`, `section`) | `release-plan.ts:118`, `release-stepper.ts:389`, `notes-history.ts` |
+| Staged text versus what a push overwrites | `stagedBaselineOf(editableView, locale, field)`, `isUnchangedStaged(staged, baseline)` | `staged-changes.ts:486` (compared with LIVE), `store-draft.ts:1120,1184` (compared with the EDITABLE draft), web `staged.ts:287`, `drift.ts:45` (own normalisers) |
+
+Decisions to review:
+
+- **Counting unit and trim policy**: Unicode code points (UTF-8 bytes for the App Store keywords), white space trimmed at both ends. An
+  emoji counts as one, a trailing newline as nothing. This is the store's own rule as far as the official pages state it; where they do not,
+  the spec is marked `unverified` and the limit is a warning, not an error.
+- **Severity, once**: a limit or `required` that an official page states is an error (blocking); one no page states is a warning. So a Play
+  note over 500 is an error in the staged view, a blocker in readiness and a problem in PlayCheck (before: a warning in the staged view), and
+  an empty iOS keywords field blocks everywhere (the Insights `empty` check called it a warning).
+- **Staged baseline**: the EDITABLE draft's value when the store holds a draft with that locale and field, else the live value; no
+  baseline (new text) is never "unchanged". "Unchanged" means "a push would not change it". Before, the cart count compared with live and the
+  push preview with the draft, so one text could be "not pending" and "changed" at once.
+- **Copy intents**: `shown` is the union of both copies (a locale only the draft has is there, read from live when live has it); `editable`
+  is the draft with the live copy standing in when no draft exists; `live` has no fallback. `held` says which copies have a locale.
+- **Notes order**: the first non-empty text in `staged` (unpushed only), `store`, `plan`, `repo`, `section` ships; texts that differ are
+  reported as conflicts with every candidate, never merged or dropped.
+
+### Old names kept
+
+The previous exports stay, as delegates, so nothing breaks before Wave 2: `compareDottedVersions`, `isDottedVersion`, `nextVersion`,
+`newestDottedVersion`, `sameLocale`, `normalizeLocale`, `isPlanLocale`, `slotMaxFiles`, `slotLimitProblem`, `checkStoreImages`,
+`assetFactsOf`, `validateAssets`, `summarizeAssets`, `validateListing`, `countCharacters`, `countBytes`, `compareText`, `compareSet`,
+`primaryStoreSet`, `releaseNotesLimit`, `releaseNotesLength`, and `insights/engine.ts` `compareVersions` (the same binding re-exported). Those
+with a `@deprecated` tag point at the owner; `facts-owners.test.ts` lists them under KEPT and checks that they answer as the owner does.
+
+Not done here, on purpose: moving a consumer onto an owner (Wave 2), and a guard that fails a second implementation of a listed fact
+(it belongs with the enforcement tests of section 3 once the consumers have moved).
+
 ## 3. Enforcement (so it cannot regress)
 
 | Test                  | File                          | What fails it                                                                                                                                  |

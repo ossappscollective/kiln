@@ -3,6 +3,7 @@ import {
   APP_STORE_FIELD_SPECS,
   type ListingFieldSpec,
   type ListingStore,
+  measureField,
   PLAY_CHANGELOG_SPEC,
   PLAY_FIELD_SPECS,
 } from './listing.ts';
@@ -172,7 +173,7 @@ export function evaluateDraftContent(content: DraftContent): ReadinessFinding[] 
   if (content.store === 'google_play') {
     const max = PLAY_CHANGELOG_SPEC.maxLength ?? 500;
     for (const note of content.releaseNotes ?? []) {
-      const count = Array.from(note.text.trim()).length;
+      const count = measureField(PLAY_CHANGELOG_SPEC, note.text);
       if (count <= max) continue;
       out.push({
         code: 'release_notes_too_long',

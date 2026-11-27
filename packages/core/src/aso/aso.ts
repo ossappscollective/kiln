@@ -14,6 +14,8 @@
  * UNVERIFIED in comments and in the ADR; the fit result carries them as `assumptions`.
  */
 
+import { normalizeLocaleCode } from '../listing-facts/locale.ts';
+import { APP_STORE_FIELD_SPECS } from '../listing/listing.ts';
 import { type Platform, supports } from '../platform.ts';
 import { type CoreText, coreText } from '../text.ts';
 
@@ -96,28 +98,12 @@ export function normalizeCountry(raw: unknown): string | undefined {
     : undefined;
 }
 
-/** A language tag such as `en`, `en-US`, `pt-BR`, `zh-Hans-CN`; `_` reads as `-`. */
+/**
+ * A language tag such as `en`, `en-US`, `pt-BR`, `zh-Hans-CN`; `_` reads as `-`.
+ * @deprecated Delegates to `normalizeLocaleCode` (listing-facts/locale.ts), the one locale module (null there, undefined here).
+ */
 export function normalizeLocale(raw: unknown): string | undefined {
-  if (typeof raw !== 'string') return undefined;
-  const parts = raw.trim().replace(/_/g, '-').split('-');
-  if (parts.length === 0 || parts.length > 3) return undefined;
-  const language = parts[0] ?? '';
-  if (!/^[A-Za-z]{2,3}$/.test(language)) return undefined;
-  let script: string | undefined;
-  let region: string | undefined;
-  for (let i = 1; i < parts.length; i += 1) {
-    const part = parts[i] ?? '';
-    if (script === undefined && region === undefined && /^[A-Za-z]{4}$/.test(part)) {
-      script = part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
-    } else if (region === undefined && (/^[A-Za-z]{2}$/.test(part) || /^[0-9]{3}$/.test(part))) {
-      region = part.toUpperCase();
-    } else {
-      return undefined;
-    }
-  }
-  return [language.toLowerCase(), script, region]
-    .filter((p): p is string => p !== undefined)
-    .join('-');
+  return normalizeLocaleCode(raw) ?? undefined;
 }
 
 const COUNTRY_LOCALE: Record<string, string> = {
@@ -398,7 +384,7 @@ export type KeywordFieldReport = {
   savedBytes: number;
 };
 
-export const APP_STORE_KEYWORD_BYTES = 100;
+export const APP_STORE_KEYWORD_BYTES: number = APP_STORE_FIELD_SPECS.keywords.maxLength ?? 100;
 
 const encoder = new TextEncoder();
 const byteLength = (s: string) => encoder.encode(s).length;

@@ -123,9 +123,13 @@ test('Google Play fields: track, version codes, the intended share, notes per la
   const long = check('release_notes', 'x'.repeat(501), 'en-US');
   assert.deepEqual(
     [codes(long, 'error'), codes(long, 'warning')],
-    [[], ['too_long']],
-    'the 500 limit is UNVERIFIED: a warning',
+    [['too_long'], []],
+    'the 500 limit is the VERIFIED changelog spec of listing.ts (readiness blocks it too): an error, never a warning that blocks later',
   );
+  // one counting unit (code points, trimmed): 480 code points with 30 emoji are 510 UTF-16 units and are fine
+  const emoji = `${'x'.repeat(450)}${'\u{1F600}'.repeat(30)}`;
+  assert.deepEqual(check('release_notes', emoji, 'en-US'), []);
+  assert.deepEqual(check('release_notes', `${'x'.repeat(500)}\n\n`, 'en-US'), []);
   assert.deepEqual(codes(check('release_name', 'x'.repeat(60)), 'warning'), ['too_long']);
 });
 
