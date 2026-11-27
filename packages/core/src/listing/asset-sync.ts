@@ -1,4 +1,5 @@
 import { PLATFORMS, type Platform, supports } from '../platform.ts';
+import { STORE_VIEW_TTL_MS } from '../timings.ts';
 import {
   APPLE_DISPLAY_TYPES,
   type AssetSlot,
@@ -60,8 +61,8 @@ export const ASSET_SYNC_LIMITS = {
   /** All uploaded files kept for an app at once. */
   maxStagedUploadBytes: 64 * 1024 * 1024,
   maxStagedUploadFiles: 100,
-  /** Seconds one answer of the store listing is reused. */
-  storeCacheSeconds: 60,
+  /** Seconds one answer of the store listing is reused (`STORE_VIEW_TTL_MS`, the one value server and browser share). */
+  storeCacheSeconds: STORE_VIEW_TTL_MS / 1000,
 } as const;
 
 /** Formats that may be uploaded (what a push writes). */
