@@ -7,7 +7,7 @@
 <script lang="ts">
   import { t } from '../../lib/i18n/t.ts';
   import { sentimentLabel, sentimentTone, severityLabel, severityTone, topicLabel } from '../../lib/ai/insights.ts';
-  import { aiStore } from '../../lib/ai/store.svelte.ts';
+  import { aiStore } from '../../lib/app-state/ai-facade.ts';
   import Badge from '../ui/Badge.svelte';
 
   let { reviewId, workspaceId }: { reviewId: string; workspaceId: string } = $props();

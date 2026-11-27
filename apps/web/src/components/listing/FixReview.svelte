@@ -13,7 +13,7 @@
   import { fixLabel, fixSummary, hashText, termMarks } from '../../lib/listing/fixes.ts';
   import { lengthOf } from '../../lib/listing/edit.ts';
   import { placementLabel } from '../../lib/ai/placement.ts';
-  import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { stagedStore } from '../../lib/app-state/pending-facade.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';

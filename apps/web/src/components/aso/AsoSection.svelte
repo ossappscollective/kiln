@@ -22,7 +22,7 @@
   import { withInsightsAsoView } from '../../lib/app-nav.ts';
   import { appAddress } from '../../lib/app-scope.ts';
   import { t } from '../../lib/i18n/t.ts';
-  import { navSignals } from '../../lib/nav-signals.svelte.ts';
+  import { navSignals } from '../../lib/app-state/pending-facade.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import AiSuggestions from '../ai/AiSuggestions.svelte';
   import ViewSwitch from '../app/ViewSwitch.svelte';

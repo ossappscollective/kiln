@@ -9,7 +9,7 @@
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { type ConnectKind, credentialsFor, eligible, looksLikeExpo, missingLinkText } from '../../lib/connect/connect.ts';
-  import { connectStore } from '../../lib/connect/connect-store.svelte.ts';
+  import { connectStore } from '../../lib/app-state/connect-facade.ts';
   import { t } from '../../lib/i18n/t.ts';
   import type { AppSummary, CredentialSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';

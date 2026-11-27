@@ -28,7 +28,7 @@
   import type { Role } from '@kiln/core';
   import { untrack } from 'svelte';
   import { type FlagInfo, aiErrorMessage, flagInfos } from '../../lib/ai/ai.ts';
-  import { aiStore } from '../../lib/ai/store.svelte.ts';
+  import { aiStore } from '../../lib/app-state/ai-facade.ts';
   import type { Api } from '../../lib/api.ts';
   import { formatNumber } from '../../lib/i18n/format.ts';
   import {

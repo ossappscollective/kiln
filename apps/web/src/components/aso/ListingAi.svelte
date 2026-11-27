@@ -9,7 +9,7 @@
 <script lang="ts">
   import { type Role, can } from '@kiln/core';
   import { suggestAvailability } from '../../lib/ai/ai.ts';
-  import { aiStore } from '../../lib/ai/store.svelte.ts';
+  import { aiStore } from '../../lib/app-state/ai-facade.ts';
   import type { Api } from '../../lib/api.ts';
   import { t } from '../../lib/i18n/t.ts';
   import type { AppSummary } from '../../lib/types.ts';

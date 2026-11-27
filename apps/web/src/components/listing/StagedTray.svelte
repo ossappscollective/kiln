@@ -16,7 +16,7 @@
   import type { Api } from '../../lib/api.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { itemCount, notSubmittedNote, pushAvailability, submitNextStepNote } from '../../lib/staged.ts';
-  import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { stagedStore } from '../../lib/app-state/pending-facade.ts';
   import { trayIsFull, trayLine } from '../../lib/staged-tray.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';

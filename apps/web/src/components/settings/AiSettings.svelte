@@ -53,7 +53,7 @@
     validateAiForm,
   } from '../../lib/ai/ai.ts';
   import { centsText, costLine } from '../../lib/ai/insights.ts';
-  import { aiStore } from '../../lib/ai/store.svelte.ts';
+  import { aiStore } from '../../lib/app-state/ai-facade.ts';
   import type { Api } from '../../lib/api.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';

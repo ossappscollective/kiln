@@ -9,7 +9,7 @@
 <script lang="ts">
   import type { Role } from '@kiln/core';
   import { aiErrorMessage } from '../../lib/ai/ai.ts';
-  import { aiStore } from '../../lib/ai/store.svelte.ts';
+  import { aiStore } from '../../lib/app-state/ai-facade.ts';
   import type { Api } from '../../lib/api.ts';
   import { type AsoKeyword, countryForLocale } from '../../lib/aso/aso.ts';
   import { platformLabel } from '../../lib/portfolio.ts';

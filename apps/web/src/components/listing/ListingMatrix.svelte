@@ -33,7 +33,7 @@
   import { openStatusPopover } from '../../lib/app-page.ts';
   import { reportShown } from '../../lib/app-state/dev-assert.ts';
   import { listingStore } from '../../lib/app-state/listing-store.svelte.ts';
-  import { navSignals } from '../../lib/nav-signals.svelte.ts';
+  import { navSignals } from '../../lib/app-state/pending-facade.ts';
   import { shortRef } from '../../lib/listing/drift.ts';
   import {
     LEGEND_ORDER,
@@ -65,7 +65,7 @@
   import { announceCartOpen } from '../../lib/pending-cart.ts';
   import { stagedCellMark, stagedCountForLocale } from '../../lib/staged-marks.ts';
   import { stagingError as stagingMessage } from '../../lib/staged.ts';
-  import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { stagedStore } from '../../lib/app-state/pending-facade.ts';
   import { platformById } from '../../lib/stores.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, DriftField, ListingDrift, PullResult, StoreListingView } from '../../lib/types.ts';

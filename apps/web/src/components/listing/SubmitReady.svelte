@@ -35,7 +35,7 @@
     submitLine,
   } from '../../lib/store-submit.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
-  import { submitStore } from '../../lib/store-submit-store.svelte.ts';
+  import { submitStore } from '../../lib/app-state/pending-facade.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';

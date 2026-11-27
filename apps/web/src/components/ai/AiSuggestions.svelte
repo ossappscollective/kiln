@@ -11,7 +11,7 @@
   import { type AiAcceptedRef, type AiProposalKind, type Role, can } from '@kiln/core';
   import { untrack } from 'svelte';
   import { openLine } from '../../lib/ai/ai.ts';
-  import { aiStore } from '../../lib/ai/store.svelte.ts';
+  import { aiStore } from '../../lib/app-state/ai-facade.ts';
   import type { Api } from '../../lib/api.ts';
   import type { PlatformScope } from '../../lib/app-scope.ts';
   import { t } from '../../lib/i18n/t.ts';

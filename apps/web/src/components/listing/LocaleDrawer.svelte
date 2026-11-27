@@ -32,7 +32,7 @@
   import { storeName } from '../../lib/portfolio.ts';
   import { fieldInfo } from '../../lib/listing/edit.ts';
   import { fieldStage } from '../../lib/staged.ts';
-  import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { stagedStore } from '../../lib/app-state/pending-facade.ts';
   import type { AppSummary, DriftField } from '../../lib/types.ts';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Button from '../ui/Button.svelte';

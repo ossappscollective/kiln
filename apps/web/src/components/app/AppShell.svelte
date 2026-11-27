@@ -31,7 +31,7 @@
   } from '../../lib/app-header.ts';
   import { asoViewFromHash } from '../../lib/aso/aso.ts';
   import { navSignals, pendingStore } from '../../lib/app-state/pending-facade.ts';
-  import { tint } from '../../lib/tint/store.svelte.ts';
+  import { tint } from '../../lib/app-state/tint-facade.ts';
   import { dataChips } from '../../lib/app-chips.ts';
   import { canonicalAppHash, canonicalSection, pageTitle, resolveView, showsScope, viewsFor } from '../../lib/app-nav.ts';
   import { PUBLISHED_EVENT } from '../../lib/app-page.ts';

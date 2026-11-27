@@ -31,7 +31,7 @@
     toggleSelection,
   } from '../../lib/ai/ai.ts';
   import { PLACEMENT_NOT_APPLIED, TRACKING_ONLY_NOTE, platformOfStore } from '../../lib/ai/placement.ts';
-  import { aiStore } from '../../lib/ai/store.svelte.ts';
+  import { aiStore } from '../../lib/app-state/ai-facade.ts';
   import { ApiError, type Api } from '../../lib/api.ts';
   import type { PlatformScope } from '../../lib/app-scope.ts';
   import { timeAgo } from '../../lib/format.ts';

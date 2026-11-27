@@ -16,7 +16,7 @@
   import { untrack } from 'svelte';
   import { suggestAvailability } from '../../lib/ai/ai.ts';
   import { privacySettingHref, type ReviewPrivacyView, reviewAiGate, workspaceAiSettingHref } from '../../lib/ai/review-privacy.ts';
-  import { aiStore } from '../../lib/ai/store.svelte.ts';
+  import { aiStore } from '../../lib/app-state/ai-facade.ts';
   import type { Api } from '../../lib/api.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';

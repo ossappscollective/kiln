@@ -30,7 +30,7 @@
     stageThenClose,
   } from '../../lib/listing/edit.ts';
   import { canStage, findStagedText, normalizeText, stagingError } from '../../lib/staged.ts';
-  import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { stagedStore } from '../../lib/app-state/pending-facade.ts';
   import { storeName } from '../../lib/portfolio.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import ImproveField from '../ai/ImproveField.svelte';

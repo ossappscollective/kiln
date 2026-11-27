@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { alertStore } from '../../lib/alerts/store.svelte.ts';
+  import { alertStore } from '../../lib/app-state/alerts-facade.ts';
   import { badgeCount, severityLabel } from '../../lib/alerts/alerts.ts';
   import { floating } from '../../lib/floating.ts';
   import { timeAgo } from '../../lib/format.ts';

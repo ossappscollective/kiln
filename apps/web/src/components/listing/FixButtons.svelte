@@ -15,7 +15,7 @@
   import { fieldInfo } from '../../lib/listing/edit.ts';
   import { cannotFix, fixBlockedReason, fixForIssue, fixLabel, type LocaleFixes, stagedItemOf } from '../../lib/listing/fixes.ts';
   import { placementLabel } from '../../lib/ai/placement.ts';
-  import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { stagedStore } from '../../lib/app-state/pending-facade.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import ImproveField from '../ai/ImproveField.svelte';
   import Badge from '../ui/Badge.svelte';

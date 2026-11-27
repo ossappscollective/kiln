@@ -16,7 +16,7 @@
   import { floating } from '../../lib/floating.ts';
   import { type AiPreview, type AiRunBody, type AiTaskView, aiErrorMessage, disclosureGate, providerSentence, suggestAvailability } from '../../lib/ai/ai.ts';
   import { previewFacts, previewText } from '../../lib/ai/insights.ts';
-  import { aiStore } from '../../lib/ai/store.svelte.ts';
+  import { aiStore } from '../../lib/app-state/ai-facade.ts';
   import type { Api } from '../../lib/api.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { toast } from '../../lib/toast.svelte.ts';

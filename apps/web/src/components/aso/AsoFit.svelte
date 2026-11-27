@@ -11,7 +11,7 @@
   import type { Api } from '../../lib/api.ts';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
   import { coachHref, countriesForLocale, keywordsForLocale, overlayStaged } from '../../lib/aso/budget.ts';
-  import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { stagedStore } from '../../lib/app-state/pending-facade.ts';
   import {
     type AsoFitResponse,
     type AsoKeyword,

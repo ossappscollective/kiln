@@ -9,7 +9,7 @@
 <script lang="ts">
   import { can, type Role } from '@kiln/core';
   import { untrack } from 'svelte';
-  import { aiStore } from '../../lib/ai/store.svelte.ts';
+  import { aiStore } from '../../lib/app-state/ai-facade.ts';
   import type { Api } from '../../lib/api.ts';
   import { formatList } from '../../lib/i18n/format.ts';
   import { t } from '../../lib/i18n/t.ts';
@@ -18,7 +18,7 @@
   import { type EngineState, type TranslateEngine, aiEngine, machineEngine, translateErrorMessage } from '../../lib/release-notes-translate.ts';
   import { loadTranslationConfig, type TranslationConfig } from '../../lib/settings.ts';
   import { canStage, stagingError } from '../../lib/staged.ts';
-  import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { stagedStore } from '../../lib/app-state/pending-facade.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';

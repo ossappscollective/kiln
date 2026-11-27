@@ -29,7 +29,7 @@
     withChecked,
     withValue,
   } from '../../lib/connect/connect.ts';
-  import { connectStore } from '../../lib/connect/connect-store.svelte.ts';
+  import { connectStore } from '../../lib/app-state/connect-facade.ts';
   import { type ExpoDetection, easErrorText, projectReferenceProblem } from '../../lib/eas/eas.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { runLimited } from '../../lib/portfolio.ts';

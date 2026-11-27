@@ -20,7 +20,7 @@
     isContextDirty,
     validateContextForm,
   } from '../../../lib/ai/insights.ts';
-  import { aiStore } from '../../../lib/ai/store.svelte.ts';
+  import { aiStore } from '../../../lib/app-state/ai-facade.ts';
   import type { Api } from '../../../lib/api.ts';
   import { platformLabel } from '../../../lib/portfolio.ts';
   import { toast } from '../../../lib/toast.svelte.ts';

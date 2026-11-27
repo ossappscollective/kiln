@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
   import { t } from '../../lib/i18n/t.ts';
-  import { tint } from '../../lib/tint/store.svelte.ts';
+  import { tint } from '../../lib/app-state/tint-facade.ts';
 
   const uid = $props.id();
 </script>

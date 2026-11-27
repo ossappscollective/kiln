@@ -13,7 +13,7 @@
   import Alert from './ui/Alert.svelte';
   import PageHeader from './ui/PageHeader.svelte';
   import Tabs from './ui/Tabs.svelte';
-  import { alertStore } from '../lib/alerts/store.svelte.ts';
+  import { alertStore } from '../lib/app-state/alerts-facade.ts';
   import { t } from '../lib/i18n/t.ts';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();

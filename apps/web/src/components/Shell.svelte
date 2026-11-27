@@ -11,7 +11,7 @@
   import { appSwitchHash, jumpTarget, switcherItems, type SwitcherItem } from '../lib/app-switcher.ts';
   import { breadcrumbItems, charsFor, fitCrumbs } from '../lib/breadcrumb.ts';
   import { DEMO_BANNER_KEY } from '../lib/demo.ts';
-  import { alertStore } from '../lib/alerts/store.svelte.ts';
+  import { alertStore } from '../lib/app-state/alerts-facade.ts';
   import { platformStatusLines } from '../lib/app-status.ts';
   import { t } from '../lib/i18n/t.ts';
   import { appNavCounts, badgeText } from '../lib/nav-badges.ts';
@@ -20,7 +20,7 @@
   import { roleLabel } from '../lib/role-label.ts';
   import { navSignals, pendingAcrossText } from '../lib/app-state/pending-facade.ts';
   import { releaseFactsStore } from '../lib/app-state/release-facts-store.svelte.ts';
-  import { tint } from '../lib/tint/store.svelte.ts';
+  import { tint } from '../lib/app-state/tint-facade.ts';
   import { loadCollapsed, railApplies, saveCollapsed } from '../lib/sidebar-state.ts';
   import { CHORD_TIMEOUT_MS, type ChordState, chordHint, idleChord, isTypingTarget, stepShortcut } from '../lib/shortcuts.ts';
   import { initials } from '../lib/format.ts';

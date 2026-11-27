@@ -6,7 +6,7 @@
 -->
 <script lang="ts">
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { alertStore } from '../../lib/alerts/store.svelte.ts';
+  import { alertStore } from '../../lib/app-state/alerts-facade.ts';
   import { type NotifyState, inDesktopShell, notificationState, notifyStateKeys, requestNotificationPermission } from '../../lib/alerts/notify.ts';
   import {
     type AlertChannel,

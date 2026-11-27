@@ -35,7 +35,7 @@
   } from '../../lib/aso/keyword-use.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { canStage, findStagedText } from '../../lib/staged.ts';
-  import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { stagedStore } from '../../lib/app-state/pending-facade.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { territoryName } from '../../lib/reviews/reviews.ts';
   import { toast } from '../../lib/toast.svelte.ts';
