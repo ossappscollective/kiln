@@ -14,6 +14,7 @@ import type { ListingStore } from '../listing/listing.ts';
 import { type CountryCount, languageCoverage } from './language-coverage.ts';
 import { type CheckLocaleText, checkListing } from './listing-checks.ts';
 import { complaintThemes, type ReviewTheme } from './review-themes.ts';
+import { compareVersions } from '../versions/compare.ts';
 
 export const INSIGHT_CATEGORIES = [
   'visibility',
@@ -175,16 +176,11 @@ const median = (values: number[]): number => {
     : ((sorted[mid - 1] as number) + (sorted[mid] as number)) / 2;
 };
 
-/** Compares `1.10.0` with `1.9.2` by numbers, part by part. */
-export function compareVersions(a: string, b: string): number {
-  const pa = a.split('.').map((p) => Number.parseInt(p, 10) || 0);
-  const pb = b.split('.').map((p) => Number.parseInt(p, 10) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
-    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
-    if (d !== 0) return d;
-  }
-  return 0;
-}
+/**
+ * Compares `1.10.0` with `1.9.2` by numbers, part by part.
+ * @deprecated The one comparator lives in versions/compare.ts; this is the same binding (re-exported so nothing breaks).
+ */
+export { compareVersions };
 
 // ---------------------------------------------------------------------------------------------
 // rules

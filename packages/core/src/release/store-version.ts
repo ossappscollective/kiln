@@ -4,26 +4,26 @@
  * periods. Nothing here talks to a store; the server and the web app share it.
  */
 
-const DOTTED = /^[0-9]{1,9}(\.[0-9]{1,9}){0,2}$/;
+import { compareVersions, isCreatableVersion } from '../versions/compare.ts';
 
-/** True for "3", "3.1" and "3.1.2": one to three whole numbers separated by periods, nothing else. */
-export const isDottedVersion = (value: string): boolean => DOTTED.test(value);
+/**
+ * True for "3", "3.1" and "3.1.2": one to three whole numbers separated by periods, nothing else.
+ * Same function as `isCreatableVersion` (versions/compare.ts), the one owner of the rule.
+ */
+export const isDottedVersion = (value: string): boolean => isCreatableVersion(value);
 
 const partsOf = (value: string): number[] => value.split('.').map((p) => Number(p));
 
 /**
  * Compares two dotted versions numerically, a missing part counting as 0 ("3.1" equals "3.1.0"). Negative: `a` is lower.
  * Strings that are not dotted versions are not ordered: the caller checks `isDottedVersion` first (NaN is returned otherwise).
+ *
+ * @deprecated Delegates to `compareVersions` / `tryCompareVersions` (versions/compare.ts), the one comparator. Kept for the server's
+ * create-version checks until they import it directly.
  */
 export function compareDottedVersions(a: string, b: string): number {
   if (!isDottedVersion(a) || !isDottedVersion(b)) return Number.NaN;
-  const left = partsOf(a);
-  const right = partsOf(b);
-  for (let i = 0; i < 3; i++) {
-    const diff = (left[i] ?? 0) - (right[i] ?? 0);
-    if (diff !== 0) return diff < 0 ? -1 : 1;
-  }
-  return 0;
+  return compareVersions(a, b);
 }
 
 /**
