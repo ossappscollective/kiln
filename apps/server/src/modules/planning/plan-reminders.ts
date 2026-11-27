@@ -1,8 +1,9 @@
 import {
-  DEFAULT_REMINDER_LEAD_HOURS,
-  type DeadlineReminderKind,
   deadlineReminder,
+  type DeadlineReminderKind,
+  DEFAULT_REMINDER_LEAD_HOURS,
   MAX_REMINDER_LEAD_HOURS,
+  PLAN_REMINDERS_MAX_PER_RUN as DEFAULT_MAX_REMINDERS_PER_RUN,
   REMINDER_STALE_DAYS,
   rolloutStepReminderDue,
 } from '@kiln/core';
@@ -10,6 +11,8 @@ import type { Database, Param, Row } from '@kiln/db';
 import { recordAudit } from '../../services/audit.ts';
 import type { EventType } from '../../services/event-types.ts';
 import { emitEvent } from '../../services/events.ts';
+
+export { DEFAULT_MAX_REMINDERS_PER_RUN };
 
 /**
  * Reminders about release plans: a deadline that is close, a deadline that has passed, a rollout
@@ -37,7 +40,6 @@ import { emitEvent } from '../../services/events.ts';
 /** The audit actor of a reminder: no person did it, like the background sync's `app.sync`. */
 export const REMINDER_ACTOR = { type: 'system' as const, id: 'plan.reminders' };
 
-export const DEFAULT_MAX_REMINDERS_PER_RUN = 100;
 const DAY = 24 * 60 * 60 * 1000;
 const HOUR = 60 * 60 * 1000;
 const DEADLINE_ITEM = 'target_date';

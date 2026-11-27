@@ -73,9 +73,12 @@ test('S1 ignores the modules that judge no store fact (an AI prompt budget)', ()
   assert.equal(scanFile('modules/ai/x.ts', 'const MAX_ITEMS = 100;').length, 0);
 });
 
-test('S2 sees new Map and timedCache outside the registry, not inside it', () => {
+test('S2 sees an unaccounted module-level Map outside the registry, not inside it; timedCache IS the registered factory', () => {
   const src = 'const a = new Map<string, number>(); const b = timedCache(1, 2, {});';
-  assert.equal(scanFile('modules/x.ts', src).filter((v) => v.rule === 'S2').length, 2);
+  assert.equal(scanFile('modules/x.ts', src).filter((v) => v.rule === 'S2').length, 1);
+  // registered through registerMapCache, or listed with a why in services/not-a-cache.ts: accounted for
+  assert.equal(scanFile('modules/x.ts', 'const a = new Map(); registerMapCache(a, {});').filter((v) => v.rule === 'S2').length, 0);
+  assert.equal(scanFile('modules/ci/active.ts', 'const inFlight = new Map();').filter((v) => v.rule === 'S2').length, 0);
   // a Map built inside a function to group rows is not a cache; one named like a cache is
   const local = 'function f() { const byId = new Map(); const viewCache = new Map(); }';
   assert.deepEqual(scanFile('modules/x.ts', local).filter((v) => v.rule === 'S2').map((v) => v.snippet), ['new Map()']);
@@ -90,4 +93,9 @@ test('the allowlist comparison fails a new violation and a stale entry, and skip
   assert.equal(compare([], { strict: false, entries: [e] }).stale.length, 1);
   assert.equal(compare(found, { strict: true, entries: [e] }).added.length, 1);
   assert.deepEqual(compare(found, { strict: false, entries: [] }, () => false), { added: [], stale: [] });
+});
+
+test('STRICT: the server allowlist is empty and strict (the burn-down is complete: nothing is grandfathered)', () => {
+  assert.equal(list.strict, true, 'server-guard.allowlist.json must be "strict": true');
+  assert.deepEqual(list.entries, []);
 });

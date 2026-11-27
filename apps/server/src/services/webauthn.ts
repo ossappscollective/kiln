@@ -1,4 +1,5 @@
 import { createHash, createPublicKey, verify as cryptoVerify, timingSafeEqual } from 'node:crypto';
+import { WEBAUTHN_MAX_CBOR_DEPTH as MAX_DEPTH } from '@kiln/core';
 
 /**
  * WebAuthn (level 2) verification with node:crypto only: a minimal CBOR decoder, the authenticator
@@ -38,7 +39,6 @@ export const fromB64u = (value: string): Buffer => {
 
 export type Cbor = number | Buffer | string | boolean | null | Cbor[] | Map<number | string, Cbor>;
 
-const MAX_DEPTH = 8;
 const MAX_ITEMS = 256;
 
 function readArgument(buf: Buffer, at: number, info: number): { value: number; next: number } {

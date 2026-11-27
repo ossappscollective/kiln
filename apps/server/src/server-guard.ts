@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { NOT_A_CACHE } from './services/not-a-cache.ts';
 
 /**
  * The AST guard of the server (docs/state-model.md, "Consistency contract"): routes and modules compute counts, blockers and versions
@@ -41,7 +42,7 @@ const TIMING_LITERALS: readonly number[] = [
 ];
 const LIMITISH = /(?:max|limit|ttl|fresh|stuck|quiet|silent|cap|after)/i;
 /** S1 watches the places that judge store facts (counts, blockers, versions, freshness); an AI prompt budget or a retry delay is not one. */
-export const S1_SCOPE = /^(?:modules\/(?:listing|publish|planning|builds|testflight|timeline)\/|services\/(?!mail|credential|invitation|members|accounts|audit|events|event-types|local|clone|change-set))/;
+export const S1_SCOPE = /^(?:modules\/(?:listing|publish|planning|builds|testflight|timeline)\/(?!artifact-meta\/)|services\/(?!mail|credential|invitation|members|accounts|audit|events|event-types|local|clone|change-set))/;
 const COUNTISH = /(?:\.length|count|total|size|chars|bytes|max|limit|rows|files|images|screenshots)\b/i;
 
 export type Violation = { file: string; rule: ServerRuleId; hash: string; snippet: string; line: number };
@@ -85,6 +86,17 @@ function constant(n: ts.Expression): number | null {
     return l !== null && r !== null ? l * r : null;
   }
   return null;
+}
+
+/** A module-level Map that is registered with the cache registry, or declared "not a cache" (with its reason) in services/not-a-cache.ts. */
+function accountedFor(file: string, name: string, source: string): boolean {
+  if (`${file}:${name}` in NOT_A_CACHE) return (NOT_A_CACHE[`${file}:${name}`] ?? '').trim().length >= 8;
+  if (new RegExp(`registerMapCache\\(\\s*${name}\\b`).test(source)) return true;
+  return source
+    .split('registerCache({')
+    .slice(1)
+    .map((b) => b.slice(0, b.indexOf('\n});')))
+    .some((b) => new RegExp(`\\b${name}\\.(clear|delete)\\(`).test(b));
 }
 
 export const registryExists = (root = ROOT) => existsSync(join(root, REGISTRY_FILES[0] ?? ''));
@@ -135,10 +147,11 @@ export function scanFile(file: string, source: string): Violation[] {
           add('S1', n.getText(sf), n);
       }
     }
-    // S2
+    // S2: a Map that lives at module level (or is named like a cache) is registered (`registerMapCache`, or a `registerCache` whose
+    // `drop` empties it) or listed in services/not-a-cache.ts with a `why`. `timedCache(...)` IS the registered factory (its declaration
+    // is mandatory, cache-registry.test.ts checks it), so a call of it is not a violation.
     if (!isRegistry) {
       if (ts.isNewExpression(n) && (n.expression.getText(sf) === 'Map' || n.expression.getText(sf) === 'WeakMap')) {
-        // A cache is a Map that lives at module level or is named like one; a Map built inside a function to group rows is not one.
         const decl = n.parent;
         const named =
           (ts.isVariableDeclaration(decl) || ts.isPropertyDeclaration(decl) || ts.isPropertyAssignment(decl)) &&
@@ -146,9 +159,10 @@ export function scanFile(file: string, source: string): Violation[] {
         let moduleLevel = true;
         for (let p: ts.Node | undefined = n.parent; p !== undefined && !ts.isSourceFile(p); p = p.parent)
           if (ts.isFunctionLike(p) || ts.isClassLike(p)) moduleLevel = false;
-        if (named || moduleLevel) add('S2', n.getText(sf), n);
+        const variable = ts.isVariableDeclaration(decl) ? decl.name.getText(sf) : null;
+        if ((named || moduleLevel) && !(variable !== null && accountedFor(file, variable, source)))
+          add('S2', n.getText(sf), n);
       }
-      if (ts.isCallExpression(n) && n.expression.getText(sf) === 'timedCache') add('S2', 'timedCache(...)', n);
     }
     ts.forEachChild(n, visit);
   };

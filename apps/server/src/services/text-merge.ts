@@ -1,3 +1,7 @@
+import { TEXT_MERGE_DEFAULT_MAX_EDITS as DEFAULT_MAX_EDITS } from '@kiln/core';
+
+export { DEFAULT_MAX_EDITS };
+
 /**
  * A small three-way merge of text, line by line (diff3), with no dependency. Used to re-base a
  * change set onto a repository that has moved on (change-set-refresh.ts): `base` is the text the
@@ -24,7 +28,6 @@ export type MergeOptions = {
   maxEdits?: number;
 };
 
-export const DEFAULT_MAX_EDITS = 2000;
 
 /** The lines of a text, each with its terminator. '' has no lines; 'a\n' has one; 'a' has one. */
 export function splitLines(text: string): string[] {

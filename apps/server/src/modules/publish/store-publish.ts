@@ -1,5 +1,10 @@
 import { createHash } from 'node:crypto';
-import { type Platform, supports, versionCodesOf } from '@kiln/core';
+import {
+  type Platform,
+  PUBLISH_DETAIL_THROTTLE_MS as DETAIL_THROTTLE_MS,
+  supports,
+  versionCodesOf,
+} from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
 import { cleanParams, coded, codingOf } from '../../i18n/problem.ts';
 import { getApp, type ManagedApp } from '../../services/apps.ts';
@@ -77,6 +82,8 @@ import {
   type SubmitContext,
 } from './store-submit.ts';
 
+export { DETAIL_THROTTLE_MS };
+
 /**
  * The BATCH PUBLISH of an app: one plan, ONE final confirmation, several gated store steps in order
  * (docs/api/pending.md, docs/adr/0015-pending-and-batch-publish.md).
@@ -108,9 +115,10 @@ type Actor = { type: 'user' | 'token' | 'system'; id: string };
 export const PUBLISH_ENV = 'KILN_STORE_PUBLISH_BATCH_ENABLED';
 export const PUBLISH_ACTION = 'store.publish';
 /** A claim whose heartbeat is older than this is a dead process (`publishing.ts`): a running batch renews it by a timer, also inside a step. */
+
 export { DEFAULT_PUBLISH_CLAIM_TTL_MS, DEFAULT_PUBLISH_HEARTBEAT_MS };
+
 /** The least time between two lines of "what the step is doing" written to the claim (a screen polls every few seconds). */
-export const DETAIL_THROTTLE_MS = 2_000;
 /**
  * The longest one step of a batch may run before the batch gives up waiting for it and answers (a backstop over the step's own
  * timeouts: a push is bounded by four minutes and the check after it, a submit by two and the check after it). The answer is an

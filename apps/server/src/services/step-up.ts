@@ -15,6 +15,15 @@ import {
   verifyRegistration,
   WebAuthnError,
 } from './webauthn.ts';
+import {
+  STEP_UP_CHALLENGE_TTL_MS as CHALLENGE_TTL_MS,
+  STEP_UP_GRANT_TTL_MS as GRANT_TTL_MS,
+  STEP_UP_LOCKOUT_MAX_MS as LOCKOUT_MAX_MS,
+  STEP_UP_MAX_PASSKEYS as MAX_PASSKEYS,
+} from '@kiln/core';
+
+export { GRANT_TTL_MS, MAX_PASSKEYS, CHALLENGE_TTL_MS, LOCKOUT_MAX_MS };
+
 /**
  * Step-up confirmation (docs/adr/0019-step-up-confirmation.md): a second, fresh proof before a hard
  * action. A person proves themselves with a passkey (WebAuthn, user verification required) or a
@@ -54,14 +63,10 @@ export type GrantAction = StepUpAction | typeof MANAGE_ACTION;
 export const isGrantAction = (value: unknown): value is GrantAction =>
   value === MANAGE_ACTION || isStepUpAction(value);
 
-export const GRANT_TTL_MS = 5 * 60_000;
-export const CHALLENGE_TTL_MS = 2 * 60_000;
-export const MAX_PASSKEYS = 10;
 export const MAX_OPEN_CHALLENGES = 20;
 /** Consecutive failures before the lockout starts; then 30 s, doubling, at most 15 minutes. */
 export const LOCKOUT_AFTER = 5;
 export const LOCKOUT_BASE_MS = 30_000;
-export const LOCKOUT_MAX_MS = 15 * 60_000;
 
 const sha256hex = (value: string) => createHash('sha256').update(value).digest('hex');
 const SETTING_KEY = 'security.stepUp';

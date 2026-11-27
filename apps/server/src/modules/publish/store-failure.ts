@@ -1,4 +1,7 @@
 import { redactSecrets, StoreError, secretStrings } from '@kiln/connectors';
+import { STORE_FAILURE_MESSAGE_MAX_CHARS as MESSAGE_MAX } from '@kiln/core';
+
+export { MESSAGE_MAX };
 
 /**
  * What a store said when it refused a write, in a form that is safe to show, to log and to keep (docs/api/pending.md "Why a publish
@@ -10,7 +13,6 @@ import { redactSecrets, StoreError, secretStrings } from '@kiln/connectors';
 /** The longest store sentence kept (the web shows the first 300 characters and a "Show more"). */
 export const STORE_TEXT_MAX = 600;
 /** The longest sentence of the server's own that is kept next to it. */
-export const MESSAGE_MAX = 500;
 
 const LONG_OPAQUE = /\b[A-Za-z0-9+=_-]{40,}\b/g;
 

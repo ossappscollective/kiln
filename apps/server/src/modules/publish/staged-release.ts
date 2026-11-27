@@ -8,6 +8,7 @@ import {
   normalizeReleaseValue,
   type Platform,
   RELEASE_FIELD_SPECS,
+  RELEASE_MAX_CODES_SHOWN as MAX_CODES_SHOWN,
   type ReleaseValueInput,
   STAGEABLE_RELEASE_FIELDS,
   STAGED_LIMITS,
@@ -185,7 +186,6 @@ export type ReleaseCheck = {
   locale?: string;
 };
 
-const MAX_CODES_SHOWN = 10;
 
 /**
  * Checks of the staged release fields against what the store says (the facts the connector reads next to each field). Pure.

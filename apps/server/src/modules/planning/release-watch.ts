@@ -1,10 +1,17 @@
-import { evaluatePipeline, HOUR_MS, MAX_STALLED_AFTER_HOURS } from '@kiln/core';
+import {
+  evaluatePipeline,
+  HOUR_MS,
+  MAX_STALLED_AFTER_HOURS,
+  RELEASE_WATCH_MAX_EVENTS_PER_RUN as DEFAULT_MAX_WATCH_EVENTS_PER_RUN,
+} from '@kiln/core';
 import type { Database, Row } from '@kiln/db';
 import { recordAudit } from '../../services/audit.ts';
 import { emitEvent } from '../../services/events.ts';
 import { getSettings } from '../../services/workspace-settings.ts';
 import { unansweredByApp } from '../reviews/summary.ts';
 import { loadPipelineFacts } from './release-pipeline.ts';
+
+export { DEFAULT_MAX_WATCH_EVENTS_PER_RUN };
 
 /**
  * Two signals about work that waits for a person, sent as events (`release.stalled`, `review.unanswered`) so they flow through
@@ -25,7 +32,6 @@ import { loadPipelineFacts } from './release-pipeline.ts';
  */
 
 export const RELEASE_WATCH_ACTOR = { type: 'system' as const, id: 'release.watch' };
-export const DEFAULT_MAX_WATCH_EVENTS_PER_RUN = 100;
 /** The most apps named in one `review.unanswered` event. */
 export const MAX_DIGEST_APPS = 50;
 

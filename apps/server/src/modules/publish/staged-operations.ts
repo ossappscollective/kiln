@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { type Draft, object, stagedAppSchema, timestamp, W } from '../../operations/shared.ts';
+import { UPLOAD_BODY_LIMIT_BYTES } from '@kiln/core';
 
 const stagedProblemSchema = z.object({
   severity: z.enum(['error', 'warning', 'info']),
@@ -513,7 +514,7 @@ export const stagedChangesOperations: Draft[] = [
     access: { action: 'changesets.write' },
     appScope: { kind: 'param', name: 'id' },
     rateLimited: true,
-    bodyLimit: 8 * 1024 * 1024,
+    bodyLimit: UPLOAD_BODY_LIMIT_BYTES,
     query: z.object({
       locale: z.string().min(2).max(35),
       kind: z.string().describe('screenshot, icon, feature_graphic, promo_graphic or tv_banner.'),

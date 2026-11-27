@@ -22,6 +22,13 @@ import {
   normalizeTotpCode,
   otpauthUri,
 } from './totp.ts';
+import {
+  LOGIN_CHALLENGE_TOKEN_MAX_CHARS,
+  TWO_FACTOR_EMAIL_CODE_TTL_MS as EMAIL_CODE_TTL_MS,
+  TWO_FACTOR_LOGIN_CHALLENGE_TTL_MS as LOGIN_CHALLENGE_TTL_MS,
+} from '@kiln/core';
+
+export { LOGIN_CHALLENGE_TTL_MS, EMAIL_CODE_TTL_MS };
 
 /**
  * Two-factor authentication (docs/adr/0021-two-factor-and-smtp.md): an authenticator app (TOTP) and a code by email, as ways to
@@ -36,14 +43,12 @@ import {
 // ---------------------------------------------------------------------------------------------
 // Limits
 
-export const EMAIL_CODE_TTL_MS = 10 * 60_000;
 export const EMAIL_CODE_MAX_ATTEMPTS = 5;
 export const MAIL_RESEND_COOLDOWN_MS = 60_000;
 export const MAIL_USER_PER_HOUR = 6;
 export const MAIL_WORKSPACE_PER_HOUR = 30;
 /** Codes with no workspace (signing in) share this cap across the whole server. */
 export const MAIL_INSTANCE_PER_HOUR = 60;
-export const LOGIN_CHALLENGE_TTL_MS = 5 * 60_000;
 export const LOGIN_CHALLENGE_MAX_ATTEMPTS = 5;
 const HOUR = 3_600_000;
 
@@ -682,7 +687,7 @@ export async function loadLoginChallenge(
   token: string,
   now: number,
 ): Promise<LoginChallenge | undefined> {
-  if (typeof token !== 'string' || !token.startsWith('lgc_') || token.length > 100)
+  if (typeof token !== 'string' || !token.startsWith('lgc_') || token.length > LOGIN_CHALLENGE_TOKEN_MAX_CHARS)
     return undefined;
   const id = sha256hex(token);
   const [row] = await sql.query(

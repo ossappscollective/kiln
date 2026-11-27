@@ -9,10 +9,13 @@ import {
   type TestFlightLinksConnector,
 } from '@kiln/connectors';
 import {
-  compareBuildNumbers,
+  BUILD_BUSY_RETRY_AFTER_SECONDS,
+  BUILD_LINK_TTL_MS as LINK_TTL_MS,
   BUILD_LIST_TTL_MS,
   BUILD_PROBLEM_TTL_MS,
+  BUILD_RUNS_READ_LIMIT,
   can,
+  compareBuildNumbers,
   type Platform,
   supports,
 } from '@kiln/core';
@@ -40,6 +43,8 @@ import {
   loadArtifactMeta,
 } from './artifact-meta-store.ts';
 
+export { LINK_TTL_MS };
+
 /**
  * Builds you can test before publishing (docs/api/builds.md, docs/research/test-builds.md): the zips that CI runs
  * uploaded as workflow artifacts, and the builds the last store sync saw. Listing asks GitHub for artifact names and
@@ -51,7 +56,6 @@ type Actor = { type: 'user' | 'token' | 'assistant' | 'system'; id: string };
 
 export const DEFAULT_MAX_DOWNLOAD_BYTES = 500 * 1024 * 1024;
 export const DOWNLOAD_TIMEOUT_MS = 10 * 60_000;
-export const LINK_TTL_MS = 10 * 60_000;
 /** `BUILD_LIST_TTL_MS` / `BUILD_PROBLEM_TTL_MS` of `@kiln/core`'s timings (the browser's build read derives its own from them). */
 export const LIST_CACHE_TTL_MS = BUILD_LIST_TTL_MS;
 export const PROBLEM_CACHE_TTL_MS = BUILD_PROBLEM_TTL_MS;
@@ -573,7 +577,7 @@ export async function listRawArtifacts(
   if (!repository || repository.localOnly) return { ok: false, reason: 'no_repository' };
   const read = await readRepoArtifacts(ctx, input.workspaceId, repository, actor);
   if (!read.ok) return { ok: false, reason: reasonOf(read) };
-  const runs = await listRuns(ctx.db, input.workspaceId, repository.id, { limit: 100 });
+  const runs = await listRuns(ctx.db, input.workspaceId, repository.id, { limit: BUILD_RUNS_READ_LIMIT });
   return {
     ok: true,
     artifacts: read.value.artifacts,
@@ -854,7 +858,7 @@ export async function listBuildArtifacts(
       },
     };
   }
-  const runs = await listRuns(ctx.db, input.workspaceId, repository.id, { limit: 100 });
+  const runs = await listRuns(ctx.db, input.workspaceId, repository.id, { limit: BUILD_RUNS_READ_LIMIT });
   const byRun = new Map(runs.filter((r) => runCountsForApp(r, app.id)).map((r) => [r.id, r]));
   const artifacts: ArtifactItem[] = [];
   const metas = await loadArtifactMeta(ctx.db, input.workspaceId, app.id);
@@ -1017,7 +1021,7 @@ export async function findArtifact(
   if (!read.ok) return read;
   const artifact = read.value.artifacts.find((a) => a.id === input.artifactId);
   const runs = artifact?.runId
-    ? await listRuns(ctx.db, input.workspaceId, repository.id, { limit: 100 })
+    ? await listRuns(ctx.db, input.workspaceId, repository.id, { limit: BUILD_RUNS_READ_LIMIT })
     : [];
   const run = runs.find((r) => r.id === artifact?.runId && runCountsForApp(r, app.id));
   if (!artifact || !run) return fail(404, 'not_found');
@@ -1083,7 +1087,7 @@ export async function openArtifactDownload(
   if (busy >= MAX_PARALLEL_DOWNLOADS) {
     return {
       ...fail(429, 'rate_limited', 'Other downloads are still running. Try again in a moment.', {
-        retryAfterSeconds: 10,
+        retryAfterSeconds: BUILD_BUSY_RETRY_AFTER_SECONDS,
         ...coded('builds.downloadsBusy'),
       }),
       headers: { 'Retry-After': '10' },

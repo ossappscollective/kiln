@@ -15,7 +15,7 @@ import {
   secretStrings,
 } from '@kiln/connectors';
 import type { ActorType, Listing, ListingProblem } from '@kiln/core';
-import { validateListing } from '@kiln/core';
+import { REPOSITORY_MAX_WARM_PATHS as MAX_WARM_PATHS, validateListing } from '@kiln/core';
 import { type Database, mapOrNull, type Row, type Sql } from '@kiln/db';
 import { coded, messageCoding } from '../i18n/problem.ts';
 import {
@@ -870,7 +870,6 @@ export async function scanRepository(
   return { ok: true, repository: updated, detection, listingSources: detectedSources(detection) };
 }
 
-const MAX_WARM_PATHS = 2000;
 
 /** The text files under the chosen listing folders (not images), for downloading in one request. */
 function listingTextFiles(
@@ -1073,3 +1072,4 @@ export async function getRepositoryListing(
 }
 
 export { openFor as openConnectorForRepository };
+

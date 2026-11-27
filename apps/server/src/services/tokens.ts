@@ -7,14 +7,17 @@ import {
   isTokenRole,
   lowerRole,
   type Role,
-  type TokenRole,
   tokenForbiddenActions,
+  type TokenRole,
   tokenRoles,
+  TOKENS_MAX_ACTIVE as MAX_ACTIVE_TOKENS,
 } from '@kiln/core';
 import type { Database, Row, Sql } from '@kiln/db';
 import { z } from 'zod';
 import { coded, type ErrorParams } from '../i18n/problem.ts';
 import { recordAudit } from './audit.ts';
+
+export { MAX_ACTIVE_TOKENS };
 
 /**
  * API tokens for scripts and CI. A token is `kiln_` plus 256 random bits (base64url). Only its
@@ -28,7 +31,6 @@ import { recordAudit } from './audit.ts';
 export const TOKEN_PREFIX = 'kiln_';
 /** Shown in lists to tell tokens apart: `kiln_` and the first six random characters. */
 const PREFIX_SHOWN = TOKEN_PREFIX.length + 6;
-export const MAX_ACTIVE_TOKENS = 100;
 /** A token's last-used time is written at most once per this many milliseconds. */
 export const LAST_USED_GRANULARITY_MS = 60_000;
 

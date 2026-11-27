@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { changeSetSchema, type Draft, listingQuery, object, W } from '../../operations/shared.ts';
 import { assetProposalOperations } from './asset-proposal-operations.ts';
+import { UPLOAD_BODY_LIMIT_BYTES } from '@kiln/core';
 
 const pullListingBody = z.object({
   channel: z
@@ -364,7 +365,7 @@ export const listingOperations: Draft[] = [
     access: { action: 'changesets.write' },
     appScope: { kind: 'param', name: 'id' },
     rateLimited: true,
-    bodyLimit: 8 * 1024 * 1024,
+    bodyLimit: UPLOAD_BODY_LIMIT_BYTES,
     query: z.object({
       locale: z.string().min(2).max(35),
       kind: z.string().describe('screenshot, icon, feature_graphic, promo_graphic or tv_banner.'),

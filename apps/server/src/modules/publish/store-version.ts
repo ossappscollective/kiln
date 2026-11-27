@@ -14,10 +14,11 @@ import {
 import {
   createReleaseRules,
   newestNonEditableVersion,
-  sameVersion,
   nextVersion,
   type Platform,
   type ReviewSummary,
+  sameVersion,
+  STORE_CALL_CLAIM_TTL_MS as DEFAULT_VERSION_CLAIM_TTL_MS,
   supports,
 } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
@@ -28,6 +29,8 @@ import { emitCacheEvent } from '../../services/cache-registry.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { storeFor } from '../reviews/sync.ts';
 import { connect, DRAFT_ENV, mapStoreError } from './store-draft.ts';
+
+export { DEFAULT_VERSION_CLAIM_TTL_MS };
 
 /**
  * CREATING the next App Store version (docs/api/store-version.md, docs/adr/0031-create-app-store-version.md): the dead end of the
@@ -60,7 +63,6 @@ export const VERSION_ENV = DRAFT_ENV;
 export const VERSION_PURPOSE = 'store.version_create';
 export const DEFAULT_VERSION_TIMEOUT_MS = 120_000;
 /** Longer than the timeout, so a claim is never trusted less than the write it guards can still run. */
-export const DEFAULT_VERSION_CLAIM_TTL_MS = 300_000;
 
 // ---------------------------------------------------------------------------------------------
 // Context
@@ -994,3 +996,4 @@ export async function applyReviewCopy(
 }
 
 export { CREATABLE_RELEASE_TYPES };
+

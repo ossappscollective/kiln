@@ -1,5 +1,8 @@
 import type { RepoConnector } from '@kiln/connectors';
 import { registerMapCache } from './cache-registry.ts';
+import { REPO_SNAPSHOT_TTL_MS as SNAPSHOT_TTL_MS } from '@kiln/core';
+
+export { SNAPSHOT_TTL_MS };
 
 /**
  * One consistent view of a repository for one request, shared between requests for a short time.
@@ -24,7 +27,6 @@ export type RepoSnapshot = {
   cachedTree: boolean;
 };
 
-export const SNAPSHOT_TTL_MS = 5 * 60_000;
 export const SNAPSHOT_MAX_ENTRIES = 16;
 /** File texts kept per commit. More than this is read again rather than held in memory. */
 export const SNAPSHOT_MAX_BYTES = 4 * 1024 * 1024;

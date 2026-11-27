@@ -1,4 +1,9 @@
-import { type Action, can } from '@kiln/core';
+import {
+  type Action,
+  can,
+  TESTFLIGHT_FILTER_MAX_CHARS,
+  TESTFLIGHT_MAX_PAGE as MAX_PAGE,
+} from '@kiln/core';
 import { type Context, Hono, type Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody, queryInt } from '../../http.ts';
@@ -23,6 +28,8 @@ import {
   type TriageStatus,
 } from './store.ts';
 
+export { MAX_PAGE };
+
 /**
  * TestFlight beta feedback and crash submissions of an app (docs/api/testflight-feedback.md). Reads and the sync are read-only toward Apple; the
  * triage (status, assignee, note) is Kiln's own data. Nothing here deletes or changes anything in App Store Connect. Mounted under /api/workspaces.
@@ -38,7 +45,6 @@ const respond = (c: Context<AppEnv>, f: Failure) => {
 };
 
 export const DEFAULT_PAGE = 50;
-export const MAX_PAGE = 100;
 
 const triageBody = z
   .object({
@@ -74,13 +80,13 @@ export function parseListQuery(
   };
   const build = c.req.query('build');
   if (build) {
-    if (build.length <= 100) filter.build = build;
-    else issues.push({ path: 'build', message: 'At most 100 characters.' });
+    if (build.length <= TESTFLIGHT_FILTER_MAX_CHARS) filter.build = build;
+    else issues.push({ path: 'build', message: `At most ${TESTFLIGHT_FILTER_MAX_CHARS} characters.` });
   }
   const version = c.req.query('version');
   if (version) {
-    if (version.length <= 100) filter.version = version;
-    else issues.push({ path: 'version', message: 'At most 100 characters.' });
+    if (version.length <= TESTFLIGHT_FILTER_MAX_CHARS) filter.version = version;
+    else issues.push({ path: 'version', message: `At most ${TESTFLIGHT_FILTER_MAX_CHARS} characters.` });
   }
   const statuses = list(c, 'status');
   if (statuses.length > 0) {

@@ -1,4 +1,9 @@
-import { type Action, can, isLocaleOrDefault } from '@kiln/core';
+import {
+  type Action,
+  can,
+  isLocaleOrDefault,
+  LISTING_MAX_PULL_LOCALES as MAX_PULL_LOCALES,
+} from '@kiln/core';
 import type { Database } from '@kiln/db';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
@@ -58,7 +63,6 @@ const listingSettingsBody = z
   .strict();
 
 const PULL_BODY_LIMIT = 64 * 1024;
-const MAX_PULL_LOCALES = 100;
 const MAX_PULL_ITEMS = 1000;
 const localeCode = z.string().refine(isLocaleOrDefault, 'Not a locale code.');
 const folderText = z.string().max(400);

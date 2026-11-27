@@ -1,6 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { crashSignature, type StoreBetaFeedback } from '@kiln/connectors';
 import type { Sql } from '@kiln/db';
+import { TESTFLIGHT_NOTE_MAX_CHARS as MAX_NOTE_CHARS } from '@kiln/core';
+
+export { MAX_NOTE_CHARS };
 
 /**
  * The stored copy of an app's TestFlight feedback and crashes (migration 54) and its triage: what the syncs read, how the last sync went, and
@@ -15,7 +18,6 @@ export const isTriageStatus = (v: unknown): v is TriageStatus =>
 
 /** The largest crash log kept, in characters. A bigger log is cut and says so (`crashLogTruncated`). */
 export const MAX_CRASH_LOG_CHARS = 64 * 1024;
-export const MAX_NOTE_CHARS = 2000;
 
 const text = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));

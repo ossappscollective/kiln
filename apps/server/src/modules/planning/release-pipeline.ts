@@ -1,13 +1,14 @@
 import {
   evaluatePipeline,
   type Pipeline,
+  PIPELINE_MAX_RUNS_READ as MAX_RUNS_READ,
   type PipelineBuildFact,
   type PipelineFacts,
   type PipelineRunFact,
   type PipelineState,
   type PipelineVersionFact,
-  PLATFORMS,
   type Platform,
+  PLATFORMS,
   RELEASE_STATES,
   type ReleaseState,
   type StoreId,
@@ -30,7 +31,6 @@ import { RELEASE_WORKFLOW } from '../ci/tags.ts';
 
 /** Runs older than this are not part of a release in flight. */
 export const PIPELINE_RUN_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
-const MAX_RUNS_READ = 2000;
 const STATES = new Set<string>(RELEASE_STATES);
 
 type AppRow = {

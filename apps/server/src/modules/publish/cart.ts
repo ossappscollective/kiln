@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import {
   type AssetKind,
+  CART_DETAIL_IMAGES_MAX as DETAIL_IMAGES_MAX,
   findDisplay,
   groupStoreImages,
   measureField,
@@ -42,6 +43,8 @@ import { metadataLock } from './metadata-lock.ts';
 import { loadPendingFacts, type PendingFacts } from './pending.ts';
 import { buildStagedView, type StagedContext, unstage } from './staged-changes.ts';
 import { applyDraftPush, DRAFT_ENV, type DraftContext, previewDraftPush } from './store-draft.ts';
+
+export { DETAIL_IMAGES_MAX };
 
 /**
  * The pending cart of an app (docs/api/pending.md, docs/adr/0054-pending-cart.md): everything that was prepared here and not sent
@@ -475,7 +478,6 @@ export async function loadCart(
 /** Longest text of one side that a detail carries (the longest listing text is 4000 characters); the rest is cut and flagged. */
 export const DETAIL_TEXT_MAX = 8000;
 /** Most images per side in a graphics detail. */
-export const DETAIL_IMAGES_MAX = 30;
 
 export type CartImageRef = {
   position: number;

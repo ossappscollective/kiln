@@ -1,5 +1,10 @@
 import { isBlobReads } from '@kiln/connectors';
-import { ASSET_REPO_OPENED_TTL_MS, type AssetKind, assetStoreOf } from '@kiln/core';
+import {
+  ASSET_MAX_SERVED_BYTES as MAX_SERVED_BYTES,
+  ASSET_REPO_OPENED_TTL_MS,
+  type AssetKind,
+  assetStoreOf,
+} from '@kiln/core';
 import type { ManagedApp } from '../../services/apps.ts';
 import { registerMapCache } from '../../services/cache-registry.ts';
 import { isCloneBacked } from '../../services/clone-reads.ts';
@@ -31,6 +36,8 @@ import {
 import { readListings } from './sources.ts';
 import { listListingTargets, resolveSelection } from './targets.ts';
 
+export { MAX_SERVED_BYTES };
+
 /**
  * The asset index of an app, read from its linked repository (docs/api/assets.md), and the bytes
  * of one listed file for the thumbnail route.
@@ -50,7 +57,6 @@ type Actor = { type: 'user' | 'token' | 'system'; id: string };
 
 export const ASSETS_PURPOSE = 'repository.assets';
 /** Largest file the file route serves, in bytes. Bigger files are listed and refused (413). */
-export const MAX_SERVED_BYTES = 8 * 1024 * 1024;
 
 export type AssetScope = 'all' | 'icons';
 const SCOPE_KINDS: Record<AssetScope, readonly AssetKind[] | undefined> = {
@@ -441,3 +447,4 @@ export async function openAssets(
 const listingNotes = (_warnings: readonly string[]): string[] => [];
 
 export { failure };
+

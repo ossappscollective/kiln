@@ -14,10 +14,11 @@ import {
   compareDetails,
   compareMedia,
   comparePrivacy,
+  LISTING_LIVE_ERROR_MAX_CHARS as MAX_ERROR_LENGTH,
   type ListingSectionName,
   type ListingSections,
-  type Platform,
   pickCopy,
+  type Platform,
   SECTION_LOCALE,
   type SectionCompare,
   sectionField,
@@ -66,7 +67,6 @@ import {
 
 type Actor = { type: ActorType; id: string };
 
-const MAX_ERROR_LENGTH = 500;
 const ID_CHUNK = 300;
 
 /** What the services here need of the app; the full `ManagedApp` satisfies it. */

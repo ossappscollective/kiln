@@ -43,9 +43,10 @@ import {
   needsStoreAppId,
   type Platform,
   RELEASE_FIELD_SPECS,
-  STAGED_LIMITS,
   slotKey,
   sniffImageFormat,
+  STAGED_LIMITS,
+  STORE_CALL_CLAIM_TTL_MS as DEFAULT_DRAFT_CLAIM_TTL_MS,
   storeFamilyOf,
   supports,
   versionCodesOf,
@@ -80,6 +81,8 @@ import {
   textEntry,
 } from './store-draft-record.ts';
 import { storeBody } from './store-failure.ts';
+
+export { DEFAULT_DRAFT_CLAIM_TTL_MS };
 
 /**
  * Writing staged listing text and graphics into a store as a DRAFT: a STORE WRITE. The design copies
@@ -122,7 +125,6 @@ export const DRAFT_PURPOSE = 'store.draft_push';
 /** A whole push, uploads included. Longer than a rollout change: screenshots are uploaded and processed. */
 export const DEFAULT_DRAFT_TIMEOUT_MS = 240_000;
 /** Longer than the timeout, so a claim is never trusted less than the write it guards can still run. */
-export const DEFAULT_DRAFT_CLAIM_TTL_MS = 300_000;
 /** The read that checks a push whose answer was lost: it must not take as long as the push that just ran out of time. */
 export const DEFAULT_DRAFT_READBACK_TIMEOUT_MS = 60_000;
 

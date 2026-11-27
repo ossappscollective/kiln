@@ -1,10 +1,19 @@
 import type { NotesHistoryRead } from '@kiln/connectors';
 import type { StoreId } from '@kiln/core';
-import { localeKey, NOTES_HISTORY_TTL_MS as TTL, storeOf } from '@kiln/core';
+import {
+  localeKey,
+  NOTES_HISTORY_DEFAULT_LIMIT as DEFAULT_NOTES_HISTORY_LIMIT,
+  NOTES_HISTORY_MAX_LIMIT as MAX_NOTES_HISTORY_LIMIT,
+  NOTES_HISTORY_MAX_USES_PER_NOTE as MAX_USES_PER_NOTE,
+  NOTES_HISTORY_TTL_MS as TTL,
+  storeOf,
+} from '@kiln/core';
 import type { Sql } from '@kiln/db';
 import { readNotesHistoryOf, type StoreConnectContext } from '../modules/publish/store-draft.ts';
 import type { ManagedApp } from './apps.ts';
 import { timedCache } from './timed-cache.ts';
+
+export { DEFAULT_NOTES_HISTORY_LIMIT, MAX_NOTES_HISTORY_LIMIT, MAX_USES_PER_NOTE };
 
 /**
  * The texts earlier releases used for "what is new", to reuse in the next one (docs/api/releases-write.md, "Notes history").
@@ -16,10 +25,7 @@ import { timedCache } from './timed-cache.ts';
 
 /** `NOTES_HISTORY_TTL_MS` of `@kiln/core`'s timings. */
 export const NOTES_HISTORY_TTL_MS = TTL;
-export const DEFAULT_NOTES_HISTORY_LIMIT = 30;
-export const MAX_NOTES_HISTORY_LIMIT = 100;
 /** The most places listed per text. */
-export const MAX_USES_PER_NOTE = 10;
 
 export type NoteUse = {
   source: StoreId | 'plan';

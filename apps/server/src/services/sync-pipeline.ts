@@ -1,3 +1,7 @@
+import { SYNC_MAX_COOLDOWN_MS as MAX_COOLDOWN_MS } from '@kiln/core';
+
+export { MAX_COOLDOWN_MS };
+
 // The shared plumbing of the store sync pipeline (docs/adr/0050-sync-pipeline.md).
 //
 // Adapted from Open Screenshot Generator (MIT), see THIRD_PARTY_NOTICES.md: worker pools of a few,
@@ -137,7 +141,6 @@ export function retryAfterSeconds(value: string | null, nowMs: number): number |
 
 export const DEFAULT_HOST_LIMITS: Record<HostGroup, number> = { apple: 4, google: 4 };
 /** The longest a gate holds every request of a host after one 429. A longer Retry-After is still passed on to the caller. */
-export const MAX_COOLDOWN_MS = 120_000;
 /** Pause used when a 429 carries no Retry-After. */
 export const DEFAULT_COOLDOWN_MS = 5_000;
 

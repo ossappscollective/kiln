@@ -69,7 +69,6 @@ export const BUILD_PROBLEM_TTL_MS = MINUTE;
  * its DATE without anybody pressing "Read build info from CI". At most one batch per app every `BUILD_AUTO_READ_PAUSE_MS`, a failed
  * download included, so a broken artifact is not downloaded on every page view.
  */
-export const BUILD_AUTO_READ_BATCH = 3;
 export const BUILD_AUTO_READ_PAUSE_MS = 5 * MINUTE;
 
 // ---------------------------------------------------------------------------------------------

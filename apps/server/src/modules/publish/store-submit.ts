@@ -16,11 +16,14 @@ import {
   byFamily,
   type DraftContent,
   evaluateDraftContent,
-  readinessImagesOf,
   evaluateReviewInformation,
   needsStoreAppId,
-  REVIEW_CODES,
   type Platform,
+  readinessImagesOf,
+  REVIEW_CODES,
+  STORE_CALL_CLAIM_TTL_MS as DEFAULT_SUBMIT_CLAIM_TTL_MS,
+  STORE_CALL_CLAIM_TTL_MS as DRAFT_CLAIM_TTL_MS,
+  STORE_SUBMIT_MAX_DIFFERS_SHOWN,
   supports,
 } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
@@ -41,6 +44,8 @@ import {
   type PushRecord,
   requestOfManifest,
 } from './store-draft-record.ts';
+
+export { DEFAULT_SUBMIT_CLAIM_TTL_MS };
 
 /**
  * Submitting the store's DRAFT for review: the most consequential STORE WRITE of this server, and one it cannot take
@@ -74,9 +79,7 @@ export const SUBMIT_PURPOSE = 'store.submit';
 /** Two to four requests to a store. */
 export const DEFAULT_SUBMIT_TIMEOUT_MS = 120_000;
 /** Longer than the timeout, so a claim is never trusted less than the write it guards can still run. */
-export const DEFAULT_SUBMIT_CLAIM_TTL_MS = 300_000;
 /** A draft push claim older than this is not trusted as "in flight" (the push's own time to live). */
-const DRAFT_CLAIM_TTL_MS = 300_000;
 
 // ---------------------------------------------------------------------------------------------
 // Context
@@ -506,11 +509,11 @@ export function evaluateChecks(input: {
         item: m.item,
       });
     }
-    if (differs.length > 30)
+    if (differs.length > STORE_SUBMIT_MAX_DIFFERS_SHOWN)
       add({
         code: 'draft_differs',
         severity: 'blocking',
-        message: `${differs.length - 30} more pushed items differ.`,
+        message: `${differs.length - STORE_SUBMIT_MAX_DIFFERS_SHOWN} more pushed items differ.`,
       });
   }
 

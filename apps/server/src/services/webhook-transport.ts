@@ -2,6 +2,7 @@ import { lookup } from 'node:dns/promises';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
+import { REDACT_MIN_SECRET_CHARS } from '@kiln/core';
 
 /**
  * Sending a webhook is a request to an address a user chose, so it is the one place where the
@@ -393,7 +394,7 @@ export async function sendPinned(
 export function cleanResponseBody(body: string, secrets: string[] = []): string {
   let text = body.slice(0, KEPT_RESPONSE_CHARS * 2);
   for (const secret of secrets)
-    if (secret.length >= 8) text = text.split(secret).join('[redacted]');
+    if (secret.length >= REDACT_MIN_SECRET_CHARS) text = text.split(secret).join('[redacted]');
   text = text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '');
   return text.slice(0, KEPT_RESPONSE_CHARS);
 }

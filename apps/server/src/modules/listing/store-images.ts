@@ -5,11 +5,14 @@ import {
   type AssetStore,
   assetStoreOf,
   deviceLabel,
+  IMAGE_PROBE_CACHE_MAX as PROBE_CACHE_MAX,
+  IMAGE_PROBE_MAX_PER_READ as PROBE_MAX_PER_READ,
+  IMAGE_REF_MAX as REF_MAX,
+  IMAGE_REF_TTL_MS,
+  STORE_VIEW_TTL_MS,
+  storeImageKey,
   type StoreImageSet,
   type StoreImagesView,
-  STORE_VIEW_TTL_MS,
-  IMAGE_REF_TTL_MS,
-  storeImageKey,
 } from '@kiln/core';
 import { coded } from '../../i18n/problem.ts';
 import type { ManagedApp } from '../../services/apps.ts';
@@ -27,6 +30,10 @@ import {
   probeStoreImage,
   type StoreImageNet,
 } from './store-image-net.ts';
+
+export { PROBE_MAX_PER_READ };
+
+const REF_TTL_MS = IMAGE_REF_TTL_MS;
 
 /**
  * The images a store holds for an app, as this server shows them (docs/adr/0012-assets-two-way-sync.md): read through the
@@ -49,8 +56,6 @@ export type StoreImagesContext = {
   fetchLimiter: TestLimiter;
 };
 
-const REF_TTL_MS = IMAGE_REF_TTL_MS;
-const REF_MAX = 4000;
 
 export type RefEntry = {
   workspaceId: string;
@@ -76,9 +81,7 @@ const THUMB_MAX_ENTRIES = 400;
 export const STORE_VIEW_TTL_SECONDS = STORE_VIEW_TTL_MS / 1000;
 
 /** Header probes (pixel size and length of images whose store gives neither): at most this many per read, this many at once. */
-export const PROBE_MAX_PER_READ = 80;
 const PROBE_CONCURRENCY = 4;
-const PROBE_CACHE_MAX = 4000;
 const probes = new Map<string, ImageProbe>();
 
 const STORE_EVENTS = ['store_read', 'sync', 'publish', 'release_changed'] as const;

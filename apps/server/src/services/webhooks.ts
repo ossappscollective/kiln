@@ -16,6 +16,9 @@ import {
   type SendResult,
   sendPinned,
 } from './webhook-transport.ts';
+import { WEBHOOK_MAX_DELIVERIES_LIMIT as MAX_DELIVERIES_LIMIT } from '@kiln/core';
+
+export { MAX_DELIVERIES_LIMIT };
 
 /**
  * Outbound webhooks: a workspace lists URLs and the event types it wants; every event written by
@@ -375,7 +378,6 @@ export async function rotateWebhookSecret(
   return done ? { ok: true, secret } : { ok: false, status: 404, error: 'not_found' };
 }
 
-export const MAX_DELIVERIES_LIMIT = 100;
 
 export async function listDeliveries(
   sql: Sql,

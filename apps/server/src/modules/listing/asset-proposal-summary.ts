@@ -1,4 +1,7 @@
-import { PROPOSAL_SUMMARY_TTL_MS } from '@kiln/core';
+import {
+  PROPOSAL_SUMMARY_MAX_ENTRIES as SUMMARY_MAX_ENTRIES,
+  PROPOSAL_SUMMARY_TTL_MS,
+} from '@kiln/core';
 import type { Sql } from '@kiln/db';
 import { getApp, listAppReleases, type ManagedApp } from '../../services/apps.ts';
 import { registerMapCache } from '../../services/cache-registry.ts';
@@ -10,6 +13,8 @@ import {
   type ProposalQuery,
   readProposalState,
 } from './asset-proposal.ts';
+
+export { SUMMARY_MAX_ENTRIES };
 
 /**
  * The count-only form of the release asset proposal (docs/api/release-asset-proposal.md "Summary", ADR 0064): "3 store asset changes proposed" on
@@ -48,7 +53,6 @@ export type ProposalSummary = {
 /** `PROPOSAL_SUMMARY_TTL_MS` of `@kiln/core`'s timings. */
 export const SUMMARY_TTL_MS = PROPOSAL_SUMMARY_TTL_MS;
 export const SUMMARY_TIMEOUT_MS = 8_000;
-export const SUMMARY_MAX_ENTRIES = 500;
 export const SUMMARY_MAX_CONCURRENT = 2;
 
 type Entry = { fingerprint: string; at: number; value: Omit<ProposalSummary, 'cached'> };

@@ -1,5 +1,5 @@
 import type { StoreConnector } from '@kiln/connectors';
-import { type ActorType, storeSideId } from '@kiln/core';
+import { type ActorType, SCHEDULE_MAX_DEFERRALS as MAX_DEFERRALS, storeSideId } from '@kiln/core';
 import type { Database } from '@kiln/db';
 import { enqueue, type Job, type JobHandler } from '../../jobs.ts';
 import {
@@ -59,7 +59,6 @@ export const DEFAULT_LISTING_TIMEOUT_MS = 4 * 60_000;
 const CLAIM_GUARD_MS = 2 * 60_000;
 /** How long a job waits when its credential is in use by another listing job. */
 const DEFER_MS = 30_000;
-const MAX_DEFERRALS = 10;
 const MINUTE = 60_000;
 
 /** KILN_LISTING_INTERVAL_MINUTES to milliseconds; 0 stays 0 (off). Throws on a value out of range. */

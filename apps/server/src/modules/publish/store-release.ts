@@ -19,6 +19,8 @@ import {
   needsStoreAppId,
   normalizeReleaseValue,
   type Platform,
+  STORE_CALL_CLAIM_TTL_MS as DEFAULT_RELEASE_CLAIM_TTL_MS,
+  STORE_CALL_CLAIM_TTL_MS as OTHER_CLAIM_TTL_MS,
   supports,
   versionCodesOf,
 } from '@kiln/core';
@@ -33,6 +35,8 @@ import { type Failure, failure } from '../../services/repositories.ts';
 import { storeFor } from '../reviews/sync.ts';
 import { mapStoreError } from './store-draft.ts';
 import { markReleasedHere } from './store-draft-record.ts';
+
+export { DEFAULT_RELEASE_CLAIM_TTL_MS };
 
 /**
  * RELEASING: making an approved App Store version available to users, or starting a Google Play draft release at a chosen
@@ -64,9 +68,7 @@ export const RELEASE_PURPOSE = 'store.release';
 /** One to four requests to a store. */
 export const DEFAULT_RELEASE_TIMEOUT_MS = 120_000;
 /** Longer than the timeout, so a claim is never trusted less than the write it guards can still run. */
-export const DEFAULT_RELEASE_CLAIM_TTL_MS = 300_000;
 /** The claims of a push and of a submit are not trusted as "in flight" after this long (their own time to live). */
-const OTHER_CLAIM_TTL_MS = 300_000;
 
 // ---------------------------------------------------------------------------------------------
 // Context

@@ -9,6 +9,9 @@ import type { Database } from '@kiln/db';
 import { coded } from '../../i18n/problem.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
+import { TESTFLIGHT_MAX_EVENTS_PER_KIND_PER_SYNC as MAX_EVENTS_PER_KIND_PER_SYNC } from '@kiln/core';
+
+export { MAX_EVENTS_PER_KIND_PER_SYNC };
 
 /**
  * What the sync, the reads and the triage of TestFlight feedback share (docs/adr/0049-testflight-feedback.md). Reading is the whole of the store
@@ -25,7 +28,6 @@ export const DEFAULT_TESTFLIGHT_READ_TIMEOUT_MS = 30_000;
 /** Crash logs read by one sync (newest first); the rest wait for the next one. */
 export const MAX_CRASH_LOGS_PER_SYNC = 40;
 /** New submissions of one kind that raise an alert each; more raise one grouped alert. */
-export const MAX_EVENTS_PER_KIND_PER_SYNC = 10;
 
 export type TestflightConnectorInput = StoreConnectorInput;
 /** Null for a store with no such API (Google Play): the service refuses before it asks for one. */

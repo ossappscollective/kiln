@@ -1,4 +1,5 @@
 import {
+  ASSET_MAX_PULL_MS as MAX_PULL_MS,
   ASSET_SYNC_LIMITS,
   type AssetPlatform,
   type AssetSlot,
@@ -82,7 +83,6 @@ export type PullReport = {
   notes: string[];
 };
 
-const MAX_PULL_MS = 120_000;
 
 const sums = (a: string, b: string): boolean => {
   const x = a.toLowerCase();

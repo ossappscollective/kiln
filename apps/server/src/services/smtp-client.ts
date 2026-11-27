@@ -3,6 +3,7 @@ import tls from 'node:tls';
 import { buildMessage, dataPayload, parseMailbox } from './mail-mime.ts';
 import type { MailErrorCode, MailHint, MailInput, MailResult } from './mailer.ts';
 import { classifyAddress, type Resolver, systemResolver } from './webhook-transport.ts';
+import { SMTP_MAX_REPLY_LINES as MAX_REPLY_LINES } from '@kiln/core';
 
 /**
  * A small SMTP client on node:net and node:tls (no dependency). It speaks RFC 5321 submission: plain, STARTTLS (RFC 3207) or
@@ -111,7 +112,6 @@ export async function checkMailHost(
 type Reply = { code: number; lines: string[] };
 
 const MAX_REPLY_BYTES = 16 * 1024;
-const MAX_REPLY_LINES = 100;
 
 function mapSocketError(error: unknown, secure: boolean): SmtpFailure {
   const code = String((error as { code?: unknown } | null)?.code ?? '');

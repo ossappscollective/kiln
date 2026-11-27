@@ -12,6 +12,7 @@ import {
   registerCache,
   registerMapCache,
 } from './cache-registry.ts';
+import { NOT_A_CACHE } from './not-a-cache.ts';
 import { timedCache } from './timed-cache.ts';
 
 const SRC = join(import.meta.dirname, '..');
@@ -205,32 +206,10 @@ test('every timedCache( call in the source carries its declaration (name, owner,
   assert.deepEqual(offenders, [], 'a cache is born with timedCache(ttl, max, { name, owner, invalidatedBy, ... })');
 });
 
-/**
- * Module-level `new Map` that is NOT a cache of a fact: a lookup table built once, a lock, work in flight, a per-process memory of a
- * write. Anything else at module level must be registered (`registerMapCache(<name>, ...)`). A stale entry here fails too.
- */
-const NOT_A_CACHE: Record<string, string> = {
-  'mcp/prompts.ts:promptByName': 'static lookup table',
-  'mcp/tool-defs.ts:registry': 'static lookup table',
-  'mcp/tools.ts:toolByName': 'static lookup table',
-  'i18n/runtime.ts:rulesCache': 'Intl.PluralRules per locale: static data',
-  'i18n/catalogs.ts:cache': 'message catalogs: static files',
-  'modules/alerts/catalog.ts:byId': 'static lookup table',
-  'modules/ci/active.ts:inFlight': 'work in flight (single flight), empty when it ends',
-  'modules/ci/active.ts:trouble': 'back-off memory of repositories that failed: a rate-limit state, not a read of a fact',
-  'modules/builds/service.ts:inFlight': 'work in flight (single flight), empty when it ends',
-  'modules/listing/asset-proposal-summary.ts:inflight': 'work in flight (single flight)',
-  'modules/ci/service.ts:lastAttempt': 'polling clock per repository (rate limit), not a read',
-  'modules/ci/service.ts:lastSuccess': 'polling clock per repository (rate limit), not a read',
-  'modules/ci/service.ts:refreshing': 'work in flight (single flight)',
-  'modules/ci/service.ts:runEtags': 'ETag of the last runs read: makes the next read conditional, never served',
-  'modules/ci/service.ts:runPageIds': 'run ids of that same conditional read',
-  'modules/ci/service.ts:jobsInFlight': 'work in flight (single flight)',
-  'services/repositories.ts:recordedCommits': 'dedupes a write of the last commit, not a read',
-  'services/events.ts:listeners': 'subscribers of the event stream',
-  'services/sync-pipeline.ts:lanes': 'concurrency lanes (semaphores)',
-  'services/sync-pipeline.ts:active': 'running sync feeds (live state of this process)',
-};
+test('every NOT_A_CACHE entry says why it is not a cache', () => {
+  const bare = Object.entries(NOT_A_CACHE).filter(([, why]) => why.trim().length < 8).map(([id]) => id);
+  assert.deepEqual(bare, [], 'NOT_A_CACHE needs a `why` for every Map');
+});
 
 test('no module-level Map exists outside the registry unless it is listed as not a cache', () => {
   const found = new Set<string>();
@@ -238,6 +217,8 @@ test('no module-level Map exists outside the registry unless it is listed as not
   for (const file of sources(SRC)) {
     if (['services/cache-registry.ts', 'server-guard.ts'].includes(rel(file))) continue;
     const text = stripComments(readFileSync(file, 'utf8'));
+    // Also a Map inside a function that the server guard names (`const inflight = new Map()`): listed with a why, never required to register.
+    for (const m of text.matchAll(/^[ \t]+const (\w+)\s*=\s*new Map\b/gm)) found.add(`${rel(file)}:${m[1]}`);
     for (const m of text.matchAll(/^(?:export )?const (\w+)\s*=\s*new Map\b/gm)) {
       const id = `${rel(file)}:${m[1]}`;
       found.add(id);

@@ -15,18 +15,19 @@ import {
   secretStrings,
 } from '@kiln/connectors';
 import {
-  compareBuildNumbers,
   type ActorType,
   byFamily,
+  compareBuildNumbers,
   needsStoreAppId,
-  PLATFORM_META,
-  PLATFORMS,
-  type Platform,
   parsePlatform,
+  type Platform,
+  PLATFORM_META,
   platformLabel,
+  PLATFORMS,
   type ReleaseState,
   type StoreCredentialKind,
   supports,
+  SYNC_ERROR_MAX_CHARS as MAX_ERROR_LENGTH,
 } from '@kiln/core';
 import { type Database, mapOrNull, oneOf, type Row, type Sql } from '@kiln/db';
 import { coded, messageCoding } from '../i18n/problem.ts';
@@ -54,7 +55,6 @@ type Actor = { type: ActorType; id: string };
 
 export const APP_SYNC_QUEUE = 'app.sync';
 export const DEFAULT_SYNC_TIMEOUT_MS = 60_000;
-const MAX_ERROR_LENGTH = 500;
 
 /** The credential kind each platform needs (from the platform table in @kiln/core). */
 export const credentialKindFor: Readonly<Record<Platform, StoreCredentialKind>> = {

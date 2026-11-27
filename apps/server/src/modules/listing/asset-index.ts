@@ -1,5 +1,7 @@
 import type { BlobHeadItem, BlobReads } from '@kiln/connectors';
 import {
+  ASSET_LOCAL_CLONE_MAX_FILES,
+  ASSET_MAX_LISTED as MAX_LISTED_ASSETS,
   ASSET_RULES,
   type AssetFacts,
   type AssetKind,
@@ -10,12 +12,12 @@ import {
   classifyAppleScreenshot,
   deviceFitsPlatform,
   deviceLabel,
-  IMESSAGE_PREFIX,
   type ImageFormat,
+  IMESSAGE_PREFIX,
   type Platform,
   readImageHeader,
-  SPEC_SOURCES,
   sniffImageFormat,
+  SPEC_SOURCES,
   summarizeAssets,
   supports,
   validateAssets,
@@ -29,6 +31,8 @@ import {
   expoIconPaths,
   orderWithinSets,
 } from './store-assets.ts';
+
+export { MAX_LISTED_ASSETS };
 
 /**
  * The index of the media of one app's listing target in its repository: which files there are, and
@@ -49,7 +53,6 @@ export const JPEG_RETRY_BYTES = 1024 * 1024;
 /** Larger files are listed but never read. */
 export const MAX_READ_FILE_BYTES = 25 * 1024 * 1024;
 /** More media files than this in a target are not listed. */
-export const MAX_LISTED_ASSETS = 2000;
 const JPEG_RETRY_MAX_FILES = 24;
 
 export type AssetBudget = {
@@ -61,7 +64,7 @@ export type AssetBudget = {
 
 /** A local clone reads from disk: generous. A GitHub clone or the REST API are slow and are limited. */
 export const BUDGETS = {
-  local_clone: { maxFiles: 2000, maxTransferBytes: 4 * 1024 * 1024 * 1024 },
+  local_clone: { maxFiles: ASSET_LOCAL_CLONE_MAX_FILES, maxTransferBytes: 4 * 1024 * 1024 * 1024 },
   github_clone: { maxFiles: 150, maxTransferBytes: 48 * 1024 * 1024 },
   github_api: { maxFiles: 60, maxTransferBytes: 24 * 1024 * 1024 },
 } as const satisfies Record<string, AssetBudget>;
