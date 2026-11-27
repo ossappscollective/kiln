@@ -1283,7 +1283,18 @@ export type AssetItem = {
  */
 export type AssetStoreSide = {
   observedAt: number | null;
-  counts: { locale: string; kind: AssetKind; device: string | null; count: number }[];
+  /**
+   * One entry per display: `count` is the ONE set of it a push writes (`primaryStoreSet` in core), `groups` every set the store keeps for
+   * it when it keeps more than one (the siblings are never added up).
+   */
+  counts: {
+    locale: string;
+    kind: AssetKind;
+    device: string | null;
+    count: number;
+    target?: string;
+    groups?: { target: string; count: number }[];
+  }[];
 };
 
 export type AssetIndex = {

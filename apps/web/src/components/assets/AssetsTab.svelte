@@ -55,6 +55,7 @@
   } from '../../lib/assets/groups.ts';
   import { SYNC_ROLE_REASON, type EditorSet, canChangeAssets, setIdOf, storeKeyOf } from '../../lib/assets/sync.ts';
   import { assetsLead, otherCountsText, splitProblems } from '../../lib/assets/lead.ts';
+  import { readCache } from '../../lib/read-cache.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
   import { planFor, storeCacheKey, storeMediaCache } from '../../lib/assets/store-cache.ts';
   import { onStagedChanged } from '../../lib/staged-sync.ts';
@@ -158,6 +159,17 @@
       if (done && channel === storeChannel) {
         storeView = done.store;
         storeMediaCache.set(key, done.store);
+      }
+      // "Read again" asked the store: every number that was kept of its images is stale. The comparison of the release step is forgotten and
+      // the counts next to the repository's (`storeSide`, the same read on the server) are read again, so one read of the draft feeds them all.
+      if (done && fresh) {
+        readCache.forget(workspaceId, `assetdiff/${app.id}`);
+        void api
+          .appAssets(workspaceId, app.id)
+          .then((next) => {
+            if (index !== null && mine === storeGeneration) index = { ...index, storeSide: next.storeSide };
+          })
+          .catch(() => {});
       }
       // "Read again" asked the store: what blocks a blocked submit is judged against the same fresh read (the server dropped its caches too).
       if (done && fresh && recheck) void appStateStore.storeRead(api, workspaceId, app, { role, keepImages: true });

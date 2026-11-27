@@ -16,6 +16,7 @@
   import { compareState, statusLabel } from '../../../lib/asset-compare.ts';
   import { settle } from '../../../lib/bounded-read.ts';
   import { stagingError } from '../../../lib/staged.ts';
+  import { onStagedChanged } from '../../../lib/staged-sync.ts';
   import { t } from '../../../lib/i18n/t.ts';
   import { readCache } from '../../../lib/read-cache.ts';
   import { assetsLine, stagedSetsLine } from '../../../lib/release-assets.ts';
@@ -80,6 +81,18 @@
       shownFor = key;
       untrack(() => void read());
     }
+  });
+
+  // The store was read again (a sync, "Read again" of the Graphics tab, "Check again") or a push changed it: what this comparison kept of the
+  // store is stale, so it is forgotten and read again (the server's own read is already fresh then): one source of the store's images.
+  $effect(() => {
+    const mine = app.id;
+    const ws = workspaceId;
+    return onStagedChanged((detail) => {
+      if (detail.appId !== mine || (detail.reason !== 'store_read' && detail.reason !== 'publish')) return;
+      readCache.forget(ws, `assetdiff/${mine}`);
+      void read(false);
+    });
   });
 
   const cmp = $derived(diff ? compareState(diff) : null);

@@ -91,7 +91,10 @@ device, order, size in bytes and pixels, format, alpha, blob id, whether it was 
 
 `storeSide` is `null` until a store read of the last minutes exists (nothing reads a store just to fill it). After
 `GET /assets/store`, `/assets/diff` or a pull, `GET /assets` carries `{ observedAt, counts[] }` (the number of images the
-store has per locale, kind and device), and the tab shows the counts next to each set.
+store has per locale, kind and device), and the tab shows the counts next to each set. A display the App Store keeps in more than one
+placement group (iPad 13" / 12.9": `APP_IPAD_PRO_3GEN_129` and the legacy `APP_IPAD_PRO_129`) is ONE entry whose `count` is the group a push writes
+(`primaryStoreSet` in `@kiln/core`; else the fullest), with its `target` and, when there are several, `groups: [{ target, count }]`. The siblings are
+never added up and the last of them never stands for the display.
 
 Changes since the first version of the index: an icon file inside an Xcode `AppIcon.appiconset` is checked against the
 sizes of its slot in `Contents.json` and not as the 1024 px store icon (those were false errors), and an Apple
@@ -190,6 +193,17 @@ iTunes lookups are limited to 6 per minute per workspace and 15 per minute for t
 limited look changes nothing. The first icon request waits at most 8 seconds while the look
 continues in the background. The icons are stored in the table `app_icons` (migration 18) as base64
 text, because the database layer has no binary parameter; deleting an app deletes its icon.
+
+### One rule for the count of a set
+
+The limit of images per set (10 screenshots in an App Store group) is counted in ONE place, `validateAssets` of `@kiln/core`, per STORE SET: the facts
+of the store's images carry the group (`AssetFacts.set`), so 10 in one group and 2 in a sibling are not "12". The Graphics tab (`checkStoreImages`),
+a draft read behind a submit (`assetFactsOf`) and the repository's files all go through it; `counting-guard.test.ts` fails when a second
+implementation appears. A count problem names the locale, the display and the group (`en-US iPad 13" / 12.9" (APP_IPAD_PRO_3GEN_129): 12 found.`) and
+carries `count`, `max` and `set`; the Graphics tab then offers "Remove the N extra images" (the last ones of that group, through the removal flow
+of `POST /staged/assets/remove`). `GET /assets/diff` pairs the repository with the group a push writes and lists every other group of the display
+as a set of its own (`target`), with only store rows: nothing is dropped or added to another group. After "Read again", a sync or "Check again" the
+caches of the store's images (server and browser, including the comparison of the release step) are dropped, so every screen reads the same draft.
 
 ## Store side checks and the app setting
 

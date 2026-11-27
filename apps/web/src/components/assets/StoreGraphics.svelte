@@ -23,6 +23,7 @@
   import { ASSET_KIND_LABELS, type Role, assetStoreOf, checkStoreImages, setNeedsAnImage } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
   import { assetFileUrl } from '../../lib/assets/assets.ts';
+  import { overLimitOf } from '../../lib/assets/over-limit.ts';
   import { type GraphicRow, type GraphicSet, buildGraphicSets, canAddMore, moveBy } from '../../lib/assets/graphic-sets.ts';
   import { SYNC_ROLE_REASON, canChangeAssets, stagedBlobUrl, storeFileUrl, storeThumbUrl } from '../../lib/assets/sync.ts';
   import {
@@ -86,6 +87,8 @@
   type StoreImagesView = import('@kiln/core').StoreImagesView;
 
   const found = $derived(view ? checkStoreImages(view) : []);
+  /** A group of the store over its limit, with the images past it (the one rule of core says that it is over; this finds the images). */
+  const over = $derived(overLimitOf(found, view));
   const errors = $derived(found.filter((p) => p.severity !== 'info' && p.rule !== 'inspect.unread'));
   const locales = $derived(
     buildGraphicSets({
@@ -325,6 +328,13 @@
     {#if errors.length > 0}
       <Alert tone="error" title={t('assets:store.problems', { count: errors.length })}>
         <StoreGraphicsNotes problems={found} />
+        {#each over as o (`${o.setId}|${o.group ?? ''}`)}
+          {@const gset = allSets.filter((x) => x.id === o.setId)[0]}
+          <p class="over" data-testid="store-over-limit">
+            <span>{t('assets:store.over', { where: o.group ? `${o.locale} · ${o.group}` : o.locale, found: o.count, max: o.max, places: o.extra.map((e) => e.position).join(', ') })}</span>
+            {#if gset}<Button size="sm" icon="trash" disabled={!editable || working !== ''} title={editReason || undefined} onclick={() => askRemove(gset, o.extra.map((e) => e.ref))}>{t('assets:store.removeExtra', { count: o.extra.length })}</Button>{/if}
+          </p>
+        {/each}
       </Alert>
     {:else if found.length > 0}
       <div class="quiet"><StoreGraphicsNotes problems={found} /></div>
@@ -355,6 +365,9 @@
             {/if}
             <Button size="sm" icon="upload" disabled={!editable || working !== '' || !canAddMore(set)} title={editReason || fullReason(set) || undefined} onclick={() => openUpload(set, 'add')}>{t('assets:store.add')}</Button>
           </div>
+          {#if set.groups.length > 1}
+            <p class="muted small groups" data-testid="store-groups">{t('assets:store.groupsNote', { groups: set.groups.map((g) => `${g.target} (${g.count})`).join(', '), max: set.max })}</p>
+          {/if}
           {#if set.cleared}
             <p class="muted small cleared" role="status">
               {t('assets:store.clearedNote')}
@@ -524,6 +537,14 @@
     font-size: var(--text-sm);
   }
 
+  .over {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-sm);
+  }
   .quiet {
     padding: var(--space-2) var(--space-3);
     background: var(--surface-sunken);

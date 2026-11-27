@@ -79,7 +79,7 @@ export function compareRow(set: AssetDiffSet): CompareRow {
   const repoCount = set.rows.filter((r) => r.repo !== null).length;
   const storeCount = set.rows.filter((r) => r.store !== null).length;
   return {
-    key: `${set.locale}|${set.kind}|${set.device ?? ''}`,
+    key: `${set.locale}|${set.kind}|${set.device ?? ''}|${set.target ?? ''}`,
     locale: set.locale,
     language: localeName(set.locale),
     what:
@@ -96,7 +96,20 @@ export function compareRow(set: AssetDiffSet): CompareRow {
 /** What the step shows for an answer of the server: no repository, nothing on either side, or the table (what needs a look first). */
 export function compareState(diff: AssetDiffView): CompareState {
   if (diff.repoStatus === 'no_repository') return { kind: 'no_repository' };
-  const rows = diff.sets.map(compareRow).filter((r) => r.repoCount + r.storeCount > 0);
+  // A display the store keeps in several sets (the App Store's 13" and legacy 12.9" groups) is one row per set, each named by its group,
+  // so one row is never the sum of two sets nor stands for the others.
+  const perDisplay: Record<string, number> = {};
+  for (const set of diff.sets) {
+    const display = `${set.locale}|${set.kind}|${set.device ?? ''}`;
+    perDisplay[display] = (perDisplay[display] || 0) + 1;
+  }
+  const rows = diff.sets
+    .map((set) => {
+      const row = compareRow(set);
+      const several = (perDisplay[`${set.locale}|${set.kind}|${set.device ?? ''}`] || 0) > 1;
+      return several && set.target ? { ...row, what: `${row.what} (${set.target})` } : row;
+    })
+    .filter((r) => r.repoCount + r.storeCount > 0);
   if (rows.length === 0) return { kind: 'nothing' };
   rows.sort(
     (a, b) =>

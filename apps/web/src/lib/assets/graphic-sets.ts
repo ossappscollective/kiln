@@ -47,6 +47,11 @@ export type GraphicSet = {
   /** How many images the store holds in it now (0 for a set that exists only as a staged one). */
   storeCount: number;
   rows: GraphicRow[];
+  /**
+   * The store's own groups this display is held in, with the images in each, when it is more than one (the App Store's 13" and legacy
+   * 12.9" groups): the grid shows them together, each group has its own limit and is never added to another.
+   */
+  groups: { target: string; count: number }[];
   /** The most images the store takes in this set, 0 when unknown. */
   max: number;
 };
@@ -72,10 +77,12 @@ export function buildGraphicSets(args: {
   const { platform, view, staged, urls } = args;
   const store = assetStoreOf(platform);
   const sets = new Map<string, GraphicSet>();
+  const targetOf = new Map<string, string>();
   for (const s of view?.sets ?? []) {
     if (s.files.length === 0) continue;
     const key = setKey(s.locale, s.kind, s.device);
     const own = sets.get(key);
+    for (const f of s.files) targetOf.set(f.ref, s.target);
     const rows: GraphicRow[] = s.files.map((f) => ({
       key: f.ref,
       position: f.position,
@@ -91,6 +98,7 @@ export function buildGraphicSets(args: {
     if (own) {
       own.rows.push(...rows);
       own.storeCount += rows.length;
+      own.groups.push({ target: s.target, count: rows.length });
     } else
       sets.set(key, {
         id: key,
@@ -102,6 +110,7 @@ export function buildGraphicSets(args: {
         cleared: false,
         storeCount: rows.length,
         rows,
+        groups: [{ target: s.target, count: rows.length }],
         max: slotMaxFiles(platform, { kind: s.kind, device: s.device }),
       });
   }
@@ -146,12 +155,16 @@ export function buildGraphicSets(args: {
       cleared: a.cleared === true,
       storeCount: found?.storeCount ?? 0,
       rows,
+      groups: found?.groups ?? [],
       max: found?.max ?? slotMaxFiles(platform, a.slot),
     });
   }
   const out: GraphicLocale[] = [];
   for (const set of sets.values()) {
-    set.rows.sort((x, y) => x.position - y.position);
+    // The groups of a display are shown one after the other (each in its own order), not interleaved by place.
+    const groupOf = (r: GraphicRow) => set.groups.findIndex((g) => g.target === targetOf.get(r.key));
+    set.rows.sort((x, y) => groupOf(x) - groupOf(y) || x.position - y.position);
+    if (set.groups.length < 2) set.groups = [];
     const own = out.find((l) => l.locale === set.locale);
     if (own) own.sets.push(set);
     else out.push({ locale: set.locale, sets: [set] });
