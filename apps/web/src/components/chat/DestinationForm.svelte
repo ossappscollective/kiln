@@ -109,6 +109,7 @@
       </fieldset>
     {/if}
 
+    <!-- guard-ok R3: the length of a free-text destination name (a form field), not a store limit -->
     <TextField label={t('chat:form.name')} id="{uid}-name" bind:value={form.name} maxlength={80} autocomplete="off" hint={t('chat:form.nameHint')} error={showProblems ? problems.name : undefined} />
 
     <TextField

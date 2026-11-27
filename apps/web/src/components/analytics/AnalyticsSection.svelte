@@ -47,6 +47,7 @@
   import RevenueBlock from './RevenueBlock.svelte';
   import SourcesPanel from './SourcesPanel.svelte';
   import VizScope from './VizScope.svelte';
+  import { keyedInstances } from '../../lib/app-state/keyed.ts';
 
   let { api, workspaceId, role, members, now }: { api: Api; workspaceId: string; role: Role; members: AppSummary[]; now: number } = $props();
 
@@ -67,15 +68,7 @@
   const setRange = (next: RangeChoice) => replaceHash(withRange(location.hash, next));
 
   // One read per platform record, shared by the figures above the rail and every section of it.
-  const reads = new Map<string, PlatformData>();
-  const dataFor = (id: string): PlatformData => {
-    let d = reads.get(id);
-    if (!d) {
-      d = new PlatformData();
-      reads.set(id, d);
-    }
-    return d;
-  };
+  const dataFor = keyedInstances(() => new PlatformData());
   const rows = $derived(members.map((app) => ({ app, data: dataFor(app.id) })));
   const readKey = $derived(`${workspaceId}/${members.map((m) => m.id).join(',')}/${range.from}/${range.to}`);
   $effect(() => {

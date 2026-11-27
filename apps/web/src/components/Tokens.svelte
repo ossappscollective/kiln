@@ -12,6 +12,7 @@
   import Button from './ui/Button.svelte';
   import EmptyState from './ui/EmptyState.svelte';
   import PageHeader from './ui/PageHeader.svelte';
+  import { readApps } from '../lib/app-state/workspace-reads.ts';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
@@ -40,7 +41,7 @@
 
   async function loadApps() {
     try {
-      apps = (await api.apps(workspaceId)).apps;
+      apps = (await readApps(api, workspaceId)).apps;
     } catch {
       apps = null;
     }

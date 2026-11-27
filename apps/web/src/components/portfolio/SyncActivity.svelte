@@ -9,6 +9,7 @@
   import type { Api } from '../../lib/api.ts';
   import { t } from '../../lib/i18n/t.ts';
   import Icon from '../ui/Icon.svelte';
+  import { readSyncActivity } from '../../lib/app-state/workspace-reads.ts';
 
   let {
     api,
@@ -35,7 +36,7 @@
 
   async function poll() {
     try {
-      const next = await api.syncActivity(workspaceId);
+      const next = await readSyncActivity(api, workspaceId);
       if (alive) activity = next;
     } catch {
       // A missed poll is not worth a message: the sync result itself reports errors.

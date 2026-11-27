@@ -312,6 +312,7 @@
     <form class="editor stack" onsubmit={(e) => { e.preventDefault(); void stage(); }} aria-label={t('products:price.formAria', { id: product.productId })}>
       <Alert tone="warn">{t('products:price.delay')}</Alert>
 
+      <!-- guard-ok R5: layout, the group headings show only when the price table has more than one group -->
       {#if groups.length > 1}
         <label class="field">
           <span>{t('products:price.plan')}</span>

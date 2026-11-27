@@ -41,6 +41,7 @@
   import Skeleton from './ui/Skeleton.svelte';
   import StatusPill from './ui/StatusPill.svelte';
   import { useNow } from '../lib/app-state/clock.svelte.ts';
+  import { readApps } from '../lib/app-state/workspace-reads.ts';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
@@ -145,7 +146,7 @@
       let all: AppSummary[] = [];
       if (can(role, 'apps.read')) {
         try {
-          all = (await api.apps(workspaceId)).apps;
+          all = (await readApps(api, workspaceId)).apps;
         } catch {
           all = [];
         }
@@ -234,6 +235,11 @@
     shown
       .map((r) => ({ name: repositoryName(r), problem: data[r.id]?.problem ?? null }))
       .filter((p): p is { name: string; problem: string } => p.problem !== null),
+  );
+  const problemsLabel = $derived(
+    problems.length === 1
+      ? t('builds:page.problemOne', { name: problems[0]?.name ?? '' })
+      : t('builds:page.problemMany', { count: problems.length }),
   );
 
   const followedRun = $derived.by<WorkflowRun | null>(() => {
@@ -338,7 +344,7 @@
       {#if problems.length > 0}
         <StatusPill
           tone="warn"
-          label={problems.length === 1 ? t('builds:page.problemOne', { name: problems[0]?.name ?? '' }) : t('builds:page.problemMany', { count: problems.length })}
+          label={problemsLabel}
         >
           <ul class="plain">{#each problems as p (p.name)}<li>{t('builds:page.problemItem', { name: p.name, problem: p.problem })}</li>{/each}</ul>
         </StatusPill>

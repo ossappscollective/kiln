@@ -48,6 +48,7 @@
   import NextStep from './NextStep.svelte';
   import { scopeFor } from '../../lib/app-state/derive.ts';
   import { reportShown } from '../../lib/app-state/dev-assert.ts';
+  import { readAppPlans } from '../../lib/app-state/workspace-reads.ts';
 
   let {
     api,
@@ -169,8 +170,7 @@
       }
       if (PLANS_ENABLED && can(role, 'plans.read')) {
         jobs.push(
-          api
-            .appPlans(workspaceId, app.id)
+          readAppPlans(api, workspaceId, app.id)
             .then((p) => {
               if (mine === generation) plans[app.id] = p.plans;
             })

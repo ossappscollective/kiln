@@ -9,7 +9,7 @@
   import type { Api } from '../../lib/api.ts';
   import { t } from '../../lib/i18n/t.ts';
   import type { AsoCompetitor, AsoConfig } from '../../lib/aso/aso.ts';
-  import { competitorCounts, competitorsLead } from '../../lib/aso/lead.ts';
+  import { competitorCounts, competitorsLead, totalSuggestions } from '../../lib/aso/lead.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Button from '../ui/Button.svelte';
   import AddCompetitor from './AddCompetitor.svelte';
@@ -54,7 +54,7 @@
   const lead = $derived.by(() => {
     const groups = members.map((m) => summaries[m.id]).filter((g): g is { competitors: AsoCompetitor[]; suggestions: number } => g !== undefined);
     const counts = competitorCounts(groups.flatMap((g) => g.competitors), now);
-    return competitorsLead({ ...counts, suggestions: groups.reduce((n, g) => n + g.suggestions, 0) });
+    return competitorsLead({ ...counts, suggestions: totalSuggestions(groups) });
   });
   const summarised = $derived(members.every((m) => summaries[m.id] !== undefined));
 

@@ -133,6 +133,7 @@
       {/snippet}
     </PageLead>
   {/if}
+  <!-- guard-ok R5: layout, the locale picker shows only when there is more than one locale to pick -->
   {#if locales.length > 1}
     <div class="row">
       <label for="{uid}-locale" class="muted">{t('aso:label.locale')}</label>

@@ -169,6 +169,7 @@
       {/if}
 
       {#if phase === 'conflicts'}
+        <!-- guard-ok R5: the dialog's own count of choices still open (form state, not a store fact) -->
         <Alert tone="warn" title={t('repositories:fixup.needChoice', { count: pending.length })}>
           {t('repositories:fixup.needChoiceBody')}
         </Alert>

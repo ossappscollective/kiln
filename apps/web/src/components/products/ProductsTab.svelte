@@ -281,6 +281,7 @@
                 {#if showRevenueCat && revenueCat}
                   <td data-testid="product-revenuecat"><RevenueCatCell view={revenueCat} productId={p.productId} /></td>
                 {/if}
+                <!-- guard-ok R5: layout, a product's locale list is cut to three names and "+N more" (the list is the product's own, not a listing fact) -->
                 <td class="muted text-sm">{p.locales.length === 0 ? t('products:table.none') : p.locales.length <= 3 ? formatList(p.locales, { type: 'unit' }) : t('products:table.localesMore', { list: formatList(p.locales.slice(0, 3), { type: 'unit' }), count: p.locales.length - 3 })}</td>
                 <td class="actions">
                   <Button

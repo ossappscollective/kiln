@@ -41,6 +41,7 @@
   import AsoHealthAi from './AsoHealthAi.svelte';
   import AsoStatus from './AsoStatus.svelte';
   import { useNow } from '../../lib/app-state/clock.svelte.ts';
+  import { readApps } from '../../lib/app-state/workspace-reads.ts';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
@@ -84,7 +85,7 @@
     error = '';
     loading = true;
     try {
-      const list = (await api.apps(workspaceId)).apps;
+      const list = (await readApps(api, workspaceId)).apps;
       if (mine !== generation) return;
       apps = list;
       const next: OverviewRow[] = [];

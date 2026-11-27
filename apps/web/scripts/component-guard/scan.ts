@@ -159,6 +159,8 @@ export const LIMIT_TABLES: readonly string[] = [
 export const LIMIT_LITERALS: readonly number[] = [8, 10, 30, 80, 100, 170, 500, 2000, 4000, 8192];
 /** R3: a `maxlength` that is a store text limit (name/subtitle 30, short description 80, promo 170, notes 500/4000...). Form fields (a token name) are not limits. */
 const MAXLENGTH_LIMITS: readonly number[] = [30, 80, 170, 500, 2000, 4000];
+/** R3: what a typed secret is called (its length is a format rule, not a store limit). */
+const SECRET_INPUT = /\b(?:code|password|passcode|otp|pin|secret)\b/i;
 const COUNTISH = /(?:\.length|count|total|size|chars|bytes|max|limit|rows|files|images|screenshots)\b/i;
 
 /** R5: what a fact collection is called. */
@@ -184,6 +186,13 @@ export type Violation = {
 export type Group = Violation & { count: number };
 
 export const SRC = fileURLToPath(new URL('../../src/', import.meta.url));
+export const EXEMPTIONS_FILE = fileURLToPath(
+  new URL('../../src/lib/app-state/component-guard.exemptions.json', import.meta.url),
+);
+export function serializeExemptions(list: readonly Exemption[]): string {
+  const rows = list.map((e) => `    ${JSON.stringify(e)}`).join(',\n');
+  return `{\n  "generated": "node scripts/component-guard/cli.ts --report",\n  "exemptions": [\n${rows}\n  ]\n}\n`;
+}
 export const ALLOWLIST_FILE = fileURLToPath(
   new URL('../../src/lib/app-state/component-guard.allowlist.json', import.meta.url),
 );
@@ -369,6 +378,19 @@ const nameOf = (n: ts.Node | undefined, sf: ts.SourceFile) => (n === undefined ?
 const num = (n: ts.Node): number | null =>
   ts.isNumericLiteral(n) ? Number(n.text.replace(/_/g, '')) : null;
 
+/** `list.length === 0` / `> 0` / `!== 0` / `>= 1` / `< 1`: "is there anything to draw", not a count that is shown. */
+function isEmptinessCheck(length: ts.PropertyAccessExpression): boolean {
+  const parent = length.parent;
+  if (parent === undefined || !ts.isBinaryExpression(parent)) return false;
+  const other = parent.left === length ? parent.right : parent.left;
+  if (!ts.isNumericLiteral(other)) return false;
+  const value = Number(other.text);
+  const op = parent.operatorToken.kind;
+  const K = ts.SyntaxKind;
+  if (value === 0) return [K.EqualsEqualsEqualsToken, K.ExclamationEqualsEqualsToken, K.GreaterThanToken].includes(op);
+  return value === 1 && (op === K.GreaterThanEqualsToken || op === K.LessThanToken);
+}
+
 function receiverOf(call: ts.CallExpression): ts.Expression | undefined {
   return ts.isPropertyAccessExpression(call.expression) ? call.expression.expression : undefined;
 }
@@ -462,7 +484,13 @@ export function scanUnit(unit: Unit, report: (r: Raw) => void): void {
     // ---- new Map
     if (ts.isNewExpression(n)) {
       const c = text(n.expression, sf);
-      if (c === 'Map' || c === 'WeakMap') add('R2', shorten(text(n, sf), 60), n);
+      // A cache is an EMPTY map that lives as long as the component (or the module). A map built from a list (`new Map(rows.map(...))`)
+      // is a lookup index, and a map inside a function / `$derived` is an accumulator: neither remembers anything between reads.
+      const empty = n.arguments === undefined || n.arguments.length === 0;
+      let inFunction = false;
+      for (let p: ts.Node | undefined = n.parent; p !== undefined; p = p.parent)
+        if (ts.isFunctionLike(p)) inFunction = true;
+      if ((c === 'Map' || c === 'WeakMap') && empty && !inFunction) add('R2', shorten(text(n, sf), 60), n);
     }
 
     // ---- comparisons with literal limits (R3)
@@ -480,7 +508,12 @@ export function scanUnit(unit: Unit, report: (r: Raw) => void): void {
         const r = num(n.right);
         const lit = r ?? l;
         const other = r !== null ? n.left : n.right;
-        if (lit !== null && LIMIT_LITERALS.includes(lit) && COUNTISH.test(text(other, sf)))
+        if (
+          lit !== null &&
+          LIMIT_LITERALS.includes(lit) &&
+          COUNTISH.test(text(other, sf)) &&
+          !SECRET_INPUT.test(text(other, sf)) // the length of a typed code / password is a format, not a store limit
+        )
           add('R3', shorten(text(n, sf), 70), n);
       }
       if (op === ts.SyntaxKind.AsteriskToken) {
@@ -499,7 +532,12 @@ export function scanUnit(unit: Unit, report: (r: Raw) => void): void {
         FACT_COLLECTION.test(text(inner.expression.expression, sf))
       )
         add('R5', shorten(text(n, sf)), n);
-      else if (unit.template && FACT_COLLECTION.test(text(inner, sf)) && !ts.isCallExpression(inner))
+      else if (
+        unit.template &&
+        FACT_COLLECTION.test(text(inner, sf)) &&
+        !ts.isCallExpression(inner) &&
+        !isEmptinessCheck(n)
+      )
         add('R5', shorten(text(n, sf)), n);
     }
     if (ts.isVariableDeclaration(n) && n.initializer !== undefined) {
@@ -519,9 +557,18 @@ export function scanUnit(unit: Unit, report: (r: Raw) => void): void {
   visit(sf);
 }
 
-export type ScanResult = { violations: Violation[]; errors: string[]; files: number };
+/** An inline exemption: a line comment `guard-ok R5: <reason>` (also in a block comment or an HTML comment), on the line of the code or the line above. */
+export type Exemption = { file: string; line: number; rule: RuleId; reason: string };
+export const MAX_EXEMPTIONS = 25;
+const GUARD_OK = /guard-ok\b([^\n]*)/;
+const GUARD_OK_FULL = /guard-ok\s+(R[1-7])\s*:\s*(\S[^\n]*?)\s*(?:-->|\*\/)?\s*$/;
 
-export function scanFile(file: string, source: string): { raws: Violation[]; error: string | null } {
+export type ScanResult = { violations: Violation[]; errors: string[]; files: number; exemptions: Exemption[] };
+
+export function scanFile(
+  file: string,
+  source: string,
+): { raws: Violation[]; error: string | null; exemptions: Exemption[]; problems: string[] } {
   const parsed = parseSource(file, source);
   const lineStarts: number[] = [0];
   for (let i = 0; i < source.length; i++) if (source.charCodeAt(i) === 10) lineStarts.push(i + 1);
@@ -549,7 +596,35 @@ export function scanFile(file: string, source: string): { raws: Violation[]; err
   };
   for (const u of parsed.units) scanUnit(u, push);
   for (const a of parsed.attributeHits) push({ rule: 'R3', snippet: a.snippet, start: a.start });
-  return { raws, error: parsed.error };
+
+  // Inline exemptions: honoured only with a rule AND a non-empty reason, only for a hit on the same or the next line, and only while
+  // they still exempt something.
+  const lines = source.split('\n');
+  const marks = new Map<number, Exemption>();
+  const problems: string[] = [];
+  lines.forEach((text, i) => {
+    if (!GUARD_OK.test(text)) return;
+    const m = GUARD_OK_FULL.exec(text);
+    if (m === null) problems.push(`${file}:${i + 1}: guard-ok needs a rule and a reason: \`guard-ok R5: <why this is not a fact>\``);
+    else marks.set(i + 1, { file, line: i + 1, rule: m[1] as RuleId, reason: m[2] ?? '' });
+  });
+  const used = new Set<number>();
+  const kept = raws.filter((v) => {
+    for (const at of [v.line, v.line - 1]) {
+      const mark = marks.get(at);
+      if (mark !== undefined && mark.rule === v.rule) {
+        used.add(at);
+        return false;
+      }
+    }
+    return true;
+  });
+  const exemptions: Exemption[] = [];
+  for (const [at, mark] of marks) {
+    if (used.has(at)) exemptions.push(mark);
+    else problems.push(`${file}:${at}: guard-ok ${mark.rule} exempts nothing (stale: remove it)`);
+  }
+  return { raws: kept, error: parsed.error, exemptions, problems };
 }
 
 /** Group by (file, rule, hash): the key of the allowlist. Name rules count once per name. */
@@ -570,13 +645,16 @@ export function groupViolations(raws: readonly Violation[]): Group[] {
 export function scanTree(root = SRC): ScanResult {
   const raws: Violation[] = [];
   const errors: string[] = [];
+  const exemptions: Exemption[] = [];
   const files = componentFiles(root);
   for (const file of files) {
     const r = scanFile(file, readFileSync(join(root, file), 'utf8'));
     if (r.error !== null) errors.push(`${file}: ${r.error}`);
+    errors.push(...r.problems);
     raws.push(...r.raws);
+    exemptions.push(...r.exemptions);
   }
-  return { violations: raws, errors, files: files.length };
+  return { violations: raws, errors, files: files.length, exemptions };
 }
 
 // ---------------------------------------------------------------------------------------------

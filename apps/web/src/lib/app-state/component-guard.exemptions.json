@@ -1,0 +1,15 @@
+{
+  "generated": "node scripts/component-guard/cli.ts --report",
+  "exemptions": [
+    {"file":"components/aso/AsoGaps.svelte","line":136,"rule":"R5","reason":"layout, the locale picker shows only when there is more than one locale to pick"},
+    {"file":"components/aso/AsoIdeas.svelte","line":149,"rule":"R5","reason":"layout, the locale picker shows only when there is more than one locale to pick"},
+    {"file":"components/aso/AsoListing.svelte","line":151,"rule":"R5","reason":"the number of rows the person ticked in the pull plan (selection state of the pull plan, not a store fact)"},
+    {"file":"components/aso/AsoListing.svelte","line":153,"rule":"R5","reason":"the number of rows the person ticked in the pull plan (selection state of the pull plan, not a store fact)"},
+    {"file":"components/chat/DestinationForm.svelte","line":112,"rule":"R3","reason":"the length of a free-text destination name (a form field), not a store limit"},
+    {"file":"components/experiments/NoteDialog.svelte","line":141,"rule":"R3","reason":"the length of a free-text note (a form field), not a store limit"},
+    {"file":"components/products/PriceEditor.svelte","line":315,"rule":"R5","reason":"layout, the group headings show only when the price table has more than one group"},
+    {"file":"components/products/ProductsTab.svelte","line":284,"rule":"R5","reason":"layout, a product's locale list is cut to three names and \"+N more\" (the list is the product's own, not a listing fact)"},
+    {"file":"components/publish/PendingChanges.svelte","line":479,"rule":"R5","reason":"layout, the platform badge shows only when the app has more than one platform group"},
+    {"file":"components/repositories/FixupDialog.svelte","line":172,"rule":"R5","reason":"the dialog's own count of choices still open (form state, not a store fact)"}
+  ]
+}

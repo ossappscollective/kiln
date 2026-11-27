@@ -476,6 +476,7 @@
       <section class="group card" class:publishing={running !== null} aria-label={t('publish:pending.groupAria', { platform: platformLabel(g.platform.platform) })}>
         {#if running}<PublishingStatus publishing={running} platform={g.platform.platform} appId={g.appId} {workspaceId} canInterrupt={canPublishBatch(role)} />{/if}
         <div class="group-head">
+          <!-- guard-ok R5: layout, the platform badge shows only when the app has more than one platform group -->
           {#if members.length > 1 || groups.length > 1}<PlatformBadge platform={g.platform.platform} tinted />{/if}
           <span class="muted">{pendingLineText(groupNumbers)}</span>
           <span class="spacer"></span>

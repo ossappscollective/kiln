@@ -225,3 +225,10 @@ export function searchTermsLead(
     tone: 'neutral',
   };
 }
+
+/** The suggestions of every app's group, added up: ONE definition of the number the lead line shows. */
+export function totalSuggestions(groups: readonly { suggestions: number }[]): number {
+  let total = 0;
+  for (const g of groups) total += g.suggestions;
+  return total;
+}

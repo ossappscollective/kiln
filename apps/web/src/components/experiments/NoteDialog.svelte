@@ -138,6 +138,7 @@
     {/if}
     <div class="field">
       <label for="{uid}-note">{t('experiments:noteDialog.note')}</label>
+      <!-- guard-ok R3: the length of a free-text note (a form field), not a store limit -->
       <textarea id="{uid}-note" rows="4" bind:value={text} maxlength={2000} aria-invalid={shown && problems.note ? 'true' : undefined}></textarea>
       <p class="hint">{t('experiments:noteDialog.noteHint')}</p>
       {#if shown && problems.note}<p class="field-error" role="alert">{problems.note}</p>{/if}

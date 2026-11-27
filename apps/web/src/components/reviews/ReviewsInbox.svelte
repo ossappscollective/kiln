@@ -79,6 +79,7 @@
   import ReviewCard from './ReviewCard.svelte';
   import ReviewSplit from './ReviewSplit.svelte';
   import { useNow } from '../../lib/app-state/clock.svelte.ts';
+  import { readApps } from '../../lib/app-state/workspace-reads.ts';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
@@ -196,8 +197,7 @@
 
   function loadAll() {
     // Best effort: without these the inbox still works (no app names in the filter, no assignees).
-    void api
-      .apps(workspaceId)
+    void readApps(api, workspaceId)
       .then((r) => {
         apps = r.apps;
         navSignals.setApps(workspaceId, r.apps);

@@ -76,7 +76,7 @@
 
   const fixesOf = (locale: string) => fixes?.locales.find((l) => l.locale === locale);
   const resolved = $derived(new Set(fixes?.afterPending?.resolved ?? []));
-  const allFixes = $derived((fixes?.locales ?? []).reduce<Fix[]>((all, l) => all.concat(fixAllOf(l)), []));
+  const allFixes = $derived((fixes?.locales ?? []).flatMap((l) => fixAllOf(l)));
   const locales = $derived(view ? localesByScore(view.locales) : []);
   const withIssues = $derived(locales.filter((l) => l.issues.length > 0));
   const clean = $derived(locales.filter((l) => l.issues.length === 0));

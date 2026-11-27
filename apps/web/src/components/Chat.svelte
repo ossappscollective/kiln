@@ -32,6 +32,7 @@
   import Modal from './ui/Modal.svelte';
   import PageHeader from './ui/PageHeader.svelte';
   import { useNow } from '../lib/app-state/clock.svelte.ts';
+  import { readApps } from '../lib/app-state/workspace-reads.ts';
 
   /** `embedded`: drawn inside the Settings page, which already has the page title; the description and the new button stay. */
   let { api, workspaceId, role, embedded = false }: { api: Api; workspaceId: string; role: Role; embedded?: boolean } = $props();
@@ -72,7 +73,7 @@
   // The catalog and the apps feed the routing editor; they are not needed to list destinations.
   async function loadChoices() {
     try {
-      const [c, a] = await Promise.all([api.alertCatalog(workspaceId), api.apps(workspaceId)]);
+      const [c, a] = await Promise.all([api.alertCatalog(workspaceId), readApps(api, workspaceId)]);
       catalog = c.catalog;
       apps = a.apps;
     } catch {

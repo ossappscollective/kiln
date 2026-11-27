@@ -148,7 +148,9 @@
   }
 
   const chosenIn = (g: PlanGroup) => (i: { key: string }): boolean => !skipped[planItemId(g, i.key)];
+  // guard-ok R5: the number of rows the person ticked in the pull plan (selection state of the pull plan, not a store fact)
   const selectedCount = $derived(plan ? plan.groups.reduce((n, g) => n + g.items.filter(chosenIn(g)).length, 0) : 0);
+  // guard-ok R5: the number of rows the person ticked in the pull plan (selection state of the pull plan, not a store fact)
   const selectedFor = (appId: string): number => (plan ? plan.groups.filter((g) => g.appId === appId).reduce((n, g) => n + g.items.filter(chosenIn(g)).length, 0) : 0);
   const planApps = $derived(plan ? members.filter((m) => plan?.groups.some((g) => g.appId === m.id)) : []);
 

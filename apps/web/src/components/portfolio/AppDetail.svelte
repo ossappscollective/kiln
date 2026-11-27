@@ -45,6 +45,7 @@
   import ReleaseGroupCard from './ReleaseGroupCard.svelte';
   import ReleaseStatus from './ReleaseStatus.svelte';
   import { useNow } from '../../lib/app-state/clock.svelte.ts';
+  import { readApp } from '../../lib/app-state/workspace-reads.ts';
 
   let { api, workspaceId, role, id }: { api: Api; workspaceId: string; role: Role; id: string } = $props();
 
@@ -79,7 +80,7 @@
     loading = true;
     loadError = null;
     try {
-      const detail = await api.app(workspaceId, id);
+      const detail = await readApp(api, workspaceId, id);
       if (mine !== generation) return;
       app = detail.app;
       releases = detail.releases;

@@ -15,6 +15,7 @@
   import Tabs from './ui/Tabs.svelte';
   import { alertStore } from '../lib/app-state/alerts-facade.ts';
   import { t } from '../lib/i18n/t.ts';
+  import { readApps } from '../lib/app-state/workspace-reads.ts';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
@@ -63,8 +64,7 @@
     tab = 'inbox';
     void load();
     // The apps only name things in the lists; without them the lists say "An app".
-    api
-      .apps(workspaceId)
+    readApps(api, workspaceId)
       .then((r) => (apps = r.apps.map((a) => ({ id: a.id, name: a.name }))))
       .catch(() => (apps = []));
   });

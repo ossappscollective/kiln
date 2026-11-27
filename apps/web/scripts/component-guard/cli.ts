@@ -1,6 +1,9 @@
 import { writeFileSync } from 'node:fs';
 import {
   ALLOWLIST_FILE,
+  EXEMPTIONS_FILE,
+  MAX_EXEMPTIONS,
+  serializeExemptions,
   compare,
   DOMAINS,
   groupViolations,
@@ -17,6 +20,7 @@ import {
  *
  *   node scripts/component-guard/cli.ts                 print the allowlist grouped by domain (the burn-down list), with counts
  *   node scripts/component-guard/cli.ts --files         ... with every file and snippet
+ *   node scripts/component-guard/cli.ts --report        rewrite component-guard.exemptions.json (every inline `guard-ok Rn: reason`)
  *   node scripts/component-guard/cli.ts --check         compare the tree with the allowlist (what the test does), exit 1 on a difference
  *   node scripts/component-guard/cli.ts --prune         drop the entries that no longer match (never adds one): run it after a migration
  *   node scripts/component-guard/cli.ts --regenerate    rebuild the allowlist from the tree (adds EVERYTHING it finds: Wave 1 only)
@@ -26,6 +30,11 @@ const scan = scanTree();
 if (scan.errors.length > 0) {
   console.error(`parse errors:\n${scan.errors.join('\n')}`);
   process.exitCode = 1;
+}
+if (arg.includes('--report')) {
+  writeFileSync(EXEMPTIONS_FILE, serializeExemptions(scan.exemptions));
+  console.log(`wrote ${EXEMPTIONS_FILE}: ${scan.exemptions.length} exemptions (max ${MAX_EXEMPTIONS})`);
+  process.exit(process.exitCode ?? 0);
 }
 const groups = groupViolations(scan.violations);
 const list = loadAllowlist();

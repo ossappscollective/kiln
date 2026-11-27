@@ -44,6 +44,7 @@
   import EmptyState from './ui/EmptyState.svelte';
   import PageHeader from './ui/PageHeader.svelte';
   import Skeleton from './ui/Skeleton.svelte';
+  import { readApp, readApps } from '../lib/app-state/workspace-reads.ts';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
@@ -130,7 +131,7 @@
     }
     await runLimited(list, LOAD_PARALLEL, async (app) => {
       try {
-        const detail = await api.app(workspaceId, app.id);
+        const detail = await readApp(api, workspaceId, app.id);
         if (mine !== generation) return;
         releases[app.id] = { state: 'ready', releases: detail.releases };
         releaseFactsStore.setReleases(workspaceId, app.id, detail.releases);
@@ -156,7 +157,7 @@
     const mine = ++generation;
     error = '';
     try {
-      const list = (await api.apps(workspaceId)).apps;
+      const list = (await readApps(api, workspaceId)).apps;
       if (mine !== generation) return;
       apps = list;
       navSignals.setApps(workspaceId, list);

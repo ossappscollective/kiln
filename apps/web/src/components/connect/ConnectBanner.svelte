@@ -17,6 +17,7 @@
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import ConnectAppsDialog from './ConnectAppsDialog.svelte';
+  import { readApps } from '../../lib/app-state/workspace-reads.ts';
 
   let {
     api,
@@ -62,8 +63,7 @@
         })
         .catch(() => {});
       if (apps === null) {
-        void api
-          .apps(workspaceId)
+        void readApps(api, workspaceId)
           .then((r) => {
             if (current) own = r.apps;
           })

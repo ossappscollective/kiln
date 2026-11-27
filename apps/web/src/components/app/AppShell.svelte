@@ -62,6 +62,7 @@
   import SyncButton from './SyncButton.svelte';
   import LockedBanner from './LockedBanner.svelte';
   import ScopeControl from './ScopeControl.svelte';
+  import { readApp, readApps, readSyncActivity } from '../../lib/app-state/workspace-reads.ts';
 
   let { api, workspaceId, role, id }: { api: Api; workspaceId: string; role: Role; id: string } = $props();
   /** The app tint (docs/adr/0068-app-tint.md): re-maps the accent tokens inside this page only. Empty: no tint. */
@@ -137,7 +138,7 @@
     loading = true;
     loadError = null;
     try {
-      const list = (await api.apps(workspaceId)).apps;
+      const list = (await readApps(api, workspaceId)).apps;
       navSignals.setApps(workspaceId, list);
       const found = groupOf(groupApps(list), id);
       if (mine !== generation) return;
@@ -146,7 +147,7 @@
         loadError = { message: '', notFound: true };
         return;
       }
-      const details = await Promise.all(found.members.map((m) => api.app(workspaceId, m.id)));
+      const details = await Promise.all(found.members.map((m) => readApp(api, workspaceId, m.id)));
       if (mine !== generation) return;
       const nextRecords: Record<string, AppSummary> = {};
       const nextReleases: Record<string, ReleaseSummary[]> = {};
@@ -283,7 +284,7 @@
     // The queue works in the background: wait (at most a minute and a half) until this app has no feed being read and no job waiting.
     for (let i = 0; queued && i < 36 && mine === generation; i++) {
       await new Promise((r) => setTimeout(r, 2500));
-      const activity = await api.syncActivity(workspaceId).catch(() => null);
+      const activity = await readSyncActivity(api, workspaceId).catch(() => null);
       if (activity === null || (activity.queued === 0 && !activity.apps.some((a) => list.some((m) => m.id === a.id)))) break;
     }
     if (mine !== generation) return;
