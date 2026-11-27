@@ -14,6 +14,7 @@
   publish answered and when the dialog closes after one, so the screens read what they show again).
 -->
 <script lang="ts">
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { formatList } from '../../lib/i18n/format.ts';
@@ -155,16 +156,12 @@ import { supports, type Role } from '@kiln/core';
   let seq = 0;
 
   /** While publishing: when it started and "now", so the dialog shows it is alive and says when it is slow. */
+  const clock = useNow({ everyMs: 1000, while: () => phase === 'publishing' });
   let startedAt = $state(0);
-  let tick = $state(0);
-  const waited = $derived(phase === 'publishing' ? Math.max(0, tick - startedAt) : 0);
+  const waited = $derived(phase === 'publishing' ? Math.max(0, clock.value - startedAt) : 0);
   $effect(() => {
     if (phase !== 'publishing') return;
-    const started = Date.now();
-    startedAt = started;
-    tick = started;
-    const timer = setInterval(() => (tick = Date.now()), 1000);
-    return () => clearInterval(timer);
+    startedAt = untrack(() => clock.touch());
   });
 
   /** The failure the server held when this publish began (an old interrupted run is not news). */

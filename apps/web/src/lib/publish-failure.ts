@@ -227,32 +227,38 @@ export type StepLine = {
   note: string;
   /** Skipped for `blocked`: what stood in the way, each with how to fix it. */
   blockers: BlockerLine[];
+  /** The run recorded blockers for this step (history: what is blocking NOW is the model's `BlockersView`). */
+  hasBlockers: boolean;
 };
 
 /** Every step of a run as a line: done, failed with its reason, or not run with its reason. */
 export function stepLines(run: Pick<LastPublish, 'results'>): StepLine[] {
-  return run.results.map((step) => ({
-    key: step.type,
-    type: step.type,
-    error: step.status === 'failed' ? (step.error ?? null) : null,
-    label: STEP_NAME[step.type],
-    status: step.status,
-    word:
-      step.status === 'applied'
-        ? t('app:pending.result.done')
-        : step.status === 'failed'
-          ? t('app:pending.result.failed')
-          : t('app:pending.result.notRun'),
-    tone: step.status === 'applied' ? 'ok' : step.status === 'failed' ? 'bad' : 'neutral',
-    reason: step.status === 'failed' ? reasonOf(step) : null,
-    note:
-      step.status === 'skipped'
-        ? step.reason === 'blocked' && (step.blockers ?? []).length > 0
-          ? t('publish:failure.blocked.note', { count: step.blockers?.length ?? 0 })
-          : skippedSentence(step.reason)
-        : '',
-    blockers: step.status === 'skipped' && step.reason === 'blocked' ? blockerLines(step) : [],
-  }));
+  return run.results.map((step) => {
+    const blockers = step.status === 'skipped' && step.reason === 'blocked' ? blockerLines(step) : [];
+    return {
+      key: step.type,
+      type: step.type,
+      error: step.status === 'failed' ? (step.error ?? null) : null,
+      label: STEP_NAME[step.type],
+      status: step.status,
+      word:
+        step.status === 'applied'
+          ? t('app:pending.result.done')
+          : step.status === 'failed'
+            ? t('app:pending.result.failed')
+            : t('app:pending.result.notRun'),
+      tone: step.status === 'applied' ? 'ok' : step.status === 'failed' ? 'bad' : 'neutral',
+      reason: step.status === 'failed' ? reasonOf(step) : null,
+      note:
+        step.status === 'skipped'
+          ? step.reason === 'blocked' && (step.blockers ?? []).length > 0
+            ? t('publish:failure.blocked.note', { count: step.blockers?.length ?? 0 })
+            : skippedSentence(step.reason)
+          : '',
+      blockers,
+      hasBlockers: blockers.length > 0,
+    };
+  });
 }
 
 /** `Stopped at: Push the draft. 0 done, 1 failed, 2 not run.` */

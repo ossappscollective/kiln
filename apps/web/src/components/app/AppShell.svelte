@@ -13,6 +13,7 @@
   edits) a slim banner says so and the listing and graphics are read-only (lockedPlatforms).
 -->
 <script lang="ts">
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { type Action, can, type Role, supports } from '@kiln/core';
   import { untrack } from 'svelte';
@@ -75,7 +76,8 @@
   let loadError = $state<{ message: string; notFound: boolean } | null>(null);
   let syncing = $state<Record<string, boolean | undefined>>({});
   let syncRuns = $state(0);
-  let now = $state(Date.now());
+  const clock = useNow({ everyMs: 30_000 });
+  const now = $derived(clock.value);
   let generation = 0;
   let loadedFor = '';
 
@@ -197,11 +199,7 @@
   });
 
   $effect(() => {
-    const timer = setInterval(() => {
-      now = Date.now();
-    }, 30_000);
     return () => {
-      clearInterval(timer);
       appContext.name = '';
     };
   });
@@ -213,7 +211,7 @@
     const outcome = await syncApp(api, workspaceId, app.id);
     if (mine !== generation) return;
     syncing[app.id] = false;
-    now = Date.now();
+    clock.touch();
     syncRuns += 1;
     if (outcome.ok) {
       records[app.id] = outcome.app;
@@ -270,7 +268,7 @@
     }
     if (mine !== generation) return;
     syncRun.settle();
-    now = Date.now();
+    clock.touch();
     syncRuns += 1;
   }
 

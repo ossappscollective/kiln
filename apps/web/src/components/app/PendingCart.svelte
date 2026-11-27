@@ -9,6 +9,7 @@
   exactly what the top bar counts), platform (the page scope).
 -->
 <script lang="ts">
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
   import { onMount, untrack } from 'svelte';
   import { type Role } from '@kiln/core';
   import { type Api, ApiError } from '../../lib/api.ts';
@@ -67,7 +68,8 @@
   /** The last dry run of the price items: what the store says about them. Read only; nothing was sent. */
   let dryRun = $state<{ items: { key: string; title: string; item: PriceDryRunItem }[]; writesEnabled: boolean; failed: string } | null>(null);
   let dryBusy = $state(false);
-  let now = $state(Date.now());
+  const clock = useNow();
+  const now = $derived(clock.value);
   let loadedOnce = false;
   let lastToast = 0;
 
@@ -96,7 +98,7 @@
 
   async function refresh(): Promise<void> {
     await cartStore.refresh(api, workspaceId, ids);
-    now = Date.now();
+    clock.touch();
   }
 
   // Read the cart for these records on mount and whenever the app's records change.
@@ -147,7 +149,7 @@
         cartButton.pulse = false;
         requestAnimationFrame(() => (cartButton.pulse = true));
         setTimeout(() => (cartButton.pulse = false), 900);
-        const at = Date.now();
+        const at = clock.touch();
         if (at - lastToast > 2500 && !open) {
           lastToast = at;
           toast.success(t('app:cart.added'), { action: { label: t('app:cart.review'), onclick: () => (open = true) }, timeout: 4000 });

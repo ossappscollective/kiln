@@ -76,7 +76,7 @@
             <Badge tone={line.tone === 'ok' ? 'ok' : line.tone === 'bad' ? 'bad' : 'neutral'}>{line.word}</Badge>
           </div>
           {#if line.note !== ''}<p class="small muted">{line.note}</p>{/if}
-          {#if line.blockers.length > 0}
+          {#if line.hasBlockers}
             {#if view}
               <!-- The model's answer: what blocks NOW apart from what the run recorded THEN. -->
               <div class="readiness" data-testid="publish-readiness" data-state={view.state}>

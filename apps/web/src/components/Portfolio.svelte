@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { useNow } from '../lib/app-state/clock.svelte.ts';
   import { t } from '../lib/i18n/t.ts';
   import { type Role, can } from '@kiln/core';
   import { tick, untrack } from 'svelte';
@@ -68,7 +69,8 @@
   let reviewSummary = $state<WorkspaceReviewsSummary | null>(null);
   let syncing = $state<Record<string, boolean | undefined>>({});
   let adding = $state(false);
-  let now = $state(Date.now());
+  const clock = useNow({ everyMs: 30_000 });
+  const now = $derived(clock.value);
   /** The app that was open before going back to the list, so focus can return to its link. */
   let returnTo = '';
 
@@ -121,13 +123,6 @@
     const id = open?.id ?? '';
     if (wasOpen && !id) returnTo = wasOpen;
     wasOpen = id;
-  });
-
-  $effect(() => {
-    const timer = setInterval(() => {
-      now = Date.now();
-    }, 30_000);
-    return () => clearInterval(timer);
   });
 
   /** Ignores answers that arrive after the workspace changed or a newer load began. */
@@ -226,7 +221,7 @@
     syncing[app.id] = true;
     const outcome = await syncApp(api, workspaceId, app.id);
     syncing[app.id] = false;
-    now = Date.now();
+    clock.touch();
     if (outcome.ok) {
       patch(outcome.app);
       releases[app.id] = { state: 'ready', releases: outcome.releases };
@@ -315,7 +310,7 @@
     if (batch !== state) return;
     state.running = false;
     state.current = '';
-    now = Date.now();
+    clock.touch();
     const failed = state.results.filter((r) => r.status === 'failed' || r.status === 'skipped' || r.status === 'busy').length;
     const text = batchSummary(state.results);
     if (failed > 0) toast.warning(text);

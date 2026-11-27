@@ -14,6 +14,7 @@
   publish or a discard, so a parent can refresh what it shows).
 -->
 <script lang="ts">
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
   import { type Role, can } from '@kiln/core';
   import { tick, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
@@ -108,7 +109,8 @@
   let showBlockers = $state(false);
   let blockedEl = $state<HTMLElement | null>(null);
   let announcement = $state('');
-  let now = $state(Date.now());
+  const clock = useNow();
+  const now = $derived(clock.value);
   let seq = 0;
   /** The rows whose preview is open (collapsed by default), and the app's cart rows the staged items are previewed through (read lazily, stored state only). */
   let expanded = $state<Expanded>(noneExpanded);
@@ -177,7 +179,7 @@
     if (key === stepKey) return;
     const first = stepKey === '';
     stepKey = key;
-    if (!first && key !== '') untrack(() => void Promise.all(ids.map((id) => pendingStore.loadView(api, workspaceId, id))).then(() => (now = Date.now())));
+    if (!first && key !== '') untrack(() => void Promise.all(ids.map((id) => pendingStore.loadView(api, workspaceId, id))).then(() => clock.touch()));
   });
   const availability = $derived(
     publishAvailability({
@@ -238,7 +240,7 @@
     if (mine !== seq) return;
     loadProblem = messages.filter((m) => m !== '')[0] ?? '';
     loading = false;
-    now = Date.now();
+    clock.touch();
   }
 
   /** The banner and the chips read the summary; when it is newer than this detail and says something else, read the detail again. */
@@ -265,7 +267,7 @@
 
   async function changed() {
     await pendingStore.refresh(api, workspaceId, ids, { submit: canSubmit(role) });
-    now = Date.now();
+    clock.touch();
     onpublished?.();
   }
 

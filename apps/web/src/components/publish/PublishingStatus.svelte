@@ -12,6 +12,7 @@
   when the server has gone quiet.
 -->
 <script lang="ts">
+  import { useNow } from '../../lib/app-state/clock.svelte.ts';
   import type { Platform } from '@kiln/core';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
   import { t } from '../../lib/i18n/t.ts';
@@ -50,12 +51,8 @@
     canInterrupt?: boolean | undefined;
   } = $props();
 
-  let now = $state(Date.now());
-  $effect(() => {
-    now = Date.now();
-    const timer = setInterval(() => (now = Date.now()), 1000);
-    return () => clearInterval(timer);
-  });
+  const clock = useNow({ everyMs: 1000 });
+  const now = $derived(clock.value);
   const who = $derived(byText(publishing, me));
   const progress = $derived(progressText(publishing));
   const quiet = $derived(quietText(publishing, now));
