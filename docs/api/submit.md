@@ -84,7 +84,10 @@ to), `no_version`, `already_submitted`, `release_not_manual` (App Store only: th
 `no_screenshots`, `missing_text` (a field the listing specs mark as required and verified is empty),
 `image_not_ready` (an image that is not processed), `asset_spec` (a documented spec is broken: sizes and counts
 as the store lists them, `rule` and `source` are those of the spec; only a _verified_ rule blocks),
-`draft_unreadable`, `push_in_progress`, `push_outcome_unknown`.
+`draft_unreadable`, `push_in_progress`, `push_outcome_unknown`, `no_review_contact` (App Store: the version's App Review contact first and last
+name, phone number or email address is missing or blank; `params.missing`, `params.from`) and `no_review_demo_account` (a demo account is required and its user name
+or password is blank). The last two are judged from presence facts only and are not judged when the review information could not be read
+([review-information](review-information.md)).
 
 Warnings: `locale_without_screenshots`, `missing_text` / `asset_spec` for unverified rules, `open_review_submission`
 (App Store: unsubmitted review submissions exist; this server makes its own), `play_review_state_unknown`,

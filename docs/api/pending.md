@@ -574,13 +574,15 @@ server's sentence, sanitised), in the answer, in the kept run (`store_publish_ru
 
 The codes of the App Store checks (`store-submit.ts` `evaluateChecks`): `push_in_progress`, `push_outcome_unknown`, `already_submitted`,
 `no_version`, `version_changed`, `release_not_manual`, `no_build`, `build_expired`, `build_not_valid`, `draft_unreadable`, `draft_differs`,
-`no_locales`, `missing_text`, `image_not_ready`, `no_screenshots`, `asset_spec`. Kiln does NOT check what Apple also needs for a review
-(contact details of the reviewer, age rating, export compliance, pricing, privacy answers): a submit that passes Kiln's checks can still be
-refused by Apple, and then says so as a store refusal.
+`no_locales`, `missing_text`, `image_not_ready`, `no_screenshots`, `asset_spec`, and for the App Store `no_review_contact` and `no_review_demo_account`
+(the version's App Review contact and demo account, [review-information](review-information.md); the blocker's `fix.kind` is `review`, with
+`params.from` naming the previous version it can be copied from). Kiln does NOT check what Apple also needs for a review beyond that (age
+rating, export compliance, pricing, privacy answers): a submit that passes Kiln's checks can still be refused by Apple, and then says so as a
+store refusal.
 
 The plan (`POST .../publish/preview`) says BEFORE the push what is already known to block the submit: a version that cannot be submitted, a
 build that is missing, expired or not processed (from one read of the store; a push of the staged release fields attaches a build, so the
-build codes are not warned about when such a push is staged). These are `problems` of severity `warning` with the code `submit_will_block_<check code>` (they are not part of `planHash`);
+build codes are not warned about when such a push is staged; the review information codes are not changed by a push). These are `problems` of severity `warning` with the code `submit_will_block_<check code>` (they are not part of `planHash`);
 the checks that depend on the push (the draft, texts, screenshots) cannot be known yet and are not listed.
 
 ### Causes Kiln names for Google Play

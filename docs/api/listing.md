@@ -133,9 +133,11 @@ committed):
   state, never an image URL, a template URL or an upload operation. Apple marks the screenshot sets
   endpoint **deprecated** (since API 4.5, in favour of the asset library placements): when it is gone the
   read gives a warning and the `media` section stays "not read".
-- App Store Connect, **review detail: deliberately skipped.** `appStoreReviewDetails` holds a contact
+- App Store Connect, **review detail: not read by the listing.** `appStoreReviewDetails` holds a contact
   name, email and phone number and a demo account's user name and password. Those are personal data and
-  secrets this tool has no use for, so the resource is not requested at all.
+  secrets, so the listing read does not request the resource. The only reads of it are the carry-over to a
+  new version and the presence check before a submit, on the server, and they keep no value
+  ([review information](review-information.md)).
 - Google Play:
   [`edits.details.get`](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.details/get),
   [`edits.images.list`](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.images/list)

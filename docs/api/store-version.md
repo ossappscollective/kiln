@@ -35,6 +35,7 @@ also settles an earlier unknown outcome of a create. Returns `{ preview }`:
 | `suggested`                    | The next patch of `live` (`3.1.1` is `3.1.2`, `3.1` is `3.1.1`, `2` is `2.0.1`; `1.0` when none). |
 | `versions[]`                   | `{ versionString, state, editable }` of every version of the platform.                            |
 | `checks.blocking` / `warnings` | `{ code, message }`. A blocking check stops the create.                                           |
+| `reviewInformation`            | What the new version would get from the previous version's App Review Information, masked ([review-information](review-information.md)). |
 | `confirmHash`                  | A SHA-256 over the app, the request and the versions as read. `null` while anything blocks.       |
 | `reversible`, `note`           | Always `true`; and the sentence "Creates an editable draft version... Nothing is submitted."      |
 
@@ -49,7 +50,8 @@ Body: `{ versionString, releaseType?, confirmHash }`. Needs the switch, the righ
 1. The versions are **read again** right before the write. A different list is `409 state_changed` with a new `preview`; a
    blocking check is `409 blocked` with `checks`. Nothing is written in either case.
 2. One `POST /v1/appStoreVersions` with `platform` (`IOS` or `MAC_OS`, the record's), `versionString`, `releaseType` when given, and the
-   app. It writes the version only: no text, no build, no submission, no release.
+   app. Then the **App Review Information of the previous version is carried over** onto it (blank attributes only; a failure is a warning, the
+   version stays created: [review-information](review-information.md)). No text, no build, no submission, no release.
 3. **One write in flight** per app and platform, in the claim table of the draft push, so a push and a create exclude each
    other (`409 write_in_progress`).
 4. **Never retried.** After a timeout or a 5xx the versions are read back: the version shows (`200` with
@@ -59,10 +61,12 @@ Body: `{ versionString, releaseType?, confirmHash }`. Needs the switch, the righ
    reasons in `details[]` (`code`, `title`, `detail`, `pointer`).
 
 Returns `{ result }`: `app`, `version { id, versionString, state }`, `reversible: true`, `confirmedByReread`, `warnings[]`,
-`createdAt`, `note`. After it, sync the app and the stepper finds the version.
+`reviewInformation { outcome, from, fieldsCopied, summary }` (a count and a masked summary), `createdAt`, `note`. After it, sync the app and the stepper finds the version.
 
-**Audit**: `store.version_created` and `store.version_create_failed`: ids, the version string, hashes and outcomes. Never a
-credential, a token or a store response body. No event is emitted.
+**Audit**: `store.version_created` and `store.version_create_failed`: ids, the version string, hashes and outcomes, and for the review
+information an outcome, the version it came from and a count. Never a credential, a token, a store response body, or a contact name, phone
+number, email address, demo account or note. No event is emitted. For a version that already exists, the same copy is
+[`POST /apps/{id}/review-information`](review-information.md#3-the-repair-copy-the-information-to-a-version-that-already-exists).
 
 ## UNVERIFIED: check with a real account
 

@@ -31,6 +31,11 @@ connector ("nothing here creates a version"), so this needs its own decision.
    Apple does not allow, a 403 for a key's role) are fixed by the person in App Store Connect.
 8. **Audit holds ids and the version string**, never a credential or a store body. No event is added.
 9. **Google Play is not touched.** A version there is a release; the route answers `422 not_supported`.
+10. **The previous version's App Review Information is carried over** (added later, [review-information](../api/review-information.md)). The
+    review detail belongs to one version and Kiln first created versions without one, so the contact was blank on them. After the version
+    exists the server copies the best previous version's detail onto it, blank attributes only, never over a filled value, attachments not
+    copied, a failure a warning and not a failed create. This reverses the earlier rule that review details are never read: they are now read
+    on the server for this one purpose and for a presence check before a submit, and no value reaches a log, an audit entry or the browser.
 
 ## Consequences
 
