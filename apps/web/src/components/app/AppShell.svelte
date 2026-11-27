@@ -34,7 +34,7 @@
   import { tint } from '../../lib/app-state/tint-facade.ts';
   import { dataChips } from '../../lib/app-chips.ts';
   import { canonicalAppHash, canonicalSection, pageTitle, resolveView, showsScope, viewsFor } from '../../lib/app-nav.ts';
-  import { PUBLISHED_EVENT } from '../../lib/app-page.ts';
+  import { PUBLISHED_EVENT, addressAfterPublished } from '../../lib/app-page.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
   import { releaseFactsStore } from '../../lib/app-state/release-facts-store.svelte.ts';
   import { invalidate, onInvalidated } from '../../lib/facts/invalidate.ts';
@@ -320,7 +320,9 @@
       if (appId === undefined || published === undefined) return;
       // The record that was published (it may be the other platform than the page shows): read its store again, then the pending
       // lists of every record of the app, so no stale "draft to publish" is left on either.
-      window.location.hash = appAddress(id, 'releases', scoped.includes(published) ? address.platform : published.platform);
+      // Not while "Prepare release" is open: creating the version is its first step, so it stays and shows the build step.
+      const next = addressAfterPublished(window.location.hash, appAddress(id, 'releases', scoped.includes(published) ? address.platform : published.platform));
+      if (next !== null) window.location.hash = next;
       void sync(published).then(() => pendingStore.refresh(api, workspaceId, members.map((m) => m.id), { submit: canSubmit(role) }));
     };
     window.addEventListener(PUBLISHED_EVENT, onPublished);

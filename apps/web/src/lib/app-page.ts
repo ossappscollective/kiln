@@ -1,6 +1,7 @@
 import type { AppSection } from './app-scope.ts';
 import { t } from './i18n/t.ts';
 import { chipFor, type PendingLine } from './pending.ts';
+import { stepFromHash } from './release-stepper.ts';
 
 /**
  * Small pure helpers of the slim page header of an app: the pending bar and the dot of the Status button.
@@ -91,4 +92,13 @@ export function announcePublished(
 ): boolean {
   if (target === null) return false;
   return target.dispatchEvent(new CustomEvent(PUBLISHED_EVENT, { detail: { appId } }));
+}
+
+/**
+ * Where the app page goes when something was published or created: the releases list, unless "Prepare release" is open (its
+ * `&step=` is in the address). Creating a store version from the build step is the first step of the stepper, not the end of it:
+ * the stepper stays, reads again and shows the build step of the new version, so the address is left alone (null).
+ */
+export function addressAfterPublished(currentHash: string, releasesAddress: string): string | null {
+  return stepFromHash(currentHash) === null ? releasesAddress : null;
 }

@@ -97,3 +97,19 @@ test('on the Overview the changes are a link in the Next step card; a blocking e
   assert.equal(pendingPlacement(blocked, 'dashboard').link, null);
   assert.deepEqual(pendingPlacement(null, 'dashboard'), { bar: null, link: null });
 });
+
+test('after a create or publish the page goes to the releases, but never closes an open Prepare release', async () => {
+  const { addressAfterPublished } = await import('./app-page.ts');
+  const releases = '#/apps/a1/releases';
+  assert.equal(addressAfterPublished('#/apps/a1/releases?step=build', releases), null);
+  assert.equal(addressAfterPublished('#/apps/a1/releases?platform=ios&step=confirm', releases), null);
+  assert.equal(addressAfterPublished('#/apps/a1/listing', releases), releases);
+  assert.equal(addressAfterPublished('#/apps/a1/releases', releases), releases);
+});
+
+test('regression: the stepper is not closed by the app page when CreateVersion announces', async () => {
+  const { readFileSync } = await import('node:fs');
+  const shell = readFileSync(new URL('../components/app/AppShell.svelte', import.meta.url), 'utf8');
+  assert.match(shell, /addressAfterPublished\(window\.location\.hash/);
+  assert.doesNotMatch(shell, /window\.location\.hash = appAddress\(/);
+});

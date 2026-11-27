@@ -286,6 +286,9 @@ named, collected for 150 ms so twenty syncs are one refresh; `staged_changed` ha
 | `staged_changed`  | assetDiff                                                    | kept                                        | cart count + pending summary              | `api.stage*`, unstage, discard (the browser event `kiln:staged-changed`)                   |
 | `store_read`      | editable, candidates, live, assetDiff                        | dropped (kept by the screen that just read) | readiness of a blocked run, by the caller | Graphics "Read again", "Check again" (`appStateStore.checkAgain`)                          |
 | `release_created` | the same as `sync`                                           | dropped                                     | `refresh(appIds)`                         | CreateVersion, NewPlan, ReleaseStepper after a release started                             |
+
+**Prepare release stays open after a create.** CreateVersion (and StoreRelease) announce `kiln:published` for the app page, which reads the store again and shows the releases (`addressAfterPublished` in `lib/app-page.ts`). While the stepper is open (`&step=` in the address) the address is left alone: the stepper reads again (`onread`) and shows the build step of the new version; it closes only by its own Close button.
+
 | `build_changed`   | pipeline, storeBuilds, candidates                            | kept                                        | `refresh(appIds)`                         | AppShell after the rest of a sync (TestFlight, CI runs)                                    |
 
 `kiln:staged-changed` is still the transport from `lib/api.ts` (which cannot import the stores), but it has ONE subscriber: `bindInvalidation`,
