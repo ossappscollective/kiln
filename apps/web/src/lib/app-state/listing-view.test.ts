@@ -1,9 +1,20 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { StoreCopyViewJson, StoreListingView } from '../types.ts';
-import { baseLocaleOf, copyOf, defaultLocaleOf, draftOnlyLocales, heldOf, localesOf, noteLocalesOf } from './listing-view.ts';
+import {
+  baseLocaleOf,
+  copyOf,
+  defaultLocaleOf,
+  draftOnlyLocales,
+  heldOf,
+  localesOf,
+  noteLocalesOf,
+} from './listing-view.ts';
 
-const copy = (intent: StoreCopyViewJson['intent'], locales: [string, 'live' | 'editable', ('live' | 'editable')[]][]): StoreCopyViewJson => ({
+const copy = (
+  intent: StoreCopyViewJson['intent'],
+  locales: [string, 'live' | 'editable', ('live' | 'editable')[]][],
+): StoreCopyViewJson => ({
   intent,
   codes: locales.map((l) => l[0]),
   channels: { live: true, editable: true },
@@ -20,8 +31,14 @@ const view = {
   channels: [],
   locales: ['en-US', 'fr-FR'],
   copies: {
-    shown: copy('shown', [['en-US', 'live', ['live', 'editable']], ['fr-FR', 'editable', ['editable']]]),
-    editable: copy('editable', [['en-US', 'editable', ['live', 'editable']], ['fr-FR', 'editable', ['editable']]]),
+    shown: copy('shown', [
+      ['en-US', 'live', ['live', 'editable']],
+      ['fr-FR', 'editable', ['editable']],
+    ]),
+    editable: copy('editable', [
+      ['en-US', 'editable', ['live', 'editable']],
+      ['fr-FR', 'editable', ['editable']],
+    ]),
     live: copy('live', [['en-US', 'live', ['live', 'editable']]]),
   },
   defaultLocale: { locale: 'de-DE', declared: 'de-DE', source: 'declared', reason: 'declared' },
@@ -30,7 +47,11 @@ const view = {
 
 test('the page, the stepper and the live sentence each ask for their intent and get the same store read', () => {
   assert.deepEqual(localesOf(view), ['en-US', 'fr-FR']);
-  assert.deepEqual(noteLocalesOf(view), ['en-US', 'fr-FR'], 'the stepper offers the locale only the draft has');
+  assert.deepEqual(
+    noteLocalesOf(view),
+    ['en-US', 'fr-FR'],
+    'the stepper offers the locale only the draft has',
+  );
   assert.deepEqual(localesOf(view, 'live'), ['en-US']);
   assert.deepEqual(draftOnlyLocales(view), ['fr-FR']);
   assert.deepEqual(heldOf(view, 'fr-FR'), { from: 'editable', held: ['editable'] });

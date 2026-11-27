@@ -7,8 +7,14 @@ import { type CopyChannel, storeCopyView } from './copy.ts';
  * The ONE staged-text baseline (audit listing.md F2): the editable draft when there is one, else live. Both scenarios of the audit.
  */
 
-const live: CopyChannel = { channel: 'live', locales: { 'en-US': { release_notes: 'Bug fixes', subtitle: 'Live sub' } } };
-const draft = (notes: string): CopyChannel => ({ channel: 'editable', locales: { 'en-US': { release_notes: notes } } });
+const live: CopyChannel = {
+  channel: 'live',
+  locales: { 'en-US': { release_notes: 'Bug fixes', subtitle: 'Live sub' } },
+};
+const draft = (notes: string): CopyChannel => ({
+  channel: 'editable',
+  locales: { 'en-US': { release_notes: notes } },
+});
 const baseline = (channels: CopyChannel[], field = 'release_notes') =>
   stagedBaselineOf(storeCopyView(channels, { intent: 'editable' }), 'en-US', field);
 

@@ -15,12 +15,7 @@ import {
 } from '@kiln/core';
 import { formatList, formatPercent } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
-import {
-  appHref,
-  latestRelease,
-  platformRank,
-  type ReleaseLoad,
-} from './portfolio.ts';
+import { appHref, latestRelease, platformRank, type ReleaseLoad } from './portfolio.ts';
 import { dueText, releaseHref } from './release.ts';
 import type { AppSummary, PlanSummary } from './types.ts';
 

@@ -1,9 +1,9 @@
 import { isBlobReads } from '@kiln/connectors';
 import {
-  ASSET_MAX_SERVED_BYTES as MAX_SERVED_BYTES,
   ASSET_REPO_OPENED_TTL_MS,
   type AssetKind,
   assetStoreOf,
+  ASSET_MAX_SERVED_BYTES as MAX_SERVED_BYTES,
 } from '@kiln/core';
 import type { ManagedApp } from '../../services/apps.ts';
 import { registerMapCache } from '../../services/cache-registry.ts';
@@ -447,4 +447,3 @@ export async function openAssets(
 const listingNotes = (_warnings: readonly string[]): string[] => [];
 
 export { failure };
-

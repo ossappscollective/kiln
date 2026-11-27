@@ -61,7 +61,10 @@ function setup(
         : json(200, { data: { type: 'appStoreReviewDetails', id: `rd-${id}`, attributes } });
     }
     if (method === 'POST' && url.pathname === '/v1/appStoreReviewDetails')
-      return options.write?.() ?? json(201, { data: { type: 'appStoreReviewDetails', id: 'rd-created' } });
+      return (
+        options.write?.() ??
+        json(201, { data: { type: 'appStoreReviewDetails', id: 'rd-created' } })
+      );
     if (method === 'PATCH' && /^\/v1\/appStoreReviewDetails\/[^/]+$/.test(url.pathname))
       return options.write?.() ?? json(200, { data: { type: 'appStoreReviewDetails', id: 'x' } });
     return json(404, { errors: [{ code: 'NOT_FOUND', title: 'no' }] });
@@ -115,7 +118,10 @@ test('the live version is preferred; one without details is skipped for the next
   const { calls, connector } = setup({ 'v-old': { ...FULL, contactFirstName: 'Old' } });
   const done = await connector.carryOver(VERSIONS, 'v-new');
   assert.equal(done.from?.versionString, '1.18.0');
-  assert.equal((writes(calls)[0]?.body as { data: { attributes: Attrs } }).data.attributes.contactFirstName, 'Old');
+  assert.equal(
+    (writes(calls)[0]?.body as { data: { attributes: Attrs } }).data.attributes.contactFirstName,
+    'Old',
+  );
 });
 
 test('no previous version has any detail: nothing is written', async () => {
@@ -128,7 +134,9 @@ test('no previous version has any detail: nothing is written', async () => {
   });
   assert.deepEqual(writes(none.calls), []);
   // a detail that exists but is blank is "none" too
-  const blank = setup({ 'v-live': { contactFirstName: '  ', contactEmail: '', notes: null, demoAccountRequired: false } });
+  const blank = setup({
+    'v-live': { contactFirstName: '  ', contactEmail: '', notes: null, demoAccountRequired: false },
+  });
   assert.equal((await blank.connector.carryOver(VERSIONS, 'v-new')).outcome, 'no_source');
   assert.deepEqual(writes(blank.calls), []);
 });
@@ -136,7 +144,12 @@ test('no previous version has any detail: nothing is written', async () => {
 test('the new version already has details: only its blank attributes are patched, filled ones are untouched', async () => {
   const { calls, connector } = setup({
     'v-live': FULL,
-    'v-new': { contactFirstName: 'Paul', contactLastName: '  ', contactPhone: null, demoAccountRequired: false },
+    'v-new': {
+      contactFirstName: 'Paul',
+      contactLastName: '  ',
+      contactPhone: null,
+      demoAccountRequired: false,
+    },
   });
   const done = await connector.carryOver(VERSIONS, 'v-new');
   assert.equal(done.outcome, 'merged');
@@ -158,7 +171,10 @@ test('an untouched blank detail on the new version takes the demo account requir
   const { calls, connector } = setup({ 'v-live': FULL, 'v-new': { demoAccountRequired: false } });
   const done = await connector.carryOver(VERSIONS, 'v-new');
   assert.equal(done.outcome, 'merged');
-  assert.equal((writes(calls)[0]?.body as { data: { attributes: Attrs } }).data.attributes.demoAccountRequired, true);
+  assert.equal(
+    (writes(calls)[0]?.body as { data: { attributes: Attrs } }).data.attributes.demoAccountRequired,
+    true,
+  );
 });
 
 test('a complete detail on the new version is left alone', async () => {
@@ -185,7 +201,12 @@ test('a refused write is a result, not a throw, and nothing personal is in it, e
       write: () =>
         json(409, {
           errors: [
-            { status: '409', code: 'ENTITY_ERROR.ATTRIBUTE.INVALID', title: 'Invalid', detail: 'contactEmail marie.girard@example.test is not valid' },
+            {
+              status: '409',
+              code: 'ENTITY_ERROR.ATTRIBUTE.INVALID',
+              title: 'Invalid',
+              detail: 'contactEmail marie.girard@example.test is not valid',
+            },
           ],
         }),
     },
@@ -202,12 +223,18 @@ test('a source that cannot be read is a failed result; one unreadable version is
   const failed = await broken.connector.carryOver(VERSIONS, 'v-new');
   assert.equal(failed.outcome, 'failed');
   assert.deepEqual(writes(broken.calls), []);
-  const skip = setup({ 'v-old': FULL }, { read: (id) => (id === 'v-live' ? json(500, {}) : undefined) });
+  const skip = setup(
+    { 'v-old': FULL },
+    { read: (id) => (id === 'v-live' ? json(500, {}) : undefined) },
+  );
   assert.equal((await skip.connector.carryOver(VERSIONS, 'v-new')).from?.versionString, '1.18.0');
 });
 
 test('readFacts holds presence only; a version without a detail is "exists false"; a failed read is null', async () => {
-  const { connector } = setup({ 'v-live': FULL, 'v-new': { contactFirstName: ' ', contactEmail: 'a@b.test' } });
+  const { connector } = setup({
+    'v-live': FULL,
+    'v-new': { contactFirstName: ' ', contactEmail: 'a@b.test' },
+  });
   const full = await connector.readFacts('v-live');
   assert.equal(full?.exists, true);
   assert.equal(full?.demoAccountPassword, true);
@@ -223,7 +250,19 @@ test('readFacts holds presence only; a version without a detail is "exists false
 test('no message carries a value when Apple answers a read with an error that quotes it', async () => {
   const { connector } = setup(
     {},
-    { read: () => json(403, { errors: [{ status: '403', code: 'FORBIDDEN', title: 'no', detail: 'contactEmail marie.girard@example.test' }] }) },
+    {
+      read: () =>
+        json(403, {
+          errors: [
+            {
+              status: '403',
+              code: 'FORBIDDEN',
+              title: 'no',
+              detail: 'contactEmail marie.girard@example.test',
+            },
+          ],
+        }),
+    },
   );
   await assert.rejects(connector.readDetail('v-live'), (e: unknown) => {
     assert.ok(e instanceof StoreError);
@@ -238,7 +277,13 @@ test('the submit connector reads presence of the review information, and the ver
     { id: 'v-live', versionString: '1.19.0', state: 'READY_FOR_DISTRIBUTION' },
     { id: 'v-next', versionString: '2.0.1', state: 'PREPARE_FOR_SUBMISSION' },
   ];
-  const detail = (id: string) => ({ data: { type: 'appStoreReviewDetails', id: `rd-${id}`, attributes: id === 'v-live' ? FULL : { contactFirstName: ' ' } } });
+  const detail = (id: string) => ({
+    data: {
+      type: 'appStoreReviewDetails',
+      id: `rd-${id}`,
+      attributes: id === 'v-live' ? FULL : { contactFirstName: ' ' },
+    },
+  });
   api.hook = (s) => {
     const m = /^\/v1\/appStoreVersions\/([^/]+)\/appStoreReviewDetail$/.exec(s.path);
     return m && s.method === 'GET' ? json(200, detail(m[1] as string)) : undefined;

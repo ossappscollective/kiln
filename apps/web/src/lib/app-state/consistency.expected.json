@@ -1,6 +1,4 @@
 {
   "$comment": "Disagreements between two display surfaces TODAY (the migration burn-down list). See docs/state-model.md, Consistency contract. The list only shrinks.",
-  "entries": [
-
-  ]
+  "entries": []
 }

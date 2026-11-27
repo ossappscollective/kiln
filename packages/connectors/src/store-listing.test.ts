@@ -410,7 +410,9 @@ test('App Store: ids are encoded into the paths', async () => {
   await connector.readListing('1/../2');
   assert.ok(
     fake.calls.every(
-      (c) => c.url.pathname.startsWith('/v1/apps/1%2F..%2F2/') || c.url.pathname === '/v1/apps/1%2F..%2F2',
+      (c) =>
+        c.url.pathname.startsWith('/v1/apps/1%2F..%2F2/') ||
+        c.url.pathname === '/v1/apps/1%2F..%2F2',
     ),
   );
 });

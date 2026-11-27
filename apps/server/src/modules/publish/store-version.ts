@@ -13,12 +13,12 @@ import {
 } from '@kiln/connectors';
 import {
   createReleaseRules,
+  STORE_CALL_CLAIM_TTL_MS as DEFAULT_VERSION_CLAIM_TTL_MS,
   newestNonEditableVersion,
   nextVersion,
   type Platform,
   type ReviewSummary,
   sameVersion,
-  STORE_CALL_CLAIM_TTL_MS as DEFAULT_VERSION_CLAIM_TTL_MS,
   supports,
 } from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
@@ -426,7 +426,9 @@ export async function previewVersion(
     const read = await withConnector(ctx, connection.input, async (c) => {
       const versions = await c.readVersions();
       // The previous version's App Review Information, masked: a read that never throws (a failure is part of the answer).
-      const look = c.previewReviewInformation ? await c.previewReviewInformation(versions.versions) : null;
+      const look = c.previewReviewInformation
+        ? await c.previewReviewInformation(versions.versions)
+        : null;
       return { versions, look };
     });
     state = read.versions;
@@ -524,9 +526,7 @@ async function carryReview(
   if (versionId === null) return null;
   try {
     return await withConnector(ctx, input, async (c) =>
-      c.carryOverReviewInformation
-        ? c.carryOverReviewInformation(versions, versionId)
-        : null,
+      c.carryOverReviewInformation ? c.carryOverReviewInformation(versions, versionId) : null,
     );
   } catch (error) {
     return {
@@ -902,8 +902,17 @@ export async function applyReviewCopy(
   const connected = await connect(ctx, input.workspaceId, app, input.actor, VERSION_PURPOSE);
   if (!connected.ok) return stop(connected);
   const { connection } = connected;
-  const failed = async (code: string, outcome: string, f: Failure, extra: Record<string, unknown> = {}) => {
-    await audit(ctx, { ...input }, app, 'store.review_information_copy_failed', { code, outcome, ...extra });
+  const failed = async (
+    code: string,
+    outcome: string,
+    f: Failure,
+    extra: Record<string, unknown> = {},
+  ) => {
+    await audit(ctx, { ...input }, app, 'store.review_information_copy_failed', {
+      code,
+      outcome,
+      ...extra,
+    });
     return stop(f);
   };
 
@@ -926,10 +935,9 @@ export async function applyReviewCopy(
       const canCopy = read.look.outcome === 'created' || read.look.outcome === 'merged';
       if (!canCopy || hash !== input.confirmHash)
         return { kind: 'changed', target: read.target, look: read.look };
-      const done = await (c.carryOverReviewInformation as NonNullable<VersionConnector['carryOverReviewInformation']>)(
-        read.versions,
-        read.target.id,
-      );
+      const done = await (
+        c.carryOverReviewInformation as NonNullable<VersionConnector['carryOverReviewInformation']>
+      )(read.versions, read.target.id);
       return { kind: 'done', target: read.target, done };
     });
   } catch (error) {
@@ -968,7 +976,10 @@ export async function applyReviewCopy(
         502,
         'store_rejected',
         'App Store Connect did not accept the review information. Fill it in App Store Connect (the version page, App Review Information), or try again.',
-        { cause: done.code ?? 'failed', ...(done.httpStatus !== undefined ? { storeStatus: done.httpStatus } : {}) },
+        {
+          cause: done.code ?? 'failed',
+          ...(done.httpStatus !== undefined ? { storeStatus: done.httpStatus } : {}),
+        },
       ),
     );
   const at = ctx.now();
@@ -996,4 +1007,3 @@ export async function applyReviewCopy(
 }
 
 export { CREATABLE_RELEASE_TYPES };
-

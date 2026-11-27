@@ -72,6 +72,9 @@ test('the locale count adds listing texts and graphics sets of that locale acros
   assert.equal(stagedCountForLocale([a, b], 'de-DE'), 0);
   assert.equal(stagedCountForLocale([view([]), null], 'en-US'), 0);
   // A graphic set that was pushed already is not something a push would send: it is not counted (the unpushed family).
-  const pushed = { ...view([], ['en-US']), assets: [{ locale: 'en-US', pushed: true, files: [] }] } as never;
+  const pushed = {
+    ...view([], ['en-US']),
+    assets: [{ locale: 'en-US', pushed: true, files: [] }],
+  } as never;
   assert.equal(stagedCountForLocale([pushed], 'en-US'), 0);
 });

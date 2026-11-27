@@ -45,7 +45,10 @@ test('no_review_contact: no detail, blank fields, whitespace only; complete is c
   assert.equal(none.length, 1);
   assert.equal(none[0]?.code, 'no_review_contact');
   assert.equal(none[0]?.severity, 'blocking');
-  assert.equal(none[0]?.params?.missing, 'contactFirstName,contactLastName,contactPhone,contactEmail');
+  assert.equal(
+    none[0]?.params?.missing,
+    'contactFirstName,contactLastName,contactPhone,contactEmail',
+  );
   const blanks = full();
   blanks.text.contactFirstName = '  \t';
   blanks.text.contactEmail = '';
@@ -55,27 +58,41 @@ test('no_review_contact: no detail, blank fields, whitespace only; complete is c
   assert.ok(!(some[0]?.message ?? '').includes('Girard'));
   const one = full();
   one.text.contactPhone = null;
-  assert.match(evaluateReviewInformation(reviewFactsOf(one))[0]?.message ?? '', /phone number is missing/);
+  assert.match(
+    evaluateReviewInformation(reviewFactsOf(one))[0]?.message ?? '',
+    /phone number is missing/,
+  );
 });
 
 test('no_review_demo_account only when a demo account is required and its credentials are blank', () => {
   const d = full();
   d.text.demoAccountPassword = ' ';
   const found = evaluateReviewInformation(reviewFactsOf(d));
-  assert.deepEqual(found.map((f) => f.code), ['no_review_demo_account']);
+  assert.deepEqual(
+    found.map((f) => f.code),
+    ['no_review_demo_account'],
+  );
   assert.equal(found[0]?.params?.missing, 'demoAccountPassword');
   d.demoAccountRequired = false;
   assert.deepEqual(evaluateReviewInformation(reviewFactsOf(d)), []);
   d.demoAccountRequired = null;
   assert.deepEqual(evaluateReviewInformation(reviewFactsOf(d)), []);
-  const both = evaluateReviewInformation(reviewFactsOf({ ...emptyReviewDetail(), demoAccountRequired: true }));
-  assert.deepEqual(both.map((f) => f.code), ['no_review_contact', 'no_review_demo_account']);
+  const both = evaluateReviewInformation(
+    reviewFactsOf({ ...emptyReviewDetail(), demoAccountRequired: true }),
+  );
+  assert.deepEqual(
+    both.map((f) => f.code),
+    ['no_review_contact', 'no_review_demo_account'],
+  );
 });
 
 test('the new codes are blockers whose fix is the review information', () => {
   assert.equal(fixKindOf('no_review_contact'), 'review');
   assert.equal(fixKindOf('no_review_demo_account'), 'review');
-  const blockers = blockersOf({ id: 'a1', platform: 'ios' }, evaluateReviewInformation(reviewFactsOf(null)));
+  const blockers = blockersOf(
+    { id: 'a1', platform: 'ios' },
+    evaluateReviewInformation(reviewFactsOf(null)),
+  );
   assert.equal(blockers[0]?.fix.kind, 'review');
   assert.equal(blockers[0]?.fix.href, null);
 });
@@ -111,7 +128,12 @@ test('merge: an untouched default false is replaced, a complete target and a bla
 });
 
 test('source order: live first, then the rest newest first, the target left out, at most four', () => {
-  const v = (id: string, versionString: string | null, state: string, editable = false) => ({ id, versionString, state, editable });
+  const v = (id: string, versionString: string | null, state: string, editable = false) => ({
+    id,
+    versionString,
+    state,
+    editable,
+  });
   const order = reviewSourceOrder(
     [
       v('t', '2.0.1', 'PREPARE_FOR_SUBMISSION', true),
@@ -124,14 +146,39 @@ test('source order: live first, then the rest newest first, the target left out,
     ],
     't',
   );
-  assert.deepEqual(order.map((x) => x.id), ['b', 'd', 'c', 'a']);
+  assert.deepEqual(
+    order.map((x) => x.id),
+    ['b', 'd', 'c', 'a'],
+  );
 });
 
 test('the masked summary holds initials and yes/no only', () => {
   const s = maskedReviewSummary(full());
-  assert.deepEqual(s, { contact: 'M. G.', phone: true, email: true, demoAccount: 'required', demoCredentials: true, notes: true });
+  assert.deepEqual(s, {
+    contact: 'M. G.',
+    phone: true,
+    email: true,
+    demoAccount: 'required',
+    demoCredentials: true,
+    notes: true,
+  });
   const text = JSON.stringify(s);
-  for (const secret of ['Marie', 'Girard', '+33', 'example.test', 'reviewer', 'hunter2', 'settings']) assert.ok(!text.includes(secret));
+  for (const secret of [
+    'Marie',
+    'Girard',
+    '+33',
+    'example.test',
+    'reviewer',
+    'hunter2',
+    'settings',
+  ])
+    assert.ok(!text.includes(secret));
   assert.equal(maskedReviewSummary(emptyReviewDetail()).contact, null);
-  assert.equal(maskedReviewSummary({ ...emptyReviewDetail(), text: { ...emptyReviewDetail().text, contactLastName: 'élise' } }).contact, 'É.');
+  assert.equal(
+    maskedReviewSummary({
+      ...emptyReviewDetail(),
+      text: { ...emptyReviewDetail().text, contactLastName: 'élise' },
+    }).contact,
+    'É.',
+  );
 });

@@ -112,7 +112,8 @@ export function countriesForLocale(
 ): string[] {
   const out: string[] = [];
   for (const k of keywords)
-    if (localeKey(k.locale) === localeKey(locale) && out.indexOf(k.country) < 0) out.push(k.country);
+    if (localeKey(k.locale) === localeKey(locale) && out.indexOf(k.country) < 0)
+      out.push(k.country);
   return out.sort();
 }
 

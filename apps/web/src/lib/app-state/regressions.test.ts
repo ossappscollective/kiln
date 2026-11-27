@@ -26,13 +26,16 @@ const projected = (name: string): Facts => project(worldOf(name));
 
 /** The surfaces that show `key`, with what each shows. */
 const shown = (facts: Facts, key: string): [string, FactValue][] =>
-  Object.keys(facts).flatMap((id) => (key in (facts[id] ?? {}) ? [[id, facts[id]?.[key] as FactValue] as [string, FactValue]] : []));
+  Object.keys(facts).flatMap((id) =>
+    key in (facts[id] ?? {}) ? [[id, facts[id]?.[key] as FactValue] as [string, FactValue]] : [],
+  );
 
 /** Every surface that shows `key` shows `want`, and at least `mustShow` do. */
 function everywhere(facts: Facts, key: string, want: FactValue, mustShow: readonly string[]): void {
   const rows = shown(facts, key);
   const ids = rows.map(([id]) => id);
-  for (const id of mustShow) assert.ok(ids.includes(id), `${id} does not show ${key} (shown by: ${ids.join(', ')})`);
+  for (const id of mustShow)
+    assert.ok(ids.includes(id), `${id} does not show ${key} (shown by: ${ids.join(', ')})`);
   for (const [id, value] of rows) assert.deepEqual(value, want, `${id}: ${key}`);
 }
 
@@ -44,7 +47,12 @@ function allAgree(facts: Facts): void {
       const text = JSON.stringify(value);
       const first = seen.get(key);
       if (first === undefined) seen.set(key, { id, value: text });
-      else assert.equal(text, first.value, `${key}: ${id} says ${text}, ${first.id} says ${first.value}`);
+      else
+        assert.equal(
+          text,
+          first.value,
+          `${key}: ${id} says ${text}, ${first.id} says ${first.value}`,
+        );
     }
 }
 
@@ -53,17 +61,42 @@ test('(a) screenshots 10 + 2 siblings: 12 is never one set; readiness, Graphics,
     const facts = projected(name);
     allAgree(facts);
     // The two groups of one device keep their own counts on every surface that names them; none is ever 12.
-    everywhere(facts, 'imageGroupCount:en-US/ipad_13/APP_IPAD_PRO_3GEN_129', 10, ['graphicsTab', 'assetsTab', 'releaseStepAssets']);
-    everywhere(facts, 'imageGroupCount:en-US/ipad_13/APP_IPAD_PRO_129', 2, ['graphicsTab', 'releaseStepAssets']);
-    for (const [key, rows] of Object.entries(facts).flatMap(([id, f]) => Object.entries(f).map(([k, v]) => [k, [[id, v]]] as const)))
-      if (key.startsWith('imageGroupCount:')) for (const [id, v] of rows) assert.ok(Number(v) <= 10, `${id}: a set of ${String(v)} screenshots in ${key}`);
+    everywhere(facts, 'imageGroupCount:en-US/ipad_13/APP_IPAD_PRO_3GEN_129', 10, [
+      'graphicsTab',
+      'assetsTab',
+      'releaseStepAssets',
+    ]);
+    everywhere(facts, 'imageGroupCount:en-US/ipad_13/APP_IPAD_PRO_129', 2, [
+      'graphicsTab',
+      'releaseStepAssets',
+    ]);
+    for (const [key, rows] of Object.entries(facts).flatMap(([id, f]) =>
+      Object.entries(f).map(([k, v]) => [k, [[id, v]]] as const),
+    ))
+      if (key.startsWith('imageGroupCount:'))
+        for (const [id, v] of rows)
+          assert.ok(Number(v) <= 10, `${id}: a set of ${String(v)} screenshots in ${key}`);
     // The device total, where it is shown (Graphics, the cart), is the 12 the two sets add up to.
-    everywhere(facts, 'imageCount:en-US/ipad_13', 12, [name.endsWith('removal') ? 'pendingCartGraphics' : 'graphicsTab']);
+    everywhere(facts, 'imageCount:en-US/ipad_13', 12, [
+      name.endsWith('removal') ? 'pendingCartGraphics' : 'graphicsTab',
+    ]);
   }
   // The staged removal of one file is ONE change everywhere: the count, the set, the files the removal leaves.
   const staged = projected('ipad-siblings-10-2-staged-removal');
-  everywhere(staged, 'pendingCount', 1, ['topBar', 'sidebarBadge', 'nextStep', 'pendingCartDrawer', 'pendingHeader', 'workspacePending']);
-  everywhere(staged, 'stagedAssetSets', 1, ['stagedTray', 'releaseStepStaged', 'pendingCartGraphics', 'graphicsTab']);
+  everywhere(staged, 'pendingCount', 1, [
+    'topBar',
+    'sidebarBadge',
+    'nextStep',
+    'pendingCartDrawer',
+    'pendingHeader',
+    'workspacePending',
+  ]);
+  everywhere(staged, 'stagedAssetSets', 1, [
+    'stagedTray',
+    'releaseStepStaged',
+    'pendingCartGraphics',
+    'graphicsTab',
+  ]);
   everywhere(staged, 'stagedSetFiles:en-US/ipad_13', 11, ['pendingCartGraphics', 'graphicsTab']);
 });
 
@@ -73,7 +106,14 @@ test('(b) a failed run with stale blockers and a resolved store: ready to submit
   everywhere(facts, 'phase', 'ready_to_submit', ['topBar', 'nextStep']);
   everywhere(facts, 'blockerCount', 0, ['nextStep', 'publishFailure', 'publishDialogFailure']);
   everywhere(facts, 'blockingCount', 0, ['nextStep', 'pendingHeader', 'pendingChangesStaged']);
-  everywhere(facts, 'pendingCount', 0, ['topBar', 'nextStep', 'pendingCartDrawer', 'pendingCartRows', 'pendingHeader', 'workspacePending']);
+  everywhere(facts, 'pendingCount', 0, [
+    'topBar',
+    'nextStep',
+    'pendingCartDrawer',
+    'pendingCartRows',
+    'pendingHeader',
+    'workspacePending',
+  ]);
   const state = deriveAppState(factsOf(worldOf('failed-run-stale-blockers-resolved')), 'ios');
   assert.equal(state.phase, 'ready_to_submit');
 });
@@ -81,12 +121,30 @@ test('(b) a failed run with stale blockers and a resolved store: ready to submit
 test('(c) iOS 1.19.0 phased + obsolete 1.11.6 + TestFlight 2.0.1: live and candidate agree, and creating the next release is proposed', () => {
   const facts = projected('ios-phased-obsolete-testflight');
   allAgree(facts);
-  everywhere(facts, 'liveVersion:ios-1', '1.19.0', ['portfolioCard', 'appDashboardTiles', 'nextStep', 'releasesTable', 'releasesObsoleteBadge']);
-  everywhere(facts, 'latestVersion:ios-1', '1.19.0', ['portfolioCard', 'appDashboardTiles', 'shellStatus']);
-  everywhere(facts, 'candidate:ios-1', '2.00.1#95', ['appDashboardTiles', 'nextStep', 'releasesTable']);
+  everywhere(facts, 'liveVersion:ios-1', '1.19.0', [
+    'portfolioCard',
+    'appDashboardTiles',
+    'nextStep',
+    'releasesTable',
+    'releasesObsoleteBadge',
+  ]);
+  everywhere(facts, 'latestVersion:ios-1', '1.19.0', [
+    'portfolioCard',
+    'appDashboardTiles',
+    'shellStatus',
+  ]);
+  everywhere(facts, 'candidate:ios-1', '2.00.1#95', [
+    'appDashboardTiles',
+    'nextStep',
+    'releasesTable',
+  ]);
   everywhere(facts, 'obsoleteVersions:ios-1', ['1.11.6'], ['nextStep', 'releasesObsoleteBadge']);
   const state = deriveAppState(factsOf(worldOf('ios-phased-obsolete-testflight')), 'ios');
-  assert.equal(state.canDo('create_version', 'ios').enabled, true, 'creating the next release is offered');
+  assert.equal(
+    state.canDo('create_version', 'ios').enabled,
+    true,
+    'creating the next release is offered',
+  );
   assert.equal(state.phase, 'candidate_blocked');
 });
 
@@ -109,16 +167,36 @@ test('(d) a Play promotion in flight: no promote is offered, and the top bar, th
 test('(e) an empty fr-FR draft locale is a locale on every listing surface (grid, checks, fix bar, release notes), per platform', () => {
   const facts = projected('locales-fr-empty-zh');
   allAgree(facts);
-  everywhere(facts, 'localeList:ios-1', ['en-US', 'fr-FR', 'zh-Hans'], ['listingGrid', 'insightsChecks', 'fixBar', 'releaseStepNotes']);
-  everywhere(facts, 'localeList:android-1', ['en-US', 'zh-CN'], ['listingGrid', 'insightsChecks', 'fixBar', 'releaseStepNotes']);
+  everywhere(
+    facts,
+    'localeList:ios-1',
+    ['en-US', 'fr-FR', 'zh-Hans'],
+    ['listingGrid', 'insightsChecks', 'fixBar', 'releaseStepNotes'],
+  );
+  everywhere(
+    facts,
+    'localeList:android-1',
+    ['en-US', 'zh-CN'],
+    ['listingGrid', 'insightsChecks', 'fixBar', 'releaseStepNotes'],
+  );
   everywhere(facts, 'defaultLocale:ios-1', 'en-US', ['publishSummary', 'insightsChecks']);
 });
 
 test('(f) a staged removal that is already pushed: 0 pending, 1 waiting to be submitted, on every surface', () => {
   const facts = projected('staged-removal-already-pushed');
   allAgree(facts);
-  everywhere(facts, 'pendingCount', 0, ['nextStep', 'pendingCartDrawer', 'pendingCartRows', 'pendingHeader', 'workspacePending']);
-  everywhere(facts, 'stagedUnpushed', 0, ['appDashboardAttention', 'pendingChangesStaged', 'releaseStepStaged']);
+  everywhere(facts, 'pendingCount', 0, [
+    'nextStep',
+    'pendingCartDrawer',
+    'pendingCartRows',
+    'pendingHeader',
+    'workspacePending',
+  ]);
+  everywhere(facts, 'stagedUnpushed', 0, [
+    'appDashboardAttention',
+    'pendingChangesStaged',
+    'releaseStepStaged',
+  ]);
   everywhere(facts, 'awaitingSubmit', 1, ['pendingHeader']);
   everywhere(facts, 'stagedAssetSets', 0, ['graphicsTab']);
   const state = deriveAppState(factsOf(worldOf('staged-removal-already-pushed')), 'ios');

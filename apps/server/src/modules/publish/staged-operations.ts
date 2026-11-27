@@ -1,6 +1,6 @@
+import { UPLOAD_BODY_LIMIT_BYTES } from '@kiln/core';
 import { z } from 'zod';
 import { type Draft, object, stagedAppSchema, timestamp, W } from '../../operations/shared.ts';
-import { UPLOAD_BODY_LIMIT_BYTES } from '@kiln/core';
 
 const stagedProblemSchema = z.object({
   severity: z.enum(['error', 'warning', 'info']),
@@ -82,7 +82,9 @@ const stagedAssetSchema = z.object({
   cleared: z
     .boolean()
     .optional()
-    .describe('True when every file was taken out: the set is staged EMPTY and a push removes every image the store holds in it.'),
+    .describe(
+      'True when every file was taken out: the set is staged EMPTY and a push removes every image the store holds in it.',
+    ),
   status: z.enum(['changed', 'invalid']),
   problems: z.array(stagedProblemSchema),
   pushedAt: timestamp.nullable(),
@@ -590,7 +592,7 @@ export const stagedChangesOperations: Draft[] = [
     risk: 'destructive',
     access: { action: 'changesets.write' },
     appScope: { kind: 'param', name: 'id' },
-        body: z.object({
+    body: z.object({
       locale: z.string().min(2).max(35),
       kind: z.string(),
       device: z.string().max(60).nullable().optional(),
@@ -598,8 +600,17 @@ export const stagedChangesOperations: Draft[] = [
         .array(
           z.object({
             ref: z.string().max(400).optional().describe('An image the store holds (store view).'),
-            oid: z.string().max(64).optional().describe('The git blob id of a staged or repository file.'),
-            position: z.number().int().min(1).optional().describe('1-based place in the set as it is now.'),
+            oid: z
+              .string()
+              .max(64)
+              .optional()
+              .describe('The git blob id of a staged or repository file.'),
+            position: z
+              .number()
+              .int()
+              .min(1)
+              .optional()
+              .describe('1-based place in the set as it is now.'),
           }),
         )
         .min(1)
@@ -629,7 +640,11 @@ export const stagedChangesOperations: Draft[] = [
                   'no_identifier',
                 ])
                 .optional(),
-              position: z.number().int().optional().describe('The place the file had in the set (1-based), when found.'),
+              position: z
+                .number()
+                .int()
+                .optional()
+                .describe('The place the file had in the set (1-based), when found.'),
             }),
           ),
           summary: z.object({

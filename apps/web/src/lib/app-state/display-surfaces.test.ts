@@ -40,10 +40,16 @@ function stateFamiliesShown(): Map<string, Set<string>> {
 test('every registered display surface has a projection, and every projection of a state fact is registered', () => {
   const projected = new Set(SURFACES.map((s) => s.id));
   for (const d of DISPLAY_SURFACES)
-    assert.ok(projected.has(d.id), `${d.id} is registered in surfaces.ts but has no projection in projections.ts: add one (the harness compares it)`);
+    assert.ok(
+      projected.has(d.id),
+      `${d.id} is registered in surfaces.ts but has no projection in projections.ts: add one (the harness compares it)`,
+    );
   const registered = new Set(DISPLAY_SURFACES.map((d) => d.id));
   for (const id of stateFamiliesShown().keys())
-    assert.ok(registered.has(id), `the projection ${id} shows a state fact: register the surface in DISPLAY_SURFACES (surfaces.ts)`);
+    assert.ok(
+      registered.has(id),
+      `the projection ${id} shows a state fact: register the surface in DISPLAY_SURFACES (surfaces.ts)`,
+    );
   assert.equal(registered.size, DISPLAY_SURFACES.length, 'a display surface is registered twice');
 });
 
@@ -51,14 +57,24 @@ test('each registered display surface lists exactly the state facts its projecti
   const shown = stateFamiliesShown();
   for (const d of DISPLAY_SURFACES) {
     const want = [...(shown.get(d.id) ?? [])].sort();
-    assert.deepEqual([...d.facts].sort(), want, `${d.id}: DISPLAY_SURFACES.facts must be the state families the projection shows`);
-    for (const f of d.facts) assert.equal(FACTS[f]?.domain, 'state', `${d.id}: ${f} is not a registered state fact (FACTS)`);
+    assert.deepEqual(
+      [...d.facts].sort(),
+      want,
+      `${d.id}: DISPLAY_SURFACES.facts must be the state families the projection shows`,
+    );
+    for (const f of d.facts)
+      assert.equal(
+        FACTS[f]?.domain,
+        'state',
+        `${d.id}: ${f} is not a registered state fact (FACTS)`,
+      );
   }
 });
 
 test('the files of a display surface exist', () => {
   for (const d of DISPLAY_SURFACES) {
     const s = SURFACES.find((x) => x.id === d.id);
-    for (const file of s?.components ?? []) assert.ok(existsSync(join(SRC, file)), `${d.id}: ${file} does not exist`);
+    for (const file of s?.components ?? [])
+      assert.ok(existsSync(join(SRC, file)), `${d.id}: ${file} does not exist`);
   }
 });

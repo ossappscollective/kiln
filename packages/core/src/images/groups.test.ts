@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { checkStoreImages } from '../listing/asset-sync.ts';
-import { displayKeyOf, findDisplay, findStoreImage, groupStoreImages, refsOfDisplay } from './groups.ts';
 import { imageFiles, storeSet, storeView, tenPlusTwo } from './fixtures.ts';
+import {
+  displayKeyOf,
+  findDisplay,
+  findStoreImage,
+  groupStoreImages,
+  refsOfDisplay,
+} from './groups.ts';
 
 /**
  * The display grouping (audit images.md F2): ONE function; the two units (store group, display set) are both there and named.
@@ -26,7 +32,10 @@ test('10 + 2 across two placement groups: each group is fine (10 and 2), the dis
   assert.deepEqual(d.overLimit, []);
   assert.equal(d.stagedFits, false);
   // the store's own judging agrees: no count problem for 10 + 2
-  assert.equal(checkStoreImages(tenPlusTwo()).filter((p) => p.rule === 'apple.screenshot.count').length, 0);
+  assert.equal(
+    checkStoreImages(tenPlusTwo()).filter((p) => p.rule === 'apple.screenshot.count').length,
+    0,
+  );
 });
 
 test('the primary group is the PUSHED one, first, whatever order the store lists them in', () => {
@@ -37,9 +46,15 @@ test('the primary group is the PUSHED one, first, whatever order the store lists
   const d = groupStoreImages(view)[0];
   assert.equal(d?.primaryGroup.target, 'APP_IPAD_PRO_3GEN_129');
   assert.equal(d?.pushTarget, 'APP_IPAD_PRO_3GEN_129');
-  assert.deepEqual(d?.images.map((i) => i.group).filter((g, i, all) => all.indexOf(g) === i), ['APP_IPAD_PRO_3GEN_129', 'APP_IPAD_PRO_129']);
+  assert.deepEqual(
+    d?.images.map((i) => i.group).filter((g, i, all) => all.indexOf(g) === i),
+    ['APP_IPAD_PRO_3GEN_129', 'APP_IPAD_PRO_129'],
+  );
   assert.equal(d?.files.length, 12);
-  assert.deepEqual(d?.groups.map((g) => g.target), ['APP_IPAD_PRO_129', 'APP_IPAD_PRO_3GEN_129']);
+  assert.deepEqual(
+    d?.groups.map((g) => g.target),
+    ['APP_IPAD_PRO_129', 'APP_IPAD_PRO_3GEN_129'],
+  );
 });
 
 test('with no group of the pushed name the one with the most images stands in', () => {
@@ -58,7 +73,10 @@ test('12 in ONE group is the real over-limit: the group is named and the display
 });
 
 test('10 in each of two groups: both are at the limit, neither over; merged 20', () => {
-  const view = storeView([storeSet('A', imageFiles(10, 1, 'a')), storeSet('B', imageFiles(10, 11, 'b'))]);
+  const view = storeView([
+    storeSet('A', imageFiles(10, 1, 'a')),
+    storeSet('B', imageFiles(10, 11, 'b')),
+  ]);
   const d = groupStoreImages(view)[0];
   assert.deepEqual(d?.overLimit, []);
   assert.equal(d?.counts.merged, 20);
@@ -70,18 +88,21 @@ test('displays are keyed by locale, kind and device and sorted like summarizeAss
     storeSet('APP_IPAD_PRO_3GEN_129', imageFiles(1), { locale: 'en-US' }),
     storeSet('APP_IPHONE_67', imageFiles(2), { device: 'iphone_6_9', locale: 'en-US' }),
   ]);
-  assert.deepEqual(groupStoreImages(view).map((d) => d.key), [
-    'en-US/screenshot:ipad_13',
-    'en-US/screenshot:iphone_6_9',
-    'fr-FR/screenshot:iphone_6_9',
-  ]);
+  assert.deepEqual(
+    groupStoreImages(view).map((d) => d.key),
+    ['en-US/screenshot:ipad_13', 'en-US/screenshot:iphone_6_9', 'fr-FR/screenshot:iphone_6_9'],
+  );
 });
 
 test('Google Play: one group per device, limit 8, a kind without a device has a plain key', () => {
   const view = {
     platform: 'android' as const,
     sets: [
-      storeSet('phoneScreenshots', imageFiles(9), { platform: 'android', device: 'phone', locale: 'en-US' }),
+      storeSet('phoneScreenshots', imageFiles(9), {
+        platform: 'android',
+        device: 'phone',
+        locale: 'en-US',
+      }),
       storeSet('icon', imageFiles(1), { platform: 'android', kind: 'icon', device: null }),
     ],
   };

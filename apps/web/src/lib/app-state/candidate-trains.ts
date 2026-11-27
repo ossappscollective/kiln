@@ -51,7 +51,8 @@ export function candidateTrain(plan: CandidatePlan, platform: Platform): Train {
     plan.refusal[0] === 'editable_version_exists' &&
     plan.editableVersion !== null &&
     !plan.editableObsolete;
-  const version = plan.kind === 'blocked' && attachHere ? (plan.editableVersion ?? c.version) : c.version;
+  const version =
+    plan.kind === 'blocked' && attachHere ? (plan.editableVersion ?? c.version) : c.version;
   const stamp = c.processedAt ?? c.builtAt;
   const date = stamp === null ? '' : formatDate(stamp, { month: 'short', day: 'numeric' });
   const kind: CandidatePlan['kind'] = attachHere ? 'attach_build' : plan.kind;
@@ -74,7 +75,12 @@ export function candidateTrain(plan: CandidatePlan, platform: Platform): Train {
     title = t('state:candidate.blocked.title', { version: c.version, build });
     line = refusalLine(plan);
     // The way out is in the store (a version left behind, a name that is taken): a link there, never a button that ends in a refusal.
-    button = { label: t('state:candidate.blocked.action'), appId: c.appId, step: 'build', review: true };
+    button = {
+      label: t('state:candidate.blocked.action'),
+      appId: c.appId,
+      step: 'build',
+      review: true,
+    };
   } else if (kind === 'create_release') {
     title = t('state:candidate.create.title', { version, build });
     line =

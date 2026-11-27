@@ -1,6 +1,6 @@
 import type { RepoConnector } from '@kiln/connectors';
-import { registerMapCache } from './cache-registry.ts';
 import { REPO_SNAPSHOT_TTL_MS as SNAPSHOT_TTL_MS } from '@kiln/core';
+import { registerMapCache } from './cache-registry.ts';
 
 export { SNAPSHOT_TTL_MS };
 

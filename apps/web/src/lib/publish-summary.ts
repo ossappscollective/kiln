@@ -565,7 +565,9 @@ export function shownErrors(
     (p) =>
       // The blockers of a submit that cannot run are listed once, in the readiness section, not again under the step.
       !isReadinessProblem(p.code) &&
-      (inputTouched || step.availability !== 'needs_input' || INPUT_PROMPT_CODES.indexOf(p.code) < 0),
+      (inputTouched ||
+        step.availability !== 'needs_input' ||
+        INPUT_PROMPT_CODES.indexOf(p.code) < 0),
   );
 }
 

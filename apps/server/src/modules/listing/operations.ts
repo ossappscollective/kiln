@@ -1,7 +1,7 @@
+import { UPLOAD_BODY_LIMIT_BYTES } from '@kiln/core';
 import { z } from 'zod';
 import { changeSetSchema, type Draft, listingQuery, object, W } from '../../operations/shared.ts';
 import { assetProposalOperations } from './asset-proposal-operations.ts';
-import { UPLOAD_BODY_LIMIT_BYTES } from '@kiln/core';
 
 const pullListingBody = z.object({
   channel: z
@@ -134,7 +134,13 @@ export const listingOperations: Draft[] = [
     access: { action: 'listing.read' },
     appScope: { kind: 'param', name: 'id' },
     query: z.object({
-      fields: z.string().max(400).optional().describe('Field ids whose texts the copies carry, comma separated, or `all`. Default: no texts.'),
+      fields: z
+        .string()
+        .max(400)
+        .optional()
+        .describe(
+          'Field ids whose texts the copies carry, comma separated, or `all`. Default: no texts.',
+        ),
       drift: z.enum(['0', '1']).optional().describe('`0` leaves the drift view out.'),
     }),
     partial: true,
@@ -258,7 +264,9 @@ export const listingOperations: Draft[] = [
       channel: z
         .string()
         .optional()
-        .describe('App Store: `live` reads the live version instead of the editable one (the default). Google Play ignores it.'),
+        .describe(
+          'App Store: `live` reads the live version instead of the editable one (the default). Google Play ignores it.',
+        ),
     }),
     responses: { '200': { description: 'The store\u2019s sets and images.', schema: object } },
   },

@@ -9,7 +9,10 @@ import { type ReadinessLine, readinessLine } from '../publish-readiness.ts';
  */
 
 /** The review-information blockers of a reading, as lines ("what is missing", "how to fix it", "where"). Empty while not read. */
-export function reviewLinesOf(platform: Platform, fact: ReadinessFact | null | undefined): ReadinessLine[] {
+export function reviewLinesOf(
+  platform: Platform,
+  fact: ReadinessFact | null | undefined,
+): ReadinessLine[] {
   const reading = fact?.reading;
   if (reading === null || reading === undefined) return [];
   return reading.blockers

@@ -104,32 +104,47 @@ test('the store only ends a claim through the server: its answer decides, and ev
   const store = read('./publishing-store.svelte.ts');
   assert.match(store, /api\.interruptPublish\(workspaceId, appId\)/);
   assert.match(store, /e\.status === 409 && e\.code === 'still_running'/);
-  assert.match(store, /await loader\.refresh\(workspaceId\);\n    return answer;/);
+  assert.match(store, /await loader\.refresh\(workspaceId\);\n {4}return answer;/);
   const api = read('./api.ts');
   assert.match(api, /publish\/interrupt`/);
 });
 
 test('the dialog stops waiting for its request when the server ended the publish (restart, lost request), and keeps the answer of a request that does come', () => {
   const dialog = read('../components/publish/PublishDialog.svelte');
-  assert.match(dialog, /endedByServer\(publishingStore\.failureOf\(workspaceId, app\.id\), failureBefore\)/);
+  assert.match(
+    dialog,
+    /endedByServer\(publishingStore\.failureOf\(workspaceId, app\.id\), failureBefore\)/,
+  );
   assert.match(dialog, /failureBefore = publishingStore\.failureOf\(space, appId\)\?\.id/);
   assert.match(dialog, /t\('app:pending\.failed\.interrupted'\)/);
   // A late answer is not ours any more (the sequence moved on).
-  assert.match(dialog, /if \(!endedHere\) return;\n    \/\/ The request is not waited for any more[^\n]*\n    seq\+\+;/);
+  assert.match(
+    dialog,
+    /if \(!endedHere\) return;\n {4}\/\/ The request is not waited for any more[^\n]*\n {4}seq\+\+;/,
+  );
 });
 
 test('"Fix the blockers, then submit": the card and the top bar say it, the card opens the submit checklist, and SubmitReady answers the request once it can act', () => {
   const card = read('../components/app/NextStep.svelte');
-  assert.match(card, /offer\.action === 'fix_blockers' && offer\.appId !== null\) openSubmitChecklist\(offer\.appId, stateScope\)/);
+  assert.match(
+    card,
+    /offer\.action === 'fix_blockers' && offer\.appId !== null\) openSubmitChecklist\(offer\.appId, stateScope\)/,
+  );
   const btn = read('../components/app/PendingCartButton.svelte');
   assert.match(btn, /state:topBar\.blocked/);
   const panel = read('./app-state/panel.svelte.ts');
   assert.match(panel, /export function openSubmitChecklist/);
-  assert.match(panel, /if \(!submitFocus\.isDrawn\(appId\)\) location\.hash = appAddress\(appId, 'listing', scope\)/);
+  assert.match(
+    panel,
+    /if \(!submitFocus\.isDrawn\(appId\)\) location\.hash = appAddress\(appId, 'listing', scope\)/,
+  );
   const ready = read('../components/listing/SubmitReady.svelte');
   assert.match(ready, /\$effect\(\(\) => submitFocus\.mount\(app\.id\)\)/);
   assert.match(ready, /submitFocus\.requested !== app\.id/);
-  assert.match(ready, /!verdict\.enabled\) return;\n    untrack\(\(\) => \{\n      submitFocus\.done\(app\.id\);\n      void startPreview\(\);/);
+  assert.match(
+    ready,
+    /!verdict\.enabled\) return;\n {4}untrack\(\(\) => \{\n {6}submitFocus\.done\(app\.id\);\n {6}void startPreview\(\);/,
+  );
   // The failure shown on every page lists the blockers with how to fix them.
   const failure = read('../components/publish/PublishFailure.svelte');
   assert.match(failure, /data-testid="publish-blockers"/);
@@ -144,7 +159,10 @@ test('a blocker about the App Review Information offers "Copy review information
   assert.match(copy, /copyStoreReviewInformation\(/);
   assert.match(copy, /appStateStore\.verdict\(.*'create_version'\)/s);
   assert.match(copy, /summaryText\(/, 'the screen shows the masked line, never a value');
-  for (const path of ['../components/publish/SubmitPreviewBody.svelte', '../components/publish/SubmitReadiness.svelte']) {
+  for (const path of [
+    '../components/publish/SubmitPreviewBody.svelte',
+    '../components/publish/SubmitReadiness.svelte',
+  ]) {
     const list = read(path);
     assert.match(list, /<ReviewInfoCopy /);
     assert.match(list, /isReviewCode\(/);
@@ -152,8 +170,15 @@ test('a blocker about the App Review Information offers "Copy review information
   assert.match(read('../components/listing/SubmitReady.svelte'), /provideReviewRepair\(/);
   assert.match(read('../components/publish/PublishDialog.svelte'), /provideReviewRepair\(/);
   // The readiness rules are the server's: the lists only draw them, and neither computes whether the contact is missing.
-  for (const path of ['../components/publish/SubmitPreviewBody.svelte', '../components/publish/SubmitReadiness.svelte', '../components/publish/ReviewInfoCopy.svelte'])
-    assert.doesNotMatch(read(path), /contactFirstName|contactPhone|contactEmail|demoAccountPassword/);
+  for (const path of [
+    '../components/publish/SubmitPreviewBody.svelte',
+    '../components/publish/SubmitReadiness.svelte',
+    '../components/publish/ReviewInfoCopy.svelte',
+  ])
+    assert.doesNotMatch(
+      read(path),
+      /contactFirstName|contactPhone|contactEmail|demoAccountPassword/,
+    );
 });
 
 test('the create-version form says what is carried over from the previous version, masked, before and after', () => {

@@ -78,21 +78,40 @@ test('an empty required text blocks per locale and field, with the same sentence
       ['blocking', 'fr-FR', 'support_url', 'Support URL is empty in fr-FR.'],
     ],
   );
-  assert.deepEqual(found[0]?.params, { field: 'description', label: 'Description', locale: 'fr-FR' });
+  assert.deepEqual(found[0]?.params, {
+    field: 'description',
+    label: 'Description',
+    locale: 'fr-FR',
+  });
 });
 
 test('an optional empty field is not a finding; a field the store does not hold is not asked for', () => {
-  assert.deepEqual(codes(apple(locale('en-US', { ...filled, marketing_url: '' }, [iphone(1)]))), []);
-  assert.deepEqual(codes(apple(locale('en-US', { description: 'Fine and long enough.' }, [iphone(1)]))), []);
+  assert.deepEqual(
+    codes(apple(locale('en-US', { ...filled, marketing_url: '' }, [iphone(1)]))),
+    [],
+  );
+  assert.deepEqual(
+    codes(apple(locale('en-US', { description: 'Fine and long enough.' }, [iphone(1)]))),
+    [],
+  );
 });
 
 test('a required field whose requirement is unverified is only a warning', () => {
   const found = evaluateDraftContent({
     store: 'google_play',
     locales: [
-      locale('en-US', { title: '', short_description: 'Short', full_description: 'Full', video: null }, [
-        { kind: 'screenshot', device: 'phone', target: 'phoneScreenshots', images: shots(2, PHONE) },
-      ]),
+      locale(
+        'en-US',
+        { title: '', short_description: 'Short', full_description: 'Full', video: null },
+        [
+          {
+            kind: 'screenshot',
+            device: 'phone',
+            target: 'phoneScreenshots',
+            images: shots(2, PHONE),
+          },
+        ],
+      ),
     ],
   }).filter((f) => f.code === 'missing_text');
   assert.equal(found.length, 1);
@@ -185,12 +204,19 @@ test('Google Play: 8 screenshots per device type, the feature graphic size, the 
 test('the required fields are the ones the live listing check calls empty problems', () => {
   const live = checkListing({
     store: 'app_store',
-    locales: [{ locale: 'en-US', fields: { description: '', keywords: 'a,b', support_url: 'https://x.test' } }],
+    locales: [
+      {
+        locale: 'en-US',
+        fields: { description: '', keywords: 'a,b', support_url: 'https://x.test' },
+      },
+    ],
   });
   const empties = (live.locales[0]?.issues ?? [])
     .filter((i) => i.code === 'empty' && i.severity === 'problem')
     .map((i) => i.field);
-  const mine = evaluateDraftContent(apple(locale('en-US', { ...filled, description: '' }, [iphone(1)])))
+  const mine = evaluateDraftContent(
+    apple(locale('en-US', { ...filled, description: '' }, [iphone(1)])),
+  )
     .filter((f) => f.code === 'missing_text' && f.severity === 'blocking')
     .map((f) => f.item);
   assert.ok(empties.indexOf('description') >= 0, JSON.stringify(live.locales));
@@ -285,8 +311,14 @@ test('predictDraft: a locale the store does not have is created with every text 
     texts: [{ locale: 'de-DE', field: 'description', value: 'Eine lange Beschreibung hier.' }],
     sets: [],
   });
-  assert.deepEqual(next.locales.map((l) => l.locale), ['en-US', 'de-DE']);
-  assert.deepEqual(Object.keys((next.locales[1] as DraftLocale).text).sort(), draftTextFields('app_store').sort());
+  assert.deepEqual(
+    next.locales.map((l) => l.locale),
+    ['en-US', 'de-DE'],
+  );
+  assert.deepEqual(
+    Object.keys((next.locales[1] as DraftLocale).text).sort(),
+    draftTextFields('app_store').sort(),
+  );
   assert.deepEqual(
     evaluateDraftContent(next)
       .filter((f) => f.code === 'missing_text')
@@ -298,7 +330,9 @@ test('predictDraft: a locale the store does not have is created with every text 
 test('predictDraft: a field the store does not hold for this platform is ignored; Play notes are replaced or cleared', () => {
   const current: DraftContent = {
     store: 'google_play',
-    locales: [locale('en-US', { title: 'T', short_description: 'S', full_description: 'F', video: null })],
+    locales: [
+      locale('en-US', { title: 'T', short_description: 'S', full_description: 'F', video: null }),
+    ],
     releaseNotes: [
       { locale: 'en-US', text: 'old' },
       { locale: 'fr-FR', text: 'ancien' },
@@ -359,10 +393,7 @@ const countProblems = (content: DraftContent) =>
 
 test('10 in the 13" display type and 2 in the sibling 12.9" type are NOT summed: each set counts against its own 10', () => {
   const content = apple(
-    locale('en-US', filled, [
-      ipadSet('APP_IPAD_PRO_3GEN_129', 10),
-      ipadSet('APP_IPAD_PRO_129', 2),
-    ]),
+    locale('en-US', filled, [ipadSet('APP_IPAD_PRO_3GEN_129', 10), ipadSet('APP_IPAD_PRO_129', 2)]),
   );
   assert.deepEqual(countProblems(content), []);
 });
@@ -385,14 +416,14 @@ test('12 in ONE display type is flagged, and the sentence says which display typ
 
 test('two sets over their own limit are two findings, one per display type', () => {
   const content = apple(
-    locale('en-US', filled, [ipadSet('APP_IPAD_PRO_3GEN_129', 11), ipadSet('APP_IPAD_PRO_129', 12)]),
+    locale('en-US', filled, [
+      ipadSet('APP_IPAD_PRO_3GEN_129', 11),
+      ipadSet('APP_IPAD_PRO_129', 12),
+    ]),
   );
   assert.deepEqual(
     countProblems(content).map((f) => f.item),
-    [
-      'apple.screenshot.count:APP_IPAD_PRO_129',
-      'apple.screenshot.count:APP_IPAD_PRO_3GEN_129',
-    ],
+    ['apple.screenshot.count:APP_IPAD_PRO_129', 'apple.screenshot.count:APP_IPAD_PRO_3GEN_129'],
   );
 });
 
@@ -409,7 +440,12 @@ test('Google Play counts per device type as before (no store set is named)', () 
     store: 'google_play',
     locales: [
       locale('en-US', {}, [
-        { kind: 'screenshot', device: 'phone', target: 'phoneScreenshots', images: shots(9, PHONE) },
+        {
+          kind: 'screenshot',
+          device: 'phone',
+          target: 'phoneScreenshots',
+          images: shots(9, PHONE),
+        },
       ]),
     ],
   };
@@ -420,10 +456,7 @@ test('Google Play counts per device type as before (no store set is named)', () 
 
 test('predictDraft: a push that removes screenshots leaves the staged set only; a sibling group of the same display goes with it', () => {
   const current = apple(
-    locale('en-US', filled, [
-      ipadSet('APP_IPAD_PRO_3GEN_129', 12),
-      ipadSet('APP_IPAD_PRO_129', 2),
-    ]),
+    locale('en-US', filled, [ipadSet('APP_IPAD_PRO_3GEN_129', 12), ipadSet('APP_IPAD_PRO_129', 2)]),
   );
   const next = predictDraft(current, {
     texts: [],
@@ -448,12 +481,12 @@ test('predictDraft: a push that removes screenshots leaves the staged set only; 
 });
 
 test('predictDraft: staged removals applied: clearing the set of a display removes every set that shows it', () => {
-  const current = apple(
-    locale('en-US', filled, [ipadSet('APP_IPAD_PRO_3GEN_129', 12), iphone(3)]),
-  );
+  const current = apple(locale('en-US', filled, [ipadSet('APP_IPAD_PRO_3GEN_129', 12), iphone(3)]));
   const next = predictDraft(current, {
     texts: [],
-    sets: [{ locale: 'en-US', kind: 'screenshot', device: 'ipad_13', target: 'ipad_13', images: [] }],
+    sets: [
+      { locale: 'en-US', kind: 'screenshot', device: 'ipad_13', target: 'ipad_13', images: [] },
+    ],
   });
   assert.deepEqual(
     (next.locales[0]?.assets ?? []).map((a) => a.target),
@@ -485,13 +518,21 @@ test('reconcileBlockers: a count blocker that names its set is the same blocker 
     ],
   );
   assert.equal(r.resolved.length, 0);
-  assert.deepEqual(r.added.map((b) => b.code), ['no_build']);
+  assert.deepEqual(
+    r.added.map((b) => b.code),
+    ['no_build'],
+  );
 });
 
 test('readiness has the text length and URL checks of the one text check: the same severity as validateListing', () => {
   const locale: DraftLocale = {
     locale: 'en-US',
-    text: { ...filled, description: 'd'.repeat(4001), support_url: 'not a url', keywords: 'k'.repeat(101) },
+    text: {
+      ...filled,
+      description: 'd'.repeat(4001),
+      support_url: 'not a url',
+      keywords: 'k'.repeat(101),
+    },
     assets: [iphone(3)],
   };
   const found = evaluateDraftContent({ store: 'app_store', locales: [locale] }).filter(
@@ -505,14 +546,26 @@ test('readiness has the text length and URL checks of the one text check: the sa
 });
 
 test('an empty iOS keywords field blocks the submit and is a problem in the Insights checks (one severity)', () => {
-  const locale: DraftLocale = { locale: 'en-US', text: { ...filled, keywords: '' }, assets: [iphone(3)] };
+  const locale: DraftLocale = {
+    locale: 'en-US',
+    text: { ...filled, keywords: '' },
+    assets: [iphone(3)],
+  };
   const missing = evaluateDraftContent({ store: 'app_store', locales: [locale] }).find(
     (f) => f.code === 'missing_text' && f.item === 'keywords',
   );
   assert.equal(missing?.severity, 'blocking');
   const checks = checkListing({
     store: 'app_store',
-    locales: [{ locale: 'en-US', fields: { name: 'App', subtitle: 'S', description: filled.description, keywords: '' } }],
+    locales: [
+      {
+        locale: 'en-US',
+        fields: { name: 'App', subtitle: 'S', description: filled.description, keywords: '' },
+      },
+    ],
   });
-  assert.equal(checks.locales[0]?.issues.find((i) => i.code === 'empty' && i.field === 'keywords')?.severity, 'problem');
+  assert.equal(
+    checks.locales[0]?.issues.find((i) => i.code === 'empty' && i.field === 'keywords')?.severity,
+    'problem',
+  );
 });

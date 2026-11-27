@@ -453,7 +453,13 @@ test('an active run is ci_running; no data at all is unknown, a synced empty app
 const phasedWithOldDraft = (extra: Partial<PipelineFacts> = {}): PipelineFacts =>
   facts({
     versions: [
-      version('1.19.0', { status: 'rolling_out', rawState: 'READY_FOR_SALE', build: '88', rolloutFraction: 0.2, since: ago(20) }),
+      version('1.19.0', {
+        status: 'rolling_out',
+        rawState: 'READY_FOR_SALE',
+        build: '88',
+        rolloutFraction: 0.2,
+        since: ago(20),
+      }),
       // The old draft was touched LATER than the live release: the old order (status priority, then time) made it the release.
       version('1.11.6', { status: 'draft', build: '92', since: ago(10) }),
     ],
@@ -468,7 +474,11 @@ const phasedWithOldDraft = (extra: Partial<PipelineFacts> = {}): PipelineFacts =
 test('an obsolete draft (1.11.6 under a live 1.19.0) is not the release, the state or a stall', () => {
   const p = evaluatePipeline(phasedWithOldDraft());
   assert.equal(p.latest.version?.version, '1.19.0');
-  assert.equal(p.state, 'build_ready', 'the TestFlight 2.00.1 build 95 is the news, not the old draft');
+  assert.equal(
+    p.state,
+    'build_ready',
+    'the TestFlight 2.00.1 build 95 is the news, not the old draft',
+  );
   assert.equal(p.latest.build?.buildNumber, '95');
   assert.equal(
     p.stalls.some((s) => s.evidence.some((e) => e.kind === 'version' && e.id === '1.11.6')),
@@ -508,9 +518,30 @@ test('Google Play: only the production track is live; a lower draft is left behi
   const p = evaluatePipeline(
     play({
       versions: [
-        version('5.0.0', { track: 'production', status: 'live', rawState: 'completed', build: '500', versionCodes: ['500'], since: ago(90) }),
-        version('5.1.0', { track: 'internal', status: 'live', rawState: 'completed', build: '510', versionCodes: ['510'], since: ago(10) }),
-        version('4.9.0', { track: 'internal', status: 'draft', rawState: 'draft', build: '480', versionCodes: ['480'], since: ago(10) }),
+        version('5.0.0', {
+          track: 'production',
+          status: 'live',
+          rawState: 'completed',
+          build: '500',
+          versionCodes: ['500'],
+          since: ago(90),
+        }),
+        version('5.1.0', {
+          track: 'internal',
+          status: 'live',
+          rawState: 'completed',
+          build: '510',
+          versionCodes: ['510'],
+          since: ago(10),
+        }),
+        version('4.9.0', {
+          track: 'internal',
+          status: 'draft',
+          rawState: 'draft',
+          build: '480',
+          versionCodes: ['480'],
+          since: ago(10),
+        }),
       ],
     }),
   );

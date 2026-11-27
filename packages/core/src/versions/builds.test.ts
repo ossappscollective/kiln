@@ -21,7 +21,10 @@ const row = (over = {}) => ({ buildNumber: '412', version: null, uploadedAt: nul
 const APP = 'com.acme.app';
 
 test('Android build 412 inspected in CI: the date and the version name come from the CI file, the run is attached', () => {
-  const o = originOfBuild(row({ releaseNames: ['Spring release'] }), { artifacts: [artifact()], packageId: APP });
+  const o = originOfBuild(row({ releaseNames: ['Spring release'] }), {
+    artifacts: [artifact()],
+    packageId: APP,
+  });
   assert.equal(o.builtAt, 1_700_000_000_000);
   assert.equal(o.builtFrom, 'ci');
   assert.equal(o.version, '2.0.0');
@@ -32,12 +35,20 @@ test('Android build 412 inspected in CI: the date and the version name come from
 });
 
 test('TestFlight build with an upload time but no CI file: the store date and version, origin store', () => {
-  const o = originOfBuild(row({ buildNumber: '90', version: '1.19.0', uploadedAt: 5_000 }), { artifacts: [] });
-  assert.deepEqual([o.builtAt, o.builtFrom, o.version, o.origin, o.builtGap], [5_000, 'store', '1.19.0', 'store', null]);
+  const o = originOfBuild(row({ buildNumber: '90', version: '1.19.0', uploadedAt: 5_000 }), {
+    artifacts: [],
+  });
+  assert.deepEqual(
+    [o.builtAt, o.builtFrom, o.version, o.origin, o.builtGap],
+    [5_000, 'store', '1.19.0', 'store', null],
+  );
 });
 
 test('CI date beats the store upload time', () => {
-  const o = originOfBuild(row({ version: '1.0', uploadedAt: 9_999_999_999_999 }), { artifacts: [artifact()], packageId: APP });
+  const o = originOfBuild(row({ version: '1.0', uploadedAt: 9_999_999_999_999 }), {
+    artifacts: [artifact()],
+    packageId: APP,
+  });
   assert.equal(o.builtAt, 1_700_000_000_000);
   assert.equal(o.builtFrom, 'ci');
 });
@@ -51,16 +62,29 @@ test('a Play code known only by its release name: a name, never a date', () => {
 });
 
 test('why there is no date: not read, no repository, file gone, GitHub unreachable or no access', () => {
-  const gap = (sources: Parameters<typeof originOfBuild>[1]) => originOfBuild(row(), sources).builtGap;
+  const gap = (sources: Parameters<typeof originOfBuild>[1]) =>
+    originOfBuild(row(), sources).builtGap;
   assert.equal(gap({ artifacts: [] }), 'not_read');
   assert.equal(gap({ artifacts: [], ciLinked: false }), 'no_repository');
   const gone = artifact({ createdAt: null, run: null, expiresAt: 77 });
   assert.equal(gap({ artifacts: [gone], packageId: APP }), 'file_gone');
   assert.equal(originOfBuild(row(), { artifacts: [gone], packageId: APP }).ciExpiredAt, 77);
-  assert.equal(gap({ artifacts: [gone], packageId: APP, listing: 'unreachable' }), 'github_unreachable');
-  assert.equal(gap({ artifacts: [gone], packageId: APP, listing: 'no_access' }), 'github_no_access');
-  assert.equal(gap({ artifacts: [gone], packageId: APP, listing: 'no_repository' }), 'no_repository');
-  assert.equal(gap({ artifacts: [gone], packageId: APP, listing: 'not_asked' }), 'github_unreachable');
+  assert.equal(
+    gap({ artifacts: [gone], packageId: APP, listing: 'unreachable' }),
+    'github_unreachable',
+  );
+  assert.equal(
+    gap({ artifacts: [gone], packageId: APP, listing: 'no_access' }),
+    'github_no_access',
+  );
+  assert.equal(
+    gap({ artifacts: [gone], packageId: APP, listing: 'no_repository' }),
+    'no_repository',
+  );
+  assert.equal(
+    gap({ artifacts: [gone], packageId: APP, listing: 'not_asked' }),
+    'github_unreachable',
+  );
 });
 
 test('first seen is never a build date', () => {
@@ -100,7 +124,10 @@ test('joinBuildOrigin keeps the rows and their order and adds the origin; TestFl
     { buildNumber: '90', version: '1.19.0', uploadedAt: 5, track: null },
   ];
   const joined = joinBuildOrigin(rows, { artifacts: [artifact()], packageId: APP });
-  assert.deepEqual(joined.map((r) => r.buildNumber), ['412', '90']);
+  assert.deepEqual(
+    joined.map((r) => r.buildNumber),
+    ['412', '90'],
+  );
   assert.equal(joined[0]?.track, 'internal');
   assert.equal(joined[0]?.builtFrom, 'ci');
   assert.equal(joined[1]?.builtFrom, 'store');
@@ -118,10 +145,14 @@ test('buildNumberOfBuild reads structured fields, never a title (Spanish "Compil
 });
 
 test('builds are not read on this server: the gap says so (enable build reads), unless a repository is missing or a file was read', () => {
-  const gap = (sources: Parameters<typeof originOfBuild>[1]) => originOfBuild(row(), sources).builtGap;
+  const gap = (sources: Parameters<typeof originOfBuild>[1]) =>
+    originOfBuild(row(), sources).builtGap;
   assert.equal(gap({ artifacts: [], readsEnabled: false }), 'reads_disabled');
   assert.equal(gap({ artifacts: [], readsEnabled: false, ciLinked: false }), 'no_repository');
   assert.equal(gap({ artifacts: [], readsEnabled: true }), 'not_read');
   // A file read before the switch was turned off still gives its date.
-  assert.equal(originOfBuild(row(), { artifacts: [artifact()], packageId: APP, readsEnabled: false }).builtGap, null);
+  assert.equal(
+    originOfBuild(row(), { artifacts: [artifact()], packageId: APP, readsEnabled: false }).builtGap,
+    null,
+  );
 });

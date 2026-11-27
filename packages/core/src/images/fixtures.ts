@@ -5,7 +5,10 @@ import type { AssetKind } from '../listing/store-asset-specs.ts';
 
 export const IPAD = { width: 2064, height: 2752 };
 
-export const imageFile = (position: number, over: Partial<StoreImageFile> = {}): StoreImageFile => ({
+export const imageFile = (
+  position: number,
+  over: Partial<StoreImageFile> = {},
+): StoreImageFile => ({
   ref: `ref-${position}-${over.name ?? ''}`,
   position,
   name: `${position}.png`,

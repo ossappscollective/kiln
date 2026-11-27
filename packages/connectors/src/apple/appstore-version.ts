@@ -16,10 +16,7 @@ import {
   AppStoreConnectTokenProvider,
   parseAppStoreConnectSecret,
 } from './apple-auth.ts';
-import {
-  AppleReviewDetailConnector,
-  type ReviewCarryResult,
-} from './appstore-review-detail.ts';
+import { AppleReviewDetailConnector, type ReviewCarryResult } from './appstore-review-detail.ts';
 import { appleError } from './appstoreconnect.ts';
 
 /**

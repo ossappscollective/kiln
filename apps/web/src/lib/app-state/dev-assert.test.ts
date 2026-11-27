@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { type Conflict, type ConsistencyReport, consistencyMonitor, createMonitor, reportShown } from './dev-assert.ts';
+import {
+  type Conflict,
+  type ConsistencyReport,
+  consistencyMonitor,
+  createMonitor,
+  reportShown,
+} from './dev-assert.ts';
 
 /** A manual scheduler: the "tick" ends when the test says so. */
 function harness(enabled = true) {
@@ -87,7 +93,9 @@ test('the report is exposed once, as a function that returns what was shown and 
   h.monitor.reportShown('liveVersion:ios-1', null, 'appDashboardTiles');
   h.endTick();
   const report = h.exposed()?.();
-  assert.deepEqual(report?.latest, { 'liveVersion:ios-1': { nextStep: '1.19.0', appDashboardTiles: null } });
+  assert.deepEqual(report?.latest, {
+    'liveVersion:ios-1': { nextStep: '1.19.0', appDashboardTiles: null },
+  });
   assert.equal(report?.conflicts.length, 1);
   assert.equal(report?.conflicts[0]?.factKey, 'liveVersion:ios-1');
   assert.deepEqual(report?.disagreeingNow, ['liveVersion:ios-1']);

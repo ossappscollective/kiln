@@ -158,8 +158,8 @@ import {
 } from './pending-cart.ts';
 import type { PendingItemDetail } from './pending-preview.ts';
 import type { PlayCheckAnswer, PlayCheckBody } from './play-check.ts';
-import type { PublishingList } from './publishing.ts';
 import type { PublishReadiness } from './publish-readiness.ts';
+import type { PublishingList } from './publishing.ts';
 import type { HealthView, RatingsView } from './ratings/ratings.ts';
 import type { EditableRelease, ReleaseCandidates } from './release-candidates.ts';
 import type { NotesHistory } from './release-notes.ts';
@@ -174,6 +174,7 @@ import type {
   RevenueCatProductsView,
   SetRevenueCatLinkBody,
 } from './revenuecat/revenuecat.ts';
+import type { ReviewCopyPreview, ReviewCopyResult } from './review-information.ts';
 import type { ReplyConfig, ReplyDraft, ReplyTemplate, SendReplyResult } from './reviews/reply.ts';
 import type {
   InboxPage,
@@ -219,7 +220,6 @@ import type {
   SubmitResult,
   SubmitState,
 } from './store-submit.ts';
-import type { ReviewCopyPreview, ReviewCopyResult } from './review-information.ts';
 import type { VersionPreview, VersionResult } from './store-version.ts';
 import type { SyncPlanEntry } from './sync-sources.ts';
 import type {
@@ -283,7 +283,6 @@ import type {
   ListingSelection,
   ListingTargetInput,
   LiveListing,
-  StoreListingView,
   LocalCheck,
   LocalConfig,
   Me,
@@ -314,6 +313,7 @@ import type {
   RunJobs,
   SavedListingTarget,
   StagedPriceChange,
+  StoreListingView,
   SyncResult,
   TestResult,
   User,
@@ -1065,7 +1065,8 @@ export function createApi(options: ApiOptions = {}) {
     ) => {
       const query = new URLSearchParams();
       if (options.fields === 'all') query.set('fields', 'all');
-      else if (options.fields && options.fields.length > 0) query.set('fields', options.fields.join(','));
+      else if (options.fields && options.fields.length > 0)
+        query.set('fields', options.fields.join(','));
       if (options.drift === false) query.set('drift', '0');
       const text = query.toString();
       return request<StoreListingView>(
@@ -1738,8 +1739,15 @@ export function createApi(options: ApiOptions = {}) {
     // Two way sync of the graphics (docs/api/assets.md, docs/api/staged-changes.md). Reading a store and the comparison
     // change nothing in it. A pull and "to repository" make a DRAFT change set; uploads, removals and fixes change only
     // the staged set in our own database. Nothing here writes to a store: that is `pushStagedDraft`.
-    appStoreImages: (workspaceId: string, appId: string, fresh = false, channel: 'editable' | 'live' = 'editable') => {
-      const query = [fresh ? 'fresh=1' : '', channel === 'live' ? 'channel=live' : ''].filter(Boolean).join('&');
+    appStoreImages: (
+      workspaceId: string,
+      appId: string,
+      fresh = false,
+      channel: 'editable' | 'live' = 'editable',
+    ) => {
+      const query = [fresh ? 'fresh=1' : '', channel === 'live' ? 'channel=live' : '']
+        .filter(Boolean)
+        .join('&');
       return request<{ store: StoreImagesView; cached: boolean }>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/store${query ? `?${query}` : ''}`,

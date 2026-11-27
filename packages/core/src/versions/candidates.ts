@@ -180,7 +180,8 @@ export function promoteOptionsOf(
   releases: readonly ReleaseFact[],
   options: { appId: string; live?: LiveRef | null | undefined; to?: string | undefined },
 ): PromoteFact[] {
-  const liveTop = options.live === undefined || options.live === null ? -1 : topOfCodes(options.live.codes);
+  const liveTop =
+    options.live === undefined || options.live === null ? -1 : topOfCodes(options.live.codes);
   const out: PromoteFact[] = [];
   for (const r of releases) {
     if (r.track === null || isProductionTrack(r.track)) continue;
@@ -189,8 +190,7 @@ export function promoteOptionsOf(
     if (codes.length === 0) continue;
     const inProduction = releases.some(
       (s) =>
-        isProductionTrack(s.track) &&
-        codes.every((c) => (s.versionCodes ?? []).indexOf(c) >= 0),
+        isProductionTrack(s.track) && codes.every((c) => (s.versionCodes ?? []).indexOf(c) >= 0),
     );
     if (inProduction) continue;
     if (liveTop >= 0 && topOfCodes(codes) <= liveTop) continue;
@@ -271,10 +271,15 @@ export function analyzeCandidates<R extends ReleaseFact & { id: string }>(
     const all = promoteOptionsOf(releases, { appId, live: null });
     const candidates: ReleaseCandidate[] = all.map((o) => {
       const release = releases.find(
-        (r) => sameTrack(r.track, o.from) && r.version === o.version && o.codes.every((c) => (r.versionCodes ?? []).indexOf(c) >= 0),
+        (r) =>
+          sameTrack(r.track, o.from) &&
+          r.version === o.version &&
+          o.codes.every((c) => (r.versionCodes ?? []).indexOf(c) >= 0),
       );
       const dead = liveTop >= 0 && topOfCodes(o.codes) <= liveTop;
-      const stamp = release as (R & { storeUpdatedAt?: number | null; statusSince?: number | null }) | undefined;
+      const stamp = release as
+        | (R & { storeUpdatedAt?: number | null; statusSince?: number | null })
+        | undefined;
       return {
         platform,
         appId,
@@ -310,15 +315,18 @@ export function analyzeCandidates<R extends ReleaseFact & { id: string }>(
         obsoleteBuild = true;
         reason = 'unreadable_version';
       } else if (newer) {
-        reason = tryCompareVersions(b.version, live.version) === 1 ? 'newer_version' : 'newer_build';
+        reason =
+          tryCompareVersions(b.version, live.version) === 1 ? 'newer_version' : 'newer_build';
       } else {
         obsoleteBuild = true;
-        reason = tryCompareVersions(b.version, live.version) === -1 ? 'older_than_live' : 'same_as_live';
+        reason =
+          tryCompareVersions(b.version, live.version) === -1 ? 'older_than_live' : 'same_as_live';
       }
     }
     const taken =
       !obsoleteBuild &&
-      (attachedElsewhere(b) || inFlightVersions.some((r) => sameVersionNumber(r.version, b.version as string)));
+      (attachedElsewhere(b) ||
+        inFlightVersions.some((r) => sameVersionNumber(r.version, b.version as string)));
     if (taken) {
       obsoleteBuild = true;
       reason = 'in_flight';
@@ -351,13 +359,17 @@ export function analyzeCandidates<R extends ReleaseFact & { id: string }>(
   const usable = candidates.filter((c) => c.obsolete !== true);
   const best = usable.find((c) => c.ready) ?? null;
   const processing =
-    usable.find((c) => c.reason === 'processing' && (best === null || newestFirst(c, best) < 0)) ?? null;
+    usable.find((c) => c.reason === 'processing' && (best === null || newestFirst(c, best) < 0)) ??
+    null;
 
   let plan: CandidatePlan<R> | null = null;
   if (best !== null) {
     const gone = new Set(obsolete.map((o) => o.releaseId));
     const prepared = releases.find(
-      (r) => isPreparingStatus(r.status) && !gone.has(r.id) && sameVersionNumber(r.version, best.version),
+      (r) =>
+        isPreparingStatus(r.status) &&
+        !gone.has(r.id) &&
+        sameVersionNumber(r.version, best.version),
     );
     if (prepared === undefined) {
       const check = createReleaseRules(best.version, storeVersionsOf(releases));
@@ -408,7 +420,9 @@ export function pipelineIsObsolete(
     (state === 'draft' || state === 'build_ready') &&
     v !== null &&
     v !== undefined &&
-    analysis.obsolete.some((o) => o.version === v.version && (o.track ?? null) === (v.track ?? null))
+    analysis.obsolete.some(
+      (o) => o.version === v.version && (o.track ?? null) === (v.track ?? null),
+    )
   )
     return true;
   const b = pipeline.pipeline.latest.build;

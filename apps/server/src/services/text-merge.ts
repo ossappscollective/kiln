@@ -28,7 +28,6 @@ export type MergeOptions = {
   maxEdits?: number;
 };
 
-
 /** The lines of a text, each with its terminator. '' has no lines; 'a\n' has one; 'a' has one. */
 export function splitLines(text: string): string[] {
   return text.match(/[^\n]*\n|[^\n]+$/g) ?? [];

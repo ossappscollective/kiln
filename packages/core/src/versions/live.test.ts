@@ -89,10 +89,19 @@ test('iOS: 1.19.0 phased + obsolete 1.11.6 draft: serving is 1.19.0 and the draf
     apple('1.18.0', 'live', { build: '80' }),
   ];
   const facts = liveOf(releases, { platform: 'ios' });
-  assert.deepEqual(facts.serving.map((r) => r.version), ['1.19.0', '1.18.0']);
+  assert.deepEqual(
+    facts.serving.map((r) => r.version),
+    ['1.19.0', '1.18.0'],
+  );
   assert.equal(facts.newestLive?.version, '1.19.0');
-  assert.deepEqual(facts.rollingOut.map((r) => r.version), ['1.19.0']);
-  assert.deepEqual(facts.live.map((r) => r.version), ['1.18.0']);
+  assert.deepEqual(
+    facts.rollingOut.map((r) => r.version),
+    ['1.19.0'],
+  );
+  assert.deepEqual(
+    facts.live.map((r) => r.version),
+    ['1.18.0'],
+  );
   assert.deepEqual(facts.halted, []);
   assert.deepEqual(facts.ref, { version: '1.19.0', build: '90', codes: [] });
   const draft = releases[0] as ReleaseFact;
@@ -131,8 +140,14 @@ test('iOS: halted serves, in_review/approved/propagating/draft do not; same vers
     ],
     { platform: 'macos' },
   );
-  assert.deepEqual(facts.serving.map((r) => `${r.version}/${r.build}`), ['1.8.0/71', '1.8.0/70']);
-  assert.deepEqual(facts.halted.map((r) => r.build), ['70']);
+  assert.deepEqual(
+    facts.serving.map((r) => `${r.version}/${r.build}`),
+    ['1.8.0/71', '1.8.0/70'],
+  );
+  assert.deepEqual(
+    facts.halted.map((r) => r.build),
+    ['70'],
+  );
   assert.equal((facts.newestLive as { id: string }).id, 'b71');
 });
 
@@ -153,7 +168,10 @@ test('Android: only PRODUCTION serves; an internal release that is live is not w
     play('1.9.1', 'beta', 'rolling_out', ['195']),
   ];
   const facts = liveOf(releases, { platform: 'android' });
-  assert.deepEqual(facts.serving.map((r) => r.track), ['production']);
+  assert.deepEqual(
+    facts.serving.map((r) => r.track),
+    ['production'],
+  );
   assert.deepEqual(facts.ref, { version: '1.9.0', build: null, codes: ['190'] });
   // custom track names and case are the same: Production is production
   const upper = liveOf([play('1.9.0', 'Production', 'live', ['190'])], { platform: 'android' });
@@ -171,8 +189,14 @@ test('Android: the highest production code is live (staged rollout next to the p
   );
   assert.equal(facts.newestLive?.version, '1.9.1');
   assert.deepEqual(facts.ref?.codes, ['195', '196']);
-  assert.deepEqual(facts.rollingOut.map((r) => r.version), ['1.9.1']);
-  assert.deepEqual(facts.live.map((r) => r.version), ['1.9.0', '1.8.0']);
+  assert.deepEqual(
+    facts.rollingOut.map((r) => r.version),
+    ['1.9.1'],
+  );
+  assert.deepEqual(
+    facts.live.map((r) => r.version),
+    ['1.9.0', '1.8.0'],
+  );
 });
 
 test('Android obsolete: a draft whose codes are all below production is left behind; equal or higher is not', () => {
@@ -219,7 +243,10 @@ test('isNewerThanLive: version, then build, null when it cannot be told', () => 
   assert.equal(newer('2.0.0-beta', '1'), true);
   assert.equal(newer('next', '1'), null);
   assert.equal(newer(null, '1'), null);
-  assert.equal(isNewerThanLive({ version: 'next', buildNumber: '1' }, liveOf([], { platform: 'ios' })), true);
+  assert.equal(
+    isNewerThanLive({ version: 'next', buildNumber: '1' }, liveOf([], { platform: 'ios' })),
+    true,
+  );
 });
 
 test('liveOf never mutates its input', () => {

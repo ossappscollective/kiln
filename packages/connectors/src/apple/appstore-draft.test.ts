@@ -5,11 +5,11 @@ import * as fx from '../store.fixtures.ts';
 import { FakeAppleDraftApi, md5Of, sha256 } from '../store-draft.fixtures.ts';
 import {
   type DraftApplyInput,
-  type DraftProgress,
   DraftDriftError,
   type DraftFile,
   DraftOutcomeUnknownError,
   DraftPartialError,
+  type DraftProgress,
   type DraftSlot,
   sameDraftState,
 } from '../store-draft-types.ts';
@@ -932,7 +932,13 @@ test('files of one set are uploaded a few at a time, and the placements keep the
   const files = [1, 2, 3, 4, 5].map((n) => file(`0${n}.png`, n * 20, 11 + n));
   const result = await connector.applyDraft(input({ assets: [{ ...SLOT, files }] }));
   assert.equal((result.steps[0] as { uploaded?: number }).uploaded, 5);
-  assert.deepEqual(api.groupFiles('loc-en', GROUP), ['01.png', '02.png', '03.png', '04.png', '05.png']);
+  assert.deepEqual(api.groupFiles('loc-en', GROUP), [
+    '01.png',
+    '02.png',
+    '03.png',
+    '04.png',
+    '05.png',
+  ]);
   // The first three reservations are made before the first commit: they overlap.
   const writes = api.writes().map((w) => w.replace(/(img|pl)-\d+/g, '$1'));
   const firstCommit = writes.indexOf('PATCH /v1/appAssetLibraryImages/img');
@@ -991,7 +997,9 @@ test('processing that never finishes: bounded polls, a coded error, and the imag
       /push again to use it/.test(e.message),
   );
   assert.deepEqual(sleeps, [500, 500, 500, 500], 'one wait per check, never more');
-  const checks = api.seen.filter((s) => s.method === 'GET' && /appAssetLibraryImages\/img/.test(s.path));
+  const checks = api.seen.filter(
+    (s) => s.method === 'GET' && /appAssetLibraryImages\/img/.test(s.path),
+  );
   assert.equal(checks.length, 4);
   assert.equal(api.placements.size, 0, 'nothing was placed');
   assert.equal(api.images.size, 1, 'the uploaded file stays in the library, never discarded');
@@ -1061,11 +1069,17 @@ test('six screenshots in the set, three wanted: three DELETEs, nothing uploaded,
   const step = result.steps[0];
   assert.equal(step?.outcome, 'applied');
   assert.deepEqual([step?.removed, step?.uploaded, step?.kept], [3, 0, 3]);
-  assert.equal(api.writes().filter((w) => w.startsWith('DELETE /v1/appAssetLibraryPlacements/')).length, 3);
+  assert.equal(
+    api.writes().filter((w) => w.startsWith('DELETE /v1/appAssetLibraryPlacements/')).length,
+    3,
+  );
   assert.ok(api.writes().includes('POST /v1/appAssetLibraryPlacementOrderingRequests'));
   assert.deepEqual(api.groupFiles('loc-en', GROUP), ['s5.png', 's1.png', 's3.png']);
   assert.ok(lines.some((l) => /removed 3, uploaded 0, kept 3, read back equal/.test(l)));
-  assert.ok(lines.every((l) => !/\.png/.test(l)), 'counts only, never a file name');
+  assert.ok(
+    lines.every((l) => !/\.png/.test(l)),
+    'counts only, never a file name',
+  );
 });
 
 test('an emptied set (no wanted file): every placement of the set is deleted and the step says so', async () => {
@@ -1075,7 +1089,10 @@ test('an emptied set (no wanted file): every placement of the set is deleted and
   assert.equal(step?.outcome, 'applied');
   assert.deepEqual([step?.removed, step?.uploaded, step?.kept], [6, 0, 0]);
   assert.deepEqual(api.groupFiles('loc-en', GROUP), []);
-  assert.ok(api.writes().every((w) => !w.startsWith('POST')), 'nothing was created or ordered');
+  assert.ok(
+    api.writes().every((w) => !w.startsWith('POST')),
+    'nothing was created or ordered',
+  );
   // A second push of the same empty set finds nothing to do.
   const again = await connector.applyDraft(input({ assets: [{ ...SLOT, files: [] }] }));
   assert.equal(again.steps[0]?.outcome, 'already_same');
@@ -1154,7 +1171,11 @@ test('a placement of another display in the same locale is never touched by empt
 test('emptying the draft set never touches the placements of the live version (it keeps its own screenshots)', async () => {
   const size = { width: 1242, height: 2688 };
   const { api, connector } = setup((a) => {
-    a.locs.set('loc-live', { versionId: 'v-live', locale: 'en-US', attributes: { locale: 'en-US' } });
+    a.locs.set('loc-live', {
+      versionId: 'v-live',
+      locale: 'en-US',
+      attributes: { locale: 'en-US' },
+    });
     a.addPlacements('loc-en', GROUP, [{ name: 'draft.png', bytes: new Uint8Array([1]), size }]);
     a.addPlacements('loc-live', GROUP, [
       { name: 'live1.png', bytes: new Uint8Array([2]), size },

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 /**
  * The images of the store's draft are one fact with several screens (the Graphics tab, the comparison of the release step, the counts
@@ -28,26 +28,36 @@ function sources(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-test('only the derivation of the web store of the store\'s images judges the store\'s images, with core\'s rule; nothing else in the web app counts a set against a limit', () => {
+test("only the derivation of the web store of the store's images judges the store's images, with core's rule; nothing else in the web app counts a set against a limit", () => {
   const all = sources(web);
   const users = all
     .filter((f) => /\bcheckStoreImages\(/.test(readFileSync(f, 'utf8')))
     .map((f) => relative(web, f).split('\\').join('/'));
   assert.deepEqual(users, ['lib/app-state/store-images.ts']);
   const own = all
-    .filter((f) => /rows\.length\s*>\s*(?:\w+\.)?max\b|files\.length\s*>\s*(?:\w+\.)?max\b/.test(readFileSync(f, 'utf8')))
+    .filter((f) =>
+      /rows\.length\s*>\s*(?:\w+\.)?max\b|files\.length\s*>\s*(?:\w+\.)?max\b/.test(
+        readFileSync(f, 'utf8'),
+      ),
+    )
     .map((f) => relative(web, f).split('\\').join('/'));
   assert.deepEqual(own, [], 'a limit is compared in core (`validateAssets`), never in a screen');
   // What the over-limit action removes is what the rule found over: it reads the problem's count and max, it has no limit of its own.
   assert.match(read('lib/assets/over-limit.ts'), /p\.count <= p\.max/);
   // The limit table and the upload cap are core's: the web retypes neither.
   const tables = all
-    .filter((f) => /\bslotMaxFiles\b|\bmaxFor\b|8 \* MiB|8 \* 1024 \* 1024/.test(readFileSync(f, 'utf8')))
+    .filter((f) =>
+      /\bslotMaxFiles\b|\bmaxFor\b|8 \* MiB|8 \* 1024 \* 1024/.test(readFileSync(f, 'utf8')),
+    )
     .map((f) => relative(web, f).split('\\').join('/'));
-  assert.deepEqual(tables, [], 'limitOf and ASSET_UPLOAD_MAX_BYTES (core) are the only limit and cap');
+  assert.deepEqual(
+    tables,
+    [],
+    'limitOf and ASSET_UPLOAD_MAX_BYTES (core) are the only limit and cap',
+  );
 });
 
-test('the screens that show the store\'s images read them from the one web store, and nothing else reads their endpoints', () => {
+test("the screens that show the store's images read them from the one web store, and nothing else reads their endpoints", () => {
   const all = sources(web);
   const readers = (pattern: RegExp) =>
     all
@@ -57,13 +67,18 @@ test('the screens that show the store\'s images read them from the one web store
   assert.deepEqual(readers(/\.appStoreImages\(/), ['lib/app-state/store-images-store.svelte.ts']);
   assert.deepEqual(readers(/\.appAssets\(/), ['lib/app-state/store-images-store.svelte.ts']);
   assert.deepEqual(readers(/\.appAssetDiff\(/), ['lib/app-state/store-images-store.svelte.ts']);
-  assert.deepEqual(readers(/\.releaseAssetProposal(?:Summary)?\(/), ['lib/app-state/store-images-store.svelte.ts']);
+  assert.deepEqual(readers(/\.releaseAssetProposal(?:Summary)?\(/), [
+    'lib/app-state/store-images-store.svelte.ts',
+  ]);
   // Not the plain cache either: the surfaces go through the store.
   const cache = all
     .filter((f) => /storeMediaCache/.test(readFileSync(f, 'utf8')))
     .map((f) => relative(web, f).split('\\').join('/'))
     .filter((f) => !/lib\/assets\/store-cache\.ts$|\.test\.ts$/.test(f));
-  assert.deepEqual(cache, ['lib/app-state/store-images-store.svelte.ts', 'lib/facts/invalidate.ts']);
+  assert.deepEqual(cache, [
+    'lib/app-state/store-images-store.svelte.ts',
+    'lib/facts/invalidate.ts',
+  ]);
 });
 
 test('the comparison follows the one invalidation that the store was read again', () => {
@@ -78,7 +93,10 @@ test('the comparison follows the one invalidation that the store was read again'
 
 test('"Read again" asks the store once: the comparison is forgotten and what blocks a submit is judged on the same read', () => {
   const store = read('lib/app-state/store-images-store.svelte.ts');
-  assert.match(store, /invalidate\('store_read', \{ workspaceId, appId: app\.id, keepGraphics: true, origin: 'graphics' \}\)/);
+  assert.match(
+    store,
+    /invalidate\('store_read', \{ workspaceId, appId: app\.id, keepGraphics: true, origin: 'graphics' \}\)/,
+  );
   assert.match(store, /appStateStore\.storeRead\(/);
   assert.doesNotMatch(store, /readCache\.forget/);
   // The counts next to the repository's are computed from the view the browser holds (core `storeSideOf`), never read again from the server.
@@ -94,7 +112,11 @@ test('the server pairs one set per display with the rule the push uses (core `gr
   assert.match(diff, /groupStoreImages\(/);
   assert.match(diff, /compareRows\(/);
   assert.match(groups, /primaryStoreSet\(sets\)/);
-  assert.match(groups, /for \(const d of groupStoreImages\(view\)\)/, 'storeSideOf counts displays');
+  assert.match(
+    groups,
+    /for \(const d of groupStoreImages\(view\)\)/,
+    'storeSideOf counts displays',
+  );
   // The last of the siblings must never stand for the display again.
   assert.doesNotMatch(diff, /storeSets\.set\(keyOf\(s\.locale, s\.kind, s\.device\), s\)/);
   // The pull dialog and the comparison select an image by the store's own position of it, never the row's place in the comparison.

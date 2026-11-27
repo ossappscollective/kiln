@@ -5,10 +5,10 @@ import {
   checkReleaseField,
   isReleaseFieldId,
   isStageableReleaseField,
+  RELEASE_MAX_CODES_SHOWN as MAX_CODES_SHOWN,
   normalizeReleaseValue,
   type Platform,
   RELEASE_FIELD_SPECS,
-  RELEASE_MAX_CODES_SHOWN as MAX_CODES_SHOWN,
   type ReleaseValueInput,
   STAGEABLE_RELEASE_FIELDS,
   STAGED_LIMITS,
@@ -185,7 +185,6 @@ export type ReleaseCheck = {
   field?: string;
   locale?: string;
 };
-
 
 /**
  * Checks of the staged release fields against what the store says (the facts the connector reads next to each field). Pure.

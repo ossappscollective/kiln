@@ -62,14 +62,18 @@ export type CacheSpec = Omit<CacheDeclaration, 'keys' | 'separator'> & {
   drop: (scope: CacheScope) => void;
 };
 
-export type CacheInfo = Readonly<Pick<CacheSpec, 'name' | 'owner' | 'ttlMs' | 'invalidatedBy' | 'why'>>;
+export type CacheInfo = Readonly<
+  Pick<CacheSpec, 'name' | 'owner' | 'ttlMs' | 'invalidatedBy' | 'why'>
+>;
 
 const caches = new Map<string, CacheSpec>();
 
 /** Puts a cache on the list. */
 export function registerCache(spec: CacheSpec): void {
   if (spec.invalidatedBy.length === 0 && (spec.why === undefined || spec.why.trim() === ''))
-    throw new Error(`Cache ${spec.name}: no event invalidates it and no reason is given (\`why\`).`);
+    throw new Error(
+      `Cache ${spec.name}: no event invalidates it and no reason is given (\`why\`).`,
+    );
   for (const event of spec.invalidatedBy)
     if (!(cacheEvents as readonly string[]).includes(event))
       throw new Error(`Cache ${spec.name}: unknown event ${event}.`);

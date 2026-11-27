@@ -1,9 +1,9 @@
 import {
-  deadlineReminder,
-  type DeadlineReminderKind,
-  DEFAULT_REMINDER_LEAD_HOURS,
-  MAX_REMINDER_LEAD_HOURS,
   PLAN_REMINDERS_MAX_PER_RUN as DEFAULT_MAX_REMINDERS_PER_RUN,
+  DEFAULT_REMINDER_LEAD_HOURS,
+  type DeadlineReminderKind,
+  deadlineReminder,
+  MAX_REMINDER_LEAD_HOURS,
   REMINDER_STALE_DAYS,
   rolloutStepReminderDue,
 } from '@kiln/core';

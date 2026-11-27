@@ -30,7 +30,12 @@ test('shift-click ticks every image from the anchor to the one clicked, in eithe
   const from = toggle(NO_SELECTION, 'b');
   assert.deepEqual(selectedInOrder(selectRange(from, order, 'd'), order), ['b', 'c', 'd']);
   const backwards = toggle(NO_SELECTION, 'd');
-  assert.deepEqual(selectedInOrder(selectRange(backwards, order, 'a'), order), ['a', 'b', 'c', 'd']);
+  assert.deepEqual(selectedInOrder(selectRange(backwards, order, 'a'), order), [
+    'a',
+    'b',
+    'c',
+    'd',
+  ]);
   const extended = selectRange(selectRange(from, order, 'c'), order, 'e');
   assert.deepEqual(selectedInOrder(extended, order), ['b', 'c', 'd', 'e'], 'the anchor stays');
   assert.equal(extended.anchor, 'b');

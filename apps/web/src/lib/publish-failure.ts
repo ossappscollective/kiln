@@ -234,7 +234,8 @@ export type StepLine = {
 /** Every step of a run as a line: done, failed with its reason, or not run with its reason. */
 export function stepLines(run: Pick<LastPublish, 'results'>): StepLine[] {
   return run.results.map((step) => {
-    const blockers = step.status === 'skipped' && step.reason === 'blocked' ? blockerLines(step) : [];
+    const blockers =
+      step.status === 'skipped' && step.reason === 'blocked' ? blockerLines(step) : [];
     return {
       key: step.type,
       type: step.type,
@@ -324,7 +325,9 @@ export function failureReport(input: {
       }
       // With a current reading the run's own list is HISTORY: said so, with its time, and the current list follows at the end.
       if (blockers.length > 0 && input.blockers != null)
-        lines.push(`   Recorded by this run at ${iso(run.finishedAt)} (history, not necessarily true now):`);
+        lines.push(
+          `   Recorded by this run at ${iso(run.finishedAt)} (history, not necessarily true now):`,
+        );
       blockers.forEach((b) => {
         lines.push(`   Blocker: ${b.code}: ${b.message}`);
         lines.push(`      Fix: ${b.fix}${b.url ? ` (${b.url})` : ''}`);

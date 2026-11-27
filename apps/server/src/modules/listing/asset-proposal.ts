@@ -60,8 +60,8 @@ import {
   sideProblems,
   splitKey,
 } from './drift.ts';
-import { getStoreListing, storeTextsOf } from './store-view.ts';
 import { mergedListing } from './sources.ts';
+import { getStoreListing, storeTextsOf } from './store-view.ts';
 import { listListingTargets } from './targets.ts';
 
 /**
@@ -547,7 +547,9 @@ export function planGraphics(input: {
     const diff = input.storeSets?.find(
       (s) =>
         s.primary &&
-        s.locale === g.locale && s.kind === g.slot.kind && (s.device ?? null) === g.slot.device,
+        s.locale === g.locale &&
+        s.kind === g.slot.kind &&
+        (s.device ?? null) === g.slot.device,
     );
     if (diff?.inSync) {
       plan.sameAsStore += 1;

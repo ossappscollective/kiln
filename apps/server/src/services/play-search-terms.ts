@@ -16,11 +16,11 @@ import {
   normalizeCountry,
   PLAY_SEARCH_TERMS_SUMMARY_LIMIT,
   type SearchTermInsight,
-  searchTermInsights,
-  searchTermLimits,
   type SearchTermPoint,
   type SearchTermSort,
   type SearchTermsSummary,
+  searchTermInsights,
+  searchTermLimits,
   summariseSearchTerms,
   supports,
 } from '@kiln/core';
@@ -164,7 +164,11 @@ export async function parseSearchTermsImport(db: Database, input: Input): Promis
     const period = checkPeriod(input.from, input.to) ?? null;
     const from = file.dateFrom as string;
     const to = file.dateTo as string;
-    const summary = summariseSearchTerms(file.points, { from, to, limit: PLAY_SEARCH_TERMS_SUMMARY_LIMIT });
+    const summary = summariseSearchTerms(file.points, {
+      from,
+      to,
+      limit: PLAY_SEARCH_TERMS_SUMMARY_LIMIT,
+    });
     const notes = [...file.notes];
     const overlapsStored = await overlaps(db, input.workspaceId, app.id, file);
     if (overlapsStored > 0) {

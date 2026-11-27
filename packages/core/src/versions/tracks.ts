@@ -19,7 +19,12 @@ export const PLAY_TRACKS = {
 export type PlayTrackName = (typeof PLAY_TRACKS)[keyof typeof PLAY_TRACKS];
 
 /** The tracks a person normally picks, from the first stage to the last. */
-export const PLAY_TRACK_ORDER: readonly PlayTrackName[] = ['internal', 'alpha', 'beta', 'production'];
+export const PLAY_TRACK_ORDER: readonly PlayTrackName[] = [
+  'internal',
+  'alpha',
+  'beta',
+  'production',
+];
 
 export type TrackKind = 'production' | 'open' | 'closed' | 'internal' | 'sharing' | 'none';
 

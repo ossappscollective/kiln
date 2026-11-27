@@ -129,8 +129,6 @@ export const STEP_UP_MAX_PASSKEYS = 10;
 /** Moved from services/step-up.ts. */
 export const STEP_UP_GRANT_TTL_MS = 5 * 60_000;
 
-
-
 /** The runs of a repository read for the builds of an app (one page). */
 export const BUILD_RUNS_READ_LIMIT = 100;
 

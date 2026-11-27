@@ -28,7 +28,8 @@ test('the release surfaces keep no clock of their own', () => {
     for (const file of svelteFiles(join(ROOT, folder))) {
       if (NOT_RELEASES.includes(file.slice(ROOT.length))) continue;
       const source = readFileSync(file, 'utf8');
-      if (/\$state\(\s*Date\.now\(\)\s*\)|setInterval\(/.test(source)) offenders.push(file.slice(ROOT.length));
+      if (/\$state\(\s*Date\.now\(\)\s*\)|setInterval\(/.test(source))
+        offenders.push(file.slice(ROOT.length));
     }
   }
   assert.deepEqual(offenders, []);

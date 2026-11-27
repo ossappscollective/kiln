@@ -368,9 +368,21 @@ test('releaseNotesView: one status over the typed, staged and store texts; a Pla
   assert.equal(view.status, 'partial');
   assert.deepEqual(view.missing, ['de-DE']);
   assert.deepEqual(view.over, []);
-  assert.equal(view.locales.find((l) => l.locale === 'en-US')?.from, 'staged', 'what is typed wins');
-  const over = releaseNotesView({ platform: 'android', listingLocales: [], drafts: { 'en-US': 'x'.repeat(501) } });
+  assert.equal(
+    view.locales.find((l) => l.locale === 'en-US')?.from,
+    'staged',
+    'what is typed wins',
+  );
+  const over = releaseNotesView({
+    platform: 'android',
+    listingLocales: [],
+    drafts: { 'en-US': 'x'.repeat(501) },
+  });
   assert.deepEqual(over.over, ['en-US']);
-  const emoji = releaseNotesView({ platform: 'android', listingLocales: [], drafts: { 'en-US': `${'a'.repeat(470)}${'\u{1F600}'.repeat(30)}` } });
+  const emoji = releaseNotesView({
+    platform: 'android',
+    listingLocales: [],
+    drafts: { 'en-US': `${'a'.repeat(470)}${'\u{1F600}'.repeat(30)}` },
+  });
   assert.deepEqual(emoji.over, [], '500 code points (530 UTF-16 units) are within the limit');
 });

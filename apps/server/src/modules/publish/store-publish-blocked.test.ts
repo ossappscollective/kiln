@@ -50,7 +50,6 @@ const stageIos = async (t: StagedBoot, name = 'Weather') => {
   return app;
 };
 
-
 const publishPlan = async (t: Boot, app: string) => {
   const p = (await t.plan(app)).body.plan;
   assert.equal(p.confirmable, true, JSON.stringify(p.steps).slice(0, 400));
@@ -160,25 +159,28 @@ dbTest(
   },
 );
 
-dbTest('the plan says nothing extra when nothing stands in the way, or the store cannot be read', async (db) => {
-  const t = await boot(db);
-  const app = await stageIos(t);
-  const clean = await t.plan(app);
-  const submit = clean.body.plan.steps.find((s: any) => s.type === 'submit');
-  assert.deepEqual(
-    submit.problems.map((x: any) => x.code),
-    ['previewed_after_push'],
-  );
-  t.submitStores.ios.readError = new Error('down');
-  const unreadable = await t.plan(app);
-  assert.equal(unreadable.status, 200);
-  assert.deepEqual(
-    unreadable.body.plan.steps
-      .find((s: any) => s.type === 'submit')
-      .problems.map((x: any) => x.code),
-    ['previewed_after_push'],
-  );
-});
+dbTest(
+  'the plan says nothing extra when nothing stands in the way, or the store cannot be read',
+  async (db) => {
+    const t = await boot(db);
+    const app = await stageIos(t);
+    const clean = await t.plan(app);
+    const submit = clean.body.plan.steps.find((s: any) => s.type === 'submit');
+    assert.deepEqual(
+      submit.problems.map((x: any) => x.code),
+      ['previewed_after_push'],
+    );
+    t.submitStores.ios.readError = new Error('down');
+    const unreadable = await t.plan(app);
+    assert.equal(unreadable.status, 200);
+    assert.deepEqual(
+      unreadable.body.plan.steps
+        .find((s: any) => s.type === 'submit')
+        .problems.map((x: any) => x.code),
+      ['previewed_after_push'],
+    );
+  },
+);
 
 // ----- App Review Information ---------------------------------------------------------------------------------------
 
@@ -218,7 +220,14 @@ dbTest(
     assert.equal(res.body.plan.confirmable, false);
     // The push alone stays allowed, and a complete detail is no blocker.
     assert.equal((await t.plan(app)).body.plan.confirmable, true);
-    t.submitStores.ios.reviewDetail = { ...noContact, exists: true, contactFirstName: true, contactLastName: true, contactPhone: true, contactEmail: true };
+    t.submitStores.ios.reviewDetail = {
+      ...noContact,
+      exists: true,
+      contactFirstName: true,
+      contactLastName: true,
+      contactPhone: true,
+      contactEmail: true,
+    };
     assert.deepEqual((await t.plan(app)).body.plan.readiness.submit.blockers, []);
   },
 );
@@ -251,7 +260,10 @@ dbTest(
       run?.results.find((x) => x.type === 'submit')?.blockers?.map((b) => b.code),
       ['no_review_contact'],
     );
-    assert.ok(lines.some((l) => /skipped \(blocked: no_review_contact/.test(l)), lines.join('\n'));
+    assert.ok(
+      lines.some((l) => /skipped \(blocked: no_review_contact/.test(l)),
+      lines.join('\n'),
+    );
     assert.doesNotMatch(`${lines.join('\n')}${JSON.stringify(run?.results)}`, /@|\+\d{4}/);
     assert.equal(t.submitStores.ios.submitCalls, 0);
   },

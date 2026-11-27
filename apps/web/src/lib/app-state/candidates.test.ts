@@ -341,7 +341,13 @@ test('the same report with the draft ahead of live (2.0.0, not left behind): the
       releases: {
         [IOS.id]: [
           iosRelease({ id: 'live', version: '1.19.0', build: '88', status: 'live' }),
-          iosRelease({ id: 'd', version: '2.0.0', build: null, status: 'draft', rawState: 'PREPARE_FOR_SUBMISSION' }),
+          iosRelease({
+            id: 'd',
+            version: '2.0.0',
+            build: null,
+            status: 'draft',
+            rawState: 'PREPARE_FOR_SUBMISSION',
+          }),
         ],
       },
     }),
@@ -505,11 +511,7 @@ test('every combination of the table, through the model: the card never names a 
               // 1.11.6 is left behind only relative to a live 1.19.0 (with nothing live it is a plain draft).
               // The headline never names it; only a refused create may name it, as the reason (an editable version is in the way).
               if (live === '1.19.0' || prepared !== 'lower')
-                assert.doesNotMatch(
-                  s.headline,
-                  /1\.11\.6/,
-                  where,
-                );
+                assert.doesNotMatch(s.headline, /1\.11\.6/, where);
               if ((live === '1.19.0' || prepared !== 'lower') && s.phase !== 'candidate_blocked')
                 assert.doesNotMatch(`${s.headline} ${s.reason}`, /1\.11\.6/, where);
               if (publishing) assert.equal(s.phase, 'publishing', where);

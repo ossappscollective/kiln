@@ -18,7 +18,13 @@ import type { ReleaseFact } from './live.ts';
 
 type R = ReleaseFact & { id: string; appId: string; platform: Platform };
 
-const rel = (id: string, version: string, status: ReleaseState, build: string | null = null, extra: Partial<R> = {}): R => ({
+const rel = (
+  id: string,
+  version: string,
+  status: ReleaseState,
+  build: string | null = null,
+  extra: Partial<R> = {},
+): R => ({
   id,
   appId: 'app',
   platform: 'ios',
@@ -29,10 +35,19 @@ const rel = (id: string, version: string, status: ReleaseState, build: string | 
   versionCodes: null,
   ...extra,
 });
-const play = (id: string, version: string, track: string, status: ReleaseState, codes: string[]): R =>
-  rel(id, version, status, null, { platform: 'android', track, versionCodes: codes });
+const play = (
+  id: string,
+  version: string,
+  track: string,
+  status: ReleaseState,
+  codes: string[],
+): R => rel(id, version, status, null, { platform: 'android', track, versionCodes: codes });
 
-const flight = (buildNumber: string, version: string | null, extra: Partial<StoreBuildFact> = {}): StoreBuildFact => ({
+const flight = (
+  buildNumber: string,
+  version: string | null,
+  extra: Partial<StoreBuildFact> = {},
+): StoreBuildFact => ({
   buildNumber,
   version,
   state: 'processed',
@@ -55,7 +70,10 @@ test('no live version: the newest processed build is the first release', () => {
 });
 
 test('1.19.0 live, TestFlight 1.19.0 build 90 > live build 88: a newer build of the live version', () => {
-  const a = ios([rel('l', '1.19.0', 'live', '88')], [flight('90', '1.19.0'), flight('85', '1.19.0')]);
+  const a = ios(
+    [rel('l', '1.19.0', 'live', '88')],
+    [flight('90', '1.19.0'), flight('85', '1.19.0')],
+  );
   assert.equal(a.best?.buildNumber, '90');
   assert.equal(a.best?.reason, 'newer_build');
   const old = a.candidates.find((c) => c.buildNumber === '85');
@@ -64,28 +82,45 @@ test('1.19.0 live, TestFlight 1.19.0 build 90 > live build 88: a newer build of 
 });
 
 test('phased 1.19.0 (rolling_out) is live: a 1.18.x build and a 1.18.x draft are left behind (three screens, one answer)', () => {
-  const releases = [rel('p', '1.19.0', 'rolling_out', '88'), rel('d', '1.18.5', 'draft'), rel('o', '1.11.6', 'draft')];
+  const releases = [
+    rel('p', '1.19.0', 'rolling_out', '88'),
+    rel('d', '1.18.5', 'draft'),
+    rel('o', '1.11.6', 'draft'),
+  ];
   const a = ios(releases, [flight('70', '1.18.5'), flight('99', '2.0.0')]);
   assert.equal(a.live?.version, '1.19.0');
-  assert.deepEqual(a.obsolete.map((o) => o.version), ['1.18.5', '1.11.6']);
+  assert.deepEqual(
+    a.obsolete.map((o) => o.version),
+    ['1.18.5', '1.11.6'],
+  );
   assert.equal(a.obsolete[0]?.reason, 'older_than_live');
   assert.equal(a.candidates.find((c) => c.buildNumber === '70')?.obsolete, true);
   assert.equal(a.best?.version, '2.0.0');
 });
 
 test('an obsolete draft blocks creating the next version: the plan says why, it never offers a refused create', () => {
-  const a = ios([rel('l', '1.19.0', 'live', '88'), rel('o', '1.11.6', 'draft')], [flight('95', '2.0.1')]);
+  const a = ios(
+    [rel('l', '1.19.0', 'live', '88'), rel('o', '1.11.6', 'draft')],
+    [flight('95', '2.0.1')],
+  );
   assert.equal(a.best?.version, '2.0.1');
   assert.equal(a.plan?.kind, 'blocked');
   if (a.plan?.kind === 'blocked') {
     assert.deepEqual(a.plan.refusal, ['editable_version_exists']);
     assert.equal(a.plan.editableVersion, '1.11.6');
-    assert.equal(a.plan.editableObsolete, true, 'the build must not be attached to a version that is left behind');
+    assert.equal(
+      a.plan.editableObsolete,
+      true,
+      'the build must not be attached to a version that is left behind',
+    );
   }
 });
 
 test('an editable version that is not behind live is the one to attach to: blocked, but not obsolete', () => {
-  const a = ios([rel('l', '1.19.0', 'live', '88'), rel('d', '2.0.0', 'draft')], [flight('95', '2.0.1')]);
+  const a = ios(
+    [rel('l', '1.19.0', 'live', '88'), rel('d', '2.0.0', 'draft')],
+    [flight('95', '2.0.1')],
+  );
   assert.equal(a.plan?.kind, 'blocked');
   if (a.plan?.kind === 'blocked') {
     assert.equal(a.plan.editableVersion, '2.0.0');
@@ -94,7 +129,10 @@ test('an editable version that is not behind live is the one to attach to: block
 });
 
 test('a candidate lower than an in-review version is blocked not_higher (newer than live, refused by the server)', () => {
-  const a = ios([rel('l', '1.19.0', 'live', '88'), rel('r', '2.5.0', 'in_review', '1')], [flight('95', '2.0.1')]);
+  const a = ios(
+    [rel('l', '1.19.0', 'live', '88'), rel('r', '2.5.0', 'in_review', '1')],
+    [flight('95', '2.0.1')],
+  );
   assert.equal(a.best?.version, '2.0.1');
   assert.equal(a.plan?.kind, 'blocked');
   if (a.plan?.kind === 'blocked') assert.deepEqual(a.plan.refusal, ['not_higher']);
@@ -141,9 +179,15 @@ test('processing, expired, invalid builds wait; a build already in flight is tak
   assert.equal(by('93')?.reason, 'invalid');
   assert.equal(by('92')?.reason, 'unreadable_version');
   assert.equal(by('92')?.obsolete, true);
-  const taken = ios([live, rel('r', '2.0.1', 'in_review', '95')], [flight('95', '2.0.1'), flight('97', '2.0.1')]);
+  const taken = ios(
+    [live, rel('r', '2.0.1', 'in_review', '95')],
+    [flight('95', '2.0.1'), flight('97', '2.0.1')],
+  );
   assert.equal(taken.best, null);
-  assert.equal(taken.candidates.every((c) => c.reason === 'in_flight' && c.obsolete === true), true);
+  assert.equal(
+    taken.candidates.every((c) => c.reason === 'in_flight' && c.obsolete === true),
+    true,
+  );
 });
 
 test('a pre-release build of the live version is judged (2.0.0-beta is older than live 2.0.0), no longer unknown', () => {
@@ -153,8 +197,14 @@ test('a pre-release build of the live version is judged (2.0.0-beta is older tha
 });
 
 test('candidates sort newest version first, then build, then upload', () => {
-  const a = ios([], [flight('5', '1.0.0'), flight('2', '1.10.0'), flight('3', '1.9.0'), flight('4', '1.10.0')]);
-  assert.deepEqual(a.candidates.map((c) => `${c.version}/${c.buildNumber}`), ['1.10.0/4', '1.10.0/2', '1.9.0/3', '1.0.0/5']);
+  const a = ios(
+    [],
+    [flight('5', '1.0.0'), flight('2', '1.10.0'), flight('3', '1.9.0'), flight('4', '1.10.0')],
+  );
+  assert.deepEqual(
+    a.candidates.map((c) => `${c.version}/${c.buildNumber}`),
+    ['1.10.0/4', '1.10.0/2', '1.9.0/3', '1.0.0/5'],
+  );
 });
 
 test('Android: promote only what is newer than production; a halted internal release is not promotable', () => {
@@ -166,7 +216,10 @@ test('Android: promote only what is newer than production; a halted internal rel
     play('c', '1.9.0', 'beta', 'live', ['190']),
   ];
   const a = analyzeCandidates({ appId: 'app', platform: 'android', releases, builds: [] });
-  assert.deepEqual(a.promote.map((o) => o.from), ['internal']);
+  assert.deepEqual(
+    a.promote.map((o) => o.from),
+    ['internal'],
+  );
   assert.deepEqual(a.promote[0]?.codes, ['195', '196']);
   assert.equal(a.promote[0]?.to, 'production');
   assert.equal(a.best?.buildNumber, '196');
@@ -180,22 +233,47 @@ test('promoteOptionsOf: one rule, newest codes first, production holding all the
     play('b', '1.1', 'beta', 'live', ['11']),
     play('c', '1.1', 'production', 'in_review', ['11']),
   ];
-  assert.deepEqual(promoteOptionsOf(releases, { appId: 'x' }).map((o) => o.version), ['1.0']);
+  assert.deepEqual(
+    promoteOptionsOf(releases, { appId: 'x' }).map((o) => o.version),
+    ['1.0'],
+  );
   const none = promoteOptionsOf([play('a', '1.0', 'internal', 'live', ['5'])], {
     appId: 'x',
     live: { version: '1.0', build: null, codes: ['9'] },
   });
   assert.deepEqual(none, []);
-  assert.deepEqual(promoteOptionsOf([play('a', '1.0', 'internal', 'live', [])], { appId: 'x' }), []);
+  assert.deepEqual(
+    promoteOptionsOf([play('a', '1.0', 'internal', 'live', [])], { appId: 'x' }),
+    [],
+  );
 });
 
 test('patches over a pipeline read: the obsolete draft is not the flow, a stall about it is not news', () => {
-  const a = ios([rel('l', '1.19.0', 'live', '88'), rel('o', '1.11.6', 'draft')], [flight('70', '1.18.0')]);
-  const pipeline = { pipeline: { state: 'draft', latest: { version: { version: '1.11.6', track: null }, build: null } } };
+  const a = ios(
+    [rel('l', '1.19.0', 'live', '88'), rel('o', '1.11.6', 'draft')],
+    [flight('70', '1.18.0')],
+  );
+  const pipeline = {
+    pipeline: {
+      state: 'draft',
+      latest: { version: { version: '1.11.6', track: null }, build: null },
+    },
+  };
   assert.equal(pipelineIsObsolete(pipeline, a), true);
-  assert.equal(pipelineIsObsolete({ pipeline: { state: 'draft', latest: { version: { version: '2.0.0' }, build: null } } }, a), false);
   assert.equal(
-    pipelineIsObsolete({ pipeline: { state: 'build_ready', latest: { version: null, build: { buildNumber: '70' } } } }, a),
+    pipelineIsObsolete(
+      { pipeline: { state: 'draft', latest: { version: { version: '2.0.0' }, build: null } } },
+      a,
+    ),
+    false,
+  );
+  assert.equal(
+    pipelineIsObsolete(
+      {
+        pipeline: { state: 'build_ready', latest: { version: null, build: { buildNumber: '70' } } },
+      },
+      a,
+    ),
     true,
   );
   assert.equal(stallLeftBehind({ evidence: [{ kind: 'version', id: '1.11.6@' }] }, a), true);

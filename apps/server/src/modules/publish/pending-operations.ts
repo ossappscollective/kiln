@@ -296,7 +296,9 @@ const submitBlockerSchema = z.object({
   params: z
     .record(z.union([z.string(), z.number()]))
     .optional()
-    .describe('The names and numbers of the sentence (`field`, `label`, `locale`, `count`, `max`; `missing` and `from` for the review information: the attributes that are blank, and the version it can be copied from).'),
+    .describe(
+      'The names and numbers of the sentence (`field`, `label`, `locale`, `count`, `max`; `missing` and `from` for the review information: the attributes that are blank, and the version it can be copied from).',
+    ),
   locale: z.string().optional(),
   item: z.string().optional().describe('The field, the set or the file the blocker is about.'),
   fix: z.object({
@@ -308,7 +310,9 @@ const submitBlockerSchema = z.object({
     href: z
       .string()
       .nullable()
-      .describe('The web address of that place (`#/portfolio/<app>/listing?platform=ios&view=text&locale=fr-FR`); null for the store’s console and for a push.'),
+      .describe(
+        'The web address of that place (`#/portfolio/<app>/listing?platform=ios&view=text&locale=fr-FR`); null for the store’s console and for a push.',
+      ),
   }),
 });
 
@@ -339,15 +343,21 @@ const pendingCountsSchema = z.object({
   stagedUnpushed: z
     .number()
     .int()
-    .describe('The staged part of `count`: texts, graphics sets and release fields that a push would write.'),
+    .describe(
+      'The staged part of `count`: texts, graphics sets and release fields that a push would write.',
+    ),
   awaitingSubmit: z
     .number()
     .int()
-    .describe('1 when a draft was pushed to the store and waits for its submit, else 0. Not in `count`.'),
+    .describe(
+      '1 when a draft was pushed to the store and waits for its submit, else 0. Not in `count`.',
+    ),
   awaitingRelease: z
     .number()
     .int()
-    .describe('Draft releases, approved versions and due rollout steps that wait for a person. Not in `count`.'),
+    .describe(
+      'Draft releases, approved versions and due rollout steps that wait for a person. Not in `count`.',
+    ),
 });
 
 const pendingTotalsSchema = z.object({
@@ -887,7 +897,8 @@ export const pendingOperations: Draft[] = [
     method: 'get',
     path: `${W}/apps/{id}/publish/readiness`,
     tags: ['pending'],
-    summary: 'What stands in the way of a submit NOW (the blockers a run kept are only true of the moment it ran)',
+    summary:
+      'What stands in the way of a submit NOW (the blockers a run kept are only true of the moment it ran)',
     description:
       'Needs `store.submit` and `KILN_STORE_SUBMIT_ENABLED=true` (`409 store_submit_disabled`). READS the store once (the version, the build, every locale with its texts and its sets of screenshots, the App Review Information) and the staged push when something is staged, and judges them with the same pure rules as the plan and the submit (`blockers`: the same shape as the plan\u2019s readiness). Screenshots are counted per store set (an App Store placement group), never summed across the 13-inch and 12.9-inch sets of one display. A run that was blocked keeps the blockers of its own moment (`lastPublish.results[].blockers`): this is the answer to "and now?". Kept for 30 seconds (`cached: true`); `?fresh=1` asks the store again and drops every cache of what the store holds for the app (the graphics read too). Writes nothing. Not part of `GET /pending/publishing`, which is polled and reads no store.',
     risk: 'read',

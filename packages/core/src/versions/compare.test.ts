@@ -62,7 +62,11 @@ const TABLE: Row[] = [
 test('tryCompareVersions: the table, in both directions; unreadable is null (never judged)', () => {
   for (const [a, b, want] of TABLE) {
     assert.equal(tryCompareVersions(a, b), want, `${a} vs ${b}`);
-    assert.equal(tryCompareVersions(b, a), want === null ? null : want === 0 ? 0 : -want, `${b} vs ${a}`);
+    assert.equal(
+      tryCompareVersions(b, a),
+      want === null ? null : want === 0 ? 0 : -want,
+      `${b} vs ${a}`,
+    );
   }
   assert.equal(tryCompareVersions(null, '1.0'), null);
   assert.equal(tryCompareVersions('1.0', undefined), null);
@@ -83,10 +87,7 @@ test('compareVersions is TOTAL: never null or NaN, unreadable sorts lowest, stab
   const mixed = ['1.9.2', 'next', '1.10.0', '', '2.0.0-beta', '2.0.0', null, '1.9'];
   const sorted = mixed.slice().sort(compareVersions);
   assert.deepEqual(sorted.slice(3), ['1.9', '1.9.2', '1.10.0', '2.0.0-beta', '2.0.0']);
-  assert.deepEqual(
-    ['1.9', '2.0.0', '1.10.0'].sort(newestVersionFirst),
-    ['2.0.0', '1.10.0', '1.9'],
-  );
+  assert.deepEqual(['1.9', '2.0.0', '1.10.0'].sort(newestVersionFirst), ['2.0.0', '1.10.0', '1.9']);
 });
 
 test('parseVersion keeps the parts and the pre-release', () => {
@@ -139,26 +140,50 @@ test('naturalCompare: digit runs are numbers, case does not matter', () => {
 });
 
 test('compareReleases: version first, the build number breaks the tie between two builds of one version', () => {
-  assert.equal(compareReleases({ version: '1.19.0', build: '90' }, { version: '1.19.0', build: '88' }), 1);
-  assert.equal(compareReleases({ version: '1.18.9', build: '900' }, { version: '1.19.0', build: '88' }), -1);
-  assert.equal(compareReleases({ version: '1.19.0', build: null }, { version: '1.19.0', build: '88' }), -1);
+  assert.equal(
+    compareReleases({ version: '1.19.0', build: '90' }, { version: '1.19.0', build: '88' }),
+    1,
+  );
+  assert.equal(
+    compareReleases({ version: '1.18.9', build: '900' }, { version: '1.19.0', build: '88' }),
+    -1,
+  );
+  assert.equal(
+    compareReleases({ version: '1.19.0', build: null }, { version: '1.19.0', build: '88' }),
+    -1,
+  );
   // judged
-  assert.equal(tryCompareReleases({ version: '1.19.0', build: '90' }, { version: '1.19.0', build: '88' }), 1);
-  assert.equal(tryCompareReleases({ version: '1.19.0', build: '88' }, { version: '1.19.0', build: '88' }), 0);
-  assert.equal(tryCompareReleases({ version: '1.19.0', build: null }, { version: '1.19.0', build: '88' }), 0);
-  assert.equal(tryCompareReleases({ version: 'next', build: '1' }, { version: '1.19.0', build: '88' }), null);
+  assert.equal(
+    tryCompareReleases({ version: '1.19.0', build: '90' }, { version: '1.19.0', build: '88' }),
+    1,
+  );
+  assert.equal(
+    tryCompareReleases({ version: '1.19.0', build: '88' }, { version: '1.19.0', build: '88' }),
+    0,
+  );
+  assert.equal(
+    tryCompareReleases({ version: '1.19.0', build: null }, { version: '1.19.0', build: '88' }),
+    0,
+  );
+  assert.equal(
+    tryCompareReleases({ version: 'next', build: '1' }, { version: '1.19.0', build: '88' }),
+    null,
+  );
   assert.deepEqual(
     [
       { version: '1.19.0', build: '88' },
       { version: '1.19.0', build: '90' },
       { version: '1.20.0', build: '1' },
-    ].sort(newestReleaseFirst).map((r) => `${r.version}/${r.build}`),
+    ]
+      .sort(newestReleaseFirst)
+      .map((r) => `${r.version}/${r.build}`),
     ['1.20.0/1', '1.19.0/90', '1.19.0/88'],
   );
 });
 
 test('isCreatableVersion: one to three whole numbers, what the server accepts', () => {
-  for (const ok of ['1', '1.0', '10.20.30', '2.00.1']) assert.equal(isCreatableVersion(ok), true, ok);
+  for (const ok of ['1', '1.0', '10.20.30', '2.00.1'])
+    assert.equal(isCreatableVersion(ok), true, ok);
   for (const bad of ['', '1.', '.1', '1.2.3.4', '2.00.1.90', 'v1.2', '1.2-beta', ' 1.2', '1..2'])
     assert.equal(isCreatableVersion(bad), false, bad);
   // readable but not creatable: the two sets are deliberately different

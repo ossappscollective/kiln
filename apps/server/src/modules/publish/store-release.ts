@@ -16,11 +16,11 @@ import {
 } from '@kiln/connectors';
 import {
   byFamily,
+  STORE_CALL_CLAIM_TTL_MS as DEFAULT_RELEASE_CLAIM_TTL_MS,
   needsStoreAppId,
   normalizeReleaseValue,
-  type Platform,
-  STORE_CALL_CLAIM_TTL_MS as DEFAULT_RELEASE_CLAIM_TTL_MS,
   STORE_CALL_CLAIM_TTL_MS as OTHER_CLAIM_TTL_MS,
+  type Platform,
   supports,
   versionCodesOf,
 } from '@kiln/core';

@@ -11,7 +11,12 @@ import type { ReadinessFact, ReadinessReading } from './blockers.ts';
 /** `READINESS_FRESH_MS` of `@kiln/core`'s timings: derived from the server's own TTL for the same reading. */
 export const READING_FRESH_MS = READINESS_FRESH_MS;
 
-type Entry = { reading: ReadinessReading | null; error: string | null; at: number; checking: number };
+type Entry = {
+  reading: ReadinessReading | null;
+  error: string | null;
+  at: number;
+  checking: number;
+};
 
 let version = $state(0);
 const entries = new Map<string, Entry>();
@@ -23,7 +28,9 @@ export const readinessStore = {
   of(workspaceId: string, appId: string): ReadinessFact | null {
     void version;
     const e = entries.get(keyOf(workspaceId, appId));
-    return e === undefined ? null : { reading: e.reading, checking: e.checking > 0, error: e.error };
+    return e === undefined
+      ? null
+      : { reading: e.reading, checking: e.checking > 0, error: e.error };
   },
 
   /**
@@ -49,7 +56,13 @@ export const readinessStore = {
     if (!fresh && kept !== undefined && current && now - kept.at < READING_FRESH_MS)
       return Promise.resolve();
     // A reading of this app that failed is not repeated inside the same 30 seconds.
-    if (!fresh && kept !== undefined && kept.reading === null && kept.error !== null && now - kept.at < READING_FRESH_MS)
+    if (
+      !fresh &&
+      kept !== undefined &&
+      kept.reading === null &&
+      kept.error !== null &&
+      now - kept.at < READING_FRESH_MS
+    )
       return Promise.resolve();
     const running = inFlight.get(key);
     if (running !== undefined && !fresh) return running;

@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { allDisagreements, diffExpected, type ExpectedFile, summaryTable } from './consistency-report.ts';
+import {
+  allDisagreements,
+  diffExpected,
+  type ExpectedFile,
+  summaryTable,
+} from './consistency-report.ts';
 import { SCENARIOS } from './consistency-world.ts';
 import { disagreementsOf, FACTS, familyOf, SURFACES, type Surface } from './projections.ts';
 
@@ -52,7 +57,10 @@ test('every projected fact key belongs to a registered fact family', () => {
     const w = (SCENARIOS[name] as () => never)();
     for (const s of SURFACES)
       for (const key of Object.keys(s.project(w)))
-        assert.ok(FACTS[familyOf(key)] !== undefined, `${s.id} shows fact ${key}: register its family in FACTS (projections.ts)`);
+        assert.ok(
+          FACTS[familyOf(key)] !== undefined,
+          `${s.id} shows fact ${key}: register its family in FACTS (projections.ts)`,
+        );
   }
 });
 
@@ -68,7 +76,11 @@ test('every surface shows something in some scenario, and every scenario is proj
     }
     assert.ok(any >= 5, `scenario ${name}: only ${any} surfaces show a fact`);
   }
-  for (const s of SURFACES) assert.ok((shows.get(s.id) ?? 0) > 0, `surface ${s.id} never shows a fact: its projection is dead`);
+  for (const s of SURFACES)
+    assert.ok(
+      (shows.get(s.id) ?? 0) > 0,
+      `surface ${s.id} never shows a fact: its projection is dead`,
+    );
 });
 
 test('the control scenario ("quiet") has no disagreement: the harness itself is sound', () => {
@@ -78,7 +90,8 @@ test('the control scenario ("quiet") has no disagreement: the harness itself is 
 test('no NEW disagreement between two surfaces (not in consistency.expected.json)', () => {
   const diff = diffExpected(current, expected);
   const lines = diff.added.map(
-    (d) => `  ${d.scenario} :: ${d.factKey}\n${d.shown.map((s) => `      ${s.surface} shows ${JSON.stringify(s.value)}`).join('\n')}\n      logic: ${d.mirrors.join(' | ')}`,
+    (d) =>
+      `  ${d.scenario} :: ${d.factKey}\n${d.shown.map((s) => `      ${s.surface} shows ${JSON.stringify(s.value)}`).join('\n')}\n      logic: ${d.mirrors.join(' | ')}`,
   );
   assert.equal(
     lines.length,
@@ -95,7 +108,10 @@ test('every expected disagreement still disagrees (the list only shrinks)', () =
     'these disagreements are fixed (good!). Remove them: node --import ./src/lib/i18n/test-setup.ts scripts/consistency/cli.ts --prune',
   );
   assert.deepEqual(
-    diff.changed.map((c) => `${c.entry.scenario} :: ${c.entry.factKey}: listed ${c.entry.surfaces.join(', ')}; now ${c.now.surfaces.join(', ')}`),
+    diff.changed.map(
+      (c) =>
+        `${c.entry.scenario} :: ${c.entry.factKey}: listed ${c.entry.surfaces.join(', ')}; now ${c.now.surfaces.join(', ')}`,
+    ),
     [],
     'the surfaces of these disagreements changed: update the list (--prune)',
   );
@@ -104,8 +120,14 @@ test('every expected disagreement still disagrees (the list only shrinks)', () =
 test('every expected entry names a known scenario, a domain and where the logic lives', () => {
   for (const e of expected.entries) {
     assert.ok(e.scenario in SCENARIOS, `unknown scenario ${e.scenario}`);
-    assert.ok(['state', 'releases', 'images', 'listing'].includes(e.domain), `bad domain ${e.domain}`);
-    assert.ok(e.mirrors.length > 0 && e.surfaces.length >= 2, `${e.scenario} :: ${e.factKey} is incomplete`);
+    assert.ok(
+      ['state', 'releases', 'images', 'listing'].includes(e.domain),
+      `bad domain ${e.domain}`,
+    );
+    assert.ok(
+      e.mirrors.length > 0 && e.surfaces.length >= 2,
+      `${e.scenario} :: ${e.factKey} is incomplete`,
+    );
   }
 });
 
@@ -126,23 +148,54 @@ const surface = (id: string, facts: Record<string, string | number | null>): Sur
 
 test('a fact shown by two surfaces with different values is a disagreement; one surface alone, or equal values, is not', () => {
   const w = (SCENARIOS.quiet as () => never)();
-  assert.equal(disagreementsOf(w, [surface('a', { pendingCount: 3 }), surface('b', { pendingCount: 3 })]).length, 0);
+  assert.equal(
+    disagreementsOf(w, [surface('a', { pendingCount: 3 }), surface('b', { pendingCount: 3 })])
+      .length,
+    0,
+  );
   assert.equal(disagreementsOf(w, [surface('a', { pendingCount: 3 })]).length, 0);
-  assert.equal(disagreementsOf(w, [surface('a', { pendingCount: 3 }), surface('b', { stagedItems: 4 })]).length, 0);
-  const d = disagreementsOf(w, [surface('a', { pendingCount: 3 }), surface('b', { pendingCount: 4 }), surface('c', { pendingCount: 3 })]);
+  assert.equal(
+    disagreementsOf(w, [surface('a', { pendingCount: 3 }), surface('b', { stagedItems: 4 })])
+      .length,
+    0,
+  );
+  const d = disagreementsOf(w, [
+    surface('a', { pendingCount: 3 }),
+    surface('b', { pendingCount: 4 }),
+    surface('c', { pendingCount: 3 }),
+  ]);
   assert.equal(d.length, 1);
   assert.deepEqual(d[0]?.surfaces, ['a', 'b', 'c']);
   assert.equal(d[0]?.domain, 'state');
   // a list is compared as a set
-  assert.equal(disagreementsOf(w, [surface('a', { 'localeList:x': ['b', 'a'] as never }), surface('b', { 'localeList:x': ['a', 'b'] as never })]).length, 0);
+  assert.equal(
+    disagreementsOf(w, [
+      surface('a', { 'localeList:x': ['b', 'a'] as never }),
+      surface('b', { 'localeList:x': ['a', 'b'] as never }),
+    ]).length,
+    0,
+  );
 });
 
 test('the expected list fails on a new disagreement, on one that stopped, and on a changed set of surfaces', () => {
   const w = (SCENARIOS.quiet as () => never)();
-  const now = disagreementsOf(w, [surface('a', { pendingCount: 3 }), surface('b', { pendingCount: 4 })]);
-  const entry = { scenario: now[0]?.scenario ?? '', factKey: 'pendingCount', domain: 'state' as const, surfaces: ['a', 'b'], mirrors: ['x.ts:1'], note: '' };
+  const now = disagreementsOf(w, [
+    surface('a', { pendingCount: 3 }),
+    surface('b', { pendingCount: 4 }),
+  ]);
+  const entry = {
+    scenario: now[0]?.scenario ?? '',
+    factKey: 'pendingCount',
+    domain: 'state' as const,
+    surfaces: ['a', 'b'],
+    mirrors: ['x.ts:1'],
+    note: '',
+  };
   assert.deepEqual(diffExpected(now, { entries: [entry] }), { added: [], fixed: [], changed: [] });
   assert.equal(diffExpected(now, { entries: [] }).added.length, 1);
   assert.equal(diffExpected([], { entries: [entry] }).fixed.length, 1);
-  assert.equal(diffExpected(now, { entries: [{ ...entry, surfaces: ['a', 'b', 'c'] }] }).changed.length, 1);
+  assert.equal(
+    diffExpected(now, { entries: [{ ...entry, surfaces: ['a', 'b', 'c'] }] }).changed.length,
+    1,
+  );
 });

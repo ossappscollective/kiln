@@ -73,20 +73,20 @@ used as one (Google Play gives none).
 says whether it can be chosen for the draft now, `severity` is `ok`, `warning` (it can be chosen, read the message) or `blocked`,
 `code` is a machine reason and `message` a plain sentence built from build numbers, versions and states only. Codes:
 
-| `code`                      | `severity`              | Meaning                                                                                                         |
-| --------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `ok`                        | `ok`                    | Processed, not expired, belongs to the version being prepared (Google Play: not in a release of the track yet). |
-| `processing`                | `blocked`               | Apple is still processing the build.                                                                            |
-| `failed`, `invalid`         | `blocked`               | Apple could not process it / marked it invalid: upload a new build.                                             |
-| `state_unknown`             | `blocked`               | Apple did not say, or said a state this server does not know.                                                   |
-| `expired`                   | `blocked`               | The build expired. Wins over the processing state.                                                              |
-| `wrong_version`             | `warning`               | The build was made as another marketing version than the name of the version being prepared. It can be chosen.  |
-| `no_editable_version`       | `blocked`               | The build is processed but no version is in "Prepare for Submission".                                           |
-| `already_attached`          | `ok` (`eligible` false) | It is the build of the version already.                                                                         |
-| `export_compliance_missing` | `warning`               | Apple holds no export compliance answer for it; it can be chosen, App Store Connect may ask later.              |
-| `already_in_draft`          | `ok` (`eligible` false) | Google Play: the draft release of the track holds the code already.                                             |
-| `already_live`              | `blocked`               | Google Play: a release of the track that is live or rolling out holds the code.                                 |
-| `in_flight`                 | `blocked`               | App Store: a version that is in review or waiting to be released already uses the build. Upload a new build.    |
+| `code`                      | `severity`              | Meaning                                                                                                                 |
+| --------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `ok`                        | `ok`                    | Processed, not expired, belongs to the version being prepared (Google Play: not in a release of the track yet).         |
+| `processing`                | `blocked`               | Apple is still processing the build.                                                                                    |
+| `failed`, `invalid`         | `blocked`               | Apple could not process it / marked it invalid: upload a new build.                                                     |
+| `state_unknown`             | `blocked`               | Apple did not say, or said a state this server does not know.                                                           |
+| `expired`                   | `blocked`               | The build expired. Wins over the processing state.                                                                      |
+| `wrong_version`             | `warning`               | The build was made as another marketing version than the name of the version being prepared. It can be chosen.          |
+| `no_editable_version`       | `blocked`               | The build is processed but no version is in "Prepare for Submission".                                                   |
+| `already_attached`          | `ok` (`eligible` false) | It is the build of the version already.                                                                                 |
+| `export_compliance_missing` | `warning`               | Apple holds no export compliance answer for it; it can be chosen, App Store Connect may ask later.                      |
+| `already_in_draft`          | `ok` (`eligible` false) | Google Play: the draft release of the track holds the code already.                                                     |
+| `already_live`              | `blocked`               | Google Play: a release of the track that is live or rolling out holds the code.                                         |
+| `in_flight`                 | `blocked`               | App Store: a version that is in review or waiting to be released already uses the build. Upload a new build.            |
 | `older_than_live`           | `warning`               | App Store: the build is not newer than what is live (a lower version, or the live version with no higher build number). |
 
 **Can the version be created? (App Store)** Every build with a marketing version also has `create: { version, creatable, refusal,

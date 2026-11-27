@@ -1,3 +1,4 @@
+import { limitOf } from '../images/limits.ts';
 import {
   byFamily,
   isDesktop,
@@ -7,7 +8,6 @@ import {
   supports,
 } from '../platform.ts';
 import type { ReleaseFieldId, StagedReleaseFieldView } from '../release/release-fields.ts';
-import { limitOf } from '../images/limits.ts';
 import {
   ASSET_KIND_LABELS,
   ASSET_RULES,

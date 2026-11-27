@@ -1,4 +1,4 @@
-import { type Role, type StagedChangesView, slotKey, type StoreImagesView } from '@kiln/core';
+import { type Role, type StagedChangesView, type StoreImagesView, slotKey } from '@kiln/core';
 import type { PlatformScope } from '../app-scope.ts';
 import type { CartSummary } from '../cart-summary.ts';
 import type {
@@ -15,15 +15,7 @@ import type { AppBuild, AppSummary, ReleaseSummary } from '../types.ts';
 import type { ReadinessFact } from './blockers.ts';
 import type { StoreBuildFact } from './candidates.ts';
 import { assembleFacts } from './facts.ts';
-import {
-  ANDROID,
-  blockedRun,
-  IOS,
-  iosPipeline,
-  iosRelease,
-  NOW,
-  testflight,
-} from './fixtures.ts';
+import { ANDROID, blockedRun, IOS, iosPipeline, iosRelease, NOW, testflight } from './fixtures.ts';
 import type { AppFacts } from './types.ts';
 
 /**
@@ -115,7 +107,8 @@ export type World = {
 export const emptyStaged = (): StagedRows => ({ text: [], assets: [], release: [] });
 
 /** The id of a staged graphic set (`en-US/screenshot:ipad_13`), as the server names it. */
-export const setId = (locale: string, device: string): string => `${locale}/${slotKey({ kind: 'screenshot', device })}`;
+export const setId = (locale: string, device: string): string =>
+  `${locale}/${slotKey({ kind: 'screenshot', device })}`;
 
 /** A quiet product: both records synced, nothing staged, nothing running, nothing left unfinished. */
 export function baseWorld(over: Partial<World> = {}): World {
@@ -156,7 +149,8 @@ export function baseWorld(over: Partial<World> = {}): World {
 // ---------------------------------------------------------------------------------------------
 // The server's definitions of "pending", derived from the staged rows
 
-const unpushedTexts = (s: StagedRows) => s.text.filter((t) => !t.pushed && t.status !== 'unchanged');
+const unpushedTexts = (s: StagedRows) =>
+  s.text.filter((t) => !t.pushed && t.status !== 'unchanged');
 const unpushedAssets = (s: StagedRows) => s.assets.filter((a) => !a.pushed);
 const unpushedRelease = (s: StagedRows) => s.release.filter((r) => !r.pushed && !r.localOnly);
 
@@ -178,7 +172,11 @@ export function cartSummaryOf(w: World): CartSummary {
       count,
       kinds: {} as Record<string, number | undefined>,
     }));
-  return { apps, totals: { apps: apps.length, count: apps.reduce((n, a) => n + a.count, 0) }, generatedAt: w.now };
+  return {
+    apps,
+    totals: { apps: apps.length, count: apps.reduce((n, a) => n + a.count, 0) },
+    generatedAt: w.now,
+  };
 }
 
 const storeOf = (r: AppSummary) => (r.platform === 'android' ? 'googleplay' : 'appstoreconnect');
@@ -199,7 +197,11 @@ export function pendingItemsOf(w: World, appId: string): PendingItem[] {
       state: texts.some((t) => t.status === 'invalid') ? 'invalid' : 'staged',
       problems: texts
         .filter((t) => t.status === 'invalid')
-        .map((t) => ({ severity: 'error', message: `${t.locale}/${t.field}`, code: 'invalid' })) as PendingItem['problems'],
+        .map((t) => ({
+          severity: 'error',
+          message: `${t.locale}/${t.field}`,
+          code: 'invalid',
+        })) as PendingItem['problems'],
       nextStep: 'push_draft',
       counts: { changes: texts.length, locales: new Set(texts.map((t) => t.locale)).size },
       refs: texts.map((t) => ({ id: t.id, locale: t.locale, field: t.field })),
@@ -284,7 +286,12 @@ export function pendingSummaryOf(w: World): PendingSummary {
     apps.push({
       appId: r.id,
       id: r.id,
-      app: { id: r.id, name: r.name, platform: r.platform, store: storeOf(r) } as PendingSummaryApp['app'],
+      app: {
+        id: r.id,
+        name: r.name,
+        platform: r.platform,
+        store: storeOf(r),
+      } as PendingSummaryApp['app'],
       count: cartItemCount(w, r.id),
       stagedUnpushed: cartItemCount(w, r.id),
       awaitingSubmit: items.filter((i) => i.kind === 'pushed_draft').length,
@@ -299,7 +306,11 @@ export function pendingSummaryOf(w: World): PendingSummary {
   }
   return {
     apps,
-    totals: { apps: apps.length, count: apps.reduce((n, a) => n + a.count, 0), blocking: apps.reduce((n, a) => n + a.blocking, 0) },
+    totals: {
+      apps: apps.length,
+      count: apps.reduce((n, a) => n + a.count, 0),
+      blocking: apps.reduce((n, a) => n + a.blocking, 0),
+    },
     generatedAt: w.now,
   };
 }
@@ -310,8 +321,15 @@ export function pendingViewOf(w: World, appId: string): PendingView {
   const items = pendingItemsOf(w, appId);
   const totals = totalsOf(items);
   return {
-    app: { id: rec.id, name: rec.name, platform: rec.platform, store: storeOf(rec) } as PendingView['app'],
-    platforms: [{ platform: rec.platform, store: storeOf(rec), items, totals }] as PendingView['platforms'],
+    app: {
+      id: rec.id,
+      name: rec.name,
+      platform: rec.platform,
+      store: storeOf(rec),
+    } as PendingView['app'],
+    platforms: [
+      { platform: rec.platform, store: storeOf(rec), items, totals },
+    ] as PendingView['platforms'],
     totals: {
       ...totals,
       count: cartItemCount(w, appId),
@@ -381,7 +399,15 @@ export function stagedViewOf(w: World, appId: string): StagedChangesView {
       createdAt: NOW,
       updatedAt: NOW,
     })),
-    totals: { text: s.text.length, assetSets: s.assets.length, assetFiles: 0, errors: 0, warnings: 0, changed: 0, release: s.release.length },
+    totals: {
+      text: s.text.length,
+      assetSets: s.assets.length,
+      assetFiles: 0,
+      errors: 0,
+      warnings: 0,
+      changed: 0,
+      release: s.release.length,
+    },
     valid: true,
     release: s.release.map((r) => ({
       id: r.id,
@@ -478,7 +504,11 @@ const stall = (version: string): NonNullable<PipelineSummaryApp['stalled']> => (
 const summaryOf = (apps: PipelineSummaryApp[]): PipelineSummary => ({
   stalledAfterHours: 48,
   apps,
-  totals: { apps: apps.length, stalled: apps.filter((a) => a.stalled !== null).length, byState: {} },
+  totals: {
+    apps: apps.length,
+    stalled: apps.filter((a) => a.stalled !== null).length,
+    byState: {},
+  },
   generatedAt: NOW,
 });
 
@@ -510,13 +540,28 @@ function iosPhasedObsolete(): World {
   );
   return baseWorld({
     name: 'ios-phased-obsolete-testflight',
-    about: 'iOS 1.19.0 phased (rolling out), obsolete draft 1.11.6 in Prepare for Submission, TestFlight 2.00.1 build 95',
+    about:
+      'iOS 1.19.0 phased (rolling out), obsolete draft 1.11.6 in Prepare for Submission, TestFlight 2.00.1 build 95',
     scope: 'ios',
     records: [IOS],
     releases: {
       [IOS.id]: [
-        iosRelease({ id: 'rel-1.19.0', version: '1.19.0', build: '88', status: 'rolling_out', rawState: 'READY_FOR_SALE', rolloutFraction: 0.2 }),
-        iosRelease({ id: 'rel-1.11.6', version: '1.11.6', build: null, status: 'draft', rawState: 'PREPARE_FOR_SUBMISSION', storeUpdatedAt: null }),
+        iosRelease({
+          id: 'rel-1.19.0',
+          version: '1.19.0',
+          build: '88',
+          status: 'rolling_out',
+          rawState: 'READY_FOR_SALE',
+          rolloutFraction: 0.2,
+        }),
+        iosRelease({
+          id: 'rel-1.11.6',
+          version: '1.11.6',
+          build: null,
+          status: 'draft',
+          rawState: 'PREPARE_FOR_SUBMISSION',
+          storeUpdatedAt: null,
+        }),
       ],
     },
     storeBuilds: { [IOS.id]: builds },
@@ -556,7 +601,20 @@ function ipadSiblings(primary: number, legacy: number, removal = false): World {
     releases: { [IOS.id]: [iosRelease()] },
     staged: {
       [IOS.id]: removal
-        ? { text: [], assets: [{ id: setId('en-US', 'ipad_13'), locale: 'en-US', device: 'ipad_13', pushed: false, files: total - 1, cleared: false }], release: [] }
+        ? {
+            text: [],
+            assets: [
+              {
+                id: setId('en-US', 'ipad_13'),
+                locale: 'en-US',
+                device: 'ipad_13',
+                pushed: false,
+                files: total - 1,
+                cleared: false,
+              },
+            ],
+            release: [],
+          }
         : emptyStaged(),
     },
     images: {
@@ -572,18 +630,34 @@ function ipadSiblings(primary: number, legacy: number, removal = false): World {
 function stagedRemovalPushed(): World {
   return baseWorld({
     name: 'staged-removal-already-pushed',
-    about: 'a staged removal of an iPad set and one text are already written to the draft (pushed); the draft is not submitted',
+    about:
+      'a staged removal of an iPad set and one text are already written to the draft (pushed); the draft is not submitted',
     scope: 'ios',
     records: [IOS],
     staged: {
       [IOS.id]: {
-        text: [{ id: 't1', locale: 'en-US', field: 'description', pushed: true, status: 'changed' }],
-        assets: [{ id: setId('en-US', 'ipad_13'), locale: 'en-US', device: 'ipad_13', pushed: true, files: 0, cleared: true }],
+        text: [
+          { id: 't1', locale: 'en-US', field: 'description', pushed: true, status: 'changed' },
+        ],
+        assets: [
+          {
+            id: setId('en-US', 'ipad_13'),
+            locale: 'en-US',
+            device: 'ipad_13',
+            pushed: true,
+            files: 0,
+            cleared: true,
+          },
+        ],
         release: [],
       },
     },
     pushedDraft: { [IOS.id]: true },
-    images: { [IOS.id]: [{ locale: 'en-US', device: 'ipad_13', target: 'APP_IPAD_PRO_3GEN_129', count: 10 }] },
+    images: {
+      [IOS.id]: [
+        { locale: 'en-US', device: 'ipad_13', target: 'APP_IPAD_PRO_3GEN_129', count: 10 },
+      ],
+    },
   });
 }
 
@@ -592,14 +666,21 @@ function staleBlockersResolved(): World {
   const run = blockedRun('ios');
   return baseWorld({
     name: 'failed-run-stale-blockers-resolved',
-    about: 'the last publish pushed the draft and its submit was blocked (2 blockers); a newer reading of the store says nothing blocks it now',
+    about:
+      'the last publish pushed the draft and its submit was blocked (2 blockers); a newer reading of the store says nothing blocks it now',
     scope: 'ios',
     records: [IOS],
     pushedDraft: { [IOS.id]: true },
     lastRun: { [IOS.id]: run },
     readiness: {
       [IOS.id]: {
-        reading: { ready: true, blockers: [], unknown: [], versionString: '1.19.0', storeReadAt: run.finishedAt + 120_000 },
+        reading: {
+          ready: true,
+          blockers: [],
+          unknown: [],
+          versionString: '1.19.0',
+          storeReadAt: run.finishedAt + 120_000,
+        },
         checking: false,
         error: null,
       },
@@ -626,14 +707,21 @@ function playDraftReviewPromotion(): World {
   });
   return baseWorld({
     name: 'play-draft-review-promotion',
-    about: 'Play: production 2.8.0 live (code 160), draft 2.10.0 (code 170), 2.9.0 in review (code 168), 2.9.0 in internal testing (code 167, promotable)',
+    about:
+      'Play: production 2.8.0 live (code 160), draft 2.10.0 (code 170), 2.9.0 in review (code 168), 2.9.0 in internal testing (code 167, promotable)',
     scope: 'android',
     records: [ANDROID],
     releases: {
       [ANDROID.id]: [
         play({ version: '2.8.0', status: 'live', versionCodes: ['160'] }),
         play({ version: '2.10.0', status: 'draft', rawState: 'draft', versionCodes: ['170'] }),
-        play({ version: '2.9.0', status: 'in_review', rawState: 'inProgress', versionCodes: ['168'], sentForReviewAt: NOW - 3_600_000 }),
+        play({
+          version: '2.9.0',
+          status: 'in_review',
+          rawState: 'inProgress',
+          versionCodes: ['168'],
+          sentForReviewAt: NOW - 3_600_000,
+        }),
         play({ version: '2.9.0', track: 'internal', status: 'live', versionCodes: ['167'] }),
       ],
     },
@@ -645,7 +733,8 @@ function playDraftReviewPromotion(): World {
 function localesFrZh(): World {
   return baseWorld({
     name: 'locales-fr-empty-zh',
-    about: 'iOS: live en-US + zh-Hans, the draft adds an empty fr-FR; Android: en-US + zh-CN (the same Chinese, two codes)',
+    about:
+      'iOS: live en-US + zh-Hans, the draft adds an empty fr-FR; Android: en-US + zh-CN (the same Chinese, two codes)',
     scope: 'both',
     listing: {
       [IOS.id]: [
@@ -661,7 +750,8 @@ function localesFrZh(): World {
 function pendingCartVsView(): World {
   return baseWorld({
     name: 'pending-cart-vs-view',
-    about: '3 staged texts (2 locales) + 1 staged set + 1 release field + a pushed draft + a version in review: the cart counts rows, the view counts items',
+    about:
+      '3 staged texts (2 locales) + 1 staged set + 1 release field + a pushed draft + a version in review: the cart counts rows, the view counts items',
     scope: 'ios',
     records: [IOS],
     staged: {
@@ -671,8 +761,19 @@ function pendingCartVsView(): World {
           { id: 't2', locale: 'en-US', field: 'keywords', pushed: false, status: 'changed' },
           { id: 't3', locale: 'fr-FR', field: 'description', pushed: false, status: 'changed' },
         ],
-        assets: [{ id: setId('en-US', 'iphone_6_9'), locale: 'en-US', device: 'iphone_6_9', pushed: false, files: 5, cleared: false }],
-        release: [{ id: 'r1', field: 'whats_new', locale: 'en-US', pushed: false, localOnly: false }],
+        assets: [
+          {
+            id: setId('en-US', 'iphone_6_9'),
+            locale: 'en-US',
+            device: 'iphone_6_9',
+            pushed: false,
+            files: 5,
+            cleared: false,
+          },
+        ],
+        release: [
+          { id: 'r1', field: 'whats_new', locale: 'en-US', pushed: false, localOnly: false },
+        ],
       },
     },
     pushedDraft: { [IOS.id]: true },
@@ -687,7 +788,8 @@ function notesFivePlaces(): World {
   const long = emojiNote(510);
   return baseWorld({
     name: 'release-notes-five-places',
-    about: 'Play notes: en-US in the store (480 characters, 510 UTF-16 units), fr-FR staged; the plan has en-US only and an empty fr-FR',
+    about:
+      'Play notes: en-US in the store (480 characters, 510 UTF-16 units), fr-FR staged; the plan has en-US only and an empty fr-FR',
     scope: 'android',
     records: [ANDROID],
     notes: {
@@ -697,7 +799,11 @@ function notesFivePlaces(): World {
         plan: { 'en-US': long, 'fr-FR': '' },
       },
     },
-    listing: { [ANDROID.id]: [{ channel: 'editable', locales: ['en-US', 'fr-FR'], defaultLanguage: 'en-US' }] },
+    listing: {
+      [ANDROID.id]: [
+        { channel: 'editable', locales: ['en-US', 'fr-FR'], defaultLanguage: 'en-US' },
+      ],
+    },
   });
 }
 

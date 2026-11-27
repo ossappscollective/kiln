@@ -1,7 +1,7 @@
 import type { Platform } from '@kiln/core';
-import type { OriginFields } from './build-origin.ts';
 import { platformSupports, supports } from '@kiln/core';
 import { appAddress } from './app-scope.ts';
+import type { OriginFields } from './build-origin.ts';
 import {
   type EasBuildView,
   easBuildDetail,
@@ -991,7 +991,6 @@ export const testBuildsHref = (
 /** Seconds left of a link, never negative. */
 export const secondsLeft = (expiresAt: number, now: number): number =>
   Math.max(0, Math.ceil((expiresAt - now) / 1000));
-
 
 // ---------------------------------------------------------------------------------------------
 // Share to device: Google Play internal app sharing (docs/api/internal-sharing.md, docs/adr/0020-play-internal-sharing.md)

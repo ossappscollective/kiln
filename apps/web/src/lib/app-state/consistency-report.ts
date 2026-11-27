@@ -1,5 +1,11 @@
-import { type Disagreement, type Domain, disagreementsOf, type Surface, SURFACES } from './projections.ts';
 import { SCENARIOS } from './consistency-world.ts';
+import {
+  type Disagreement,
+  type Domain,
+  disagreementsOf,
+  SURFACES,
+  type Surface,
+} from './projections.ts';
 
 /**
  * The expected disagreements and the burn-down table of the consistency harness (docs/state-model.md, "Consistency contract").
@@ -21,10 +27,13 @@ export type ExpectedEntry = {
 };
 export type ExpectedFile = { $comment?: string; entries: ExpectedEntry[] };
 
-export const keyOfEntry = (e: { scenario: string; factKey: string }) => `${e.scenario}\u0000${e.factKey}`;
+export const keyOfEntry = (e: { scenario: string; factKey: string }) =>
+  `${e.scenario}\u0000${e.factKey}`;
 
 export function allDisagreements(surfaces: readonly Surface[] = SURFACES): Disagreement[] {
-  return Object.keys(SCENARIOS).flatMap((name) => disagreementsOf((SCENARIOS[name] as () => never)(), surfaces));
+  return Object.keys(SCENARIOS).flatMap((name) =>
+    disagreementsOf((SCENARIOS[name] as () => never)(), surfaces),
+  );
 }
 
 export type Diff = {
@@ -44,12 +53,17 @@ export function diffExpected(current: readonly Disagreement[], expected: Expecte
   const changed: Diff['changed'] = [];
   for (const e of expected.entries) {
     const d = have.get(keyOfEntry(e));
-    if (d !== undefined && JSON.stringify(d.surfaces) !== JSON.stringify([...e.surfaces].sort())) changed.push({ entry: e, now: d });
+    if (d !== undefined && JSON.stringify(d.surfaces) !== JSON.stringify([...e.surfaces].sort()))
+      changed.push({ entry: e, now: d });
   }
   return { added, fixed, changed };
 }
 
-export function nextExpected(current: readonly Disagreement[], expected: ExpectedFile, mode: 'prune' | 'regenerate'): ExpectedFile {
+export function nextExpected(
+  current: readonly Disagreement[],
+  expected: ExpectedFile,
+  mode: 'prune' | 'regenerate',
+): ExpectedFile {
   const old = new Map(expected.entries.map((e) => [keyOfEntry(e), e]));
   const entries: ExpectedEntry[] = [];
   for (const d of current) {
@@ -68,7 +82,8 @@ export function nextExpected(current: readonly Disagreement[], expected: Expecte
 }
 
 export function serializeExpected(file: ExpectedFile): string {
-  const head = file.$comment !== undefined ? `  "$comment": ${JSON.stringify(file.$comment)},\n` : '';
+  const head =
+    file.$comment !== undefined ? `  "$comment": ${JSON.stringify(file.$comment)},\n` : '';
   const rows = file.entries.map((e) => `    ${JSON.stringify(e)}`).join(',\n');
   return `{\n${head}  "entries": [\n${rows}\n  ]\n}\n`;
 }
@@ -77,7 +92,9 @@ export function serializeExpected(file: ExpectedFile): string {
 export function summaryTable(current: readonly Disagreement[]): string {
   const lines: string[] = [];
   const domains: Domain[] = ['state', 'releases', 'images', 'listing'];
-  lines.push(`consistency: ${current.length} disagreement(s) over ${Object.keys(SCENARIOS).length} scenarios and ${SURFACES.length} surfaces`);
+  lines.push(
+    `consistency: ${current.length} disagreement(s) over ${Object.keys(SCENARIOS).length} scenarios and ${SURFACES.length} surfaces`,
+  );
   for (const domain of domains) {
     const mine = current.filter((d) => d.domain === domain);
     lines.push(`\n[${domain}] ${mine.length}`);

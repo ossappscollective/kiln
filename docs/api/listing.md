@@ -111,7 +111,7 @@ section name there is a `422 invalid_field`).
 | `categories`   | `primaryCategory`, `secondaryCategory`, `primarySubcategoryOne/Two`, `secondarySubcategoryOne/Two` of the live app info, as the category ids (`GAMES`, `GAMES_CARD`) | **Not in the API.** None of the Play resources has an app category; it is set in Play Console only, so there is no section                                            |
 | `ageRating`    | `ageRatingDeclaration` of the app info (its answers, such as `violenceCartoonOrFantasy: "NONE"`) and the label `AppInfo.appStoreAgeRating`                           | **Not read.** None of the `edits` resources this tool reads has one (as far as the reference pages say); the content rating questionnaire is answered in Play Console |
 | `privacy`      | `privacyChoicesUrl` per locale (`appInfoLocalizations`). The privacy **policy** URL is the text field `privacy_url`                                                  | none                                                                                                                                                                  |
-| `details`      | `copyright` of the version, and `defaultLanguage`: the app's `primaryLocale` (`GET /v1/apps/{id}`)                                                                  | `edits.details`: default language, contact email and website. The contact **phone number is not read**                                                                |
+| `details`      | `copyright` of the version, and `defaultLanguage`: the app's `primaryLocale` (`GET /v1/apps/{id}`)                                                                   | `edits.details`: default language, contact email and website. The contact **phone number is not read**                                                                |
 | `media`        | screenshot sets and preview sets per locale and device type: **counts, file names and delivery states only**                                                         | `edits.images.list` per language and image type: **ids and counts only** (screenshots, icon, feature graphic, TV banner)                                              |
 | `releaseNotes` | none (`release_notes` is the text field `whatsNew`)                                                                                                                  | the release notes of the current release of each track, per language (`edits.tracks`)                                                                                 |
 
@@ -326,16 +326,32 @@ none) and `drift=0` (leaves the drift view out).
 
 ```json
 {
-  "appId": "6f1c…", "platform": "ios",
-  "readAt": 1790000000000, "error": null, "warnings": [], "schedule": { "enabled": false, "...": "as in live" },
-  "channels": [ "as in listing/live: the raw copies and their sections" ],
+  "appId": "6f1c…",
+  "platform": "ios",
+  "readAt": 1790000000000,
+  "error": null,
+  "warnings": [],
+  "schedule": { "enabled": false, "...": "as in live" },
+  "channels": ["as in listing/live: the raw copies and their sections"],
   "locales": ["de-DE", "en-US", "fr-FR"],
   "copies": {
-    "shown":    { "intent": "shown",    "codes": ["de-DE","en-US","fr-FR"], "channels": { "live": true, "editable": true }, "locales": [{ "locale": "fr-FR", "from": "editable", "held": ["editable"], "fields": {} }] },
-    "editable": { "...": "the draft a push writes into; the live copy stands in when the store has no draft" },
-    "live":     { "...": "only what users see: a locale only the draft has is absent" }
+    "shown": {
+      "intent": "shown",
+      "codes": ["de-DE", "en-US", "fr-FR"],
+      "channels": { "live": true, "editable": true },
+      "locales": [{ "locale": "fr-FR", "from": "editable", "held": ["editable"], "fields": {} }]
+    },
+    "editable": {
+      "...": "the draft a push writes into; the live copy stands in when the store has no draft"
+    },
+    "live": { "...": "only what users see: a locale only the draft has is absent" }
   },
-  "defaultLocale": { "locale": "de-DE", "declared": "de-DE", "source": "declared", "reason": "declared" },
+  "defaultLocale": {
+    "locale": "de-DE",
+    "declared": "de-DE",
+    "source": "declared",
+    "reason": "declared"
+  },
   "drift": { "...": "the answer of listing/drift, or null with drift=0" }
 }
 ```

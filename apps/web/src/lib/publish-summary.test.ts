@@ -469,12 +469,20 @@ test('the build link: the TestFlight page of the app when the Apple id is known,
 test('the build date: the origin of the store rows decides, with the server reason when there is none', () => {
   const play = { kind: 'play', platform: 'android', version: null, numbers: ['165'] } as const;
   assert.equal(buildDate(play, null), null, 'not read: nothing is said');
-  assert.deepEqual(buildDate(play, [{ platform: 'android', buildNumber: '165', uploadedAt: null }]), {
-    state: 'notProvided',
-  });
+  assert.deepEqual(
+    buildDate(play, [{ platform: 'android', buildNumber: '165', uploadedAt: null }]),
+    {
+      state: 'notProvided',
+    },
+  );
   assert.deepEqual(
     buildDate(play, [
-      { platform: 'android', buildNumber: '165', uploadedAt: null, origin: { builtAt: 7, builtFrom: 'ci' } },
+      {
+        platform: 'android',
+        buildNumber: '165',
+        uploadedAt: null,
+        origin: { builtAt: 7, builtFrom: 'ci' },
+      },
     ]),
     { state: 'known', at: 7 },
     'a code built by a CI run is dated like everywhere else',
@@ -803,7 +811,11 @@ test('the blockers of a submit that cannot run are listed once, not again under 
   const blocked = {
     availability: 'blocked',
     problems: [
-      { code: 'submit_blocked_missing_text', severity: 'error', message: 'Description is empty in fr-FR' },
+      {
+        code: 'submit_blocked_missing_text',
+        severity: 'error',
+        message: 'Description is empty in fr-FR',
+      },
       { code: 'other', severity: 'error', message: 'Other.' },
     ],
   } as PlanStep;

@@ -33,7 +33,14 @@ const SYSTEM = { type: 'system' as const, id: 'builds.auto_read' };
 /** The origin of a store build as the list returns it (flat fields of `BuildOrigin` that a person reads; the number is the row's own). */
 export type BuildOriginView = Pick<
   BuildOrigin,
-  'version' | 'builtAt' | 'origin' | 'builtFrom' | 'builtGap' | 'ciExpiredAt' | 'matchedBy' | 'firstSeenAt'
+  | 'version'
+  | 'builtAt'
+  | 'origin'
+  | 'builtFrom'
+  | 'builtGap'
+  | 'ciExpiredAt'
+  | 'matchedBy'
+  | 'firstSeenAt'
 > & { ci: BuildOrigin['ci'] | null };
 
 export type StoreBuildFact = StoreBuildItem & { origin: BuildOriginView };
@@ -105,7 +112,12 @@ export async function withBuildOrigins(
         builtAt: b.uploadedAt,
         origin: b.uploadedAt === null ? null : 'store',
         builtFrom: b.uploadedAt === null ? null : 'store',
-        builtGap: b.uploadedAt === null ? (ctx.builds.downloadEnabled ? 'not_read' : 'reads_disabled') : null,
+        builtGap:
+          b.uploadedAt === null
+            ? ctx.builds.downloadEnabled
+              ? 'not_read'
+              : 'reads_disabled'
+            : null,
         ciExpiredAt: null,
         matchedBy: null,
         firstSeenAt: null,
@@ -126,7 +138,8 @@ export async function withBuildOrigins(
         buildNumber: b.buildNumber,
         version: b.version,
         uploadedAt: b.uploadedAt,
-        firstSeenAt: sources.store.find((s) => s.buildNumber === b.buildNumber)?.firstSeenAt ?? null,
+        firstSeenAt:
+          sources.store.find((s) => s.buildNumber === b.buildNumber)?.firstSeenAt ?? null,
       })),
       {
         artifacts: sources.artifacts,

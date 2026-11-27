@@ -28,16 +28,16 @@ Body: `{ versionString, releaseType? }`. `versionString` is one to three numbers
 READS the versions of the record's platform (the macOS record reads the macOS versions) and writes nothing. A successful read
 also settles an earlier unknown outcome of a create. Returns `{ preview }`:
 
-| Field                          | Meaning                                                                                           |
-| ------------------------------ | ------------------------------------------------------------------------------------------------- |
-| `app`, `request`               | What is asked, for which record.                                                                  |
-| `live`                         | The newest version the store lists that cannot be edited (`null` when none).                      |
-| `suggested`                    | The next patch of `live` (`3.1.1` is `3.1.2`, `3.1` is `3.1.1`, `2` is `2.0.1`; `1.0` when none). |
-| `versions[]`                   | `{ versionString, state, editable }` of every version of the platform.                            |
-| `checks.blocking` / `warnings` | `{ code, message }`. A blocking check stops the create.                                           |
+| Field                          | Meaning                                                                                                                                  |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `app`, `request`               | What is asked, for which record.                                                                                                         |
+| `live`                         | The newest version the store lists that cannot be edited (`null` when none).                                                             |
+| `suggested`                    | The next patch of `live` (`3.1.1` is `3.1.2`, `3.1` is `3.1.1`, `2` is `2.0.1`; `1.0` when none).                                        |
+| `versions[]`                   | `{ versionString, state, editable }` of every version of the platform.                                                                   |
+| `checks.blocking` / `warnings` | `{ code, message }`. A blocking check stops the create.                                                                                  |
 | `reviewInformation`            | What the new version would get from the previous version's App Review Information, masked ([review-information](review-information.md)). |
-| `confirmHash`                  | A SHA-256 over the app, the request and the versions as read. `null` while anything blocks.       |
-| `reversible`, `note`           | Always `true`; and the sentence "Creates an editable draft version... Nothing is submitted."      |
+| `confirmHash`                  | A SHA-256 over the app, the request and the versions as read. `null` while anything blocks.                                              |
+| `reversible`, `note`           | Always `true`; and the sentence "Creates an editable draft version... Nothing is submitted."                                             |
 
 Blocking checks: `invalid_version`, `version_exists` (the string exists in any state), `not_higher` (not higher than `live`),
 `editable_version_exists` (a version in Prepare for Submission or a rejected state already exists: attach the build to it).

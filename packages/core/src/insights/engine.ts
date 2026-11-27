@@ -11,10 +11,10 @@
 
 import { isBigMove, type RankChange } from '../aso/aso.ts';
 import type { ListingStore } from '../listing/listing.ts';
+import { compareVersions } from '../versions/compare.ts';
 import { type CountryCount, languageCoverage } from './language-coverage.ts';
 import { type CheckLocaleText, checkListing } from './listing-checks.ts';
 import { complaintThemes, type ReviewTheme } from './review-themes.ts';
-import { compareVersions } from '../versions/compare.ts';
 
 export const INSIGHT_CATEGORIES = [
   'visibility',

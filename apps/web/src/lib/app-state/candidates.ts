@@ -1,9 +1,9 @@
 import {
-  type CandidateAnalysis as CoreAnalysis,
   type CandidateChannel,
+  type CandidateReason,
+  type CandidateAnalysis as CoreAnalysis,
   type CandidateInput as CoreInput,
   type CandidatePlan as CorePlan,
-  type CandidateReason,
   analyzeCandidates as coreAnalyzeCandidates,
   type LiveRef,
   type ObsoleteVersion,

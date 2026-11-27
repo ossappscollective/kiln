@@ -883,7 +883,10 @@ dbTest(
       'the text is done; the set whose removals did not show stays pending',
     );
     assert.equal(await t.claim(app), undefined);
-    assert.equal((await t.audit('listing.draft_push_failed'))[0]?.detail.code, 'applied_with_differences');
+    assert.equal(
+      (await t.audit('listing.draft_push_failed'))[0]?.detail.code,
+      'applied_with_differences',
+    );
     assert.equal((await t.events('listing.draft_pushed')).length, 0, 'no success was announced');
   },
 );

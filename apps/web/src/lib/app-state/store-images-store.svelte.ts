@@ -1,17 +1,28 @@
-import { type AssetDiffView, IMAGE_REF_TTL_MS, type Role, type StagedChangesView, type StoreImagesView } from '@kiln/core';
+import {
+  type AssetDiffView,
+  IMAGE_REF_TTL_MS,
+  type Role,
+  type StagedChangesView,
+  type StoreImagesView,
+} from '@kiln/core';
 import type { Api } from '../api.ts';
 import type { ProposalSummary } from '../asset-proposal-hint.ts';
 import { assetFileUrl } from '../assets/assets.ts';
 import { planFor, storeCacheKey, storeMediaCache } from '../assets/store-cache.ts';
 import { stagedBlobUrl, storeFileUrl, storeThumbUrl } from '../assets/sync.ts';
 import { settle } from '../bounded-read.ts';
-import { t } from '../i18n/t.ts';
 import { invalidate, onInvalidated, readFact, readKeys } from '../facts/invalidate.ts';
+import { t } from '../i18n/t.ts';
 import { navSignals } from '../nav-signals.svelte.ts';
 import { stagedStore } from '../staged-store.svelte.ts';
 import type { AppSummary, AssetIndex } from '../types.ts';
 import { appStateStore } from './app-state-store.svelte.ts';
-import { type DerivedImages, deriveImagesFacts, type ImagesChannel, type ImagesFacts } from './store-images.ts';
+import {
+  type DerivedImages,
+  deriveImagesFacts,
+  type ImagesChannel,
+  type ImagesFacts,
+} from './store-images.ts';
 
 /**
  * THE web store of the store's images (docs/state-model.md, "Store images"). Every surface that shows what the store holds (the Graphics
@@ -37,6 +48,7 @@ import { type DerivedImages, deriveImagesFacts, type ImagesChannel, type ImagesF
 
 export type { ImagesChannel, ImagesFacts, PullChoice } from './store-images.ts';
 export { stagedImageSetsOf } from './store-images.ts';
+
 type AppRef = Pick<AppSummary, 'id' | 'platform'>;
 
 const keyOf = (workspaceId: string, appId: string) => `${workspaceId}|${appId}`;
@@ -55,9 +67,18 @@ const channels = $state<Record<string, ImagesChannel | undefined>>({});
 onInvalidated(bump);
 
 /** The same view and staged view give the same answer, so a component that asks twice pays once. */
-const memos = new Map<string, { view: StoreImagesView | null; staged: StagedChangesView | null; facts: DerivedImages }>();
+const memos = new Map<
+  string,
+  { view: StoreImagesView | null; staged: StagedChangesView | null; facts: DerivedImages }
+>();
 
-function derive(workspaceId: string, app: AppRef, channel: ImagesChannel, view: StoreImagesView | null, staged: StagedChangesView | null): DerivedImages {
+function derive(
+  workspaceId: string,
+  app: AppRef,
+  channel: ImagesChannel,
+  view: StoreImagesView | null,
+  staged: StagedChangesView | null,
+): DerivedImages {
   const k = `${keyOf(workspaceId, app.id)}|${channel}`;
   const hit = memos.get(k);
   if (hit && hit.view === view && hit.staged === staged) return hit.facts;
@@ -83,8 +104,19 @@ function derive(workspaceId: string, app: AppRef, channel: ImagesChannel, view: 
 }
 
 // The repository's side of the Assets tab and the comparison read, kept here too: no component reads `appAssets` or `appAssetDiff`.
-type RepoEntry = { index: AssetIndex | null; loading: boolean; reloading: boolean; problem: string; generation: number };
-type DiffEntry = { diff: AssetDiffView | null; loading: boolean; problem: string; generation: number };
+type RepoEntry = {
+  index: AssetIndex | null;
+  loading: boolean;
+  reloading: boolean;
+  problem: string;
+  generation: number;
+};
+type DiffEntry = {
+  diff: AssetDiffView | null;
+  loading: boolean;
+  problem: string;
+  generation: number;
+};
 const repos = $state<Record<string, RepoEntry | undefined>>({});
 // The count of store asset changes the repository proposes for a release (the Releases list's line), per app.
 const proposalSummaries = $state<Record<string, ProposalSummary | undefined>>({});
@@ -96,13 +128,15 @@ const DIFF_EVENTS: readonly string[] = ['store_read', 'publish', 'sync', 'releas
 onInvalidated((i) => {
   if (DIFF_EVENTS.indexOf(i.event) === -1) return;
   if (i.appIds.length === 0) {
-    for (const key of Object.keys(diffs)) if (key.indexOf(`${i.workspaceId}|`) === 0) diffs[key] = undefined;
+    for (const key of Object.keys(diffs))
+      if (key.indexOf(`${i.workspaceId}|`) === 0) diffs[key] = undefined;
     return;
   }
   for (const appId of i.appIds) diffs[keyOf(i.workspaceId, appId)] = undefined;
 });
 
-const describe = (e: unknown): string => (e instanceof Error && e.message ? e.message : t('assets:store.readFailedText'));
+const describe = (e: unknown): string =>
+  e instanceof Error && e.message ? e.message : t('assets:store.readFailedText');
 
 export const storeImagesStore = {
   // ---- The store's images -------------------------------------------------------------------
@@ -136,7 +170,13 @@ export const storeImagesStore = {
     api: Api,
     workspaceId: string,
     app: AppSummary,
-    options: { fresh?: boolean; recheck?: boolean; role?: Role; channel?: ImagesChannel; now?: number } = {},
+    options: {
+      fresh?: boolean;
+      recheck?: boolean;
+      role?: Role;
+      channel?: ImagesChannel;
+      now?: number;
+    } = {},
   ): Promise<void> {
     const channel = options.channel ?? storeImagesStore.channel(workspaceId, app.id);
     const key = viewKey(workspaceId, app, channel);
@@ -151,7 +191,12 @@ export const storeImagesStore = {
       bump();
     }
     const current = storeMediaCache.get(key);
-    if (options.fresh !== true && current !== undefined && planFor({ view: current.view, at: Math.min(now, current.view.readAt) }, now) === 'show') return;
+    if (
+      options.fresh !== true &&
+      current !== undefined &&
+      planFor({ view: current.view, at: Math.min(now, current.view.readAt) }, now) === 'show'
+    )
+      return;
     entry.checking += 1;
     entry.problem = '';
     bump();
@@ -162,9 +207,19 @@ export const storeImagesStore = {
       if (options.fresh === true) {
         // "Read again" asked the store: every number kept of its images is stale (the comparison is forgotten, the view just stored is
         // kept), and what blocks a blocked submit is judged against the same fresh read.
-        void invalidate('store_read', { workspaceId, appId: app.id, keepGraphics: true, origin: 'graphics' });
+        void invalidate('store_read', {
+          workspaceId,
+          appId: app.id,
+          keepGraphics: true,
+          origin: 'graphics',
+        });
         if (options.recheck !== false)
-          void appStateStore.storeRead(api, workspaceId, app, options.role === undefined ? {} : { role: options.role });
+          void appStateStore.storeRead(
+            api,
+            workspaceId,
+            app,
+            options.role === undefined ? {} : { role: options.role },
+          );
       }
     } catch (e) {
       // What was shown stays shown (the page says that the read failed); only a first read has nothing to fall back on.
@@ -190,7 +245,10 @@ export const storeImagesStore = {
 
   // ---- The repository's graphics (the Assets tab's index) ---------------------------------------
 
-  repo(workspaceId: string, appId: string): { index: AssetIndex | null; loading: boolean; reloading: boolean; problem: string } {
+  repo(
+    workspaceId: string,
+    appId: string,
+  ): { index: AssetIndex | null; loading: boolean; reloading: boolean; problem: string } {
     const e = repos[keyOf(workspaceId, appId)];
     return e === undefined
       ? { index: null, loading: true, reloading: false, problem: '' }
@@ -198,12 +256,23 @@ export const storeImagesStore = {
   },
 
   /** Reads the index of the repository's media. Resolves with the index (null on failure: `repo()` then holds the reason). */
-  async loadRepo(api: Api, workspaceId: string, appId: string, describeError: (e: unknown) => string): Promise<AssetIndex | null> {
+  async loadRepo(
+    api: Api,
+    workspaceId: string,
+    appId: string,
+    describeError: (e: unknown) => string,
+  ): Promise<AssetIndex | null> {
     const key = keyOf(workspaceId, appId);
     const prev = repos[key];
     const mine = (prev?.generation ?? 0) + 1;
     const had = prev?.index != null;
-    repos[key] = { index: prev?.index ?? null, loading: !had, reloading: had, problem: '', generation: mine };
+    repos[key] = {
+      index: prev?.index ?? null,
+      loading: !had,
+      reloading: had,
+      problem: '',
+      generation: mine,
+    };
     try {
       const next = await api.appAssets(workspaceId, appId);
       if (repos[key]?.generation !== mine) return null;
@@ -211,7 +280,13 @@ export const storeImagesStore = {
       return next;
     } catch (e) {
       if (repos[key]?.generation !== mine) return null;
-      repos[key] = { index: prev?.index ?? null, loading: false, reloading: false, problem: describeError(e), generation: mine };
+      repos[key] = {
+        index: prev?.index ?? null,
+        loading: false,
+        reloading: false,
+        problem: describeError(e),
+        generation: mine,
+      };
       return null;
     }
   },
@@ -229,9 +304,14 @@ export const storeImagesStore = {
   // ---- The comparison of the repository with the store --------------------------------------
 
   /** The last comparison (its `readAt` is the store view's: the one read clock). Reactive. */
-  diff(workspaceId: string, appId: string): { diff: AssetDiffView | null; loading: boolean; problem: string } {
+  diff(
+    workspaceId: string,
+    appId: string,
+  ): { diff: AssetDiffView | null; loading: boolean; problem: string } {
     const e = diffs[keyOf(workspaceId, appId)];
-    return e === undefined ? { diff: null, loading: false, problem: '' } : { diff: e.diff, loading: e.loading, problem: e.problem };
+    return e === undefined
+      ? { diff: null, loading: false, problem: '' }
+      : { diff: e.diff, loading: e.loading, problem: e.problem };
   },
 
   /**
@@ -255,15 +335,24 @@ export const storeImagesStore = {
         key: readKeys.assetDiff(appId),
         ...(fresh ? { force: true } : {}),
         load: async () => {
-          const got = await settle((signal) => api.appAssetDiff(workspaceId, appId, fresh, signal), { timeoutMessage: options.timeoutMessage });
+          const got = await settle(
+            (signal) => api.appAssetDiff(workspaceId, appId, fresh, signal),
+            { timeoutMessage: options.timeoutMessage },
+          );
           if (!got.ok) throw got.error;
           return got.value;
         },
       });
-      if (diffs[key]?.generation === mine) diffs[key] = { diff: out.diff, loading: false, problem: '', generation: mine };
+      if (diffs[key]?.generation === mine)
+        diffs[key] = { diff: out.diff, loading: false, problem: '', generation: mine };
     } catch (e) {
       if (diffs[key]?.generation === mine)
-        diffs[key] = { diff: prev?.diff ?? null, loading: false, problem: options.describeError(e), generation: mine };
+        diffs[key] = {
+          diff: prev?.diff ?? null,
+          loading: false,
+          problem: options.describeError(e),
+          generation: mine,
+        };
     }
   },
 
@@ -292,7 +381,12 @@ export const storeImagesStore = {
   },
 
   /** Reads that count (the server caches it); the last read of an app wins, a failure draws nothing. */
-  async loadProposalSummary(api: Api, workspaceId: string, appId: string, hasRepository: boolean): Promise<void> {
+  async loadProposalSummary(
+    api: Api,
+    workspaceId: string,
+    appId: string,
+    hasRepository: boolean,
+  ): Promise<void> {
     const key = keyOf(workspaceId, appId);
     const mine = (proposalTokens[key] ?? 0) + 1;
     proposalTokens[key] = mine;
@@ -316,7 +410,9 @@ export const storeImagesStore = {
     release: Parameters<Api['releaseAssetProposal']>[2],
     options: { timeoutMessage: string },
   ) {
-    return settle((signal) => api.releaseAssetProposal(workspaceId, appId, release, signal), { timeoutMessage: options.timeoutMessage });
+    return settle((signal) => api.releaseAssetProposal(workspaceId, appId, release, signal), {
+      timeoutMessage: options.timeoutMessage,
+    });
   },
 
   // ---- The staged sets the images surfaces edit (the one door to the staged store for them) ------------

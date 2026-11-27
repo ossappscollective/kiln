@@ -375,18 +375,33 @@ test('splitCurrent with nothing in the table, and a table of only live history',
 
 test('a version the model says is left behind is flagged, never current, and stays in the older list', () => {
   const live = release({ id: 'live', version: '1.19.0', build: '88', status: 'live' });
-  const old = release({ id: 'old', version: '1.11.6', build: null, status: 'draft', rawState: 'PREPARE_FOR_SUBMISSION' });
+  const old = release({
+    id: 'old',
+    version: '1.11.6',
+    build: null,
+    status: 'draft',
+    rawState: 'PREPARE_FOR_SUBMISSION',
+  });
   const input = { releases: { 'ios-1': [live, old] }, plans: null, builds: {}, appIds: ['ios-1'] };
   // Without the model's word a draft is "in progress", so it is current.
   const plain = splitCurrent(buildReleaseTable(input));
-  assert.deepEqual(plain.current.map((g) => g.version), ['1.19.0', '1.11.6']);
+  assert.deepEqual(
+    plain.current.map((g) => g.version),
+    ['1.19.0', '1.11.6'],
+  );
   const flagged = buildReleaseTable({
     ...input,
     obsolete: { old: { liveVersion: '1.19.0', href: 'https://example.test', linkLabel: 'Open' } },
   });
   const split = splitCurrent(flagged);
-  assert.deepEqual(split.current.map((g) => g.version), ['1.19.0']);
-  assert.deepEqual(split.older.map((g) => g.version), ['1.11.6']);
+  assert.deepEqual(
+    split.current.map((g) => g.version),
+    ['1.19.0'],
+  );
+  assert.deepEqual(
+    split.older.map((g) => g.version),
+    ['1.11.6'],
+  );
   assert.equal(split.older[0]?.rows[0]?.obsolete?.liveVersion, '1.19.0');
   assert.equal(split.current[0]?.rows[0]?.obsolete, null);
 });

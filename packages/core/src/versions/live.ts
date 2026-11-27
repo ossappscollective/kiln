@@ -1,6 +1,11 @@
 import { type Platform, supports } from '../platform.ts';
 import type { ReleaseState } from '../release/lifecycle.ts';
-import { compareBuildNumbers, compareVersions, tryCompareReleases, tryCompareVersions } from './compare.ts';
+import {
+  compareBuildNumbers,
+  compareVersions,
+  tryCompareReleases,
+  tryCompareVersions,
+} from './compare.ts';
 import { isProductionTrack } from './tracks.ts';
 
 /**

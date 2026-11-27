@@ -130,7 +130,9 @@ test('the chip line is null while the cart is unread, and when nothing waits at 
   // A pushed draft that waits for its submit is a line of its own: never in the count, never lost.
   assert.deepEqual(
     lineOfRecords(
-      sources({ pendingSummary: summary({ [IOS.id]: { blocking: 0, waiting: 0, awaitingSubmit: 1 } }) }),
+      sources({
+        pendingSummary: summary({ [IOS.id]: { blocking: 0, waiting: 0, awaitingSubmit: 1 } }),
+      }),
       [IOS.id],
     ),
     { count: 0, blocking: 0, waiting: 0, stagedUnpushed: 0, awaitingSubmit: 1, awaitingRelease: 0 },

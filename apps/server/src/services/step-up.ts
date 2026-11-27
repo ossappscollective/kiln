@@ -1,4 +1,10 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import {
+  STEP_UP_CHALLENGE_TTL_MS as CHALLENGE_TTL_MS,
+  STEP_UP_GRANT_TTL_MS as GRANT_TTL_MS,
+  STEP_UP_LOCKOUT_MAX_MS as LOCKOUT_MAX_MS,
+  STEP_UP_MAX_PASSKEYS as MAX_PASSKEYS,
+} from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
 import type { Context } from 'hono';
 import { getCookie } from 'hono/cookie';
@@ -15,14 +21,8 @@ import {
   verifyRegistration,
   WebAuthnError,
 } from './webauthn.ts';
-import {
-  STEP_UP_CHALLENGE_TTL_MS as CHALLENGE_TTL_MS,
-  STEP_UP_GRANT_TTL_MS as GRANT_TTL_MS,
-  STEP_UP_LOCKOUT_MAX_MS as LOCKOUT_MAX_MS,
-  STEP_UP_MAX_PASSKEYS as MAX_PASSKEYS,
-} from '@kiln/core';
 
-export { GRANT_TTL_MS, MAX_PASSKEYS, CHALLENGE_TTL_MS, LOCKOUT_MAX_MS };
+export { CHALLENGE_TTL_MS, GRANT_TTL_MS, LOCKOUT_MAX_MS, MAX_PASSKEYS };
 
 /**
  * Step-up confirmation (docs/adr/0019-step-up-confirmation.md): a second, fresh proof before a hard

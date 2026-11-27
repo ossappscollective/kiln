@@ -20,6 +20,7 @@ import {
   type StoreReply,
   text,
 } from '../store-http.ts';
+import { submitImagesOf } from '../store-submit-images.ts';
 import {
   APPLE_SUBMITTED_VERSION_STATES,
   type StoreSubmitConnector,
@@ -35,7 +36,6 @@ import {
   AppStoreConnectTokenProvider,
   parseAppStoreConnectSecret,
 } from './apple-auth.ts';
-import { submitImagesOf } from '../store-submit-images.ts';
 import { AppleDraftConnector } from './appstore-draft.ts';
 import { AppleReviewDetailConnector } from './appstore-review-detail.ts';
 import { appleError } from './appstoreconnect.ts';
@@ -95,7 +95,8 @@ type VersionRow = {
 };
 
 /** The review information is missing something a check reports (so a source to copy from is worth looking for). */
-const reviewMissing = (facts: ReviewDetailFacts): boolean => evaluateReviewInformation(facts).length > 0;
+const reviewMissing = (facts: ReviewDetailFacts): boolean =>
+  evaluateReviewInformation(facts).length > 0;
 
 export class AppleSubmitConnector implements StoreSubmitConnector {
   readonly store = 'appstoreconnect' as const;
@@ -184,7 +185,9 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
     // App Review Information: presence only. Not read for a version already in review (nothing to fix), and a failed read is "not known".
     const reviewDetail = alreadySubmitted ? null : await this.#review.readFacts(version.id);
     const reviewSource =
-      reviewDetail !== null && reviewMissing(reviewDetail) ? await this.#reviewSource(version.id) : null;
+      reviewDetail !== null && reviewMissing(reviewDetail)
+        ? await this.#reviewSource(version.id)
+        : null;
     return {
       store: 'appstoreconnect',
       platform: this.platform,
@@ -202,7 +205,9 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
   }
 
   /** The previous version whose review information could be copied (its id and version string), or null (none, or not found out). */
-  async #reviewSource(targetId: string): Promise<{ id: string; versionString: string | null } | null> {
+  async #reviewSource(
+    targetId: string,
+  ): Promise<{ id: string; versionString: string | null } | null> {
     try {
       const found = await this.#review.findSource(await this.#candidates(), targetId);
       return found ? found.from : null;

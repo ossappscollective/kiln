@@ -75,9 +75,42 @@ export const groupOf = (family: KeyFamily): string => FAMILY[family].group;
 
 /** Which families an event makes old. Exhaustive: a new event or a new family is a compile error until it is placed here. */
 export const FAMILIES_FOR: Readonly<Record<InvalidationEvent, readonly KeyFamily[]>> = {
-  sync: ['pipeline', 'storeBuilds', 'editable', 'candidates', 'live', 'assetDiff', 'appBuilds', 'plans', 'notesHistory', 'testflight'],
-  publish: ['pipeline', 'storeBuilds', 'editable', 'candidates', 'live', 'assetDiff', 'appBuilds', 'plans', 'notesHistory', 'testflight'],
-  release_created: ['pipeline', 'storeBuilds', 'editable', 'candidates', 'live', 'assetDiff', 'appBuilds', 'plans', 'notesHistory', 'testflight'],
+  sync: [
+    'pipeline',
+    'storeBuilds',
+    'editable',
+    'candidates',
+    'live',
+    'assetDiff',
+    'appBuilds',
+    'plans',
+    'notesHistory',
+    'testflight',
+  ],
+  publish: [
+    'pipeline',
+    'storeBuilds',
+    'editable',
+    'candidates',
+    'live',
+    'assetDiff',
+    'appBuilds',
+    'plans',
+    'notesHistory',
+    'testflight',
+  ],
+  release_created: [
+    'pipeline',
+    'storeBuilds',
+    'editable',
+    'candidates',
+    'live',
+    'assetDiff',
+    'appBuilds',
+    'plans',
+    'notesHistory',
+    'testflight',
+  ],
   store_read: ['editable', 'candidates', 'live', 'assetDiff', 'notesHistory'],
   build_changed: ['pipeline', 'storeBuilds', 'candidates', 'appBuilds', 'testflight'],
   // The comparison of the repository with the store counts what is staged.
@@ -177,7 +210,8 @@ export async function invalidate(
   };
   for (const family of FAMILIES_FOR[event]) {
     if (appIds.length === 0) readCache.forget(scope.workspaceId, FAMILY[family].prefix);
-    else for (const id of appIds) readCache.forget(scope.workspaceId, `${FAMILY[family].prefix}${id}`);
+    else
+      for (const id of appIds) readCache.forget(scope.workspaceId, `${FAMILY[family].prefix}${id}`);
   }
   if (DROPS_GRAPHICS[event] && scope.keepGraphics !== true) {
     if (appIds.length === 0) storeMediaCache.forgetWorkspace(scope.workspaceId);
@@ -244,7 +278,8 @@ export function bindInvalidation(
   const off = onStagedChanged((d) => {
     const event = EVENT_OF[d.reason];
     // A burst of `stage`s and one `discard` is one invalidation: the reason kept is the strongest (anything but `stage` wins).
-    if (reasons.get(event) !== 'discard' && reasons.get(event) !== 'unstage') reasons.set(event, d.reason);
+    if (reasons.get(event) !== 'discard' && reasons.get(event) !== 'unstage')
+      reasons.set(event, d.reason);
     batchFor(event).add(d.appId);
   }, target);
   return () => {

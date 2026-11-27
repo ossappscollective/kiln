@@ -14,15 +14,15 @@ import {
 } from '@kiln/connectors';
 import {
   byFamily,
+  STORE_CALL_CLAIM_TTL_MS as DEFAULT_SUBMIT_CLAIM_TTL_MS,
+  STORE_CALL_CLAIM_TTL_MS as DRAFT_CLAIM_TTL_MS,
   type DraftContent,
   evaluateDraftContent,
   evaluateReviewInformation,
   needsStoreAppId,
   type Platform,
-  readinessImagesOf,
   REVIEW_CODES,
-  STORE_CALL_CLAIM_TTL_MS as DEFAULT_SUBMIT_CLAIM_TTL_MS,
-  STORE_CALL_CLAIM_TTL_MS as DRAFT_CLAIM_TTL_MS,
+  readinessImagesOf,
   STORE_SUBMIT_MAX_DIFFERS_SHOWN,
   supports,
 } from '@kiln/core';

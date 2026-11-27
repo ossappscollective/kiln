@@ -102,11 +102,14 @@ const insertClaim = (
 const interruptedRun = (runs: Awaited<ReturnType<typeof listRuns>>) =>
   runs.find((r) => r.results.some((x) => x.error === 'interrupted'));
 
-dbTest('the defaults: a heartbeat every 20 seconds, a dead process seen after 2 minutes', async () => {
-  assert.equal(DEFAULT_PUBLISH_HEARTBEAT_MS, 20_000);
-  assert.equal(DEFAULT_PUBLISH_CLAIM_TTL_MS, 120_000);
-  assert.ok(DEFAULT_PUBLISH_CLAIM_TTL_MS >= DEFAULT_PUBLISH_HEARTBEAT_MS * 3);
-});
+dbTest(
+  'the defaults: a heartbeat every 20 seconds, a dead process seen after 2 minutes',
+  async () => {
+    assert.equal(DEFAULT_PUBLISH_HEARTBEAT_MS, 20_000);
+    assert.equal(DEFAULT_PUBLISH_CLAIM_TTL_MS, 120_000);
+    assert.ok(DEFAULT_PUBLISH_CLAIM_TTL_MS >= DEFAULT_PUBLISH_HEARTBEAT_MS * 3);
+  },
+);
 
 dbTest(
   'heartbeat: renewed by a timer while one step waits for the store, never moving the step start; stopped when the batch ends',
@@ -207,35 +210,38 @@ dbTest(
   },
 );
 
-dbTest('detail: a phase that is not a known word is never written; the same phase is throttled', async (db) => {
-  const t = await boot(db);
-  const app = await stageIos(t);
-  const hold = gate();
-  t.stores.ios.gate = hold.promise;
-  t.stores.ios.progressLines = [
-    { phase: 'a token-shaped sk-secret-text' as never, done: 1, total: 2 },
-    { phase: 'uploading_images', done: 1, total: 40 },
-    { phase: 'uploading_images', done: 2, total: 40 },
-    { phase: 'uploading_images', done: 3, total: 40 },
-  ];
-  const p = (await t.plan(app)).body.plan;
-  const running = t.publish(app, {
-    planHash: p.planHash,
-    phrase: p.confirmation.phrase,
-    steps: p.publishSteps,
-  });
-  await until(() => t.stores.ios.applyCalls === 1);
-  await until(async () => (await t.claim(app))?.detail !== null);
-  const row = await t.claim(app);
-  assert.doesNotMatch(String(row?.detail), /secret/);
-  assert.equal(
-    JSON.parse(String(row?.detail)).done,
-    1,
-    'three lines in a burst: the first is kept',
-  );
-  hold.open();
-  assert.equal((await running).status, 200);
-});
+dbTest(
+  'detail: a phase that is not a known word is never written; the same phase is throttled',
+  async (db) => {
+    const t = await boot(db);
+    const app = await stageIos(t);
+    const hold = gate();
+    t.stores.ios.gate = hold.promise;
+    t.stores.ios.progressLines = [
+      { phase: 'a token-shaped sk-secret-text' as never, done: 1, total: 2 },
+      { phase: 'uploading_images', done: 1, total: 40 },
+      { phase: 'uploading_images', done: 2, total: 40 },
+      { phase: 'uploading_images', done: 3, total: 40 },
+    ];
+    const p = (await t.plan(app)).body.plan;
+    const running = t.publish(app, {
+      planHash: p.planHash,
+      phrase: p.confirmation.phrase,
+      steps: p.publishSteps,
+    });
+    await until(() => t.stores.ios.applyCalls === 1);
+    await until(async () => (await t.claim(app))?.detail !== null);
+    const row = await t.claim(app);
+    assert.doesNotMatch(String(row?.detail), /secret/);
+    assert.equal(
+      JSON.parse(String(row?.detail)).done,
+      1,
+      'three lines in a burst: the first is kept',
+    );
+    hold.open();
+    assert.equal((await running).status, 200);
+  },
+);
 
 dbTest(
   'restart: the claims of the process before are ended at start and kept as interrupted runs; this process keeps its own',
@@ -277,7 +283,10 @@ dbTest(
     assert.equal(run.results[1]?.code, 'publish.interrupted');
     // Every screen says so: not publishing, and the failure is there.
     const poll = await t.poll();
-    assert.deepEqual(poll.apps.map((a: any) => a.appId), [mine]);
+    assert.deepEqual(
+      poll.apps.map((a: any) => a.appId),
+      [mine],
+    );
     assert.equal(
       poll.lastPublish.find((x: any) => x.appId === app)?.lastPublish.results[1].error,
       'interrupted',
@@ -412,21 +421,8 @@ dbTest(
   },
 );
 
-dbTest('interrupt: a claim that has run longer than any batch should is offered even while it beats', async (db) => {
-  const t = await boot(db);
-  const app = await stageIos(t);
-  const now = Date.now();
-  await insertClaim(db, t, app, {
-    claimAt: now - 16 * 60_000,
-    heartbeatAt: now - 1000,
-    instanceId: PROCESS_ID,
-  });
-  assert.equal((await t.poll()).apps[0].publishing.interruptible, true);
-  assert.equal((await t.call(t.owner, 'POST', `/apps/${app}/publish/interrupt`)).status, 200);
-});
-
 dbTest(
-  'interrupt: a viewer cannot end a claim (it needs the right to publish)',
+  'interrupt: a claim that has run longer than any batch should is offered even while it beats',
   async (db) => {
     const t = await boot(db);
     const app = await stageIos(t);
@@ -436,11 +432,24 @@ dbTest(
       heartbeatAt: now - 1000,
       instanceId: PROCESS_ID,
     });
-    const viewer = await t.addMember('viewer');
-    assert.equal((await t.call(viewer, 'POST', `/apps/${app}/publish/interrupt`)).status, 403);
-    assert.ok(await t.claim(app));
+    assert.equal((await t.poll()).apps[0].publishing.interruptible, true);
+    assert.equal((await t.call(t.owner, 'POST', `/apps/${app}/publish/interrupt`)).status, 200);
   },
 );
+
+dbTest('interrupt: a viewer cannot end a claim (it needs the right to publish)', async (db) => {
+  const t = await boot(db);
+  const app = await stageIos(t);
+  const now = Date.now();
+  await insertClaim(db, t, app, {
+    claimAt: now - 16 * 60_000,
+    heartbeatAt: now - 1000,
+    instanceId: PROCESS_ID,
+  });
+  const viewer = await t.addMember('viewer');
+  assert.equal((await t.call(viewer, 'POST', `/apps/${app}/publish/interrupt`)).status, 403);
+  assert.ok(await t.claim(app));
+});
 
 dbTest(
   'a batch whose claim was ended by a person goes on and finishes cleanly (its writes find no claim and change nothing)',

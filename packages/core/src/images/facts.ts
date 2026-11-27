@@ -152,7 +152,14 @@ export function measuredPathsOf(view: Pick<StoreImagesView, 'sets'>): Set<string
   for (const set of view.sets) {
     for (const f of set.files) {
       if (f.sizeFrom === 'header')
-        measured.add(imagePathOf({ locale: set.locale, kind: set.kind, device: set.device, position: f.position }));
+        measured.add(
+          imagePathOf({
+            locale: set.locale,
+            kind: set.kind,
+            device: set.device,
+            position: f.position,
+          }),
+        );
     }
   }
   return measured;

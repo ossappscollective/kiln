@@ -76,7 +76,10 @@ const stepOf = (
 ) => ({ type, requested: false, included: true, availability: 'available', ...over });
 
 test('the user case reads as "4 things to fix" with the server sentences, how to fix and where', () => {
-  const v = readinessView({ app: iosApp, readiness: readiness(USER_BLOCKERS, ['image_not_ready']) });
+  const v = readinessView({
+    app: iosApp,
+    readiness: readiness(USER_BLOCKERS, ['image_not_ready']),
+  });
   assert.ok(v);
   assert.equal(v.state, 'blocked');
   assert.equal(v.count, 4);
@@ -114,7 +117,10 @@ test('a single blocker uses the singular; no readiness from the server is no vie
 
 test('the codes only known after the push become a neutral note; unnamed codes are left out', () => {
   assert.equal(unknownNote(['image_not_ready']), 'Checked after the push: image processing.');
-  assert.match(unknownNote(['image_not_ready', 'play_review_state_unknown']) ?? '', /image processing, whether/);
+  assert.match(
+    unknownNote(['image_not_ready', 'play_review_state_unknown']) ?? '',
+    /image processing, whether/,
+  );
   assert.equal(unknownNote(['something_new']), null);
   assert.equal(unknownNote([]), null);
 });
@@ -166,7 +172,9 @@ test('the choice appears only when a requested submit is blocked and there are c
   assert.deepEqual(
     submitChoice({
       readiness: r,
-      steps: [stepOf('push_and_submit', { requested: true, included: false, availability: 'blocked' })],
+      steps: [
+        stepOf('push_and_submit', { requested: true, included: false, availability: 'blocked' }),
+      ],
     }),
     { count: 4 },
   );
@@ -179,7 +187,11 @@ test('"Submit left out" is set when the plan blocked a submit step', () => {
     steps: [stepOf('push_draft'), stepOf('submit', { availability: 'blocked', included: false })],
   });
   assert.equal(v?.submitLeftOut, true);
-  const w = readinessView({ app: iosApp, readiness: readiness(USER_BLOCKERS), steps: [stepOf('push_draft')] });
+  const w = readinessView({
+    app: iosApp,
+    readiness: readiness(USER_BLOCKERS),
+    steps: [stepOf('push_draft')],
+  });
   assert.equal(w?.submitLeftOut, false);
 });
 
@@ -190,7 +202,10 @@ test('"Fix the blockers first" goes to the first place in Kiln, else the store, 
     href: '#/portfolio/a/listing?platform=ios&view=text&locale=fr-FR',
     external: false,
   });
-  const store = readinessView({ app: iosApp, readiness: readiness([blocker('already_submitted', 'store')]) });
+  const store = readinessView({
+    app: iosApp,
+    readiness: readiness([blocker('already_submitted', 'store')]),
+  });
   assert.equal(store && firstFix(store)?.external, true);
   const push = readinessView({ app: iosApp, readiness: readiness([blocker('x', 'push')]) });
   assert.equal(push && firstFix(push), null);
@@ -216,7 +231,10 @@ test('the stepper checklist ties each blocker to the step that fixes it', () => 
 
 test('the last button says what happens: with blockers the submit is not part of it', () => {
   assert.equal(confirmButtonText(0, 'Review and push'), 'Review and push');
-  assert.equal(confirmButtonText(1, 'Review and push'), 'Review and push the draft (1 thing blocks the submit)');
+  assert.equal(
+    confirmButtonText(1, 'Review and push'),
+    'Review and push the draft (1 thing blocks the submit)',
+  );
   assert.equal(confirmButtonText(4, 'x'), 'Review and push the draft (4 things block the submit)');
 });
 
@@ -243,13 +261,15 @@ test('French is used when it is the active language', () => {
 test('the App Review Information blockers: the server sentence, how to fix it, the console to open and the version it can be copied from', () => {
   const review = {
     code: 'no_review_contact',
-    message: 'The App Review contact information is incomplete: phone number, email address are missing.',
+    message:
+      'The App Review contact information is incomplete: phone number, email address are missing.',
     params: { missing: 'contactPhone,contactEmail', from: '1.19.0' },
     fix: { kind: 'review' as const, href: null },
   };
   const demo = {
     code: 'no_review_demo_account',
-    message: 'App Review information says a demo account is required, but its user name or password is empty.',
+    message:
+      'App Review information says a demo account is required, but its user name or password is empty.',
     params: { missing: 'demoAccountPassword' },
     fix: { kind: 'review' as const, href: null },
   };
@@ -257,7 +277,10 @@ test('the App Review Information blockers: the server sentence, how to fix it, t
   assert.ok(v);
   assert.equal(v.count, 2);
   const [a, b] = v.lines;
-  assert.match(a?.fix ?? '', /copy it from the previous version here, or fill it in App Store Connect/);
+  assert.match(
+    a?.fix ?? '',
+    /copy it from the previous version here, or fill it in App Store Connect/,
+  );
   assert.equal(a?.where, 'Open App Review Information in App Store Connect');
   assert.equal(a?.href, 'https://appstoreconnect.apple.com/apps');
   assert.equal(a?.external, true);

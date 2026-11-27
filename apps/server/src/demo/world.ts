@@ -1,5 +1,4 @@
 import { readFile, writeFile } from 'node:fs/promises';
-import { compareBuildNumbers } from '@kiln/core';
 import {
   type EditableRelease,
   mapAppStoreState,
@@ -19,6 +18,7 @@ import {
   type SubmitApplyInput,
   type SubmitResult,
 } from '@kiln/connectors';
+import { compareBuildNumbers } from '@kiln/core';
 import {
   appleState,
   FakeRolloutStore,

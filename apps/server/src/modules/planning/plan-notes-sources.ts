@@ -23,7 +23,9 @@ export async function planNoteSourcesOf(
   const apple = !supports(app.platform, 'releaseTracks');
   const rows = await loadStagedRows(sql, workspaceId, app.id);
   const staged = rows
-    .filter((r) => r.target === 'release_notes' && r.kind === (apple ? 'listing_text' : 'release_field'))
+    .filter(
+      (r) => r.target === 'release_notes' && r.kind === (apple ? 'listing_text' : 'release_field'),
+    )
     .map((r) => ({
       locale: r.locale,
       text: r.valueText,

@@ -1,9 +1,9 @@
 import net, { isIP } from 'node:net';
 import tls from 'node:tls';
+import { SMTP_MAX_REPLY_LINES as MAX_REPLY_LINES } from '@kiln/core';
 import { buildMessage, dataPayload, parseMailbox } from './mail-mime.ts';
 import type { MailErrorCode, MailHint, MailInput, MailResult } from './mailer.ts';
 import { classifyAddress, type Resolver, systemResolver } from './webhook-transport.ts';
-import { SMTP_MAX_REPLY_LINES as MAX_REPLY_LINES } from '@kiln/core';
 
 /**
  * A small SMTP client on node:net and node:tls (no dependency). It speaks RFC 5321 submission: plain, STARTTLS (RFC 3207) or

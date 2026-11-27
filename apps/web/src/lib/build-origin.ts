@@ -293,7 +293,8 @@ export function latestOf(
   }
   if (best === null) return null;
   const top = best.buildNumber;
-  if (items.some((i) => i.builtAt === null && compareBuildNumbers(i.buildNumber, top) > 0)) return null;
+  if (items.some((i) => i.builtAt === null && compareBuildNumbers(i.buildNumber, top) > 0))
+    return null;
   return best.id;
 }
 

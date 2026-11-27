@@ -6,8 +6,8 @@ import type { CiArtifact, CiArtifactDownload, CiArtifactList } from '@kiln/conne
 import { dbTest } from '@kiln/db/testing';
 import { bootCi, FakeCi, run } from '../ci/test-helpers.ts';
 import { axmlManifest, zipOf } from './artifact-meta/fixtures.ts';
-import { clearBuildCaches } from './service.ts';
 import { unreadArtifacts } from './facts.ts';
+import { clearBuildCaches } from './service.ts';
 
 // A fake GitHub and a fake artifact storage: no live call is made, and the files are small ones
 // assembled by hand (not real APK, AAB or IPA).
@@ -108,7 +108,6 @@ async function boot(db: Parameters<typeof bootCi>[0], settings: Record<string, u
   };
 }
 
-
 const seedBuild = (t: Awaited<ReturnType<typeof boot>>, number: string) =>
   t.db.execute(
     `INSERT INTO app_builds (app_id, platform, build_number, workspace_id, store_id, version, processing_state, raw_state, expired, uploaded_at, first_seen_at, last_seen_at)
@@ -125,68 +124,83 @@ const waitFor = async (check: () => Promise<boolean>) => {
 const rowOf = (res: { body: { store: { buildNumber: string }[] } }, n: string) =>
   res.body.store.find((b) => b.buildNumber === n) as unknown as { origin: Record<string, unknown> };
 
-dbTest('build facts: a store build gets its date and version from the CI file read in the background, and the reason while there is none', async (db) => {
-  const t = await boot(db);
-  try {
-    await seedBuild(t, '412');
-    t.serve('1', apk(412));
-    const first = await t.list();
-    assert.equal(first.status, 200);
-    assert.equal(rowOf(first, '412').origin.builtAt, null, 'nothing was read yet');
-    assert.equal(rowOf(first, '412').origin.builtGap, 'not_read');
-    // The list itself started the read of the unread artifact (nobody pressed "Read build info from CI").
-    const read = await waitFor(async () =>
-      (await t.db.query('SELECT 1 FROM ci_artifact_meta WHERE app_id = ?', [t.appId])).length > 0,
-    );
-    assert.ok(read, 'the file was read in the background');
-    assert.equal(t.fake.count('openArtifactDownload'), 1);
-    clearBuildCaches();
-    const second = await t.list();
-    const o = rowOf(second, '412').origin;
-    assert.equal(o.builtAt, T0 - 1, 'the date GitHub made the artifact');
-    assert.equal(o.builtFrom, 'ci');
-    assert.equal(o.version, '1.26.2');
-    assert.equal(o.builtGap, null);
-    // Not read again: the pause and the stored answer.
-    assert.equal(t.fake.count('openArtifactDownload'), 1);
-  } finally {
-    await t.done();
-  }
-});
+dbTest(
+  'build facts: a store build gets its date and version from the CI file read in the background, and the reason while there is none',
+  async (db) => {
+    const t = await boot(db);
+    try {
+      await seedBuild(t, '412');
+      t.serve('1', apk(412));
+      const first = await t.list();
+      assert.equal(first.status, 200);
+      assert.equal(rowOf(first, '412').origin.builtAt, null, 'nothing was read yet');
+      assert.equal(rowOf(first, '412').origin.builtGap, 'not_read');
+      // The list itself started the read of the unread artifact (nobody pressed "Read build info from CI").
+      const read = await waitFor(
+        async () =>
+          (await t.db.query('SELECT 1 FROM ci_artifact_meta WHERE app_id = ?', [t.appId])).length >
+          0,
+      );
+      assert.ok(read, 'the file was read in the background');
+      assert.equal(t.fake.count('openArtifactDownload'), 1);
+      clearBuildCaches();
+      const second = await t.list();
+      const o = rowOf(second, '412').origin;
+      assert.equal(o.builtAt, T0 - 1, 'the date GitHub made the artifact');
+      assert.equal(o.builtFrom, 'ci');
+      assert.equal(o.version, '1.26.2');
+      assert.equal(o.builtGap, null);
+      // Not read again: the pause and the stored answer.
+      assert.equal(t.fake.count('openArtifactDownload'), 1);
+    } finally {
+      await t.done();
+    }
+  },
+);
 
-dbTest('build facts: with downloads off nothing is read and the gap says to enable build reads', async (db) => {
-  const t = await boot(db, { downloadEnabled: false });
-  try {
-    await seedBuild(t, '412');
-    t.serve('1', apk(412));
-    const res = await t.list();
-    assert.equal(rowOf(res, '412').origin.builtGap, 'reads_disabled');
-    assert.equal(rowOf(res, '412').origin.builtAt, null);
-    await new Promise((r) => setTimeout(r, 50));
-    assert.equal(t.fake.count('openArtifactDownload'), 0);
-  } finally {
-    await t.done();
-  }
-});
+dbTest(
+  'build facts: with downloads off nothing is read and the gap says to enable build reads',
+  async (db) => {
+    const t = await boot(db, { downloadEnabled: false });
+    try {
+      await seedBuild(t, '412');
+      t.serve('1', apk(412));
+      const res = await t.list();
+      assert.equal(rowOf(res, '412').origin.builtGap, 'reads_disabled');
+      assert.equal(rowOf(res, '412').origin.builtAt, null);
+      await new Promise((r) => setTimeout(r, 50));
+      assert.equal(t.fake.count('openArtifactDownload'), 0);
+    } finally {
+      await t.done();
+    }
+  },
+);
 
-dbTest('build facts: the background read takes the newest unread artifacts only, once per pause', async (db) => {
-  const t = await boot(db);
-  try {
-    for (const id of ['1', '2', '3', '4', '5']) t.serve(id, apk(Number(id)));
-    const list = (await t.list()).body;
-    assert.deepEqual(
-      unreadArtifacts(list.artifacts, { platform: 'android' }).map((a) => a.id),
-      ['1', '2', '3'],
-      'a batch of the newest (the fake dates fall with the id)',
-    );
-    await waitFor(async () => t.fake.count('openArtifactDownload') >= 3);
-    await waitFor(async () => (await t.db.query('SELECT 1 FROM ci_artifact_meta WHERE app_id = ?', [t.appId])).length >= 3);
-    assert.equal(t.fake.count('openArtifactDownload'), 3);
-    clearBuildCaches();
-    await t.list();
-    await new Promise((r) => setTimeout(r, 80));
-    assert.equal(t.fake.count('openArtifactDownload'), 3, 'the next batch waits for the pause');
-  } finally {
-    await t.done();
-  }
-});
+dbTest(
+  'build facts: the background read takes the newest unread artifacts only, once per pause',
+  async (db) => {
+    const t = await boot(db);
+    try {
+      for (const id of ['1', '2', '3', '4', '5']) t.serve(id, apk(Number(id)));
+      const list = (await t.list()).body;
+      assert.deepEqual(
+        unreadArtifacts(list.artifacts, { platform: 'android' }).map((a) => a.id),
+        ['1', '2', '3'],
+        'a batch of the newest (the fake dates fall with the id)',
+      );
+      await waitFor(async () => t.fake.count('openArtifactDownload') >= 3);
+      await waitFor(
+        async () =>
+          (await t.db.query('SELECT 1 FROM ci_artifact_meta WHERE app_id = ?', [t.appId])).length >=
+          3,
+      );
+      assert.equal(t.fake.count('openArtifactDownload'), 3);
+      clearBuildCaches();
+      await t.list();
+      await new Promise((r) => setTimeout(r, 80));
+      assert.equal(t.fake.count('openArtifactDownload'), 3, 'the next batch waits for the pause');
+    } finally {
+      await t.done();
+    }
+  },
+);

@@ -10,12 +10,12 @@ import {
 } from '@kiln/connectors';
 import {
   BUILD_BUSY_RETRY_AFTER_SECONDS,
-  BUILD_LINK_TTL_MS as LINK_TTL_MS,
   BUILD_LIST_TTL_MS,
   BUILD_PROBLEM_TTL_MS,
   BUILD_RUNS_READ_LIMIT,
   can,
   compareBuildNumbers,
+  BUILD_LINK_TTL_MS as LINK_TTL_MS,
   type Platform,
   supports,
 } from '@kiln/core';
@@ -577,7 +577,9 @@ export async function listRawArtifacts(
   if (!repository || repository.localOnly) return { ok: false, reason: 'no_repository' };
   const read = await readRepoArtifacts(ctx, input.workspaceId, repository, actor);
   if (!read.ok) return { ok: false, reason: reasonOf(read) };
-  const runs = await listRuns(ctx.db, input.workspaceId, repository.id, { limit: BUILD_RUNS_READ_LIMIT });
+  const runs = await listRuns(ctx.db, input.workspaceId, repository.id, {
+    limit: BUILD_RUNS_READ_LIMIT,
+  });
   return {
     ok: true,
     artifacts: read.value.artifacts,
@@ -656,7 +658,8 @@ export async function storeBuilds(
   });
   return items.sort(
     (a, b) =>
-      (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0) || compareBuildNumbers(b.buildNumber, a.buildNumber),
+      (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0) ||
+      compareBuildNumbers(b.buildNumber, a.buildNumber),
   );
 }
 
@@ -858,7 +861,9 @@ export async function listBuildArtifacts(
       },
     };
   }
-  const runs = await listRuns(ctx.db, input.workspaceId, repository.id, { limit: BUILD_RUNS_READ_LIMIT });
+  const runs = await listRuns(ctx.db, input.workspaceId, repository.id, {
+    limit: BUILD_RUNS_READ_LIMIT,
+  });
   const byRun = new Map(runs.filter((r) => runCountsForApp(r, app.id)).map((r) => [r.id, r]));
   const artifacts: ArtifactItem[] = [];
   const metas = await loadArtifactMeta(ctx.db, input.workspaceId, app.id);

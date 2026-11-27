@@ -30,6 +30,7 @@ import {
   type PublishConfig,
   type PublishPlan,
   type PublishResult,
+  pendingLineText,
   phraseMatches,
   planReady,
   platformGroups,
@@ -50,7 +51,6 @@ import {
   stepRow,
   stepRows,
   toggled,
-  pendingLineText,
   visibleRows,
 } from './pending.ts';
 
@@ -1114,7 +1114,11 @@ test('a failed push Google Play would not keep as a draft is known by its code, 
 });
 
 test('a submit blocked by certain blockers says how many things to fix, not the generic reason', () => {
-  const problem = (code: string) => ({ code, severity: 'error' as const, message: `${code} message` });
+  const problem = (code: string) => ({
+    code,
+    severity: 'error' as const,
+    message: `${code} message`,
+  });
   const row = stepRow(
     step('submit', {
       included: false,
@@ -1127,7 +1131,12 @@ test('a submit blocked by certain blockers says how many things to fix, not the 
   assert.equal(row.toggleable, false);
   assert.equal(row.reason, 'Blocked: 2 things to fix before it can be submitted.');
   const other = stepRow(
-    step('submit', { included: false, availability: 'blocked', reason: 'Something else.', problems: [] }),
+    step('submit', {
+      included: false,
+      availability: 'blocked',
+      reason: 'Something else.',
+      problems: [],
+    }),
     'ios',
   );
   assert.notEqual(other.reason, 'Blocked: 0 things to fix before it can be submitted.');

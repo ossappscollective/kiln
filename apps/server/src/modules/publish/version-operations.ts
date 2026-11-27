@@ -26,10 +26,14 @@ const reviewInformationSchema = z
         notes: z.boolean(),
       })
       .nullable()
-      .describe('The source as it may be shown: initials and yes/no. Never a name, phone number, email address, account or note.'),
+      .describe(
+        'The source as it may be shown: initials and yes/no. Never a name, phone number, email address, account or note.',
+      ),
     code: z.string().optional().describe('`failed`: the kind of the failure.'),
   })
-  .describe('What is done with the App Review Information of the previous version (docs/api/review-information.md).');
+  .describe(
+    'What is done with the App Review Information of the previous version (docs/api/review-information.md).',
+  );
 
 const previewSchema = z.object({
   app: z.object({
@@ -51,7 +55,9 @@ const previewSchema = z.object({
   }),
   reviewInformation: reviewInformationSchema
     .nullable()
-    .describe('What the new version would get from the previous version’s App Review Information (masked). Null: not looked at.'),
+    .describe(
+      'What the new version would get from the previous version’s App Review Information (masked). Null: not looked at.',
+    ),
   confirmHash: z.string().nullable().describe('Null while a check blocks.'),
   reversible: z.literal(true),
   note: z.string(),
@@ -70,7 +76,9 @@ const resultSchema = z.object({
   warnings: z.array(check),
   reviewInformation: reviewInformationSchema
     .nullable()
-    .describe('What was done with the previous version’s App Review Information. A failure is here and in `warnings`, the version stays created.'),
+    .describe(
+      'What was done with the previous version’s App Review Information. A failure is here and in `warnings`, the version stays created.',
+    ),
   createdAt: z.number().int().describe('Epoch milliseconds.'),
   note: z.string(),
 });

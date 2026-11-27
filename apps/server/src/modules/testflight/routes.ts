@@ -1,8 +1,8 @@
 import {
   type Action,
   can,
-  TESTFLIGHT_FILTER_MAX_CHARS,
   TESTFLIGHT_MAX_PAGE as MAX_PAGE,
+  TESTFLIGHT_FILTER_MAX_CHARS,
 } from '@kiln/core';
 import { type Context, Hono, type Next } from 'hono';
 import { z } from 'zod';
@@ -81,12 +81,17 @@ export function parseListQuery(
   const build = c.req.query('build');
   if (build) {
     if (build.length <= TESTFLIGHT_FILTER_MAX_CHARS) filter.build = build;
-    else issues.push({ path: 'build', message: `At most ${TESTFLIGHT_FILTER_MAX_CHARS} characters.` });
+    else
+      issues.push({ path: 'build', message: `At most ${TESTFLIGHT_FILTER_MAX_CHARS} characters.` });
   }
   const version = c.req.query('version');
   if (version) {
     if (version.length <= TESTFLIGHT_FILTER_MAX_CHARS) filter.version = version;
-    else issues.push({ path: 'version', message: `At most ${TESTFLIGHT_FILTER_MAX_CHARS} characters.` });
+    else
+      issues.push({
+        path: 'version',
+        message: `At most ${TESTFLIGHT_FILTER_MAX_CHARS} characters.`,
+      });
   }
   const statuses = list(c, 'status');
   if (statuses.length > 0) {

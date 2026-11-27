@@ -1,6 +1,6 @@
-import { isLocaleCode } from '../listing-facts/locale.ts';
 import { measureField, PLAY_CHANGELOG_SPEC } from '../listing/listing.ts';
 import type { StagedProblem } from '../listing/staged-changes.ts';
+import { isLocaleCode } from '../listing-facts/locale.ts';
 import { byFamily, type Platform, supports } from '../platform.ts';
 
 /**

@@ -503,7 +503,9 @@ function validateAppStore(listing: AppStoreListing): ListingProblem[] {
   const problems: ListingProblem[] = [];
   const fallback = listing.locales[DEFAULT_LOCALE];
   for (const locale of Object.keys(listing.locales).sort()) {
-    problems.push(...validateLocaleText('app_store', locale, listing.locales[locale] ?? {}, fallback));
+    problems.push(
+      ...validateLocaleText('app_store', locale, listing.locales[locale] ?? {}, fallback),
+    );
   }
   checkField(problems, APP_STORE_COPYRIGHT_SPEC, { field: 'copyright' }, listing.copyright);
   return problems;

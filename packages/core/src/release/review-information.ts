@@ -98,7 +98,9 @@ const CONTACT_FACT: Readonly<Record<string, keyof ReviewDetailFacts>> = {
 
 /** The contact attributes App Review needs that the facts say are missing (field names, in the documented order). */
 export function missingContactFields(facts: ReviewDetailFacts): ReviewTextField[] {
-  return REVIEW_CONTACT_FIELDS.filter((f) => facts[CONTACT_FACT[f] as keyof ReviewDetailFacts] !== true);
+  return REVIEW_CONTACT_FIELDS.filter(
+    (f) => facts[CONTACT_FACT[f] as keyof ReviewDetailFacts] !== true,
+  );
 }
 
 const NAMES: Readonly<Record<string, string>> = {
@@ -182,7 +184,10 @@ export function mergeReviewDetail(target: ReviewDetail | null, source: ReviewDet
     attributes[field] = wanted as string;
   }
   if (source.demoAccountRequired !== null) {
-    const untouched = !target || target.demoAccountRequired === null || (!reviewDetailHasContent(target) && target.demoAccountRequired === false);
+    const untouched =
+      !target ||
+      target.demoAccountRequired === null ||
+      (!reviewDetailHasContent(target) && target.demoAccountRequired === false);
     if (untouched && (!target || target.demoAccountRequired !== source.demoAccountRequired))
       attributes.demoAccountRequired = source.demoAccountRequired;
   }
@@ -217,7 +222,11 @@ export function reviewSourceOrder(
   const newer = (a: ReviewSourceCandidate, b: ReviewSourceCandidate): number => {
     const ad = a.versionString !== null && isDottedVersion(a.versionString);
     const bd = b.versionString !== null && isDottedVersion(b.versionString);
-    if (ad && bd) return -(compareDottedVersions(a.versionString as string, b.versionString as string) as number);
+    if (ad && bd)
+      return -(compareDottedVersions(
+        a.versionString as string,
+        b.versionString as string,
+      ) as number);
     return ad === bd ? 0 : ad ? -1 : 1;
   };
   return versions

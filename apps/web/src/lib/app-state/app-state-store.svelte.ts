@@ -2,9 +2,14 @@ import { can, type Role, supports } from '@kiln/core';
 import type { Api } from '../api.ts';
 import type { AttentionItem } from '../app-attention.ts';
 import type { PlatformScope } from '../app-scope.ts';
-import { bindInvalidation, type Invalidation, invalidate, REFRESHES_MODEL } from '../facts/invalidate.ts';
 import { cartSummaryStore } from '../cart-summary.svelte.ts';
 import { type PendingRow, pendingRows, pendingTotals } from '../cart-summary.ts';
+import {
+  bindInvalidation,
+  type Invalidation,
+  invalidate,
+  REFRESHES_MODEL,
+} from '../facts/invalidate.ts';
 import { type LastPublish, type PendingLine, staleViewIds } from '../pending.ts';
 import { pendingStore } from '../pending-store.svelte.ts';
 import { submitBlockedOnly } from '../publish-failure.ts';
@@ -13,8 +18,8 @@ import { publishingStore } from '../publishing-store.svelte.ts';
 import type { PipelineSummary, PipelineSummaryApp } from '../release-pipeline.ts';
 import type { AppSummary, ReleaseSummary } from '../types.ts';
 import { type BlockersView, blockersViewOf } from './blockers.ts';
-import { activeFailure, deriveAppState, deriveTopBar, promoteOfferFor } from './derive.ts';
 import { unfinishedApps } from './candidates.ts';
+import { activeFailure, deriveAppState, deriveTopBar, promoteOfferFor } from './derive.ts';
 import { assembleFacts, type FactSources, lineOfRecords } from './facts.ts';
 import { readinessStore } from './readiness-store.svelte.ts';
 import { releaseFactsStore } from './release-facts-store.svelte.ts';
@@ -116,7 +121,11 @@ function factsOf(input: StateInput): AppFacts {
 }
 
 /** The apps whose facts are to be read again, collected for a moment so a burst of syncs or publishes is one refresh (`react`). */
-type RefreshBatch = { ids: Set<string>; done: (() => void)[]; timer: ReturnType<typeof setTimeout> };
+type RefreshBatch = {
+  ids: Set<string>;
+  done: (() => void)[];
+  timer: ReturnType<typeof setTimeout>;
+};
 const refreshBatches: Record<string, RefreshBatch | undefined> = {};
 const REFRESH_COLLECT_MS = 150;
 
@@ -234,7 +243,12 @@ export const appStateStore = {
         publishingStore.failureOf(workspaceId, id),
         publishingStore.of(workspaceId, id),
       );
-      if (app && run) out.push({ app, run, blockers: blockersViewOf(run, readinessStore.of(workspaceId, id), now) });
+      if (app && run)
+        out.push({
+          app,
+          run,
+          blockers: blockersViewOf(run, readinessStore.of(workspaceId, id), now),
+        });
     }
     return out;
   },
@@ -376,12 +390,7 @@ export const appStateStore = {
    * A screen that shows a blocked submit is shown: the store is read once (the server keeps a reading 30 seconds) so what the run kept is
    * judged against what the store holds now. A role that may not submit is not asked (it sees the run's blockers as history).
    */
-  ensureReadiness(
-    api: Api,
-    workspaceId: string,
-    role: Role,
-    records: readonly AppSummary[],
-  ): void {
+  ensureReadiness(api: Api, workspaceId: string, role: Role, records: readonly AppSummary[]): void {
     if (!can(role, 'store.submit')) return;
     for (const r of appStateStore.blockedRecords(workspaceId, records)) {
       const run = publishingStore.failureOf(workspaceId, r.id);
@@ -462,7 +471,9 @@ export const appStateStore = {
             publishingStore.failureOf(workspaceId, id),
             publishingStore.of(workspaceId, id),
           );
-          return run !== null && submitBlockedOnly(run) && readinessStore.of(workspaceId, id) !== null;
+          return (
+            run !== null && submitBlockedOnly(run) && readinessStore.of(workspaceId, id) !== null
+          );
         })
         .map((id) => readinessStore.load(api, workspaceId, id, { fresh: true })),
     ]);

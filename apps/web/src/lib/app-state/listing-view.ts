@@ -12,22 +12,28 @@ import type { StoreCopyViewJson, StoreDefaultLocale, StoreListingView } from '..
 export type CopyIntentName = 'shown' | 'editable' | 'live';
 
 /** The copy of an intent, or null while the listing is not read. */
-export const copyOf = (view: StoreListingView | null, intent: CopyIntentName): StoreCopyViewJson | null =>
-  view === null ? null : view.copies[intent];
+export const copyOf = (
+  view: StoreListingView | null,
+  intent: CopyIntentName,
+): StoreCopyViewJson | null => (view === null ? null : view.copies[intent]);
 
 /** The locale codes of an intent (sorted, the `default` fallback is never in it); empty while not read. */
-export const localesOf = (view: StoreListingView | null, intent: CopyIntentName = 'shown'): string[] =>
-  copyOf(view, intent)?.codes ?? [];
+export const localesOf = (
+  view: StoreListingView | null,
+  intent: CopyIntentName = 'shown',
+): string[] => copyOf(view, intent)?.codes ?? [];
 
 /** The locales a release's notes are written for: the draft's (the live copy when the store has no draft). */
-export const noteLocalesOf = (view: StoreListingView | null): string[] => localesOf(view, 'editable');
+export const noteLocalesOf = (view: StoreListingView | null): string[] =>
+  localesOf(view, 'editable');
 
 /** The base language and how it was decided; null while the listing is not read. */
 export const defaultLocaleOf = (view: StoreListingView | null): StoreDefaultLocale | null =>
   view === null ? null : view.defaultLocale;
 
 /** The base language to show, or null (the store holds no locale, or the listing is not read). */
-export const baseLocaleOf = (view: StoreListingView | null): string | null => view?.defaultLocale.locale ?? null;
+export const baseLocaleOf = (view: StoreListingView | null): string | null =>
+  view?.defaultLocale.locale ?? null;
 
 /** Where a locale of the `shown` copy was read from and which copies hold it ("only in the draft"), or null. */
 export function heldOf(
@@ -40,4 +46,6 @@ export function heldOf(
 
 /** The locales only the draft holds: not live yet. */
 export const draftOnlyLocales = (view: StoreListingView | null): string[] =>
-  (copyOf(view, 'shown')?.locales ?? []).filter((l) => l.held.indexOf('live') < 0).map((l) => l.locale);
+  (copyOf(view, 'shown')?.locales ?? [])
+    .filter((l) => l.held.indexOf('live') < 0)
+    .map((l) => l.locale);

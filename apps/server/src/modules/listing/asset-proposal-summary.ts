@@ -1,6 +1,6 @@
 import {
-  PROPOSAL_SUMMARY_MAX_ENTRIES as SUMMARY_MAX_ENTRIES,
   PROPOSAL_SUMMARY_TTL_MS,
+  PROPOSAL_SUMMARY_MAX_ENTRIES as SUMMARY_MAX_ENTRIES,
 } from '@kiln/core';
 import type { Sql } from '@kiln/db';
 import { getApp, listAppReleases, type ManagedApp } from '../../services/apps.ts';

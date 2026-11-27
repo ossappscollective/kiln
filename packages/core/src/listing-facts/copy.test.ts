@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  channelOfLocale,
   COPY_INTENT_CONSUMERS,
   type CopyChannel,
-  copyTextsOf,
+  channelOfLocale,
   copyText,
+  copyTextsOf,
   declaredLocaleOf,
   pickCopy,
   storeCopyView,
@@ -59,7 +59,7 @@ test('editable: the draft only (a push writes into it); the live copy only stand
   assert.deepEqual(noDraft.channels, { live: true, editable: false });
 });
 
-test('live: only what is in users\' hands; a locale only the draft has is absent; no fallback to the draft', () => {
+test("live: only what is in users' hands; a locale only the draft has is absent; no fallback to the draft", () => {
   const view = storeCopyView([live, draft], { intent: 'live' });
   assert.deepEqual(view.codes, ['de-DE', 'en-US']);
   assert.equal(pickCopy(view, 'fr-FR'), undefined);
@@ -77,7 +77,10 @@ test('the same locale across the stores is one locale: Play zh-CN is found by an
   assert.equal(pickCopy(view, 'fr'), undefined);
   // two spellings in the two copies are ONE row
   const both = storeCopyView(
-    [{ channel: 'live', locales: { 'zh-Hans': { a: '1' } } }, { channel: 'editable', locales: { 'zh-CN': { a: '2' } } }],
+    [
+      { channel: 'live', locales: { 'zh-Hans': { a: '1' } } },
+      { channel: 'editable', locales: { 'zh-CN': { a: '2' } } },
+    ],
     { intent: 'shown' },
   );
   assert.equal(both.locales.length, 1);
@@ -103,11 +106,24 @@ test('every consumer is assigned to ONE intent', () => {
 });
 
 test('declaredLocaleOf: the live copy says it, else the draft; blank is not a declaration', () => {
-  const live = { channel: 'live' as const, locales: {}, sections: { details: { defaultLanguage: 'de-DE' } } };
-  const draft = { channel: 'editable' as const, locales: {}, sections: { details: { defaultLanguage: 'fr-FR' } } };
+  const live = {
+    channel: 'live' as const,
+    locales: {},
+    sections: { details: { defaultLanguage: 'de-DE' } },
+  };
+  const draft = {
+    channel: 'editable' as const,
+    locales: {},
+    sections: { details: { defaultLanguage: 'fr-FR' } },
+  };
   assert.equal(declaredLocaleOf([live, draft]), 'de-DE');
   assert.equal(declaredLocaleOf([draft]), 'fr-FR');
-  assert.equal(declaredLocaleOf([{ channel: 'live', locales: {}, sections: { details: { defaultLanguage: '  ' } } }]), null);
+  assert.equal(
+    declaredLocaleOf([
+      { channel: 'live', locales: {}, sections: { details: { defaultLanguage: '  ' } } },
+    ]),
+    null,
+  );
   assert.equal(declaredLocaleOf([{ channel: 'live', locales: {} }]), null);
 });
 

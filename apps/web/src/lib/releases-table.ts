@@ -419,9 +419,9 @@ export function splitCurrent(groups: readonly VersionGroup[]): CurrentSplit {
   const isCurrent = (group: VersionGroup, row: ReleaseRow): boolean =>
     row.obsolete === null &&
     (newestVersion.get(row.platform) === group.version ||
-    newestLive.get(row.platform) === row.key ||
-    (row.status !== 'live' && row.status !== null) ||
-    (row.plan.kind === 'plan' && !row.plan.plan.released));
+      newestLive.get(row.platform) === row.key ||
+      (row.status !== 'live' && row.status !== null) ||
+      (row.plan.kind === 'plan' && !row.plan.plan.released));
 
   const current: VersionGroup[] = [];
   const older: VersionGroup[] = [];

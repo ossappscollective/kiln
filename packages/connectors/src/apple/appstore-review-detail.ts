@@ -196,8 +196,7 @@ export class AppleReviewDetailConnector {
       const target = targetId === null ? null : await this.readDetail(targetId);
       const merge = mergeReviewDetail(target?.detail ?? null, source.detail);
       return {
-        outcome:
-          merge.fieldsCopied === 0 ? 'already_complete' : target ? 'merged' : 'created',
+        outcome: merge.fieldsCopied === 0 ? 'already_complete' : target ? 'merged' : 'created',
         from: source.from,
         fieldsCopied: merge.fieldsCopied,
         summary: maskedReviewSummary(source.detail),
@@ -304,6 +303,10 @@ export class AppleReviewDetailConnector {
 function failed(error: unknown): ReviewCarryResult {
   const base = { outcome: 'failed' as const, from: null, fieldsCopied: 0, summary: null };
   if (error instanceof StoreError)
-    return { ...base, code: error.kind, ...(error.status !== undefined ? { httpStatus: error.status } : {}) };
+    return {
+      ...base,
+      code: error.kind,
+      ...(error.status !== undefined ? { httpStatus: error.status } : {}),
+    };
   return { ...base, code: 'unexpected' };
 }

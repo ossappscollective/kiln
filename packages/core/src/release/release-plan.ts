@@ -4,14 +4,14 @@
  * writes a store. Pure functions only, so both sides compute the same readiness and due flags.
  */
 
-import { isLocaleOrDefault } from '../listing-facts/locale.ts';
-import { type NoteSources, notesView } from '../listing-facts/notes.ts';
 import {
   APP_STORE_FIELD_SPECS,
   type ListingStore,
   measureField,
   PLAY_CHANGELOG_SPEC,
 } from '../listing/listing.ts';
+import { isLocaleOrDefault } from '../listing-facts/locale.ts';
+import { type NoteSources, notesView } from '../listing-facts/notes.ts';
 import { byFamily, listingStoreOf, type Platform } from '../platform.ts';
 
 /** `null` means the plan covers both platforms. */
@@ -52,7 +52,8 @@ export function releaseNotesLimit(platform: PlanPlatform): number {
 }
 
 /** Length as the listing rules count it: the one counting unit (`measureField`: code points, trimmed). */
-export const releaseNotesLength = (value: string): number => measureField({ unit: 'characters' }, value);
+export const releaseNotesLength = (value: string): number =>
+  measureField({ unit: 'characters' }, value);
 
 // ---------------------------------------------------------------------------------------------
 // Values

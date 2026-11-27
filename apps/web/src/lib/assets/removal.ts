@@ -1,6 +1,6 @@
 import {
-  afterRemoval,
   type AssetKind,
+  afterRemoval,
   type FileId,
   type ListingStore,
   type RemovalReason,
@@ -18,7 +18,11 @@ import { k } from '../i18n/t.ts';
  */
 
 /** What a row gives to name its file: the store's ref, else the blob id of a staged file, else its place. */
-export function fileIdOf(row: { ref?: string | undefined; oid?: string | undefined; position: number }): FileId {
+export function fileIdOf(row: {
+  ref?: string | undefined;
+  oid?: string | undefined;
+  position: number;
+}): FileId {
   if (row.ref !== undefined && row.ref !== '') return { ref: row.ref };
   if (row.oid !== undefined && row.oid !== '') return { oid: row.oid };
   return { position: row.position };
@@ -44,7 +48,10 @@ export type ItemStates = Readonly<Record<string, ItemState | undefined>>;
 
 export const NO_STATES: ItemStates = {};
 
-const without = (states: ItemStates, keys: readonly string[]): Record<string, ItemState | undefined> => {
+const without = (
+  states: ItemStates,
+  keys: readonly string[],
+): Record<string, ItemState | undefined> => {
   const next: Record<string, ItemState | undefined> = {};
   for (const k of Object.keys(states)) if (keys.indexOf(k) < 0) next[k] = states[k];
   return next;
@@ -106,7 +113,8 @@ export function pruneStates(states: ItemStates, order: readonly string[]): ItemS
   return stale.length === 0 ? states : without(states, stale);
 }
 
-export const isRemoving = (states: ItemStates, key: string): boolean => states[key]?.status === 'removing';
+export const isRemoving = (states: ItemStates, key: string): boolean =>
+  states[key]?.status === 'removing';
 
 export const removingCount = (states: ItemStates): number =>
   Object.keys(states).filter((k) => states[k]?.status === 'removing').length;

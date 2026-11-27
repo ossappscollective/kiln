@@ -35,7 +35,8 @@ const files = (n: number) =>
 const userCase = async (t: Boot, count = 12) => {
   const app = await t.addApp('ios', 'OSS Document Scanner');
   assert.equal(
-    (await t.stageAssets(app, { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5' })).status,
+    (await t.stageAssets(app, { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5' }))
+      .status,
     200,
   );
   t.stores.ios.locales.add('fr-FR');
@@ -59,7 +60,11 @@ dbTest(
     assert.equal(readiness.ready, false);
     assert.equal(readiness.predicted, true);
     assert.deepEqual(
-      readiness.blockers.map((b: any) => [b.code, b.locale, b.item === undefined ? null : b.fix.kind]),
+      readiness.blockers.map((b: any) => [
+        b.code,
+        b.locale,
+        b.item === undefined ? null : b.fix.kind,
+      ]),
       [
         ['missing_text', 'fr-FR', 'listing'],
         ['missing_text', 'fr-FR', 'listing'],
@@ -181,12 +186,19 @@ dbTest(
     const t = await boot(db);
     const app = await t.addApp('ios');
     assert.equal(
-      (await t.stageAssets(app, { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5' })).status,
+      (await t.stageAssets(app, { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5' }))
+        .status,
       200,
     );
     assert.equal(
-      (await t.stageText(app, { locale: 'de-DE', field: 'description', from: 'local', value: TEXT }))
-        .status,
+      (
+        await t.stageText(app, {
+          locale: 'de-DE',
+          field: 'description',
+          from: 'local',
+          value: TEXT,
+        })
+      ).status,
       200,
     );
     const res = await t.plan(app);
@@ -207,7 +219,8 @@ dbTest(
     const t = await boot(db);
     const app = await t.addApp('ios');
     assert.equal(
-      (await t.stageAssets(app, { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5' })).status,
+      (await t.stageAssets(app, { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5' }))
+        .status,
       200,
     );
     t.submitStores.ios.build = null;
@@ -242,14 +255,17 @@ dbTest(
   },
 );
 
-dbTest('a submit that is switched off has no readiness (nobody can submit from here)', async (db) => {
-  const t = await boot(db, { submit: false });
-  const app = await userCase(t);
-  const plan = await t.plan(app);
-  assert.equal(plan.status, 200, plan.text.slice(0, 200));
-  assert.equal(plan.body.plan.readiness, null);
-  assert.equal(t.submitStores.ios.reads, 0);
-});
+dbTest(
+  'a submit that is switched off has no readiness (nobody can submit from here)',
+  async (db) => {
+    const t = await boot(db, { submit: false });
+    const app = await userCase(t);
+    const plan = await t.plan(app);
+    assert.equal(plan.status, 200, plan.text.slice(0, 200));
+    assert.equal(plan.body.plan.readiness, null);
+    assert.equal(t.submitStores.ios.reads, 0);
+  },
+);
 
 dbTest(
   'Google Play: no screenshot at all, or 9 of a device type, blocks the combined step and the submit; release notes over 500 characters too',
@@ -275,7 +291,10 @@ dbTest(
     const nine = await t.plan(app, [{ type: 'push_draft' }, { type: 'submit' }]);
     const b = nine.body.plan.readiness.submit.blockers as any[];
     assert.deepEqual(codes(b), ['asset_spec']);
-    assert.match(b[0].message, /^You can add up to 8 screenshots for each supported device type\. /);
+    assert.match(
+      b[0].message,
+      /^You can add up to 8 screenshots for each supported device type\. /,
+    );
 
     t.stores.android.seedSet('en-US', 'phoneScreenshots', files(8));
     const ok = await t.plan(app, [{ type: 'push_draft' }, { type: 'submit' }]);
@@ -287,7 +306,9 @@ dbTest(
 dbTest('the plan of a release alone reads no store for a readiness', async (db) => {
   const t = await boot(db);
   const app = await t.addApp('android', 'Weather');
-  const res = await t.plan(app, [{ type: 'rollout', action: 'halt', track: 'production', versionCodes: ['7'] }]);
+  const res = await t.plan(app, [
+    { type: 'rollout', action: 'halt', track: 'production', versionCodes: ['7'] },
+  ]);
   assert.equal(res.status, 200, res.text.slice(0, 200));
   assert.equal(res.body.plan.readiness, null);
   assert.equal(t.submitStores.android.reads, 0);

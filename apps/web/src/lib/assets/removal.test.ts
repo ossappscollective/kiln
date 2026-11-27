@@ -17,7 +17,11 @@ import {
 } from './removal.ts';
 
 const say = (reason: string) => `says:${reason}`;
-const res = (index: number, outcome: RemovalResult['outcome'], reason?: RemovalResult['reason']): RemovalResult => ({
+const res = (
+  index: number,
+  outcome: RemovalResult['outcome'],
+  reason?: RemovalResult['reason'],
+): RemovalResult => ({
   index,
   id: {},
   outcome,
@@ -50,8 +54,16 @@ test('the answer ends the removing state of each image on its own: gone or resto
   );
   assert.deepEqual(done.gone, ['a', 'c']);
   assert.deepEqual(done.refused, [{ key: 'b', reason: 'stale_store_ref' }]);
-  assert.deepEqual(done.states.b, { status: 'error', reason: 'stale_store_ref', message: 'says:stale_store_ref' });
-  assert.deepEqual(done.states.d, { status: 'error', reason: 'failed', message: 'says:failed' }, 'no answer for it is an error, not silence');
+  assert.deepEqual(done.states.b, {
+    status: 'error',
+    reason: 'stale_store_ref',
+    message: 'says:stale_store_ref',
+  });
+  assert.deepEqual(
+    done.states.d,
+    { status: 'error', reason: 'failed', message: 'says:failed' },
+    'no answer for it is an error, not silence',
+  );
   assert.equal(done.states.a, undefined);
   assert.equal(removingCount(done.states), 0);
   assert.deepEqual(done.summary, { removed: 1, alreadyRemoved: 1, notFound: 1 });
@@ -61,7 +73,11 @@ test('the answer ends the removing state of each image on its own: gone or resto
 test('a request that failed as a whole restores every image with the same sentence', () => {
   const started = startRemoving(NO_STATES, ['a', 'b']);
   const failed = failAll(started, ['a', 'b'], 'The version is locked');
-  assert.deepEqual(failed.a, { status: 'error', reason: 'failed', message: 'The version is locked' });
+  assert.deepEqual(failed.a, {
+    status: 'error',
+    reason: 'failed',
+    message: 'The version is locked',
+  });
   assert.equal(removingCount(failed), 0);
 });
 
@@ -91,6 +107,10 @@ test('emptying a set says what the store needs: required for the largest sizes, 
 
 test('undo is offered when the removal made a staged change of its own', () => {
   assert.equal(canUndo(false, { removed: 3, alreadyRemoved: 0, notFound: 0 }), true);
-  assert.equal(canUndo(true, { removed: 3, alreadyRemoved: 0, notFound: 0 }), false, 'undoing would drop earlier staged changes');
+  assert.equal(
+    canUndo(true, { removed: 3, alreadyRemoved: 0, notFound: 0 }),
+    false,
+    'undoing would drop earlier staged changes',
+  );
   assert.equal(canUndo(false, { removed: 0, alreadyRemoved: 2, notFound: 1 }), false);
 });

@@ -420,7 +420,11 @@ const readTools: ToolDef[] = [
       error: j.error,
       locales: j.locales,
       defaultLocale: j.defaultLocale,
-      held: (j.copies?.shown?.locales ?? []).map((l: Json) => ({ locale: l.locale, from: l.from, held: l.held })),
+      held: (j.copies?.shown?.locales ?? []).map((l: Json) => ({
+        locale: l.locale,
+        from: l.from,
+        held: l.held,
+      })),
     }),
   },
   {

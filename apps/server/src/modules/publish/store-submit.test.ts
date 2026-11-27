@@ -442,7 +442,14 @@ const breaks: Break[] = [
   {
     name: 'no App Review contact on the version',
     code: 'no_review_contact',
-    arrange: (t) => void (t.submitStores.ios.reviewDetail = reviewFacts({ exists: false, contactFirstName: false, contactLastName: false, contactPhone: false, contactEmail: false })),
+    arrange: (t) =>
+      void (t.submitStores.ios.reviewDetail = reviewFacts({
+        exists: false,
+        contactFirstName: false,
+        contactLastName: false,
+        contactPhone: false,
+        contactEmail: false,
+      })),
   },
   {
     name: 'a blank App Review phone number',
@@ -452,7 +459,11 @@ const breaks: Break[] = [
   {
     name: 'a demo account that is required and has no password',
     code: 'no_review_demo_account',
-    arrange: (t) => void (t.submitStores.ios.reviewDetail = reviewFacts({ demoAccountRequired: true, demoAccountName: true })),
+    arrange: (t) =>
+      void (t.submitStores.ios.reviewDetail = reviewFacts({
+        demoAccountRequired: true,
+        demoAccountName: true,
+      })),
   },
   {
     name: 'a release type that could not be read',
@@ -1238,7 +1249,10 @@ dbTest(
     const res = await t.submitPreview(app);
     const p = res.body.preview;
     assert.deepEqual(codes(p.checks.blocking), ['no_review_contact']);
-    assert.deepEqual(p.checks.blocking[0].params, { missing: 'contactFirstName,contactEmail', from: '1.19.0' });
+    assert.deepEqual(p.checks.blocking[0].params, {
+      missing: 'contactFirstName,contactEmail',
+      from: '1.19.0',
+    });
     assert.match(p.checks.blocking[0].message, /first name, email address are missing/);
     assert.equal(p.confirmHash, null);
     // nothing personal can be in the answer: the fake holds presence only, and the sentence names attributes

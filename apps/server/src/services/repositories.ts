@@ -870,7 +870,6 @@ export async function scanRepository(
   return { ok: true, repository: updated, detection, listingSources: detectedSources(detection) };
 }
 
-
 /** The text files under the chosen listing folders (not images), for downloading in one request. */
 function listingTextFiles(
   files: readonly string[],
@@ -1072,4 +1071,3 @@ export async function getRepositoryListing(
 }
 
 export { openFor as openConnectorForRepository };
-

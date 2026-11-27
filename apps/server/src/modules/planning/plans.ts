@@ -25,10 +25,10 @@ import {
 import { type Database, mapOrNull, oneOf, type Param, type Row, type Sql } from '@kiln/db';
 import { coded } from '../../i18n/problem.ts';
 import { getApp } from '../../services/apps.ts';
-import { type PlanNoteSources, planNoteSourcesOf } from './plan-notes-sources.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { emitCacheEvent } from '../../services/cache-registry.ts';
 import { type Failure, failure, type Outcome } from '../../services/repositories.ts';
+import { type PlanNoteSources, planNoteSourcesOf } from './plan-notes-sources.ts';
 import {
   loadRolloutSteps,
   loadRolloutStepsByPlan,

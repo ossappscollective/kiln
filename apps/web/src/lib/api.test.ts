@@ -338,7 +338,7 @@ test('cart discard, cart publish, unstage and stage each announce the app once (
   }
 });
 
-test('the publish dialog\'s publish announces the app as published whether it answered or failed, so the Graphics tab never keeps the picture from before', async () => {
+test("the publish dialog's publish announces the app as published whether it answered or failed, so the Graphics tab never keeps the picture from before", async () => {
   const bus = new EventTarget();
   const g = globalThis as unknown as { window?: EventTarget };
   const before = g.window;

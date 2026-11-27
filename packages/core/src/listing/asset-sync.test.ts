@@ -280,12 +280,21 @@ const countProblems = (sets: ReturnType<typeof ipadSet>[]) =>
   checkStoreImages({ platform: 'ios', sets }).filter((p) => /count/.test(p.rule));
 
 test('checkStoreImages: the 13" and 12.9" groups of one display are two sets, never summed (10 + 2 is not 12)', () => {
-  assert.deepEqual(countProblems([ipadSet('APP_IPAD_PRO_3GEN_129', 10), ipadSet('APP_IPAD_PRO_129', 2)]), []);
-  assert.deepEqual(countProblems([ipadSet('APP_IPAD_PRO_3GEN_129', 8), ipadSet('APP_IPAD_PRO_129', 4)]), []);
+  assert.deepEqual(
+    countProblems([ipadSet('APP_IPAD_PRO_3GEN_129', 10), ipadSet('APP_IPAD_PRO_129', 2)]),
+    [],
+  );
+  assert.deepEqual(
+    countProblems([ipadSet('APP_IPAD_PRO_3GEN_129', 8), ipadSet('APP_IPAD_PRO_129', 4)]),
+    [],
+  );
 });
 
 test('checkStoreImages: 12 in ONE group is the error, and it names the group and how many to remove', () => {
-  const [p, ...rest] = countProblems([ipadSet('APP_IPAD_PRO_3GEN_129', 12), ipadSet('APP_IPAD_PRO_129', 2)]);
+  const [p, ...rest] = countProblems([
+    ipadSet('APP_IPAD_PRO_3GEN_129', 12),
+    ipadSet('APP_IPAD_PRO_129', 2),
+  ]);
   assert.equal(rest.length, 0);
   assert.equal(
     p?.message,

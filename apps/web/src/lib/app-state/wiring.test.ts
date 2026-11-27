@@ -108,18 +108,21 @@ const RULES: Rule[] = [
     what: 'import the release trains, the next-step choice or the promote option outside the model',
     instead:
       'the release flow is decided in lib/app-state/ only: read `appStateStore.of(...).flow`, `.candidates` and `.promotion`. (`STEP_HELP` of the strip is words, not a decision: the strip component may read it)',
-    pattern:
-      /\bfrom\s+'[^']*\/(?:next-step|release-trains|play-promote)(?:\.ts)?'/,
+    pattern: /\bfrom\s+'[^']*\/(?:next-step|release-trains|play-promote)(?:\.ts)?'/,
     files: [...COMPONENTS, ...LIB],
     allow: {
-      'components/release/TrainSteps.svelte': 'it draws the five steps of a train and only reads their help texts (STEP_HELP)',
+      'components/release/TrainSteps.svelte':
+        'it draws the five steps of a train and only reads their help texts (STEP_HELP)',
       'components/release/stepper/ReleaseStepper.svelte':
         'it only parses and carries the `Promote` address (source track and codes) of an offer the model made',
-      'components/release/stepper/StepNotes.svelte': 'it only reads the `Promote` address the stepper carries',
-      'components/release/stepper/StepBuild.svelte': 'it only reads the `Promote` address the stepper carries',
+      'components/release/stepper/StepNotes.svelte':
+        'it only reads the `Promote` address the stepper carries',
+      'components/release/stepper/StepBuild.svelte':
+        'it only reads the `Promote` address the stepper carries',
       'components/app/AppReleases.svelte':
         'it only parses the `Promote` address (`promoteFromHash`) to open the stepper on it',
-      'lib/next-step.ts': 'it builds the next-step card from the trains: both are internal to the model',
+      'lib/next-step.ts':
+        'it builds the next-step card from the trains: both are internal to the model',
     },
   },
   {

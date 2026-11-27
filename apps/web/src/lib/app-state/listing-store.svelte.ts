@@ -1,13 +1,24 @@
 import { can, type Platform, type Role, supports } from '@kiln/core';
 import type { Api } from '../api.ts';
 import { ApiError } from '../api.ts';
-import { onInvalidated, readFact, readKeys, type Invalidation } from '../facts/invalidate.ts';
-import type { ReadinessFact } from './blockers.ts';
-import { readinessStore } from './readiness-store.svelte.ts';
-import type { ListingFixesView } from '../listing/fixes.ts';
+import { type Invalidation, onInvalidated, readFact, readKeys } from '../facts/invalidate.ts';
 import type { ListingChecksView } from '../insights/insights.ts';
-import type { ListingHistoryPage, StoreCopyViewJson, StoreDefaultLocale, StoreListingView } from '../types.ts';
-import { type CopyIntentName, copyOf, defaultLocaleOf, localesOf, noteLocalesOf } from './listing-view.ts';
+import type { ListingFixesView } from '../listing/fixes.ts';
+import type {
+  ListingHistoryPage,
+  StoreCopyViewJson,
+  StoreDefaultLocale,
+  StoreListingView,
+} from '../types.ts';
+import type { ReadinessFact } from './blockers.ts';
+import {
+  type CopyIntentName,
+  copyOf,
+  defaultLocaleOf,
+  localesOf,
+  noteLocalesOf,
+} from './listing-view.ts';
+import { readinessStore } from './readiness-store.svelte.ts';
 
 /**
  * THE store of the listing's store side (docs/state-model.md, "Single owners (core)"): one read per app (`GET /apps/:id/listing/store`:
@@ -45,13 +56,22 @@ let listening = false;
 const entryOf = (key: string): Entry => {
   let e = entries.get(key);
   if (e === undefined) {
-    e = { view: null, error: null, loading: 0, checks: null, fixes: null, checksError: null, checksLoading: 0 };
+    e = {
+      view: null,
+      error: null,
+      loading: 0,
+      checks: null,
+      fixes: null,
+      checksError: null,
+      checksLoading: 0,
+    };
     entries.set(key, e);
   }
   return e;
 };
 
-const messageOf = (e: unknown): string => (e instanceof ApiError || e instanceof Error ? e.message : String(e));
+const messageOf = (e: unknown): string =>
+  e instanceof ApiError || e instanceof Error ? e.message : String(e);
 
 function react(i: Invalidation): void {
   if (i.event === 'build_changed' || apiOf === null) return;
@@ -62,7 +82,8 @@ function react(i: Invalidation): void {
     if (i.appIds.length > 0 && i.appIds.indexOf(appId) < 0) continue;
     if (entry.view !== null) void listingStore.load(api, workspaceId, appId, { quiet: true });
     // What is staged is part of the fixes and of the checks after the cart: a stage, an unstage or a discard changes them.
-    if (entry.checks !== null || entry.fixes !== null) void listingStore.loadChecks(api, workspaceId, appId, { fresh: true });
+    if (entry.checks !== null || entry.fixes !== null)
+      void listingStore.loadChecks(api, workspaceId, appId, { fresh: true });
   }
 }
 
@@ -94,10 +115,17 @@ export const listingStore = {
   },
 
   /** Whether a read is running, and (separately) whether it is the first one (`!reloading`), and why the last one failed. Reactive. */
-  status(workspaceId: string, appId: string): { loading: boolean; reloading: boolean; error: string | null } {
+  status(
+    workspaceId: string,
+    appId: string,
+  ): { loading: boolean; reloading: boolean; error: string | null } {
     void version;
     const e = entries.get(keyOf(workspaceId, appId));
-    return { loading: (e?.loading ?? 0) > 0, reloading: (e?.loading ?? 0) > 0 && e?.view != null, error: e?.error ?? null };
+    return {
+      loading: (e?.loading ?? 0) > 0,
+      reloading: (e?.loading ?? 0) > 0 && e?.view != null,
+      error: e?.error ?? null,
+    };
   },
 
   /**
@@ -152,14 +180,32 @@ export const listingStore = {
   },
 
   /** The checks of the shown copy and the fixes of the editable one (the page-level "Checks" and the fix bar); null until read. Reactive. */
-  checks(workspaceId: string, appId: string): { checks: ListingChecksView | null; fixes: ListingFixesView | null; error: string | null; loading: boolean } {
+  checks(
+    workspaceId: string,
+    appId: string,
+  ): {
+    checks: ListingChecksView | null;
+    fixes: ListingFixesView | null;
+    error: string | null;
+    loading: boolean;
+  } {
     void version;
     const e = entries.get(keyOf(workspaceId, appId));
-    return { checks: e?.checks ?? null, fixes: e?.fixes ?? null, error: e?.checksError ?? null, loading: (e?.checksLoading ?? 0) > 0 };
+    return {
+      checks: e?.checks ?? null,
+      fixes: e?.fixes ?? null,
+      error: e?.checksError ?? null,
+      loading: (e?.checksLoading ?? 0) > 0,
+    };
   },
 
   /** Reads the checks and the fixes together (a fix bar shows rows from both: they are one answer). The fixes are optional: their failure is not the checks'. */
-  loadChecks(api: Api, workspaceId: string, appId: string, options: { fresh?: boolean } = {}): Promise<void> {
+  loadChecks(
+    api: Api,
+    workspaceId: string,
+    appId: string,
+    options: { fresh?: boolean } = {},
+  ): Promise<void> {
     apiOf = api;
     if (!listening) {
       listening = true;
@@ -212,8 +258,14 @@ export const listingStore = {
   review(workspaceId: string, appId: string): ReadinessFact | null {
     return readinessStore.of(workspaceId, appId);
   },
-  loadReview(api: Api, workspaceId: string, role: Role, app: { id: string; platform: Platform }): Promise<void> {
-    if (!can(role, 'store.submit') || supports(app.platform, 'releaseTracks')) return Promise.resolve();
+  loadReview(
+    api: Api,
+    workspaceId: string,
+    role: Role,
+    app: { id: string; platform: Platform },
+  ): Promise<void> {
+    if (!can(role, 'store.submit') || supports(app.platform, 'releaseTracks'))
+      return Promise.resolve();
     return readinessStore.load(api, workspaceId, app.id);
   },
 

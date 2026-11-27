@@ -18,16 +18,16 @@ import {
   type ActorType,
   byFamily,
   compareBuildNumbers,
+  SYNC_ERROR_MAX_CHARS as MAX_ERROR_LENGTH,
   needsStoreAppId,
-  parsePlatform,
-  type Platform,
   PLATFORM_META,
-  platformLabel,
   PLATFORMS,
+  type Platform,
+  parsePlatform,
+  platformLabel,
   type ReleaseState,
   type StoreCredentialKind,
   supports,
-  SYNC_ERROR_MAX_CHARS as MAX_ERROR_LENGTH,
 } from '@kiln/core';
 import { type Database, mapOrNull, oneOf, type Row, type Sql } from '@kiln/db';
 import { coded, messageCoding } from '../i18n/problem.ts';
@@ -748,7 +748,8 @@ function seenFromAppleBuilds(builds: readonly StoreBuild[]): BuildSeen[] {
   return [...builds]
     .sort(
       (a, b) =>
-        (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0) || compareBuildNumbers(b.buildNumber, a.buildNumber),
+        (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0) ||
+        compareBuildNumbers(b.buildNumber, a.buildNumber),
     )
     .slice(0, MAX_BUILDS_SEEN)
     .map((b) => ({
@@ -809,7 +810,10 @@ export function pickBuild(version: StoreVersion, builds: StoreBuild[]): StoreBui
     const linked = builds.find((b) => b.storeId === version.buildStoreId);
     if (linked) return linked;
   }
-  if (version.lifecycleState !== undefined && EDITABLE_LIFECYCLE.indexOf(version.lifecycleState) >= 0)
+  if (
+    version.lifecycleState !== undefined &&
+    EDITABLE_LIFECYCLE.indexOf(version.lifecycleState) >= 0
+  )
     return undefined;
   const candidates = builds.filter((b) => b.versionString === version.versionString);
   const usable = candidates.filter((b) => b.processing === 'processed' && b.expired !== true);

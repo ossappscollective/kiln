@@ -18,7 +18,8 @@ import type { StagedChangesView } from '../listing/staged-changes.ts';
 export const isUnpushed = (row: {
   pushedHash: string | null | undefined;
   valueHash: string;
-}): boolean => row.pushedHash === null || row.pushedHash === undefined || row.pushedHash !== row.valueHash;
+}): boolean =>
+  row.pushedHash === null || row.pushedHash === undefined || row.pushedHash !== row.valueHash;
 
 export type StagedCounts = {
   totalTexts: number;

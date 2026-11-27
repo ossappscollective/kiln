@@ -1,0 +1,7 @@
+import { test } from 'node:test';
+import { deriveAppState } from './derive.ts';
+import { reportedIos } from './fixtures.ts';
+test('probe', () => {
+  const s = deriveAppState(reportedIos(), 'ios');
+  console.log(JSON.stringify({ phase: s.phase, headline: s.headline, reason: s.reason, primary: s.primaryAction, cands: s.candidates.map(c=>[c.plan.kind,c.offer]), obsolete: s.obsolete, notices: s.notices, rest: s.rest.length }, null, 1));
+});

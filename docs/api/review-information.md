@@ -44,11 +44,11 @@ right after the version exists:
 
 | Field          | Meaning                                                                                                                                  |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `outcome`      | `created`, `merged`, `already_complete`, `no_source`, `failed`, `not_read`. In a preview: what would happen.                              |
-| `from`         | The version string it comes from (`1.19.0`), or null.                                                                                     |
-| `fieldsCopied` | How many attributes are written (a count).                                                                                                |
+| `outcome`      | `created`, `merged`, `already_complete`, `no_source`, `failed`, `not_read`. In a preview: what would happen.                             |
+| `from`         | The version string it comes from (`1.19.0`), or null.                                                                                    |
+| `fieldsCopied` | How many attributes are written (a count).                                                                                               |
 | `summary`      | The SOURCE as a screen may show it: `{ contact: "M. G.", phone, email, demoAccount, demoCredentials, notes }`: initials and yes/no only. |
-| `code`         | `failed`: the kind of the failure (`store_rejected`, `network`, ...).                                                                     |
+| `code`         | `failed`: the kind of the failure (`store_rejected`, `network`, ...).                                                                    |
 
 ### 2. The submit checks `no_review_contact` and `no_review_demo_account`
 

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 /**
  * ONE rule counts the screenshots of a set (`validateAssets` -> `checkSets` in store-asset-specs.ts: per store set, never summed across the
@@ -21,12 +21,18 @@ function sources(dir: string, out: string[] = []): string[] {
   }
   return out;
 }
-const files = ['packages/core/src', 'packages/connectors/src', 'apps/server/src', 'apps/web/src'].flatMap((d) =>
-  sources(join(root, d)),
-);
+const files = [
+  'packages/core/src',
+  'packages/connectors/src',
+  'apps/server/src',
+  'apps/web/src',
+].flatMap((d) => sources(join(root, d)));
 const rel = (f: string) => relative(root, f).split('\\').join('/');
 const using = (pattern: RegExp) =>
-  files.filter((f) => pattern.test(readFileSync(f, 'utf8'))).map(rel).sort();
+  files
+    .filter((f) => pattern.test(readFileSync(f, 'utf8')))
+    .map(rel)
+    .sort();
 
 test('the limit "At most N screenshots per device size" is worded in one place', () => {
   assert.deepEqual(using(/screenshots per device size\./), [
@@ -51,7 +57,7 @@ test('only these modules call the validators; each builds its facts from the sam
   ]);
 });
 
-test('facts built from the store\'s sets carry the set (the key of the count): ONE builder, used by both places that read a store', () => {
+test("facts built from the store's sets carry the set (the key of the count): ONE builder, used by both places that read a store", () => {
   const builder = readFileSync(join(root, 'packages/core/src/images/facts.ts'), 'utf8');
   const asset = readFileSync(join(root, 'packages/core/src/listing/asset-sync.ts'), 'utf8');
   const draft = readFileSync(join(root, 'packages/core/src/listing/draft-readiness.ts'), 'utf8');

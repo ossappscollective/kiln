@@ -154,7 +154,9 @@ test('every single-owner function is exported from the package', () => {
 });
 
 test('every single-owner constant and table is exported', () => {
-  const missing = VALUES.filter((n) => exported[n] === undefined || typeof exported[n] === 'function');
+  const missing = VALUES.filter(
+    (n) => exported[n] === undefined || typeof exported[n] === 'function',
+  );
   assert.deepEqual(missing, []);
 });
 
@@ -167,7 +169,11 @@ test('the old names still exist and still answer (delegating to the owners)', ()
   assert.equal(core.sameLocale('it', 'it-IT'), true);
   assert.equal(core.normalizeLocale('pt_br'), 'pt-BR');
   assert.equal(core.isPlanLocale('pt_BR'), true);
-  assert.equal(exported.slotMaxFiles, undefined, 'the second limit table is gone: limitOf is the only one');
+  assert.equal(
+    exported.slotMaxFiles,
+    undefined,
+    'the second limit table is gone: limitOf is the only one',
+  );
 });
 
 test('the two limit tables keep distinct names: limitOf is the image table, textLimitOf the listing text table', () => {

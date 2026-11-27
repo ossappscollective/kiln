@@ -1,4 +1,9 @@
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import {
+  TWO_FACTOR_EMAIL_CODE_TTL_MS as EMAIL_CODE_TTL_MS,
+  LOGIN_CHALLENGE_TOKEN_MAX_CHARS,
+  TWO_FACTOR_LOGIN_CHALLENGE_TTL_MS as LOGIN_CHALLENGE_TTL_MS,
+} from '@kiln/core';
 import type { Database, Sql } from '@kiln/db';
 import { decryptSecret, encryptSecret } from '@kiln/vault';
 import { translator } from '../i18n/catalogs.ts';
@@ -22,13 +27,8 @@ import {
   normalizeTotpCode,
   otpauthUri,
 } from './totp.ts';
-import {
-  LOGIN_CHALLENGE_TOKEN_MAX_CHARS,
-  TWO_FACTOR_EMAIL_CODE_TTL_MS as EMAIL_CODE_TTL_MS,
-  TWO_FACTOR_LOGIN_CHALLENGE_TTL_MS as LOGIN_CHALLENGE_TTL_MS,
-} from '@kiln/core';
 
-export { LOGIN_CHALLENGE_TTL_MS, EMAIL_CODE_TTL_MS };
+export { EMAIL_CODE_TTL_MS, LOGIN_CHALLENGE_TTL_MS };
 
 /**
  * Two-factor authentication (docs/adr/0021-two-factor-and-smtp.md): an authenticator app (TOTP) and a code by email, as ways to
@@ -687,7 +687,11 @@ export async function loadLoginChallenge(
   token: string,
   now: number,
 ): Promise<LoginChallenge | undefined> {
-  if (typeof token !== 'string' || !token.startsWith('lgc_') || token.length > LOGIN_CHALLENGE_TOKEN_MAX_CHARS)
+  if (
+    typeof token !== 'string' ||
+    !token.startsWith('lgc_') ||
+    token.length > LOGIN_CHALLENGE_TOKEN_MAX_CHARS
+  )
     return undefined;
   const id = sha256hex(token);
   const [row] = await sql.query(

@@ -20,7 +20,9 @@ export type Clock = {
   touch(): number;
 };
 
-export function useNow(options: { everyMs?: number; while?: () => boolean; visibleOnly?: boolean } = {}): Clock {
+export function useNow(
+  options: { everyMs?: number; while?: () => boolean; visibleOnly?: boolean } = {},
+): Clock {
   let value = $state(Date.now());
   const touch = (): number => (value = Date.now());
   const { everyMs, while: active, visibleOnly } = options;
@@ -29,7 +31,8 @@ export function useNow(options: { everyMs?: number; while?: () => boolean; visib
       if (active !== undefined && !active()) return;
       untrack(touch);
       const timer = setInterval(() => {
-        if (visibleOnly && typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+        if (visibleOnly && typeof document !== 'undefined' && document.visibilityState === 'hidden')
+          return;
         touch();
         if (active !== undefined && !untrack(active)) clearInterval(timer);
       }, everyMs);
@@ -50,7 +53,11 @@ export function useNow(options: { everyMs?: number; while?: () => boolean; visib
  *
  *     usePoll(() => void load(), 60_000, { while: () => status?.active === true });
  */
-export function usePoll(tick: () => void, everyMs: number, options: { while?: () => boolean } = {}): void {
+export function usePoll(
+  tick: () => void,
+  everyMs: number,
+  options: { while?: () => boolean } = {},
+): void {
   const { while: active } = options;
   $effect(() => {
     if (active !== undefined && !active()) return;

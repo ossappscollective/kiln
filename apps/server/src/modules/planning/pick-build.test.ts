@@ -12,7 +12,11 @@ const version = (over: Partial<StoreVersion> = {}): StoreVersion => ({
   lifecycleState: 'draft',
   ...over,
 });
-const build = (storeId: string, buildNumber: string, over: Partial<StoreBuild> = {}): StoreBuild => ({
+const build = (
+  storeId: string,
+  buildNumber: string,
+  over: Partial<StoreBuild> = {},
+): StoreBuild => ({
   storeId,
   appStoreId: 'a1',
   platform: 'ios',
@@ -33,7 +37,11 @@ test('an editable version takes the build Apple says is attached, and none when 
 });
 
 test('a version past editing still falls back to its newest processed build of the same version', () => {
-  const builds = [build('b1', '10'), build('b2', '11'), build('b3', '12', { processing: 'processing' })];
+  const builds = [
+    build('b1', '10'),
+    build('b2', '11'),
+    build('b3', '12', { processing: 'processing' }),
+  ];
   assert.equal(
     pickBuild(version({ lifecycleState: 'live', rawState: 'READY_FOR_SALE' }), builds)?.buildNumber,
     '11',

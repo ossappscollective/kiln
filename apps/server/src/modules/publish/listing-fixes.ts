@@ -152,7 +152,16 @@ export async function getListingFixes(
       resolved,
     };
   }
-  return { ok: true, view: { appId: base.app.id, store: base.store, baseLocale: base.baseLocale, afterPending, locales } };
+  return {
+    ok: true,
+    view: {
+      appId: base.app.id,
+      store: base.store,
+      baseLocale: base.baseLocale,
+      afterPending,
+      locales,
+    },
+  };
 }
 
 export type StageFixInput = {

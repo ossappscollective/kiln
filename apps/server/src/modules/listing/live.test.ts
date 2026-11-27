@@ -205,9 +205,10 @@ dbTest(
     });
     const rows = async () =>
       (
-        await db.query("SELECT field FROM listing_snapshots WHERE app_id = ? AND locale <> '_app'", [
-          id,
-        ])
+        await db.query(
+          "SELECT field FROM listing_snapshots WHERE app_id = ? AND locale <> '_app'",
+          [id],
+        )
       ).length;
     assert.equal(await rows(), 5);
 
@@ -892,9 +893,21 @@ dbTest(
     // fr-FR exists on the draft only and Apple sends null for every attribute: no field, but the language is there.
     // fr-CA exists on both versions with a description. The live version has no fr-FR.
     t.stores.ios.listing = iosListing(
-      { 'en-US': { name: 'Acme', description: 'Live text', keywords: 'a', support_url: 'https://x.y' } },
       {
-        'en-US': { name: 'Acme', description: 'Draft text', keywords: 'a', support_url: 'https://x.y' },
+        'en-US': {
+          name: 'Acme',
+          description: 'Live text',
+          keywords: 'a',
+          support_url: 'https://x.y',
+        },
+      },
+      {
+        'en-US': {
+          name: 'Acme',
+          description: 'Draft text',
+          keywords: 'a',
+          support_url: 'https://x.y',
+        },
         'fr-FR': {},
         'fr-CA': { description: 'Texte' },
       },
@@ -931,32 +944,45 @@ dbTest(
   },
 );
 
-dbTest('a language that the store no longer lists leaves the list with the next read', async (db) => {
-  const t = await boot(db);
-  const id = await t.addIos();
-  t.stores.ios.listing = iosListing({ 'en-US': { name: 'Acme' } }, { 'en-US': { name: 'Acme' }, 'fr-FR': {} });
-  await t.sync(id);
-  assert.ok(localeOf((await t.drift(id)).body, 'fr-FR'));
-  t.stores.ios.listing = iosListing({ 'en-US': { name: 'Acme' } }, { 'en-US': { name: 'Acme' } });
-  await t.sync(id);
-  assert.equal(localeOf((await t.drift(id)).body, 'fr-FR'), undefined);
-});
+dbTest(
+  'a language that the store no longer lists leaves the list with the next read',
+  async (db) => {
+    const t = await boot(db);
+    const id = await t.addIos();
+    t.stores.ios.listing = iosListing(
+      { 'en-US': { name: 'Acme' } },
+      { 'en-US': { name: 'Acme' }, 'fr-FR': {} },
+    );
+    await t.sync(id);
+    assert.ok(localeOf((await t.drift(id)).body, 'fr-FR'));
+    t.stores.ios.listing = iosListing({ 'en-US': { name: 'Acme' } }, { 'en-US': { name: 'Acme' } });
+    await t.sync(id);
+    assert.equal(localeOf((await t.drift(id)).body, 'fr-FR'), undefined);
+  },
+);
 
-dbTest('only an editable version with an empty localization still shows it (no live version)', async (db) => {
-  const t = await boot(db);
-  const id = await t.addIos();
-  t.stores.ios.listing = {
-    platform: 'ios',
-    appStoreId: '1234567890',
-    warnings: [],
-    channels: [
-      { channel: 'editable', versionString: '1.0', listing: { appStore: { locales: { 'fr-FR': {} } } } },
-    ],
-  };
-  await t.sync(id);
-  const live = (await t.live(id)).body;
-  assert.deepEqual(Object.keys(live.channels[0].locales), ['fr-FR']);
-  const fr = localeOf((await t.drift(id)).body, 'fr-FR');
-  assert.deepEqual(fr?.stores, ['editable']);
-  assert.deepEqual(fr?.emptyRequired, ['description', 'keywords', 'support_url']);
-});
+dbTest(
+  'only an editable version with an empty localization still shows it (no live version)',
+  async (db) => {
+    const t = await boot(db);
+    const id = await t.addIos();
+    t.stores.ios.listing = {
+      platform: 'ios',
+      appStoreId: '1234567890',
+      warnings: [],
+      channels: [
+        {
+          channel: 'editable',
+          versionString: '1.0',
+          listing: { appStore: { locales: { 'fr-FR': {} } } },
+        },
+      ],
+    };
+    await t.sync(id);
+    const live = (await t.live(id)).body;
+    assert.deepEqual(Object.keys(live.channels[0].locales), ['fr-FR']);
+    const fr = localeOf((await t.drift(id)).body, 'fr-FR');
+    assert.deepEqual(fr?.stores, ['editable']);
+    assert.deepEqual(fr?.emptyRequired, ['description', 'keywords', 'support_url']);
+  },
+);

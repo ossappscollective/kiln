@@ -35,7 +35,20 @@ test('normalizeLocaleCode: every written form of one locale gives one code', () 
 });
 
 test('not a locale: empty, numbers, too many parts, a 4-part tag, an overlong text, not a string', () => {
-  for (const bad of ['', ' ', 'e', 'english', '12', 'en-', '-US', 'en-US-x-y', 'en--US', 'en-USA', 'ios/en', 'a'.repeat(40)]) {
+  for (const bad of [
+    '',
+    ' ',
+    'e',
+    'english',
+    '12',
+    'en-',
+    '-US',
+    'en-US-x-y',
+    'en--US',
+    'en-USA',
+    'ios/en',
+    'a'.repeat(40),
+  ]) {
     assert.equal(isLocaleCode(bad), false, bad);
     assert.equal(normalizeLocaleCode(bad), null, bad);
   }
@@ -63,7 +76,18 @@ test('localesMatch exact / equivalent / language', () => {
   assert.equal(localesMatch('zh-Hans', 'zh-CN', exact), false);
   assert.equal(localesMatch('fr', 'fr-FR', exact), false);
   // equivalent (default): the other store's spelling
-  for (const [a, b] of [['zh-Hans', 'zh-CN'], ['zh-Hant', 'zh-TW'], ['ja', 'ja-JP'], ['he', 'iw-IL'], ['he', 'iw'], ['es-MX', 'es-419'], ['no', 'nb-NO'], ['in-ID', 'id'], ['ar-SA', 'ar'], ['nl', 'nl-NL']] as const) {
+  for (const [a, b] of [
+    ['zh-Hans', 'zh-CN'],
+    ['zh-Hant', 'zh-TW'],
+    ['ja', 'ja-JP'],
+    ['he', 'iw-IL'],
+    ['he', 'iw'],
+    ['es-MX', 'es-419'],
+    ['no', 'nb-NO'],
+    ['in-ID', 'id'],
+    ['ar-SA', 'ar'],
+    ['nl', 'nl-NL'],
+  ] as const) {
     assert.equal(localesMatch(a, b), true, `${a} ~ ${b}`);
     assert.equal(localesMatch(b, a), true, `${b} ~ ${a}`);
   }
@@ -95,14 +119,41 @@ test('storeCodeOf: write a locale the way a store writes it', () => {
 
 test('the table is the server table: pinned group by group (zh-Hans/zh-CN included)', () => {
   const OLD: string[][] = [
-    ['zh-hans', 'zh-cn'], ['zh-hant', 'zh-tw'], ['ja', 'ja-jp'], ['ko', 'ko-kr'], ['it', 'it-it'], ['ru', 'ru-ru'], ['tr', 'tr-tr'],
-    ['pl', 'pl-pl'], ['sv', 'sv-se'], ['da', 'da-dk'], ['fi', 'fi-fi'], ['no', 'no-no', 'nb', 'nb-no'], ['cs', 'cs-cz'], ['el', 'el-gr'],
-    ['hu', 'hu-hu'], ['he', 'he-il', 'iw', 'iw-il'], ['hi', 'hi-in'], ['ar-sa', 'ar'], ['ms', 'ms-my'], ['id', 'id-id', 'in-id'],
-    ['th', 'th-th'], ['vi', 'vi-vn'], ['uk', 'uk-ua'], ['ro', 'ro-ro'], ['sk', 'sk-sk'], ['hr', 'hr-hr'], ['ca', 'ca-es'], ['nl-nl', 'nl'], ['es-mx', 'es-419'],
+    ['zh-hans', 'zh-cn'],
+    ['zh-hant', 'zh-tw'],
+    ['ja', 'ja-jp'],
+    ['ko', 'ko-kr'],
+    ['it', 'it-it'],
+    ['ru', 'ru-ru'],
+    ['tr', 'tr-tr'],
+    ['pl', 'pl-pl'],
+    ['sv', 'sv-se'],
+    ['da', 'da-dk'],
+    ['fi', 'fi-fi'],
+    ['no', 'no-no', 'nb', 'nb-no'],
+    ['cs', 'cs-cz'],
+    ['el', 'el-gr'],
+    ['hu', 'hu-hu'],
+    ['he', 'he-il', 'iw', 'iw-il'],
+    ['hi', 'hi-in'],
+    ['ar-sa', 'ar'],
+    ['ms', 'ms-my'],
+    ['id', 'id-id', 'in-id'],
+    ['th', 'th-th'],
+    ['vi', 'vi-vn'],
+    ['uk', 'uk-ua'],
+    ['ro', 'ro-ro'],
+    ['sk', 'sk-sk'],
+    ['hr', 'hr-hr'],
+    ['ca', 'ca-es'],
+    ['nl-nl', 'nl'],
+    ['es-mx', 'es-419'],
   ];
   assert.equal(LOCALE_EQUIVALENTS.length, OLD.length);
   for (const group of OLD) {
-    const keys = equivalentLocaleKeys(group[0] as string).slice().sort();
+    const keys = equivalentLocaleKeys(group[0] as string)
+      .slice()
+      .sort();
     // the old `id` group has `id` twice via apple/play; compare as sets
     assert.deepEqual([...new Set(keys)], [...new Set(group)].sort(), group.join(','));
   }
@@ -110,32 +161,84 @@ test('the table is the server table: pinned group by group (zh-Hans/zh-CN includ
 });
 
 test('matchLocale: exact, normalized (fr_FR folder), equivalent (zh-CN folder for Apple zh-Hans), ambiguous, none', () => {
-  assert.deepEqual(matchLocale('fr-FR', ['de-DE', 'fr-FR']), { kind: 'match', locale: 'fr-FR', how: 'exact' });
-  assert.deepEqual(matchLocale('fr-FR', ['de-DE', 'fr_FR']), { kind: 'match', locale: 'fr_FR', how: 'normalized' });
-  assert.deepEqual(matchLocale('zh-Hans', ['en-US', 'zh-CN']), { kind: 'match', locale: 'zh-CN', how: 'equivalent' });
-  assert.deepEqual(matchLocale('ja', ['ja-JP']), { kind: 'match', locale: 'ja-JP', how: 'equivalent' });
-  assert.deepEqual(matchLocale('zh-Hans', ['zh-CN', 'zh-hans']), { kind: 'match', locale: 'zh-hans', how: 'normalized' });
+  assert.deepEqual(matchLocale('fr-FR', ['de-DE', 'fr-FR']), {
+    kind: 'match',
+    locale: 'fr-FR',
+    how: 'exact',
+  });
+  assert.deepEqual(matchLocale('fr-FR', ['de-DE', 'fr_FR']), {
+    kind: 'match',
+    locale: 'fr_FR',
+    how: 'normalized',
+  });
+  assert.deepEqual(matchLocale('zh-Hans', ['en-US', 'zh-CN']), {
+    kind: 'match',
+    locale: 'zh-CN',
+    how: 'equivalent',
+  });
+  assert.deepEqual(matchLocale('ja', ['ja-JP']), {
+    kind: 'match',
+    locale: 'ja-JP',
+    how: 'equivalent',
+  });
+  assert.deepEqual(matchLocale('zh-Hans', ['zh-CN', 'zh-hans']), {
+    kind: 'match',
+    locale: 'zh-hans',
+    how: 'normalized',
+  });
   assert.deepEqual(matchLocale('zh-Hans', ['zh-CN', 'zh-Hans-x'.slice(0, 7)]).kind, 'match');
-  assert.deepEqual(matchLocale('he', ['iw', 'he-IL']), { kind: 'ambiguous', candidates: ['he-IL', 'iw'] });
+  assert.deepEqual(matchLocale('he', ['iw', 'he-IL']), {
+    kind: 'ambiguous',
+    candidates: ['he-IL', 'iw'],
+  });
   // nothing is guessed beyond the table: en is not en-US, fr is not fr-FR ...
   assert.deepEqual(matchLocale('en-US', ['en']), { kind: 'none' });
   assert.deepEqual(matchLocale('fr-FR', ['fr', 'FR']), { kind: 'none' });
   // ... unless the language fallback is asked for (a fastlane `fr` or `FR` folder), and then two are still ambiguous
-  assert.deepEqual(matchLocale('fr-FR', ['fr'], { languageFallback: true }), { kind: 'match', locale: 'fr', how: 'language' });
-  assert.deepEqual(matchLocale('fr-FR', ['FR'], { languageFallback: true }), { kind: 'match', locale: 'FR', how: 'language' });
-  assert.deepEqual(matchLocale('fr-FR', ['fr', 'FR'], { languageFallback: true }), { kind: 'ambiguous', candidates: ['FR', 'fr'] });
+  assert.deepEqual(matchLocale('fr-FR', ['fr'], { languageFallback: true }), {
+    kind: 'match',
+    locale: 'fr',
+    how: 'language',
+  });
+  assert.deepEqual(matchLocale('fr-FR', ['FR'], { languageFallback: true }), {
+    kind: 'match',
+    locale: 'FR',
+    how: 'language',
+  });
+  assert.deepEqual(matchLocale('fr-FR', ['fr', 'FR'], { languageFallback: true }), {
+    kind: 'ambiguous',
+    candidates: ['FR', 'fr'],
+  });
   // the fallback folder is never a locale
   assert.deepEqual(matchLocale('en-US', ['default']), { kind: 'none' });
 });
 
 test('repository folders: fr-FR, fr_FR, Fr-fr, FR, fr, zh-Hans are locale folders; ios, android, default, long names are not', () => {
-  for (const ok of ['fr-FR', 'fr_FR', 'Fr-fr', 'FR', 'fr', 'zh-Hans', 'es-419', 'en-US']) assert.equal(isRepoLocaleFolder(ok), true, ok);
-  for (const bad of ['ios', 'iOS', 'android', 'default', 'metadata', 'review_information', 'screenshots', '', 'fr-FR-x-y']) assert.equal(isRepoLocaleFolder(bad), false, bad);
+  for (const ok of ['fr-FR', 'fr_FR', 'Fr-fr', 'FR', 'fr', 'zh-Hans', 'es-419', 'en-US'])
+    assert.equal(isRepoLocaleFolder(ok), true, ok);
+  for (const bad of [
+    'ios',
+    'iOS',
+    'android',
+    'default',
+    'metadata',
+    'review_information',
+    'screenshots',
+    '',
+    'fr-FR-x-y',
+  ])
+    assert.equal(isRepoLocaleFolder(bad), false, bad);
 });
 
 test('merging records: iOS zh-Hans and Android zh-CN are ONE row', () => {
-  const rows = mergeLocales([['en-US', 'zh-Hans', 'fr_FR'], ['en_us', 'zh-CN', 'fr-FR', 'pt-BR']]);
-  assert.deepEqual(rows.map((r) => r.key), ['en-us', 'zh-hans', 'fr-fr', 'pt-br']);
+  const rows = mergeLocales([
+    ['en-US', 'zh-Hans', 'fr_FR'],
+    ['en_us', 'zh-CN', 'fr-FR', 'pt-BR'],
+  ]);
+  assert.deepEqual(
+    rows.map((r) => r.key),
+    ['en-us', 'zh-hans', 'fr-fr', 'pt-br'],
+  );
   assert.deepEqual(rows.find((r) => r.key === 'zh-hans')?.codes, ['zh-Hans', 'zh-CN']);
   assert.deepEqual(rows.find((r) => r.key === 'fr-fr')?.codes, ['fr-FR']);
   assert.equal(localeGroupKey('zh-CN'), localeGroupKey('zh-Hans'));
@@ -144,13 +247,28 @@ test('merging records: iOS zh-Hans and Android zh-CN are ONE row', () => {
 });
 
 test('the base locale: declared (Play defaultLanguage / Apple primary), else en-US, else English, else the first, said which', () => {
-  assert.deepEqual(baseLocaleOf(['de-DE', 'en-US', 'fr-FR'], 'de-DE'), { locale: 'de-DE', source: 'declared' });
+  assert.deepEqual(baseLocaleOf(['de-DE', 'en-US', 'fr-FR'], 'de-DE'), {
+    locale: 'de-DE',
+    source: 'declared',
+  });
   // the declared code may be the other store's spelling
-  assert.deepEqual(baseLocaleOf(['zh-Hans', 'en-US'], 'zh-CN'), { locale: 'zh-Hans', source: 'declared' });
-  assert.deepEqual(baseLocaleOf(['de-DE', 'en-US'], 'sv-SE'), { locale: 'en-US', source: 'english' });
-  assert.deepEqual(baseLocaleOf(['de-DE', 'en-GB', 'en-AU']), { locale: 'en-AU', source: 'english' });
+  assert.deepEqual(baseLocaleOf(['zh-Hans', 'en-US'], 'zh-CN'), {
+    locale: 'zh-Hans',
+    source: 'declared',
+  });
+  assert.deepEqual(baseLocaleOf(['de-DE', 'en-US'], 'sv-SE'), {
+    locale: 'en-US',
+    source: 'english',
+  });
+  assert.deepEqual(baseLocaleOf(['de-DE', 'en-GB', 'en-AU']), {
+    locale: 'en-AU',
+    source: 'english',
+  });
   // an Apple app whose primary is de-DE without en-US: with the primary known it is not "the alphabetically first"
-  assert.deepEqual(baseLocaleOf(['fr-FR', 'de-DE', 'ja'], 'de-DE'), { locale: 'de-DE', source: 'declared' });
+  assert.deepEqual(baseLocaleOf(['fr-FR', 'de-DE', 'ja'], 'de-DE'), {
+    locale: 'de-DE',
+    source: 'declared',
+  });
   assert.deepEqual(baseLocaleOf(['fr-FR', 'de-DE', 'ja']), { locale: 'de-DE', source: 'first' });
   assert.equal(baseLocaleOf([]), null);
   assert.equal(baseLocaleOf(['default']), null);

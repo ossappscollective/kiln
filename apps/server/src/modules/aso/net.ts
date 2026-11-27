@@ -219,7 +219,7 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
     name: `aso.${name}`,
     owner: 'modules/aso/net.ts',
     invalidatedBy: [] as const,
-    why: 'A read of the stores\' PUBLIC search and listing pages (keyed by query, country and store): nothing about an app of ours changes it; it expires after `cacheMs`.',
+    why: "A read of the stores' PUBLIC search and listing pages (keyed by query, country and store): nothing about an app of ours changes it; it expires after `cacheMs`.",
     keys: 'all' as const,
   });
   const searches = timedCache<SearchOutcome>(options.cacheMs, 500, publicRead('searches'));

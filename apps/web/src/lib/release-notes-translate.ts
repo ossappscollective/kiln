@@ -1,6 +1,6 @@
 import {
-  aiProviderInfo,
   APP_STORE_RELEASE_NOTES_LIMIT,
+  aiProviderInfo,
   can,
   localeKey,
   notesLengthOf,
@@ -352,9 +352,7 @@ export function applyTranslations(
       settled[locale] = true;
       const chars = (r.texts[key] as string).length;
       if (chars > r.limit) out.over.push({ locale, chars, limit: r.limit });
-      const codes = Object.keys(r.warnings).filter(
-        (k) => localeKey(k) === localeKey(key),
-      )[0];
+      const codes = Object.keys(r.warnings).filter((k) => localeKey(k) === localeKey(key))[0];
       if (codes !== undefined && (r.warnings[codes] as string[]).length > 0)
         out.warnings.push({ locale, codes: r.warnings[codes] as string[] });
     }

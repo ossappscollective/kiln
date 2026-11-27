@@ -38,7 +38,11 @@ const totals = (over: Partial<AssetDiffSet['totals']> = {}): AssetDiffSet['total
   only_store: 0,
   ...over,
 });
-const row = (position: number, status: AssetDiffSet['rows'][number]['status'], ref: string | null): AssetDiffSet['rows'][number] => ({
+const row = (
+  position: number,
+  status: AssetDiffSet['rows'][number]['status'],
+  ref: string | null,
+): AssetDiffSet['rows'][number] => ({
   index: position - 1,
   position,
   status,

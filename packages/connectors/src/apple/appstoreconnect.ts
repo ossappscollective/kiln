@@ -1052,7 +1052,8 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
         }
       }
       // A channel with an app info but no version (nothing editable yet) still says which locale is primary.
-      if (!version && primaryLocale !== undefined) sections.details = { defaultLanguage: primaryLocale };
+      if (!version && primaryLocale !== undefined)
+        sections.details = { defaultLanguage: primaryLocale };
       channels.push({
         channel,
         ...(version?.versionString !== undefined ? { versionString: version.versionString } : {}),

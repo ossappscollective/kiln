@@ -248,7 +248,11 @@ export async function loadCart(
     const lastDisplays = lastStoreView ? groupStoreImages(lastStoreView) : null;
     for (const a of view.assets.filter((x) => !x.pushed)) {
       const display = lastDisplays
-        ? findDisplay(lastDisplays, { locale: a.locale, kind: a.slot.kind as AssetKind, device: a.slot.device })
+        ? findDisplay(lastDisplays, {
+            locale: a.locale,
+            kind: a.slot.kind as AssetKind,
+            device: a.slot.device,
+          })
         : undefined;
       const before = lastDisplays ? (display === undefined ? 0 : display.counts.merged) : null;
       raw.set(`graphics:${a.id}`, { kind: 'graphics', rawId: a.id });
@@ -262,7 +266,12 @@ export async function loadCart(
         author: null,
         publishable: true,
         reason: null,
-        version: sha(['graphics', a.id, ...(a.cleared ? ['cleared'] : []), ...a.files.map((f) => f.oid)]),
+        version: sha([
+          'graphics',
+          a.id,
+          ...(a.cleared ? ['cleared'] : []),
+          ...a.files.map((f) => f.oid),
+        ]),
         counts: {
           files: a.files.length,
           uploads: a.files.filter((f) => f.upload).length,
@@ -594,7 +603,11 @@ export async function cartItemDetail(
       }));
       const last = lastStoreImages(workspaceId, app.id);
       const lastDisplay = last
-        ? findDisplay(groupStoreImages(last), { locale: a.locale, kind: a.slot.kind as AssetKind, device: a.slot.device })
+        ? findDisplay(groupStoreImages(last), {
+            locale: a.locale,
+            kind: a.slot.kind as AssetKind,
+            device: a.slot.device,
+          })
         : undefined;
       const before = last
         ? (lastDisplay === undefined ? [] : lastDisplay.files)

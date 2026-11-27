@@ -54,7 +54,10 @@ export function createRefusalText(v: CreateVerdict | null | undefined): string |
     case 'version_exists':
       return t('release-stepper:cv.refused.exists', { version: v.version });
     case 'not_higher':
-      return t('release-stepper:cv.refused.notHigher', { version: v.version, newest: v.newestFixed ?? '' });
+      return t('release-stepper:cv.refused.notHigher', {
+        version: v.version,
+        newest: v.newestFixed ?? '',
+      });
     default:
       return t('release-stepper:cv.refused.invalid', { version: v.version });
   }
@@ -522,7 +525,12 @@ export function noCodeSentence(rows: readonly CodeRow[], track: string): string 
 // ---------------------------------------------------------------------------------------------
 // Track names
 
-export const SUGGESTED_TRACKS = [PLAY_TRACKS.production, PLAY_TRACKS.beta, PLAY_TRACKS.alpha, PLAY_TRACKS.internal] as const;
+export const SUGGESTED_TRACKS = [
+  PLAY_TRACKS.production,
+  PLAY_TRACKS.beta,
+  PLAY_TRACKS.alpha,
+  PLAY_TRACKS.internal,
+] as const;
 
 export const isSameTrack = sameTrack;
 
@@ -605,7 +613,8 @@ export function eligibleChoices(candidates: ReleaseCandidates | null): number | 
   if (candidates === null) return null;
   let n = 0;
   if (candidates.store === 'appstoreconnect') {
-    for (const b of candidates.builds) if (b.eligibility ? b.eligibility.eligible : b.selectable) n++;
+    for (const b of candidates.builds)
+      if (b.eligibility ? b.eligibility.eligible : b.selectable) n++;
   } else {
     for (const c of candidates.codes) if (c.eligibility ? c.eligibility.eligible : true) n++;
   }

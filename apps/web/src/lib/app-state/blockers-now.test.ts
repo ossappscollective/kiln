@@ -19,7 +19,12 @@ const COUNT_RUN = {
   locale: 'en-US',
   item: 'apple.screenshot.count',
 };
-const FR_RUN = { code: 'missing_text', message: 'Description is empty in fr-FR.', locale: 'fr-FR', item: 'description' };
+const FR_RUN = {
+  code: 'missing_text',
+  message: 'Description is empty in fr-FR.',
+  locale: 'fr-FR',
+  item: 'description',
+};
 const userRun = () => blockedRun('ios', [COUNT_RUN, FR_RUN]);
 
 const fix = { kind: 'screenshots' as const, href: null };
@@ -51,7 +56,10 @@ const reading = (blockers: SubmitBlocker[], over: Partial<ReadinessFact> = {}): 
   ...over,
 });
 const draft = iosRelease({ version: '2.0.1', status: 'draft', rawState: 'PREPARE_FOR_SUBMISSION' });
-const state = (fact: ReadinessFact | null | undefined, over: Partial<Parameters<typeof facts>[0]> = {}) =>
+const state = (
+  fact: ReadinessFact | null | undefined,
+  over: Partial<Parameters<typeof facts>[0]> = {},
+) =>
   deriveAppState(
     facts({
       records: [IOS],
@@ -76,7 +84,13 @@ test('the run said 12 screenshots and an empty fr-FR; the store now has 10 and f
   assert.equal(s.primaryAction.label, 'Submit 2.0.1 for review');
   assert.equal(s.primaryAction.enabled, true);
   assert.equal(s.primaryAction.appId, IOS.id);
-  assert.deepEqual(s.badge, { kind: 'failed', count: 0, appId: IOS.id, blocked: true, ready: true });
+  assert.deepEqual(s.badge, {
+    kind: 'failed',
+    count: 0,
+    appId: IOS.id,
+    blocked: true,
+    ready: true,
+  });
   assert.equal(s.tone, 'info');
   assert.equal(s.canDo('submit', 'ios').enabled, true);
   // The record of the run is still there, as history: what it said then, apart from what is true now.
@@ -103,8 +117,14 @@ test('one fixed, one still there: only the one that holds is shown, as the next 
   assert.doesNotMatch(s.reason, /12 found/);
   const view = s.failures[0]?.blockers;
   assert.equal(view?.state, 'blocked');
-  assert.deepEqual(view?.current.map((b) => b.code), ['missing_text']);
-  assert.deepEqual(view?.resolved.map((b) => b.code), ['asset_spec']);
+  assert.deepEqual(
+    view?.current.map((b) => b.code),
+    ['missing_text'],
+  );
+  assert.deepEqual(
+    view?.resolved.map((b) => b.code),
+    ['asset_spec'],
+  );
   assert.equal(view?.run.length, 2);
   assert.equal(view?.summary, 'Still 1 thing in the way');
   assert.deepEqual(s.badge, { kind: 'failed', count: 0, appId: IOS.id, blocked: true });
@@ -121,7 +141,7 @@ test('still 12 iPad 13" screenshots: the answer says which and how many to remov
   assert.equal(view?.resolved.map((b) => b.code).join(), 'missing_text');
 });
 
-test('no reading yet: the run\'s blockers are shown as they were, labelled with their age, and nothing is claimed to be fixed', () => {
+test("no reading yet: the run's blockers are shown as they were, labelled with their age, and nothing is claimed to be fixed", () => {
   const s = state(undefined);
   assert.equal(s.phase, 'publish_failed');
   assert.equal(s.primaryAction.label, 'Fix 2 blockers, then submit 2.0.1 for review');
@@ -135,12 +155,22 @@ test('no reading yet: the run\'s blockers are shown as they were, labelled with 
 });
 
 test('a reading made before the run ended says nothing about what the run left', () => {
-  const s = state(reading([], { reading: { ready: true, blockers: [], unknown: [], versionString: '2.0.1', storeReadAt: NOW - 500_000 } }));
+  const s = state(
+    reading([], {
+      reading: {
+        ready: true,
+        blockers: [],
+        unknown: [],
+        versionString: '2.0.1',
+        storeReadAt: NOW - 500_000,
+      },
+    }),
+  );
   assert.equal(s.phase, 'publish_failed');
   assert.equal(s.failures[0]?.blockers?.state, 'unverified');
 });
 
-test('a reading that is on its way, or that failed, keeps the run\'s list and says so', () => {
+test("a reading that is on its way, or that failed, keeps the run's list and says so", () => {
   const checking = state({ reading: null, checking: true, error: null });
   assert.equal(checking.failures[0]?.blockers?.checking, true);
   assert.equal(checking.failures[0]?.blockers?.state, 'unverified');
@@ -151,7 +181,15 @@ test('a reading that is on its way, or that failed, keeps the run\'s list and sa
 
 test('a check of the run that nothing can recompute (the store drifted) is not carried over as current, and does not hold the submit', () => {
   const s = state(reading([]), {
-    lastRun: { [IOS.id]: blockedRun('ios', [{ code: 'draft_differs', message: 'The screenshots x (en-US) in the store no longer match what was pushed. Push the draft again.' }]) },
+    lastRun: {
+      [IOS.id]: blockedRun('ios', [
+        {
+          code: 'draft_differs',
+          message:
+            'The screenshots x (en-US) in the store no longer match what was pushed. Push the draft again.',
+        },
+      ]),
+    },
   });
   assert.equal(s.phase, 'ready_to_submit');
   assert.equal(s.failures[0]?.blockers?.resolved.length, 0);
@@ -214,7 +252,11 @@ test('over every reading x pending x role x scope the model keeps its promises a
           // The run is always kept, as history, whatever the reading says.
           assert.equal(view.run.length, 2, at);
           // "Ready" is only ever said of an empty current list, and "blocked" only of a non-empty one.
-          assert.equal(view.state === 'ready', view.current.length === 0 && view.readAt !== null && name === 'clear', at);
+          assert.equal(
+            view.state === 'ready',
+            view.current.length === 0 && view.readAt !== null && name === 'clear',
+            at,
+          );
           if (view.state === 'blocked') assert.ok(view.current.length > 0, at);
           // The phase "ready to submit" is never claimed over blockers or pending changes.
           if (s.phase === 'ready_to_submit') {

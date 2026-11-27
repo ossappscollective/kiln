@@ -36,7 +36,12 @@ export type BuiltGap =
   | 'no_repository';
 
 /** Why the artifact list could not be read. */
-export type ArtifactListingState = 'ok' | 'not_asked' | 'unreachable' | 'no_access' | 'no_repository';
+export type ArtifactListingState =
+  | 'ok'
+  | 'not_asked'
+  | 'unreachable'
+  | 'no_access'
+  | 'no_repository';
 
 /** One CI artifact whose file was read (`ci_artifact_meta`). `createdAt` and `run` are null when GitHub no longer lists the artifact. */
 export type ArtifactMeta = {
@@ -112,7 +117,10 @@ const samePackage = (a: string | null, b: string | null | undefined): boolean =>
   a === null || b === null || b === undefined || a.trim().toLowerCase() === b.trim().toLowerCase();
 
 /** The origin of ONE store build (a TestFlight row or a Play version code). */
-export function originOfBuild(row: BuildRowFact, sources: BuildOriginSources = NO_ORIGIN_SOURCES): BuildOrigin {
+export function originOfBuild(
+  row: BuildRowFact,
+  sources: BuildOriginSources = NO_ORIGIN_SOURCES,
+): BuildOrigin {
   // Several artifacts can carry one number (a re-run): the earliest is the build that could have been uploaded first.
   const byEarliest = (a: ArtifactMeta, b: ArtifactMeta) =>
     (a.createdAt ?? Number.POSITIVE_INFINITY) - (b.createdAt ?? Number.POSITIVE_INFINITY) ||
@@ -128,7 +136,9 @@ export function originOfBuild(row: BuildRowFact, sources: BuildOriginSources = N
   }
   const ci = hits.filter((a) => a.createdAt !== null)[0] ?? hits[0];
   const named = (row.releaseNames ?? []).map((n) => (n ?? '').trim()).filter((n) => n !== '')[0];
-  const ciVersion = hits.map((a) => a.version).filter((v): v is string => v !== null && v !== '')[0];
+  const ciVersion = hits
+    .map((a) => a.version)
+    .filter((v): v is string => v !== null && v !== '')[0];
   const out: BuildOrigin = {
     buildNumber: row.buildNumber,
     version: null,
@@ -171,7 +181,8 @@ export function originOfBuild(row: BuildRowFact, sources: BuildOriginSources = N
     } else {
       const listing = sources.listing ?? 'ok';
       out.builtGap = listing === 'ok' ? 'file_gone' : GAP_OF_LISTING[listing];
-      out.ciExpiredAt = hits.map((a) => a.expiresAt ?? null).filter((v): v is number => v !== null)[0] ?? null;
+      out.ciExpiredAt =
+        hits.map((a) => a.expiresAt ?? null).filter((v): v is number => v !== null)[0] ?? null;
     }
   }
   return out;

@@ -17,7 +17,11 @@ export type AssetsLine = { tone: 'ok' | 'warn' | 'neutral'; text: string; needsU
 export function assetsLine(totals: AssetCompareTotals | null): AssetsLine {
   const sentence = compareSentence(totals);
   if (sentence.state === 'not_compared')
-    return { tone: 'neutral', text: t('release-stepper:assetsLine.notCompared'), needsUpdate: false };
+    return {
+      tone: 'neutral',
+      text: t('release-stepper:assetsLine.notCompared'),
+      needsUpdate: false,
+    };
   if (sentence.state === 'nothing')
     return { tone: 'neutral', text: t('release-stepper:assetsLine.nothing'), needsUpdate: false };
   if (sentence.state === 'changed') {
@@ -36,7 +40,8 @@ export function assetsLine(totals: AssetCompareTotals | null): AssetsLine {
   }
   const text = [t('release-stepper:assetsLine.match')];
   for (const p of sentence.parts)
-    if (p.status === 'only_store') text.push(t('release-stepper:assetsLine.onlyStore', { count: p.count }));
+    if (p.status === 'only_store')
+      text.push(t('release-stepper:assetsLine.onlyStore', { count: p.count }));
   return { tone: 'ok', text: text.join(' '), needsUpdate: false };
 }
 

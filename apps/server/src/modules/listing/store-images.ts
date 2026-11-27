@@ -5,14 +5,14 @@ import {
   type AssetStore,
   assetStoreOf,
   deviceLabel,
+  IMAGE_REF_TTL_MS,
   IMAGE_PROBE_CACHE_MAX as PROBE_CACHE_MAX,
   IMAGE_PROBE_MAX_PER_READ as PROBE_MAX_PER_READ,
   IMAGE_REF_MAX as REF_MAX,
-  IMAGE_REF_TTL_MS,
   STORE_VIEW_TTL_MS,
-  storeImageKey,
   type StoreImageSet,
   type StoreImagesView,
+  storeImageKey,
 } from '@kiln/core';
 import { coded } from '../../i18n/problem.ts';
 import type { ManagedApp } from '../../services/apps.ts';
@@ -55,7 +55,6 @@ export type StoreImagesContext = {
   /** Thumbnails and downloads from the CDN, per workspace. */
   fetchLimiter: TestLimiter;
 };
-
 
 export type RefEntry = {
   workspaceId: string;
@@ -141,7 +140,6 @@ export type StoreChannel = 'editable' | 'live';
 
 const viewKey = (workspaceId: string, appId: string, channel: StoreChannel = 'editable') =>
   channel === 'live' ? `${workspaceId}|${appId}|live` : `${workspaceId}|${appId}`;
-
 
 /**
  * Fills in the pixel size and length of images the store does not state (Google Play gives only an address) by reading the first

@@ -12,7 +12,11 @@ import type { AssetKind } from './store-asset-specs.ts';
  * `oid` (the git blob id of a staged or repository file) or, as the last resort, `position` (1-based, in the set as it is now).
  * At least one is given; `ref` wins over `oid`, `oid` over `position`.
  */
-export type FileId = { ref?: string | undefined; oid?: string | undefined; position?: number | undefined };
+export type FileId = {
+  ref?: string | undefined;
+  oid?: string | undefined;
+  position?: number | undefined;
+};
 
 export const MAX_REMOVALS_PER_REQUEST = 100;
 

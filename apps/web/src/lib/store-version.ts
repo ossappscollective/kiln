@@ -1,7 +1,7 @@
 import { newestDottedVersion, nextVersion, type Platform } from '@kiln/core';
 import { ApiError } from './api.ts';
-import type { ReviewInformationView } from './review-information.ts';
 import { k, t } from './i18n/t.ts';
+import type { ReviewInformationView } from './review-information.ts';
 import { stepUpMessage } from './step-up.ts';
 
 /**

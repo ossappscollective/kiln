@@ -1,4 +1,10 @@
-import type { CurrentReadiness, Platform, ReadinessFixKind, SubmitBlocker, SubmitReadiness } from '@kiln/core';
+import type {
+  CurrentReadiness,
+  Platform,
+  ReadinessFixKind,
+  SubmitBlocker,
+  SubmitReadiness,
+} from '@kiln/core';
 import { supports } from '@kiln/core';
 import { k, t } from './i18n/t.ts';
 import { reviewFromParam } from './review-information.ts';
@@ -128,10 +134,12 @@ const whereLabel = (kind: ReadinessFixKind, platform: Platform): string | null =
 };
 
 /** One blocker as a line: the sentence, how to fix it, and where. */
-export function readinessLine(platform: Platform, blocker: SubmitBlocker, index = 0): ReadinessLine {
-  const known: FixCode = Object.prototype.hasOwnProperty.call(FIX, blocker.code)
-    ? (blocker.code as FixCode)
-    : 'generic';
+export function readinessLine(
+  platform: Platform,
+  blocker: SubmitBlocker,
+  index = 0,
+): ReadinessLine {
+  const known: FixCode = Object.hasOwn(FIX, blocker.code) ? (blocker.code as FixCode) : 'generic';
   // The store's console is where a 'store' blocker and, when it cannot be copied, a 'review' blocker (App Review Information) is fixed.
   const inConsole = blocker.fix.kind === 'store' || blocker.fix.kind === 'review';
   const href = inConsole ? consoleUrl(platform) : (blocker.fix.href ?? null);
@@ -157,14 +165,18 @@ export function unknownNote(codes: readonly string[]): string | null {
     const key = UNKNOWN[code];
     if (key !== undefined) items.push(t(key));
   }
-  return items.length === 0 ? null : t('publish:readiness.checkedAfter', { items: items.join(', ') });
+  return items.length === 0
+    ? null
+    : t('publish:readiness.checkedAfter', { items: items.join(', ') });
 }
 
 /** The readiness of a plan (or of any source that carries it) as one view; null when the server said nothing (it is off, or the store could not be read). */
 export function readinessView(source: {
   app: { platform: Platform };
   readiness?: PlanReadiness | null | undefined;
-  steps?: readonly { type: string; requested: boolean; included: boolean; availability: string }[] | undefined;
+  steps?:
+    | readonly { type: string; requested: boolean; included: boolean; availability: string }[]
+    | undefined;
 }): ReadinessView | null {
   const submit = source.readiness?.submit;
   if (submit === undefined) return null;
@@ -217,8 +229,7 @@ export function submitChoice(source: {
 export function firstFix(view: ReadinessView): { href: string; external: boolean } | null {
   for (const line of view.lines)
     if (line.href !== null && !line.external) return { href: line.href, external: false };
-  for (const line of view.lines)
-    if (line.href !== null) return { href: line.href, external: true };
+  for (const line of view.lines) if (line.href !== null) return { href: line.href, external: true };
   return null;
 }
 

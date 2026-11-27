@@ -1,10 +1,10 @@
 import {
+  type Platform,
   PUBLISH_POLL_HIDDEN_MS,
   PUBLISH_POLL_MAX_MS,
   PUBLISH_POLL_VISIBLE_MS,
   PUBLISH_SILENT_AFTER_MS,
   PUBLISH_STUCK_AFTER_MS,
-  type Platform,
   platformMeta,
 } from '@kiln/core';
 import { appAddress, type PlatformScope } from './app-scope.ts';

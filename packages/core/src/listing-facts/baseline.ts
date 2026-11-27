@@ -32,7 +32,10 @@ export function stagedBaselineOf(
 }
 
 /** Whether a staged text equals its baseline once normalised (a push would not change it). False without a baseline. */
-export function isUnchangedStaged(staged: string, baseline: StagedBaseline | string | null): boolean {
+export function isUnchangedStaged(
+  staged: string,
+  baseline: StagedBaseline | string | null,
+): boolean {
   const value = baseline === null ? null : typeof baseline === 'string' ? baseline : baseline.value;
   return value !== null && normalizeStoreText(staged) === normalizeStoreText(value);
 }

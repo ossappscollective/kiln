@@ -5,11 +5,11 @@ import {
   groupViolations,
   loadAllowlist,
   registryExists,
+  SERVER_RULES,
+  type ServerRuleId,
   scanFile,
   scanTree,
-  SERVER_RULES,
   serverFiles,
-  type ServerRuleId,
 } from './server-guard.ts';
 
 /**
@@ -43,8 +43,15 @@ test('no NEW server violation of S1/S2 (not in server-guard.allowlist.json)', ()
 });
 
 test('every server allowlist entry still matches (the list only shrinks)', () => {
-  const lines = diff.stale.map(({ entry: e, actual }) => `  ${e.rule} ${e.file}  ${e.snippet} (allowed ${e.count}, found ${actual})`);
-  assert.equal(lines.length, 0, `stale entries. Remove them: node src/server-guard-cli.ts --prune\n${lines.join('\n')}`);
+  const lines = diff.stale.map(
+    ({ entry: e, actual }) =>
+      `  ${e.rule} ${e.file}  ${e.snippet} (allowed ${e.count}, found ${actual})`,
+  );
+  assert.equal(
+    lines.length,
+    0,
+    `stale entries. Remove them: node src/server-guard-cli.ts --prune\n${lines.join('\n')}`,
+  );
 });
 
 test('S1 sees literal limits and thresholds', () => {
@@ -77,22 +84,49 @@ test('S2 sees an unaccounted module-level Map outside the registry, not inside i
   const src = 'const a = new Map<string, number>(); const b = timedCache(1, 2, {});';
   assert.equal(scanFile('modules/x.ts', src).filter((v) => v.rule === 'S2').length, 1);
   // registered through registerMapCache, or listed with a why in services/not-a-cache.ts: accounted for
-  assert.equal(scanFile('modules/x.ts', 'const a = new Map(); registerMapCache(a, {});').filter((v) => v.rule === 'S2').length, 0);
-  assert.equal(scanFile('modules/ci/active.ts', 'const inFlight = new Map();').filter((v) => v.rule === 'S2').length, 0);
+  assert.equal(
+    scanFile('modules/x.ts', 'const a = new Map(); registerMapCache(a, {});').filter(
+      (v) => v.rule === 'S2',
+    ).length,
+    0,
+  );
+  assert.equal(
+    scanFile('modules/ci/active.ts', 'const inFlight = new Map();').filter((v) => v.rule === 'S2')
+      .length,
+    0,
+  );
   // a Map built inside a function to group rows is not a cache; one named like a cache is
   const local = 'function f() { const byId = new Map(); const viewCache = new Map(); }';
-  assert.deepEqual(scanFile('modules/x.ts', local).filter((v) => v.rule === 'S2').map((v) => v.snippet), ['new Map()']);
-  assert.equal(scanFile('services/cache-registry.ts', src).filter((v) => v.rule === 'S2').length, 0);
+  assert.deepEqual(
+    scanFile('modules/x.ts', local)
+      .filter((v) => v.rule === 'S2')
+      .map((v) => v.snippet),
+    ['new Map()'],
+  );
+  assert.equal(
+    scanFile('services/cache-registry.ts', src).filter((v) => v.rule === 'S2').length,
+    0,
+  );
 });
 
 test('the allowlist comparison fails a new violation and a stale entry, and skips an inactive rule', () => {
   const found = groupViolations(scanFile('modules/publish/x.ts', 'const MAX_ROWS = 500;'));
-  const e = { file: 'modules/publish/x.ts', rule: 'S1' as const, hash: found[0]?.hash ?? '', snippet: 's', count: 1, reason: 'r' };
+  const e = {
+    file: 'modules/publish/x.ts',
+    rule: 'S1' as const,
+    hash: found[0]?.hash ?? '',
+    snippet: 's',
+    count: 1,
+    reason: 'r',
+  };
   assert.deepEqual(compare(found, { strict: false, entries: [e] }), { added: [], stale: [] });
   assert.equal(compare(found, { strict: false, entries: [] }).added.length, 1);
   assert.equal(compare([], { strict: false, entries: [e] }).stale.length, 1);
   assert.equal(compare(found, { strict: true, entries: [e] }).added.length, 1);
-  assert.deepEqual(compare(found, { strict: false, entries: [] }, () => false), { added: [], stale: [] });
+  assert.deepEqual(
+    compare(found, { strict: false, entries: [] }, () => false),
+    { added: [], stale: [] },
+  );
 });
 
 test('STRICT: the server allowlist is empty and strict (the burn-down is complete: nothing is grandfathered)', () => {

@@ -11,6 +11,7 @@ import {
 } from './cart.ts';
 import { type CurrentReadiness, peekCurrentReadiness } from './current-readiness.ts';
 import {
+  itemsOf,
   loadPendingFacts,
   nextStepsOf,
   PENDING_KINDS,
@@ -20,7 +21,6 @@ import {
   type PublishStep,
   stagedViewFor,
   totalsOf,
-  itemsOf,
 } from './pending.ts';
 import { type LastPublish, readLastPublish } from './publish-runs.ts';
 import { type Publishing, readPublishing } from './publishing.ts';
@@ -155,9 +155,8 @@ export async function readAppFacts(
     let cart: CartItem[] = [];
     if (holding.has(app.id) && carts < (input.maxCartApps ?? Number.POSITIVE_INFINITY)) {
       carts += 1;
-      cart = (
-        await loadCart(ctx, { workspaceId, app, rights, loaded: { facts: pending, view } })
-      ).items;
+      cart = (await loadCart(ctx, { workspaceId, app, rights, loaded: { facts: pending, view } }))
+        .items;
     }
     const cartKinds: Partial<Record<CartKind, number>> = {};
     for (const i of cart) cartKinds[i.kind] = (cartKinds[i.kind] ?? 0) + 1;
@@ -399,7 +398,8 @@ export async function pendingSummary(
   return {
     apps: lines,
     totals: {
-      apps: lines.filter((l) => l.count > 0 || l.awaitingSubmit > 0 || l.awaitingRelease > 0).length,
+      apps: lines.filter((l) => l.count > 0 || l.awaitingSubmit > 0 || l.awaitingRelease > 0)
+        .length,
       count: sum((l) => l.count),
       blocking: sum((l) => l.blocking),
       awaitingSubmit: sum((l) => l.awaitingSubmit),

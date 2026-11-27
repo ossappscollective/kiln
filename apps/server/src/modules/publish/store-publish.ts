@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import {
-  type Platform,
   PUBLISH_DETAIL_THROTTLE_MS as DETAIL_THROTTLE_MS,
+  type Platform,
   supports,
   versionCodesOf,
 } from '@kiln/core';
@@ -72,7 +72,6 @@ import {
   type RolloutContext,
   type RolloutRequest,
 } from './store-rollout.ts';
-import { type PlanReadiness, submitReadinessOf } from './submit-readiness.ts';
 import {
   applySubmit,
   confirmationPhrase,
@@ -81,6 +80,7 @@ import {
   SUBMIT_ENV,
   type SubmitContext,
 } from './store-submit.ts';
+import { type PlanReadiness, submitReadinessOf } from './submit-readiness.ts';
 
 export { DETAIL_THROTTLE_MS };
 
@@ -1728,7 +1728,8 @@ export type PublishResult = {
 const outcomeOf = (f: Failure): 'refused' | 'not_applied' | 'unknown' | 'partial' => {
   if (f.body.outcome === 'not_applied') return 'not_applied';
   if (f.body.error === 'outcome_unknown') return 'unknown';
-  if (f.body.error === 'draft_partial' || f.body.error === 'applied_with_differences') return 'partial';
+  if (f.body.error === 'draft_partial' || f.body.error === 'applied_with_differences')
+    return 'partial';
   return 'refused';
 };
 
@@ -1804,7 +1805,12 @@ export function failureLogText(result: StepResult & { status: 'failed' }): strin
 
 /** The blocking checks of a preview as a run keeps them: code, sanitised sentence, where (locale and field names). */
 export function blockersOf(
-  checks: readonly { code: string; message: string; locale?: string | undefined; item?: string | undefined }[],
+  checks: readonly {
+    code: string;
+    message: string;
+    locale?: string | undefined;
+    item?: string | undefined;
+  }[],
 ): RunBlocker[] {
   return checks.slice(0, MAX_BLOCKERS).map((c) => ({
     code: sanitiseStoreText(c.code, '', 80),

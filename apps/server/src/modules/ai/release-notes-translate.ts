@@ -43,7 +43,10 @@ import type { ConcurrencyGate, UsageWarning } from './ai-usage.ts';
  * never in an error: the audit entry has ids, the engine, the provider, counts and a code.
  */
 
-export const NOTES_TRANSLATE_LIMITS = { maxChars: APP_STORE_RELEASE_NOTES_LIMIT, maxTargets: 40 } as const;
+export const NOTES_TRANSLATE_LIMITS = {
+  maxChars: APP_STORE_RELEASE_NOTES_LIMIT,
+  maxTargets: 40,
+} as const;
 export const NOTES_TASK = { id: 'release_notes_translate', version: 1 } as const;
 
 /** A language tag for notes: `en-US`, `de`, `pt_BR`. Same rule as the screen. */
@@ -188,7 +191,6 @@ const aiSchema = (count: number): JsonSchema => ({
   required: ['translations'],
   additionalProperties: false,
 });
-
 
 async function translateMachine(
   ctx: NotesTranslateContext,

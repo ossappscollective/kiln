@@ -1,6 +1,6 @@
 import {
-  compareBuildNumbers,
   type CompiledPattern,
+  compareBuildNumbers,
   compilePatterns,
   matchName,
   type NameFields,
@@ -222,7 +222,10 @@ export function explainNoCandidate(
   );
   let newestFit: NoCandidate['newestFit'] = null;
   for (const f of own) {
-    if (newestFit === null || compareBuildNumbers(f.fields.buildNumber, newestFit.buildNumber) > 0) {
+    if (
+      newestFit === null ||
+      compareBuildNumbers(f.fields.buildNumber, newestFit.buildNumber) > 0
+    ) {
       newestFit = { name: f.name, buildNumber: f.fields.buildNumber };
     }
   }

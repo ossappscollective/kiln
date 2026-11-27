@@ -397,7 +397,10 @@ export function compareWithStore(
   if (!entry) return { state: 'not_compared', text: t(NOT_COMPARED) };
   // A display the store keeps in several groups says which group the number is (the main one, what a push writes and the repository is
   // paired with), so it is never read as the display's whole count.
-  const named = (text: string) => (entry.groups === undefined ? text : t('assets:compare.mainGroup', { text, target: entry.target }));
+  const named = (text: string) =>
+    entry.groups === undefined
+      ? text
+      : t('assets:compare.mainGroup', { text, target: entry.target });
   return entry.count === group.count
     ? {
         state: 'same',

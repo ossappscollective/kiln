@@ -1,6 +1,6 @@
 import type { Api } from './api.ts';
-import type { PendingSummary, PendingView, PublishConfig } from './pending.ts';
 import { releaseFactsStore } from './app-state/release-facts-store.svelte.ts';
+import type { PendingSummary, PendingView, PublishConfig } from './pending.ts';
 import { stagingError } from './staged.ts';
 import { stagedStore } from './staged-store.svelte.ts';
 import { submitStore } from './store-submit-store.svelte.ts';

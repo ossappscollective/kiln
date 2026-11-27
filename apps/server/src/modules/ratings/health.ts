@@ -104,7 +104,6 @@ export type VersionHealth = {
   freeze: Rate | null;
 };
 
-
 /** Newest first: the highest version number (Apple) or build number (Google), never the first day seen. */
 export function versionHealth(data: HealthData): VersionHealth[] {
   const spans = new Map<string, { from: string; to: string }>();

@@ -1,3 +1,4 @@
+import type { SubmitState } from '@kiln/connectors';
 import {
   blockersOf,
   evaluateDraftContent,
@@ -8,7 +9,6 @@ import {
   type SubmitReadiness,
   supports,
 } from '@kiln/core';
-import type { SubmitState } from '@kiln/connectors';
 import type { ManagedApp } from '../../services/apps.ts';
 import type { DraftPreview } from './store-draft.ts';
 import { BUILD_CODES, draftContentOf, earlyChecksOf } from './store-submit.ts';

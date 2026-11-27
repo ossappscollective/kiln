@@ -8,27 +8,28 @@ import {
   stagedCountsOf,
   storeCopyView,
 } from '@kiln/core';
-import { groupApps } from '../app-groups.ts';
 import { stagedUnpushedCount } from '../app-attention.ts';
+import { groupApps } from '../app-groups.ts';
 import { buildOverviewRows } from '../app-overview.ts';
 import { platformStatusLines } from '../app-status.ts';
 import { appNavCounts } from '../nav-badges.ts';
-import { platformGroups, blockingItems } from '../pending.ts';
+import { blockingItems, platformGroups } from '../pending.ts';
+import type { ReleaseLoad } from '../portfolio.ts';
 import { blockerLines, submitBlockedOnly } from '../publish-failure.ts';
 import { buildDate } from '../publish-summary.ts';
-import type { ReleaseLoad } from '../portfolio.ts';
-import { releaseFactsOf } from './release-facts.ts';
 import { noteLimit, releaseNotesView } from '../release-notes.ts';
-import { buildReleaseTable, liveRowKeys, splitCurrent, type ObsoleteInfo } from '../releases-table.ts';
-import { stagedFacts } from '../release-stepper.ts';
 import type { PipelineSummaryApp } from '../release-pipeline.ts';
+import { stagedFacts } from '../release-stepper.ts';
+import {
+  buildReleaseTable,
+  liveRowKeys,
+  type ObsoleteInfo,
+  splitCurrent,
+} from '../releases-table.ts';
 import { itemCount } from '../staged.ts';
 import type { ReleaseSummary } from '../types.ts';
 import { blockersViewOf } from './blockers.ts';
-import { deriveAppState } from './derive.ts';
 import { unfinishedApps } from './candidates.ts';
-import { lineOfRecords } from './facts.ts';
-import { deriveImagesFacts } from './store-images.ts';
 import {
   cartItemCount,
   cartSummaryOf,
@@ -40,6 +41,10 @@ import {
   storeImagesViewOf,
   type World,
 } from './consistency-world.ts';
+import { deriveAppState } from './derive.ts';
+import { lineOfRecords } from './facts.ts';
+import { releaseFactsOf } from './release-facts.ts';
+import { deriveImagesFacts } from './store-images.ts';
 import type { AppFacts, AppState } from './types.ts';
 
 /**
@@ -70,15 +75,24 @@ export type Surface = {
 
 /** The fact keys, by family (a key `imageCount:en-US/ipad_13` belongs to `imageCount`). Adding a fact means adding it here. */
 export const FACTS: Readonly<Record<string, { domain: Domain; about: string }>> = {
-  pendingCount: { domain: 'state', about: 'how many changes wait to be published (the cart length)' },
+  pendingCount: {
+    domain: 'state',
+    about: 'how many changes wait to be published (the cart length)',
+  },
   blockingCount: { domain: 'state', about: 'pending items that an error blocks' },
   stagedUnpushed: { domain: 'state', about: 'staged changes not written to the store draft yet' },
-  awaitingSubmit: { domain: 'state', about: 'a draft was pushed and waits for its submit (never part of the pending count)' },
+  awaitingSubmit: {
+    domain: 'state',
+    about: 'a draft was pushed and waits for its submit (never part of the pending count)',
+  },
   stagedItems: { domain: 'state', about: 'every staged row, pushed ones included (the tray)' },
   stagedAssetSets: { domain: 'images', about: 'staged graphic sets' },
   stagedSetFiles: { domain: 'images', about: 'files of a staged graphic set' },
   phase: { domain: 'state', about: 'what the app is doing (the model phase)' },
-  blockerCount: { domain: 'state', about: 'what blocks a submit (current) or the run kept (history)' },
+  blockerCount: {
+    domain: 'state',
+    about: 'what blocks a submit (current) or the run kept (history)',
+  },
   liveVersion: { domain: 'releases', about: 'the version that is live on a record' },
   latestVersion: { domain: 'releases', about: 'the newest version of a record' },
   candidate: { domain: 'releases', about: 'the build that asks for the next release' },
@@ -114,7 +128,8 @@ const listingCopyOf = (w: World, id: string, intent: 'shown' | 'editable' | 'liv
   const channels: CopyChannel[] = facts.map((c) => ({
     channel: c.channel,
     locales: Object.fromEntries(c.locales.map((l) => [l, {}])),
-    sections: c.defaultLanguage === null ? undefined : { details: { defaultLanguage: c.defaultLanguage } },
+    sections:
+      c.defaultLanguage === null ? undefined : { details: { defaultLanguage: c.defaultLanguage } },
   }));
   return { channels, view: storeCopyView(channels, { intent }) };
 };
@@ -141,7 +156,8 @@ function stalledOf(w: World, releases: AppFacts['releases'] | undefined): Pipeli
   });
 }
 const unfinishedIn = (apps: readonly PipelineSummaryApp[], recordIds: readonly string[]): number =>
-  apps.filter((a) => a.stalled !== null && !a.stalled.stale && recordIds.indexOf(a.app.id) >= 0).length;
+  apps.filter((a) => a.stalled !== null && !a.stalled.stale && recordIds.indexOf(a.app.id) >= 0)
+    .length;
 
 const loadsOf = (w: World): Record<string, ReleaseLoad> => {
   const out: Record<string, ReleaseLoad> = {};
@@ -199,7 +215,11 @@ export const SURFACES: readonly Surface[] = [
       const out: Facts = {};
       const line = lineOf(w, ids(w));
       if (line !== null && line.count > 0) out.pendingCount = line.count;
-      const unfinished = appNavCounts({ memberIds: ids(w), unanswered: {}, stalled: stalledOf(w, w.releases) }).releases;
+      const unfinished = appNavCounts({
+        memberIds: ids(w),
+        unanswered: {},
+        stalled: stalledOf(w, w.releases),
+      }).releases;
       if (unfinished !== null) out.unfinishedReleases = unfinished;
       return out;
     },
@@ -219,7 +239,9 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'boardCard',
     components: ['components/dashboard/Board.svelte', 'components/dashboard/BoardCard.svelte'],
-    mirrors: ['components/dashboard/Board.svelte appStateStore.lineOf(workspaceId, [card.appId]) (the model line of the record, one per card)'],
+    mirrors: [
+      'components/dashboard/Board.svelte appStateStore.lineOf(workspaceId, [card.appId]) (the model line of the record, one per card)',
+    ],
     project(w) {
       // One card per record, each with the model's line of its own record (a count of 0 is not drawn): the cards add up to the workspace.
       const total = w.records.reduce((n, r) => n + (lineOf(w, [r.id])?.count ?? 0), 0);
@@ -247,7 +269,9 @@ export const SURFACES: readonly Surface[] = [
       const groups = groupApps(w.records);
       const loads = loadsOf(w);
       const pipelineApps = w.pipelineSummary === null ? null : stalledOf(w, w.releases);
-      const rows = buildOverviewRows(groups, loads, null, pipelineApps, (appIds) => lineOf(w, appIds));
+      const rows = buildOverviewRows(groups, loads, null, pipelineApps, (appIds) =>
+        lineOf(w, appIds),
+      );
       const out: Facts = {};
       for (const row of rows) {
         if (row.pending != null && row.pending.count > 0) out.pendingCount = row.pending.count;
@@ -293,8 +317,14 @@ export const SURFACES: readonly Surface[] = [
     project(w) {
       const out: Facts = {};
       const members = inScope(w);
-      out.stagedUnpushed = members.reduce((n, m) => n + stagedUnpushedCount(stagedViewOf(w, m.id)), 0);
-      const left = unfinishedIn(stalledOf(w, w.releases), members.map((m) => m.id));
+      out.stagedUnpushed = members.reduce(
+        (n, m) => n + stagedUnpushedCount(stagedViewOf(w, m.id)),
+        0,
+      );
+      const left = unfinishedIn(
+        stalledOf(w, w.releases),
+        members.map((m) => m.id),
+      );
       if (left > 0) out.unfinishedReleases = left;
       return out;
     },
@@ -324,7 +354,8 @@ export const SURFACES: readonly Surface[] = [
         }
       }
       const blocked = s.failures.find((f) => f.blockers !== null);
-      if (blocked?.blockers?.state === 'blocked') out.blockerCount = blocked.blockers.current.length;
+      if (blocked?.blockers?.state === 'blocked')
+        out.blockerCount = blocked.blockers.current.length;
       if (blocked?.blockers?.state === 'ready') out.blockerCount = 0;
       return out;
     },
@@ -340,7 +371,9 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'pendingCartRows',
     components: ['components/app/PendingCart.svelte'],
-    mirrors: ['components/app/PendingCart.svelte:102 api.appPendingCart (rows from an own fetch: the length of the cart)'],
+    mirrors: [
+      'components/app/PendingCart.svelte:102 api.appPendingCart (rows from an own fetch: the length of the cart)',
+    ],
     project(w) {
       return { pendingCount: inScope(w).reduce((n, m) => n + cartItemCount(w, m.id), 0) };
     },
@@ -389,8 +422,15 @@ export const SURFACES: readonly Surface[] = [
       const s = appState(w);
       const members = inScope(w);
       const obsolete: Record<string, ObsoleteInfo> = {};
-      for (const o of s.obsolete) obsolete[o.releaseId] = { liveVersion: o.liveVersion, href: null, linkLabel: null };
-      const groups = buildReleaseTable({ releases: w.releases, plans: null, builds: {}, appIds: members.map((m) => m.id), obsolete });
+      for (const o of s.obsolete)
+        obsolete[o.releaseId] = { liveVersion: o.liveVersion, href: null, linkLabel: null };
+      const groups = buildReleaseTable({
+        releases: w.releases,
+        plans: null,
+        builds: {},
+        appIds: members.map((m) => m.id),
+        obsolete,
+      });
       const split = splitCurrent(groups);
       const liveKeys = liveRowKeys(groups);
       const out: Facts = {};
@@ -414,8 +454,15 @@ export const SURFACES: readonly Surface[] = [
     project(w) {
       const s = appState(w);
       const obsolete: Record<string, ObsoleteInfo> = {};
-      for (const o of s.obsolete) obsolete[o.releaseId] = { liveVersion: o.liveVersion, href: null, linkLabel: null };
-      const groups = buildReleaseTable({ releases: w.releases, plans: null, builds: {}, appIds: inScope(w).map((m) => m.id), obsolete });
+      for (const o of s.obsolete)
+        obsolete[o.releaseId] = { liveVersion: o.liveVersion, href: null, linkLabel: null };
+      const groups = buildReleaseTable({
+        releases: w.releases,
+        plans: null,
+        builds: {},
+        appIds: inScope(w).map((m) => m.id),
+        obsolete,
+      });
       const out: Facts = {};
       for (const g of groups)
         for (const row of g.rows)
@@ -434,11 +481,10 @@ export const SURFACES: readonly Surface[] = [
     mirrors: [],
     project(w) {
       const out: Facts = {};
-      for (const line of platformStatusLines(w.records, w.releases))
-        {
-          const rec = w.records.find((r) => r.platform === line.platform);
-          if (rec) out[`latestVersion:${rec.id}`] = line.version;
-        }
+      for (const line of platformStatusLines(w.records, w.releases)) {
+        const rec = w.records.find((r) => r.platform === line.platform);
+        if (rec) out[`latestVersion:${rec.id}`] = line.version;
+      }
       return out;
     },
   },
@@ -460,7 +506,10 @@ export const SURFACES: readonly Surface[] = [
   },
   {
     id: 'pipelineCard',
-    components: ['components/release/stepper/ReleaseStepper.svelte', 'components/release/stepper/StepBuild.svelte'],
+    components: [
+      'components/release/stepper/ReleaseStepper.svelte',
+      'components/release/stepper/StepBuild.svelte',
+    ],
     // The stepper's build step lists the builds of the candidates read (the same store rows as the Builds page); the pipeline only says
     // where the release waits (its state), never which build is the newest: an obsolete 1.11.6 pipeline is not a build fact.
     mirrors: [],
@@ -484,11 +533,17 @@ export const SURFACES: readonly Surface[] = [
       const out: Facts = {};
       const s = appState(w);
       for (const m of inScope(w)) {
-        if ((w.listing[m.id] ?? []).length > 0) out[`defaultLocale:${m.id}`] = defaultLocaleOfRecord(w, m.id);
+        if ((w.listing[m.id] ?? []).length > 0)
+          out[`defaultLocale:${m.id}`] = defaultLocaleOfRecord(w, m.id);
         const best = s.analysis[m.id]?.best;
         if (best && m.platform === 'ios') {
           const d = buildDate(
-            { kind: 'apple', platform: m.platform, version: best.version, numbers: [best.buildNumber] },
+            {
+              kind: 'apple',
+              platform: m.platform,
+              version: best.version,
+              numbers: [best.buildNumber],
+            },
             (w.appBuilds[m.id] ?? []) as never,
           );
           if (d?.state === 'known') out[`buildDate:${m.id}`] = String(d.at);
@@ -500,7 +555,9 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'publishFailure',
     components: ['components/publish/PublishFailure.svelte'],
-    mirrors: ['components/publish/PublishFailure.svelte:91 (view.state === "blocked" ? view.current : line.blockers) (the model view)'],
+    mirrors: [
+      'components/publish/PublishFailure.svelte:91 (view.state === "blocked" ? view.current : line.blockers) (the model view)',
+    ],
     project(w) {
       const out: Facts = {};
       const f = appState(w).failures.find((x) => x.blockers !== null);
@@ -516,8 +573,13 @@ export const SURFACES: readonly Surface[] = [
   },
   {
     id: 'publishDialogFailure',
-    components: ['components/publish/PublishDialog.svelte', 'components/publish/PublishFailure.svelte'],
-    mirrors: ['components/publish/PublishDialog.svelte blockers={appStateStore.blockersFor(...)} (the model view: the run\'s list is history)'],
+    components: [
+      'components/publish/PublishDialog.svelte',
+      'components/publish/PublishFailure.svelte',
+    ],
+    mirrors: [
+      "components/publish/PublishDialog.svelte blockers={appStateStore.blockersFor(...)} (the model view: the run's list is history)",
+    ],
     project(w) {
       const out: Facts = {};
       for (const m of inScope(w)) {
@@ -537,16 +599,24 @@ export const SURFACES: readonly Surface[] = [
     components: ['components/listing/StagedTray.svelte', 'components/listing/StagedTrayApp.svelte'],
     mirrors: [],
     project(w) {
-      const out: Facts = { stagedItems: inScope(w).reduce((n, m) => n + itemCount(stagedViewOf(w, m.id)), 0) };
+      const out: Facts = {
+        stagedItems: inScope(w).reduce((n, m) => n + itemCount(stagedViewOf(w, m.id)), 0),
+      };
       // The graphic sets a push would send (core `stagedCountsOf`, the family the tray's text uses).
-      const sets = inScope(w).reduce((n, m) => n + stagedCountsOf(stagedViewOf(w, m.id)).unpushedSets, 0);
+      const sets = inScope(w).reduce(
+        (n, m) => n + stagedCountsOf(stagedViewOf(w, m.id)).unpushedSets,
+        0,
+      );
       if (sets > 0) out.stagedAssetSets = sets;
       return out;
     },
   },
   {
     id: 'releaseStepStaged',
-    components: ['components/release/stepper/StepAssets.svelte', 'components/release/stepper/ReleaseStepper.svelte'],
+    components: [
+      'components/release/stepper/StepAssets.svelte',
+      'components/release/stepper/ReleaseStepper.svelte',
+    ],
     mirrors: [],
     project(w) {
       const out: Facts = {};
@@ -577,7 +647,9 @@ export const SURFACES: readonly Surface[] = [
         const displays = groupStoreImages(storeImagesViewOf(w, m.id));
         for (const a of stagedViewOf(w, m.id).assets.filter((x) => !x.pushed)) {
           sets += 1;
-          const before = findDisplay(displays, { locale: a.locale, kind: a.slot.kind, device: a.slot.device })?.counts.merged ?? 0;
+          const before =
+            findDisplay(displays, { locale: a.locale, kind: a.slot.kind, device: a.slot.device })
+              ?.counts.merged ?? 0;
           if (before > 0) out[`imageCount:${displayKey(a.locale, a.slot.device)}`] = before;
           out[`stagedSetFiles:${displayKey(a.locale, a.slot.device)}`] = a.files.length;
         }
@@ -651,7 +723,8 @@ export const SURFACES: readonly Surface[] = [
         // groups): a display of several groups is one row per group, named by it; a display of one group is its count.
         for (const d of groupStoreImages(storeImagesViewOf(w, m.id))) {
           const key = displayKey(d.locale, d.device);
-          if (d.groups.length > 1) for (const g of d.groups) out[`imageGroupCount:${key}/${g.target}`] = g.count;
+          if (d.groups.length > 1)
+            for (const g of d.groups) out[`imageGroupCount:${key}/${g.target}`] = g.count;
           else out[`imageCount:${key}`] = d.counts.primary;
         }
       }
@@ -703,7 +776,10 @@ export const SURFACES: readonly Surface[] = [
   },
   {
     id: 'releaseStepNotes',
-    components: ['components/release/stepper/ReleaseStepper.svelte', 'components/release/stepper/StepNotes.svelte'],
+    components: [
+      'components/release/stepper/ReleaseStepper.svelte',
+      'components/release/stepper/StepNotes.svelte',
+    ],
     mirrors: [],
     project(w) {
       const out: Facts = {};
@@ -713,7 +789,12 @@ export const SURFACES: readonly Surface[] = [
         if (copy !== null) out[`localeList:${m.id}`] = sorted(copy.view.codes);
         if (places && copy !== null) {
           // One status over the typed, staged and stored texts (core `notesView`), counted in code points against the store's limit.
-          const view = releaseNotesView({ platform: m.platform, listingLocales: copy.view.codes, store: places.store, staged: places.staged });
+          const view = releaseNotesView({
+            platform: m.platform,
+            listingLocales: copy.view.codes,
+            store: places.store,
+            staged: places.staged,
+          });
           out[`notesFilled:${m.id}`] = view.locales.filter((l) => l.from !== null).length;
           out[`notesOver:${m.id}`] = view.over.length;
         }
@@ -735,11 +816,20 @@ export const SURFACES: readonly Surface[] = [
         const copy = listingCopyOf(w, m.id, 'editable');
         const r = computeReadiness({
           items: [],
-          notes: Object.keys(places.plan).map((locale) => ({ locale, text: places.plan[locale] ?? '' })),
+          notes: Object.keys(places.plan).map((locale) => ({
+            locale,
+            text: places.plan[locale] ?? '',
+          })),
           platform: m.platform === 'android' ? 'android' : 'ios',
           sources: {
-            staged: Object.keys(places.staged).map((locale) => ({ locale, text: places.staged[locale] as string })),
-            store: Object.keys(places.store).map((locale) => ({ locale, text: places.store[locale] as string })),
+            staged: Object.keys(places.staged).map((locale) => ({
+              locale,
+              text: places.staged[locale] as string,
+            })),
+            store: Object.keys(places.store).map((locale) => ({
+              locale,
+              text: places.store[locale] as string,
+            })),
           },
           locales: copy?.view.codes ?? [],
         });
@@ -758,7 +848,8 @@ export const NOTES_LIMIT_OF = noteLimit;
 // Comparing
 
 /** A canonical text of a value (lists compare as sets). */
-export const canon = (v: FactValue): string => (Array.isArray(v) ? JSON.stringify(sorted(v)) : JSON.stringify(v));
+export const canon = (v: FactValue): string =>
+  Array.isArray(v) ? JSON.stringify(sorted(v)) : JSON.stringify(v);
 
 export type Disagreement = {
   scenario: string;
@@ -775,7 +866,8 @@ export function disagreementsOf(w: World, surfaces: readonly Surface[] = SURFACE
   const byKey = new Map<string, { surface: Surface; value: FactValue }[]>();
   for (const s of surfaces) {
     const facts = s.project(w);
-    for (const [key, value] of Object.entries(facts)) byKey.set(key, [...(byKey.get(key) ?? []), { surface: s, value }]);
+    for (const [key, value] of Object.entries(facts))
+      byKey.set(key, [...(byKey.get(key) ?? []), { surface: s, value }]);
   }
   const out: Disagreement[] = [];
   for (const [key, list] of [...byKey].sort((a, b) => a[0].localeCompare(b[0]))) {

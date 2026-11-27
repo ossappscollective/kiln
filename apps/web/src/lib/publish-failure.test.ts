@@ -344,7 +344,12 @@ test('an interrupted publish (the server restarted or lost the request) says so,
       'The publish was interrupted: the server restarted or lost the request. Check the store, then review again.',
     code: 'publish.interrupted',
   };
-  const pushed: RunStep = { type: 'push_draft', status: 'applied', startedAt: 1_000, finishedAt: 2_000 };
+  const pushed: RunStep = {
+    type: 'push_draft',
+    status: 'applied',
+    startedAt: 1_000,
+    finishedAt: 2_000,
+  };
   const reason = reasonOf(interrupted);
   assert.equal(
     reason.title,
@@ -361,7 +366,9 @@ test('an interrupted publish (the server restarted or lost the request) says so,
       ['submit', 'failed'],
     ],
   );
-  assert.ok(partlyPublished(run([pushed, interrupted], { outcome: 'partial', platform: 'ios' }), 'ios'));
+  assert.ok(
+    partlyPublished(run([pushed, interrupted], { outcome: 'partial', platform: 'ios' }), 'ios'),
+  );
 });
 
 test('a step that took too long has its own sentence, not "did not finish (step_timeout)"', () => {
@@ -378,7 +385,12 @@ test('a step that took too long has its own sentence, not "did not finish (step_
   assert.doesNotMatch(reasonOf(slow).title, /step_timeout/);
 });
 
-const pushed: RunStep = { type: 'push_draft', status: 'applied', startedAt: 1_000, finishedAt: 196_000 };
+const pushed: RunStep = {
+  type: 'push_draft',
+  status: 'applied',
+  startedAt: 1_000,
+  finishedAt: 196_000,
+};
 const blockedSubmit = (blockers: NonNullable<RunStep['blockers']>): RunStep => ({
   type: 'submit',
   status: 'skipped',
@@ -436,7 +448,10 @@ test('partly published, submit blocked: "the draft was pushed. Submit for review
   );
   assert.equal(partly?.blocked?.type, 'submit');
   assert.equal(submitBlockedOnly(r), true);
-  const many = Array.from({ length: 5 }, (_, i) => ({ code: 'missing_text', message: `Field ${i} is empty.` }));
+  const many = Array.from({ length: 5 }, (_, i) => ({
+    code: 'missing_text',
+    message: `Field ${i} is empty.`,
+  }));
   assert.equal(
     blockersSentence(blockerLines({ blockers: many })),
     'Field 0 is empty; Field 1 is empty; Field 2 is empty; and 2 more',
@@ -454,9 +469,15 @@ test('the copied report of a blocked submit says why: reason blocked, each block
     run: run([pushed, blockedSubmit(TWO)], { platform: 'ios', steps: ['push_draft', 'submit'] }),
   });
   assert.match(text, /2\. submit: not run/);
-  assert.match(text, /Reason: blocked - No build is attached to the App Store version; Description is empty in fr-FR/);
+  assert.match(
+    text,
+    /Reason: blocked - No build is attached to the App Store version; Description is empty in fr-FR/,
+  );
   assert.match(text, /Blocker: no_build: No build is attached to the App Store version\./);
-  assert.match(text, /Fix: Attach a processed build to the version in App Store Connect, then submit\. \(https:\/\/appstoreconnect\.apple\.com\/apps\)/);
+  assert.match(
+    text,
+    /Fix: Attach a processed build to the version in App Store Connect, then submit\. \(https:\/\/appstoreconnect\.apple\.com\/apps\)/,
+  );
   assert.match(text, /Blocker: missing_text: Description is empty in fr-FR\./);
 });
 
@@ -476,8 +497,15 @@ test('a submit blocked because the App Review contact is missing: its sentence, 
     [
       pushed,
       blockedSubmit([
-        { code: 'no_review_contact', message: 'The App Review contact information is incomplete: phone number is missing.' },
-        { code: 'no_review_demo_account', message: 'App Review information says a demo account is required, but its user name or password is empty.' },
+        {
+          code: 'no_review_contact',
+          message: 'The App Review contact information is incomplete: phone number is missing.',
+        },
+        {
+          code: 'no_review_demo_account',
+          message:
+            'App Review information says a demo account is required, but its user name or password is empty.',
+        },
       ]),
     ],
     { platform: 'ios', steps: ['push_draft', 'submit'] },
@@ -487,7 +515,10 @@ test('a submit blocked because the App Review contact is missing: its sentence, 
     submit.blockers.map((b) => b.code),
     ['no_review_contact', 'no_review_demo_account'],
   );
-  assert.match(submit.blockers[0]!.fix, /Copy the review information from the previous version in the submit checklist/);
+  assert.match(
+    submit.blockers[0]!.fix,
+    /Copy the review information from the previous version in the submit checklist/,
+  );
   assert.match(submit.blockers[1]!.fix, /demo account/);
   assert.equal(submit.blockers[0]!.url, 'https://appstoreconnect.apple.com/apps');
   assert.equal(submit.blockers[1]!.url, 'https://appstoreconnect.apple.com/apps');
@@ -497,7 +528,8 @@ test('a submit blocked because the App Review contact is missing: its sentence, 
 
 const COUNT = {
   code: 'asset_spec',
-  message: 'At most 10 screenshots per device size. en-US iPad 13" / 12.9" (APP_IPAD_PRO_3GEN_129): 12 found.',
+  message:
+    'At most 10 screenshots per device size. en-US iPad 13" / 12.9" (APP_IPAD_PRO_3GEN_129): 12 found.',
   locale: 'en-US',
 };
 const viewOf = (state: BlockersView['state'], current: BlockersView['current']): BlockersView => ({
@@ -519,34 +551,57 @@ test('too many screenshots in one set: the advice is to remove screenshots, not 
   const [b] = blockerLines({ blockers: [COUNT] });
   assert.match(b!.fix, /Remove the extra screenshots/);
   // Another asset_spec problem keeps the generic asset advice.
-  const [other] = blockerLines({ blockers: [{ code: 'asset_spec', message: 'Screenshot is 100x100.' }] });
+  const [other] = blockerLines({
+    blockers: [{ code: 'asset_spec', message: 'Screenshot is 100x100.' }],
+  });
   assert.doesNotMatch(other!.fix, /Remove the extra screenshots/);
 });
 
-test('partlyPublishedNow: fixed blockers say so, standing ones are named instead of the run\'s, no reading keeps the run\'s sentence', () => {
+test("partlyPublishedNow: fixed blockers say so, standing ones are named instead of the run's, no reading keeps the run's sentence", () => {
   const r = run([pushed, blockedSubmit(TWO)], { platform: 'ios' });
   const own = partlyPublished(r, 'ios')!.sentence;
   assert.equal(partlyPublishedNow(r, 'ios', null)!.sentence, own);
   assert.equal(partlyPublishedNow(r, 'ios', viewOf('unverified', []))!.sentence, own);
-  assert.match(partlyPublishedNow(r, 'ios', viewOf('ready', []))!.sentence, /everything that blocked the submit is fixed now/);
-  const now = partlyPublishedNow(r, 'ios', viewOf('blocked', blockerLines({ blockers: [TWO[1]!] })))!.sentence;
+  assert.match(
+    partlyPublishedNow(r, 'ios', viewOf('ready', []))!.sentence,
+    /everything that blocked the submit is fixed now/,
+  );
+  const now = partlyPublishedNow(
+    r,
+    'ios',
+    viewOf('blocked', blockerLines({ blockers: [TWO[1]!] })),
+  )!.sentence;
   assert.match(now, /Description is empty in fr-FR/);
   assert.doesNotMatch(now, /No build is attached/);
 });
 
-test('failureReport with a current reading keeps the run\'s list as history and adds what blocks now', () => {
-  const r = run([pushed, blockedSubmit([COUNT])], { platform: 'ios', steps: ['push_draft', 'submit'] });
+test("failureReport with a current reading keeps the run's list as history and adds what blocks now", () => {
+  const r = run([pushed, blockedSubmit([COUNT])], {
+    platform: 'ios',
+    steps: ['push_draft', 'submit'],
+  });
   const plain = failureReport({ appName: 'OSS Document Scanner', platform: 'ios', run: r });
   assert.doesNotMatch(plain, /Blockers now/);
-  const ready = failureReport({ appName: 'OSS Document Scanner', platform: 'ios', run: r, blockers: viewOf('ready', []) });
+  const ready = failureReport({
+    appName: 'OSS Document Scanner',
+    platform: 'ios',
+    run: r,
+    blockers: viewOf('ready', []),
+  });
   assert.match(ready, /history, not necessarily true now/);
-  assert.match(ready, /Blockers now \(store read .*\): none, everything that blocked the submit is fixed/);
+  assert.match(
+    ready,
+    /Blockers now \(store read .*\): none, everything that blocked the submit is fixed/,
+  );
   const still = failureReport({
     appName: 'OSS Document Scanner',
     platform: 'ios',
     run: r,
     blockers: viewOf('blocked', blockerLines({ blockers: [COUNT] })),
   });
-  assert.match(still, /Blockers now \(store read .*\): 1\n   Blocker: asset_spec/);
-  assert.match(failureReport({ appName: 'A', platform: 'ios', run: r, blockers: viewOf('unverified', []) }), /not checked since this run/);
+  assert.match(still, /Blockers now \(store read .*\): 1\n {3}Blocker: asset_spec/);
+  assert.match(
+    failureReport({ appName: 'A', platform: 'ios', run: r, blockers: viewOf('unverified', []) }),
+    /not checked since this run/,
+  );
 });

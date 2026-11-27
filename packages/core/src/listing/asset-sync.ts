@@ -1,13 +1,8 @@
-import { PLATFORMS, type Platform, supports } from '../platform.ts';
 import type { CompareRow } from '../images/compare.ts';
 import { measuredPathsOf, storeImageFacts, validateImageFacts } from '../images/facts.ts';
+import { PLATFORMS, type Platform, supports } from '../platform.ts';
 import { STORE_VIEW_TTL_MS } from '../timings.ts';
-import {
-  APPLE_DISPLAY_TYPES,
-  type AssetSlot,
-  assetStoreOf,
-  slotKey,
-} from './staged-changes.ts';
+import { APPLE_DISPLAY_TYPES, type AssetSlot, assetStoreOf, slotKey } from './staged-changes.ts';
 import {
   APPLE_DISPLAYS,
   ASSET_UPLOAD_MAX_BYTES,
@@ -126,9 +121,9 @@ export type StoreImagesView = {
  * of the release step, the counts next to the repository's) takes it from here, so none of them keeps the last of the siblings by accident.
  * With no set of the pushed group the one holding the most images stands in. Pure.
  */
-export function primaryStoreSet<T extends { device: string | null; target: string; files: readonly unknown[] }>(
-  sets: readonly T[],
-): T | undefined {
+export function primaryStoreSet<
+  T extends { device: string | null; target: string; files: readonly unknown[] },
+>(sets: readonly T[]): T | undefined {
   const first = sets[0];
   if (first === undefined || sets.length === 1) return first;
   const device = first.device;
@@ -151,7 +146,11 @@ export function primaryStoreSet<T extends { device: string | null; target: strin
 export function checkStoreImages(view: Pick<StoreImagesView, 'platform' | 'sets'>): AssetProblem[] {
   // The one facts builder and the one judging (images/facts.ts): path `locale/kind/device#position`, the store's group per image, and a
   // size read from a file header is only ever a note.
-  return validateImageFacts(assetStoreOf(view.platform), storeImageFacts(view), measuredPathsOf(view));
+  return validateImageFacts(
+    assetStoreOf(view.platform),
+    storeImageFacts(view),
+    measuredPathsOf(view),
+  );
 }
 
 // ---------------------------------------------------------------------------------------------

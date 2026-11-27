@@ -97,14 +97,23 @@ test('a long list is capped and says how many are left', () => {
 });
 
 test('a display the store keeps in two sets is two rows, each named by its group: neither stands for, nor is added to, the other', () => {
-  const primary = { ...set('en-US', [row('differs', true, true), row('only_repo', true, false)], 'ipad_13'), target: 'APP_IPAD_PRO_3GEN_129' } as AssetDiffSet;
-  const legacy = { ...set('en-US', [row('only_store', false, true), row('only_store', false, true)], 'ipad_13'), target: 'APP_IPAD_PRO_129' } as AssetDiffSet;
+  const primary = {
+    ...set('en-US', [row('differs', true, true), row('only_repo', true, false)], 'ipad_13'),
+    target: 'APP_IPAD_PRO_3GEN_129',
+  } as AssetDiffSet;
+  const legacy = {
+    ...set('en-US', [row('only_store', false, true), row('only_store', false, true)], 'ipad_13'),
+    target: 'APP_IPAD_PRO_129',
+  } as AssetDiffSet;
   const state = compareState(view([primary, legacy]));
   assert.equal(state.kind, 'table');
   if (state.kind !== 'table') return;
   assert.equal(state.rows.length, 2);
   assert.equal(new Set(state.rows.map((r) => r.key)).size, 2);
-  const [a, b] = [state.rows.find((r) => /3GEN/.test(r.what)), state.rows.find((r) => /IPAD_PRO_129/.test(r.what))];
+  const [a, b] = [
+    state.rows.find((r) => /3GEN/.test(r.what)),
+    state.rows.find((r) => /IPAD_PRO_129/.test(r.what)),
+  ];
   assert.deepEqual([a?.repoCount, a?.storeCount], [2, 1]);
   assert.deepEqual([b?.repoCount, b?.storeCount], [0, 2]);
   // One set per display keeps its plain name.

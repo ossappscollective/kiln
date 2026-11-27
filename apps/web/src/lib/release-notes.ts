@@ -161,9 +161,10 @@ export function reuseOptions(
       preview: previewOf(note.text),
       uses: lines.slice(0, 3),
       usesMore: Math.max(0, lines.length - 3),
-      overLimit: notesLengthOf(listingStoreOf(platform), note.text) > limit
-        ? notesLengthOf(listingStoreOf(platform), note.text)
-        : null,
+      overLimit:
+        notesLengthOf(listingStoreOf(platform), note.text) > limit
+          ? notesLengthOf(listingStoreOf(platform), note.text)
+          : null,
       truncated: note.truncated,
       same: clean(note.text) === clean(current),
     });
@@ -226,7 +227,9 @@ export function releaseNotesView(input: {
 }
 
 /** The counts the stepper shows of a notes view: languages with text, listing languages with none, texts over the limit. */
-export const notesFactsOf = (view: NotesView): { withText: number; missing: number; over: number } => ({
+export const notesFactsOf = (
+  view: NotesView,
+): { withText: number; missing: number; over: number } => ({
   withText: view.locales.filter((l) => l.from !== null).length,
   missing: view.missing.length,
   over: view.over.length,

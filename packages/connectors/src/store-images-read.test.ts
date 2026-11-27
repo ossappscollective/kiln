@@ -105,7 +105,9 @@ test('App Store: the editable version and the live version are separate channels
       attributes: { locale: 'en-US' },
     });
     const size = { width: 1242, height: 2208 };
-    a.addPlacements('loc-en', 'IPHONE_55_PROFILE', [{ name: 'draft.png', bytes: new Uint8Array([1]), size }]);
+    a.addPlacements('loc-en', 'IPHONE_55_PROFILE', [
+      { name: 'draft.png', bytes: new Uint8Array([1]), size },
+    ]);
     a.addPlacements('loc-live', 'IPHONE_55_PROFILE', [
       { name: 'left1.png', bytes: new Uint8Array([2]), size },
       { name: 'left2.png', bytes: new Uint8Array([3]), size },
@@ -113,7 +115,11 @@ test('App Store: the editable version and the live version are separate channels
   });
   const editable = await connector.readStoreImages();
   assert.deepEqual(
-    [editable.version?.versionString, editable.version?.editable, editable.images.map((i) => i.name)],
+    [
+      editable.version?.versionString,
+      editable.version?.editable,
+      editable.images.map((i) => i.name),
+    ],
     ['2.1', true, ['draft.png']],
   );
   const live = await connector.readStoreImages({ channel: 'live' });

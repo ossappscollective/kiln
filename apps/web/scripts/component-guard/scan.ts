@@ -70,8 +70,10 @@ export const RULES: Readonly<Record<RuleId, RuleInfo>> = {
   R5: {
     id: 'R5',
     name: 'no-own-counts-over-facts',
-    message: 'a component counts a fact collection by itself (`.filter().length`, `.reduce`, `.length` shown as a label)',
-    instead: 'read the count the model derives (a number with one definition), never recount a list',
+    message:
+      'a component counts a fact collection by itself (`.filter().length`, `.reduce`, `.length` shown as a label)',
+    instead:
+      'read the count the model derives (a number with one definition), never recount a list',
     byName: false,
   },
   R6: {
@@ -161,7 +163,8 @@ export const LIMIT_LITERALS: readonly number[] = [8, 10, 30, 80, 100, 170, 500, 
 const MAXLENGTH_LIMITS: readonly number[] = [30, 80, 170, 500, 2000, 4000];
 /** R3: what a typed secret is called (its length is a format rule, not a store limit). */
 const SECRET_INPUT = /\b(?:code|password|passcode|otp|pin|secret)\b/i;
-const COUNTISH = /(?:\.length|count|total|size|chars|bytes|max|limit|rows|files|images|screenshots)\b/i;
+const COUNTISH =
+  /(?:\.length|count|total|size|chars|bytes|max|limit|rows|files|images|screenshots)\b/i;
 
 /** R5: what a fact collection is called. */
 const FACT_COLLECTION =
@@ -216,7 +219,9 @@ export function domainOf(file: string, rule: RuleId, snippet: string): Domain {
   const text = `${file} ${snippet}`;
   if (/asset|graphic|image|screenshot|storegraphics/i.test(text)) return 'images';
   if (/listing|locale|aso|keyword|metadata/i.test(file)) return 'listing';
-  if (/release|build|version|candidate|stepper|testflight|promot|pipeline|obsolete|train/i.test(text))
+  if (
+    /release|build|version|candidate|stepper|testflight|promot|pipeline|obsolete|train/i.test(text)
+  )
     return 'releases';
   if (/listing|locale/i.test(snippet)) return 'listing';
   return 'state';
@@ -333,7 +338,12 @@ export function parseSource(file: string, text: string): ParsedFile {
     [root.module, true],
   ] as const) {
     if (script?.content === undefined) continue;
-    make(text.slice(script.content.start, script.content.end), script.content.start, false, moduleLevel);
+    make(
+      text.slice(script.content.start, script.content.end),
+      script.content.start,
+      false,
+      moduleLevel,
+    );
   }
   const walk = (node: any): void => {
     if (node === null || typeof node !== 'object') return;
@@ -387,7 +397,10 @@ function isEmptinessCheck(length: ts.PropertyAccessExpression): boolean {
   const value = Number(other.text);
   const op = parent.operatorToken.kind;
   const K = ts.SyntaxKind;
-  if (value === 0) return [K.EqualsEqualsEqualsToken, K.ExclamationEqualsEqualsToken, K.GreaterThanToken].includes(op);
+  if (value === 0)
+    return [K.EqualsEqualsEqualsToken, K.ExclamationEqualsEqualsToken, K.GreaterThanToken].includes(
+      op,
+    );
   return value === 1 && (op === K.GreaterThanEqualsToken || op === K.LessThanToken);
 }
 
@@ -468,7 +481,8 @@ export function scanUnit(unit: Unit, report: (r: Raw) => void): void {
           if (!R6_NAMES.includes(m)) add('R1', `api.${m}`, n);
         }
         // R4: parseInt/Number of a version, .sort(version), localeCompare numeric
-        if (m === 'localeCompare' && /numeric/.test(text(n, sf))) add('R4', 'localeCompare numeric', n);
+        if (m === 'localeCompare' && /numeric/.test(text(n, sf)))
+          add('R4', 'localeCompare numeric', n);
         if (m === 'sort' && /version/i.test(n.arguments.map((a) => text(a, sf)).join(' ')))
           add('R4', 'sort by version', n);
         // R5: .reduce( over a fact collection
@@ -490,7 +504,8 @@ export function scanUnit(unit: Unit, report: (r: Raw) => void): void {
       let inFunction = false;
       for (let p: ts.Node | undefined = n.parent; p !== undefined; p = p.parent)
         if (ts.isFunctionLike(p)) inFunction = true;
-      if ((c === 'Map' || c === 'WeakMap') && empty && !inFunction) add('R2', shorten(text(n, sf), 60), n);
+      if ((c === 'Map' || c === 'WeakMap') && empty && !inFunction)
+        add('R2', shorten(text(n, sf), 60), n);
     }
 
     // ---- comparisons with literal limits (R3)
@@ -563,7 +578,12 @@ export const MAX_EXEMPTIONS = 25;
 const GUARD_OK = /guard-ok\b([^\n]*)/;
 const GUARD_OK_FULL = /guard-ok\s+(R[1-7])\s*:\s*(\S[^\n]*?)\s*(?:-->|\*\/)?\s*$/;
 
-export type ScanResult = { violations: Violation[]; errors: string[]; files: number; exemptions: Exemption[] };
+export type ScanResult = {
+  violations: Violation[];
+  errors: string[];
+  files: number;
+  exemptions: Exemption[];
+};
 
 export function scanFile(
   file: string,
@@ -605,7 +625,10 @@ export function scanFile(
   lines.forEach((text, i) => {
     if (!GUARD_OK.test(text)) return;
     const m = GUARD_OK_FULL.exec(text);
-    if (m === null) problems.push(`${file}:${i + 1}: guard-ok needs a rule and a reason: \`guard-ok R5: <why this is not a fact>\``);
+    if (m === null)
+      problems.push(
+        `${file}:${i + 1}: guard-ok needs a rule and a reason: \`guard-ok R5: <why this is not a fact>\``,
+      );
     else marks.set(i + 1, { file, line: i + 1, rule: m[1] as RuleId, reason: m[2] ?? '' });
   });
   const used = new Set<number>();
@@ -687,7 +710,8 @@ export function loadAllowlist(path = ALLOWLIST_FILE): AllowlistFile {
   return JSON.parse(readFileSync(path, 'utf8')) as AllowlistFile;
 }
 
-const keyOf = (e: { file: string; rule: string; hash: string }) => `${e.file}\u0000${e.rule}\u0000${e.hash}`;
+const keyOf = (e: { file: string; rule: string; hash: string }) =>
+  `${e.file}\u0000${e.rule}\u0000${e.hash}`;
 
 export type Comparison = {
   /** Violations beyond what the allowlist grants. */
@@ -737,11 +761,16 @@ export function nextAllowlist(
       reason: e?.reason ?? DEFAULT_REASON[g.rule],
     });
   }
-  return { ...(list.$comment !== undefined ? { $comment: list.$comment } : {}), strict: list.strict, entries };
+  return {
+    ...(list.$comment !== undefined ? { $comment: list.$comment } : {}),
+    strict: list.strict,
+    entries,
+  };
 }
 
 export function serializeAllowlist(list: AllowlistFile): string {
-  const head = list.$comment !== undefined ? `  "$comment": ${JSON.stringify(list.$comment)},\n` : '';
+  const head =
+    list.$comment !== undefined ? `  "$comment": ${JSON.stringify(list.$comment)},\n` : '';
   const rows = list.entries.map((e) => `    ${JSON.stringify(e)}`).join(',\n');
   return `{\n${head}  "strict": ${list.strict},\n  "entries": [\n${rows}\n  ]\n}\n`;
 }

@@ -5,9 +5,9 @@ import {
   loadAllowlist,
   nextAllowlist,
   registryExists,
-  scanTree,
   SERVER_RULES,
   type ServerRuleId,
+  scanTree,
   serializeAllowlist,
 } from './server-guard.ts';
 
@@ -21,14 +21,20 @@ if (arg.includes('--regenerate') || arg.includes('--prune')) {
   console.log(`wrote ${ALLOWLIST_FILE}: ${list.entries.length} -> ${next.entries.length} entries`);
 } else if (arg.includes('--check')) {
   const d = compare(groups, list, (r) => r !== 'S2' || registryExists());
-  for (const a of d.added) console.log(`NEW   ${a.group.rule} ${a.group.file}:${a.group.line}  ${a.group.snippet}`);
+  for (const a of d.added)
+    console.log(`NEW   ${a.group.rule} ${a.group.file}:${a.group.line}  ${a.group.snippet}`);
   for (const s of d.stale) console.log(`STALE ${s.entry.rule} ${s.entry.file}  ${s.entry.snippet}`);
   process.exitCode = d.added.length + d.stale.length === 0 ? 0 : 1;
 } else {
-  console.log(`server guard allowlist: ${list.entries.length} entries${registryExists() ? '' : ' (S2 inactive: no registry yet)'}`);
+  console.log(
+    `server guard allowlist: ${list.entries.length} entries${registryExists() ? '' : ' (S2 inactive: no registry yet)'}`,
+  );
   for (const r of Object.keys(SERVER_RULES) as ServerRuleId[]) {
     const mine = list.entries.filter((e) => e.rule === r);
-    console.log(`  ${r} ${SERVER_RULES[r].name}: ${mine.length} entries, ${new Set(mine.map((e) => e.file)).size} files`);
-    if (arg.includes('--files')) for (const e of mine) console.log(`     x${e.count} ${e.file}  ${e.snippet}`);
+    console.log(
+      `  ${r} ${SERVER_RULES[r].name}: ${mine.length} entries, ${new Set(mine.map((e) => e.file)).size} files`,
+    );
+    if (arg.includes('--files'))
+      for (const e of mine) console.log(`     x${e.count} ${e.file}  ${e.snippet}`);
   }
 }

@@ -57,7 +57,9 @@ export function readinessImagesOf<
   I = { width: number | null; height: number | null },
 >(
   view: ReadinessImagesInput<F>,
-  pick: (file: F) => I = ((f: F) => ({ width: f.width, height: f.height })) as unknown as (file: F) => I,
+  pick: (file: F) => I = ((f: F) => ({ width: f.width, height: f.height })) as unknown as (
+    file: F,
+  ) => I,
 ): ReadinessImages<I> {
   type Set_ = ReadinessImages<I>['locales'][number]['assets'][number];
   const byLocale = new Map<string, Set_[]>();
@@ -98,9 +100,20 @@ export function readinessImagesOf<
  * view builder keeps its own (it also makes the refs).
  */
 export function setsOfImageRecords<
-  R extends { locale: string; kind: AssetKind; device: string | null; target: string; position: number },
->(records: readonly R[]): { locale: string; kind: AssetKind; device: string | null; target: string; files: R[] }[] {
-  const byId = new Map<string, { locale: string; kind: AssetKind; device: string | null; target: string; files: R[] }>();
+  R extends {
+    locale: string;
+    kind: AssetKind;
+    device: string | null;
+    target: string;
+    position: number;
+  },
+>(
+  records: readonly R[],
+): { locale: string; kind: AssetKind; device: string | null; target: string; files: R[] }[] {
+  const byId = new Map<
+    string,
+    { locale: string; kind: AssetKind; device: string | null; target: string; files: R[] }
+  >();
   for (const r of records.slice().sort((a, b) => a.position - b.position)) {
     const id = `${r.locale}\0${r.kind}\0${r.device ?? ''}\0${r.target}`;
     let set = byId.get(id);

@@ -1,5 +1,11 @@
 import { EXPO_LOCALES } from '@kiln/connectors';
-import { equivalentLocaleKeys, isRepoLocaleFolder, localeKey, matchLocale, type Platform } from '@kiln/core';
+import {
+  equivalentLocaleKeys,
+  isRepoLocaleFolder,
+  localeKey,
+  matchLocale,
+  type Platform,
+} from '@kiln/core';
 
 /**
  * Locale codes between the store and the repository, as pure functions.

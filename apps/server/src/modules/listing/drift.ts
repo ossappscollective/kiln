@@ -4,6 +4,7 @@ import {
   APP_STORE_FIELDS,
   byFamily,
   DEFAULT_LOCALE,
+  isStageableTextField,
   type Listing,
   type ListingFieldSpec,
   type ListingProblem,
@@ -13,7 +14,6 @@ import {
   PLAY_FIELD_SPECS,
   PLAY_FIELDS,
   type Platform,
-  isStageableTextField,
   validateListing,
 } from '@kiln/core';
 
@@ -99,7 +99,8 @@ export function emptyRequiredFields(
   values: Readonly<Record<string, string | undefined>>,
 ): string[] {
   return listingFieldsFor(platform).filter((field) => {
-    if (!fieldSpec(platform, field)?.required || !isStageableTextField(platform, field)) return false;
+    if (!fieldSpec(platform, field)?.required || !isStageableTextField(platform, field))
+      return false;
     const value = values[field];
     return value === undefined || value.trim() === '';
   });

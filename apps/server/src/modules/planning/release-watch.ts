@@ -1,8 +1,8 @@
 import {
+  RELEASE_WATCH_MAX_EVENTS_PER_RUN as DEFAULT_MAX_WATCH_EVENTS_PER_RUN,
   evaluatePipeline,
   HOUR_MS,
   MAX_STALLED_AFTER_HOURS,
-  RELEASE_WATCH_MAX_EVENTS_PER_RUN as DEFAULT_MAX_WATCH_EVENTS_PER_RUN,
 } from '@kiln/core';
 import type { Database, Row } from '@kiln/db';
 import { recordAudit } from '../../services/audit.ts';

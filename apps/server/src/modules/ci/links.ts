@@ -274,8 +274,7 @@ const rank = (status: ReleaseState | null) =>
   status === null ? -1 : RELEASE_STATES.indexOf(status);
 
 const buildOrder = (a: StoredBuild, b: StoredBuild) =>
-  a.platform.localeCompare(b.platform) ||
-  compareBuildNumbers(b.buildNumber, a.buildNumber);
+  a.platform.localeCompare(b.platform) || compareBuildNumbers(b.buildNumber, a.buildNumber);
 
 /**
  * The builds a sync stored. The sync keeps the build attached to each version (iOS: the newest

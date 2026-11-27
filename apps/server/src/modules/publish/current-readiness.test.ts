@@ -39,23 +39,26 @@ const codes = (body: any): string[] =>
     (b) => `${b.code}:${b.locale ?? ''}:${b.item ?? ''}`,
   );
 
-dbTest('12 screenshots in one display type and an empty fr-FR: the blockers say which set is over, and how much', async (db) => {
-  const t = await boot(db);
-  const app = await t.addApp('ios', 'OSS Document Scanner');
-  blank(t, ['description', 'keywords', 'support_url']);
-  t.stores.ios.seedSet('en-US', GROUP, files(12));
-  const res = await t.readiness(app);
-  assert.equal(res.status, 200, res.text.slice(0, 300));
-  const r = res.body.readiness;
-  assert.equal(r.ready, false);
-  assert.equal(r.cached, false);
-  assert.equal(typeof r.storeReadAt, 'number');
-  const count = r.blockers.find((b: any) => b.code === 'asset_spec');
-  assert.match(count.message, /\(APP_IPAD_PRO_3GEN_129\): 12 found\.$/);
-  assert.deepEqual(count.params, { count: 12, max: 10, device: 'ipad_13', set: GROUP });
-  assert.equal(count.fix.kind, 'screenshots');
-  assert.equal(r.blockers.filter((b: any) => b.code === 'missing_text').length, 3);
-});
+dbTest(
+  '12 screenshots in one display type and an empty fr-FR: the blockers say which set is over, and how much',
+  async (db) => {
+    const t = await boot(db);
+    const app = await t.addApp('ios', 'OSS Document Scanner');
+    blank(t, ['description', 'keywords', 'support_url']);
+    t.stores.ios.seedSet('en-US', GROUP, files(12));
+    const res = await t.readiness(app);
+    assert.equal(res.status, 200, res.text.slice(0, 300));
+    const r = res.body.readiness;
+    assert.equal(r.ready, false);
+    assert.equal(r.cached, false);
+    assert.equal(typeof r.storeReadAt, 'number');
+    const count = r.blockers.find((b: any) => b.code === 'asset_spec');
+    assert.match(count.message, /\(APP_IPAD_PRO_3GEN_129\): 12 found\.$/);
+    assert.deepEqual(count.params, { count: 12, max: 10, device: 'ipad_13', set: GROUP });
+    assert.equal(count.fix.kind, 'screenshots');
+    assert.equal(r.blockers.filter((b: any) => b.code === 'missing_text').length, 3);
+  },
+);
 
 dbTest('10 in the 13" set and 2 in the 12.9" set are two sets: nothing is over', async (db) => {
   const t = await boot(db);
@@ -68,39 +71,50 @@ dbTest('10 in the 13" set and 2 in the 12.9" set are two sets: nothing is over',
   assert.deepEqual(codes(res.body), []);
 });
 
-dbTest('the answer is kept for 30 seconds; "Check again" (fresh) asks the store again and sees the screenshots removed since', async (db) => {
-  const t = await boot(db);
-  const app = await t.addApp('ios', 'OSS Document Scanner');
-  blank(t, ['description']);
-  t.stores.ios.seedSet('en-US', GROUP, files(12));
-  const first = await t.readiness(app);
-  assert.ok(codes(first.body).some((c) => c.startsWith('asset_spec')));
-  const reads = t.submitStores.ios.reads;
-  // The person removes two screenshots in the store's own console.
-  t.stores.ios.seedSet('en-US', GROUP, files(10));
-  const kept = await t.readiness(app);
-  assert.equal(kept.body.readiness.cached, true);
-  assert.equal(t.submitStores.ios.reads, reads, 'the cache answered, no store read');
-  assert.ok(codes(kept.body).some((c) => c.startsWith('asset_spec')), 'still the old picture inside the 30 s');
-  const fresh = await t.readiness(app, true);
-  assert.equal(fresh.body.readiness.cached, false);
-  assert.ok(t.submitStores.ios.reads > reads);
-  assert.deepEqual(codes(fresh.body), ['missing_text:fr-FR:description']);
-});
+dbTest(
+  'the answer is kept for 30 seconds; "Check again" (fresh) asks the store again and sees the screenshots removed since',
+  async (db) => {
+    const t = await boot(db);
+    const app = await t.addApp('ios', 'OSS Document Scanner');
+    blank(t, ['description']);
+    t.stores.ios.seedSet('en-US', GROUP, files(12));
+    const first = await t.readiness(app);
+    assert.ok(codes(first.body).some((c) => c.startsWith('asset_spec')));
+    const reads = t.submitStores.ios.reads;
+    // The person removes two screenshots in the store's own console.
+    t.stores.ios.seedSet('en-US', GROUP, files(10));
+    const kept = await t.readiness(app);
+    assert.equal(kept.body.readiness.cached, true);
+    assert.equal(t.submitStores.ios.reads, reads, 'the cache answered, no store read');
+    assert.ok(
+      codes(kept.body).some((c) => c.startsWith('asset_spec')),
+      'still the old picture inside the 30 s',
+    );
+    const fresh = await t.readiness(app, true);
+    assert.equal(fresh.body.readiness.cached, false);
+    assert.ok(t.submitStores.ios.reads > reads);
+    assert.deepEqual(codes(fresh.body), ['missing_text:fr-FR:description']);
+  },
+);
 
-dbTest('a sync of the app drops the cached readiness: the next read sees the store as it is', async (db) => {
-  const t = await boot(db);
-  const app = await t.addApp('ios', 'OSS Document Scanner');
-  t.stores.ios.seedSet('en-US', GROUP, files(12));
-  assert.ok(codes(await t.readiness(app).then((r) => r.body)).some((c) => c.startsWith('asset_spec')));
-  t.stores.ios.seedSet('en-US', GROUP, files(10));
-  const sync = await t.call(t.owner, 'POST', `/apps/${app}/sync`);
-  assert.equal(sync.status, 200, sync.text.slice(0, 300));
-  const after = await t.readiness(app);
-  assert.equal(after.body.readiness.cached, false);
-  assert.deepEqual(codes(after.body), []);
-  assert.equal(after.body.readiness.ready, true);
-});
+dbTest(
+  'a sync of the app drops the cached readiness: the next read sees the store as it is',
+  async (db) => {
+    const t = await boot(db);
+    const app = await t.addApp('ios', 'OSS Document Scanner');
+    t.stores.ios.seedSet('en-US', GROUP, files(12));
+    assert.ok(
+      codes(await t.readiness(app).then((r) => r.body)).some((c) => c.startsWith('asset_spec')),
+    );
+    t.stores.ios.seedSet('en-US', GROUP, files(10));
+    const sync = await t.call(t.owner, 'POST', `/apps/${app}/sync`);
+    assert.equal(sync.status, 200, sync.text.slice(0, 300));
+    const after = await t.readiness(app);
+    assert.equal(after.body.readiness.cached, false);
+    assert.deepEqual(codes(after.body), []);
+    assert.equal(after.body.readiness.ready, true);
+  },
+);
 
 dbTest('everything fixed: ready, with the version the submit would send', async (db) => {
   const t = await boot(db);
@@ -108,7 +122,11 @@ dbTest('everything fixed: ready, with the version the submit would send', async 
   t.stores.ios.seedSet('en-US', GROUP, files(10));
   const res = await t.readiness(app, true);
   assert.equal(res.body.readiness.ready, true);
-  assert.equal(typeof res.body.readiness.versionString === 'string' || res.body.readiness.versionString === null, true);
+  assert.equal(
+    typeof res.body.readiness.versionString === 'string' ||
+      res.body.readiness.versionString === null,
+    true,
+  );
 });
 
 dbTest('needs the right to submit and the submit switch', async (db) => {
@@ -121,23 +139,26 @@ dbTest('needs the right to submit and the submit switch', async (db) => {
   assert.ok([404, 409].includes(unknown.status));
 });
 
-dbTest('"Read again" of the store graphics drops the cached readiness, and "Check again" drops the cached graphics', async (db) => {
-  const t = await boot(db);
-  const app = await t.addApp('ios', 'OSS Document Scanner');
-  t.stores.ios.seedSet('en-US', GROUP, files(12));
-  assert.ok(codes((await t.readiness(app)).body).some((c) => c.startsWith('asset_spec')));
-  const images = (fresh: boolean) =>
-    t.call(t.owner, 'GET', `/apps/${app}/assets/store${fresh ? '?fresh=1' : ''}`);
-  const before = await images(false);
-  assert.equal(before.status, 200, before.text.slice(0, 200));
-  t.stores.ios.seedSet('en-US', GROUP, files(10));
-  // The graphics tab reads again: the readiness cache goes with it.
-  assert.equal((await images(true)).body.cached, false);
-  const after = await t.readiness(app);
-  assert.equal(after.body.readiness.cached, false);
-  assert.deepEqual(codes(after.body), []);
-  // And the other way round: a "Check again" leaves no old picture of the graphics behind.
-  assert.equal((await images(false)).body.cached, true);
-  await t.readiness(app, true);
-  assert.equal((await images(false)).body.cached, false);
-});
+dbTest(
+  '"Read again" of the store graphics drops the cached readiness, and "Check again" drops the cached graphics',
+  async (db) => {
+    const t = await boot(db);
+    const app = await t.addApp('ios', 'OSS Document Scanner');
+    t.stores.ios.seedSet('en-US', GROUP, files(12));
+    assert.ok(codes((await t.readiness(app)).body).some((c) => c.startsWith('asset_spec')));
+    const images = (fresh: boolean) =>
+      t.call(t.owner, 'GET', `/apps/${app}/assets/store${fresh ? '?fresh=1' : ''}`);
+    const before = await images(false);
+    assert.equal(before.status, 200, before.text.slice(0, 200));
+    t.stores.ios.seedSet('en-US', GROUP, files(10));
+    // The graphics tab reads again: the readiness cache goes with it.
+    assert.equal((await images(true)).body.cached, false);
+    const after = await t.readiness(app);
+    assert.equal(after.body.readiness.cached, false);
+    assert.deepEqual(codes(after.body), []);
+    // And the other way round: a "Check again" leaves no old picture of the graphics behind.
+    assert.equal((await images(false)).body.cached, true);
+    await t.readiness(app, true);
+    assert.equal((await images(false)).body.cached, false);
+  },
+);

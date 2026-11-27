@@ -8,7 +8,7 @@ import {
   storeCopyView,
 } from '@kiln/core';
 import type { Sql } from '@kiln/db';
-import { type Drift, getDrift, getLiveListing, type LiveListing, type ListingApp } from './live.ts';
+import { type Drift, getDrift, getLiveListing, type ListingApp, type LiveListing } from './live.ts';
 
 /**
  * THE one server read of the store side of an app's listing (docs/state-model.md, "Single owners (core)", docs/api/listing.md

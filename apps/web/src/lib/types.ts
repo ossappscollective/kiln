@@ -779,7 +779,12 @@ export type StoreCopyViewJson = {
   intent: 'shown' | 'editable' | 'live';
   codes: string[];
   channels: { live: boolean; editable: boolean };
-  locales: { locale: string; from: 'live' | 'editable'; held: ('live' | 'editable')[]; fields: Record<string, string> }[];
+  locales: {
+    locale: string;
+    from: 'live' | 'editable';
+    held: ('live' | 'editable')[];
+    fields: Record<string, string>;
+  }[];
 };
 
 /** The app's base language and how it was decided (`defaultLocale` of `GET .../listing/store`). */
@@ -1309,7 +1314,6 @@ export type AssetItem = {
   read: AssetReadState;
   origin: 'store' | 'project';
 };
-
 
 export type AssetIndex = {
   appId: string;

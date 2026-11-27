@@ -1,7 +1,6 @@
 import type { BlobHeadItem, BlobReads } from '@kiln/connectors';
 import {
   ASSET_LOCAL_CLONE_MAX_FILES,
-  ASSET_MAX_LISTED as MAX_LISTED_ASSETS,
   ASSET_RULES,
   type AssetFacts,
   type AssetKind,
@@ -12,12 +11,13 @@ import {
   classifyAppleScreenshot,
   deviceFitsPlatform,
   deviceLabel,
-  type ImageFormat,
   IMESSAGE_PREFIX,
+  type ImageFormat,
+  ASSET_MAX_LISTED as MAX_LISTED_ASSETS,
   type Platform,
   readImageHeader,
-  sniffImageFormat,
   SPEC_SOURCES,
+  sniffImageFormat,
   summarizeAssets,
   supports,
   validateAssets,

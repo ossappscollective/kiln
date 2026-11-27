@@ -1,18 +1,18 @@
 import { writeFileSync } from 'node:fs';
 import {
   ALLOWLIST_FILE,
-  EXEMPTIONS_FILE,
-  MAX_EXEMPTIONS,
-  serializeExemptions,
   compare,
   DOMAINS,
+  EXEMPTIONS_FILE,
   groupViolations,
   loadAllowlist,
+  MAX_EXEMPTIONS,
   nextAllowlist,
   RULES,
   type RuleId,
   scanTree,
   serializeAllowlist,
+  serializeExemptions,
 } from './scan.ts';
 
 /**
@@ -33,7 +33,9 @@ if (scan.errors.length > 0) {
 }
 if (arg.includes('--report')) {
   writeFileSync(EXEMPTIONS_FILE, serializeExemptions(scan.exemptions));
-  console.log(`wrote ${EXEMPTIONS_FILE}: ${scan.exemptions.length} exemptions (max ${MAX_EXEMPTIONS})`);
+  console.log(
+    `wrote ${EXEMPTIONS_FILE}: ${scan.exemptions.length} exemptions (max ${MAX_EXEMPTIONS})`,
+  );
   process.exit(process.exitCode ?? 0);
 }
 const groups = groupViolations(scan.violations);
@@ -48,9 +50,12 @@ if (arg.includes('--regenerate') || arg.includes('--prune')) {
 
 if (arg.includes('--check')) {
   const diff = compare(groups, list);
-  for (const a of diff.added) console.log(`NEW   ${a.group.rule} ${a.group.file}:${a.group.line}  ${a.group.snippet}`);
+  for (const a of diff.added)
+    console.log(`NEW   ${a.group.rule} ${a.group.file}:${a.group.line}  ${a.group.snippet}`);
   for (const s of diff.stale)
-    console.log(`STALE ${s.entry.rule} ${s.entry.file}  ${s.entry.snippet} (allowed ${s.entry.count}, found ${s.actual})`);
+    console.log(
+      `STALE ${s.entry.rule} ${s.entry.file}  ${s.entry.snippet} (allowed ${s.entry.count}, found ${s.actual})`,
+    );
   process.exit(diff.added.length + diff.stale.length === 0 ? 0 : 1);
 }
 
@@ -62,7 +67,9 @@ console.log(
 );
 const rules = Object.keys(RULES) as RuleId[];
 const pad = (s: string | number, n: number) => String(s).padStart(n);
-console.log(`${'domain'.padEnd(10)}${rules.map((r) => pad(r, 6)).join('')}${pad('total', 8)}${pad('files', 7)}`);
+console.log(
+  `${'domain'.padEnd(10)}${rules.map((r) => pad(r, 6)).join('')}${pad('total', 8)}${pad('files', 7)}`,
+);
 for (const domain of DOMAINS) {
   const mine = entries.filter((e) => e.domain === domain);
   const cells = rules.map((r) => mine.filter((e) => e.rule === r).length);

@@ -149,7 +149,10 @@ describe('attention items', () => {
         { pushed: false, status: 'unchanged' },
         { pushed: false, status: 'invalid' },
       ],
-      assets: [{ pushed: false, files: [] }, { pushed: true, files: [] }],
+      assets: [
+        { pushed: false, files: [] },
+        { pushed: true, files: [] },
+      ],
     } as unknown as Parameters<typeof stagedUnpushedCount>[0];
     assert.equal(stagedUnpushedCount(view), 3);
   });

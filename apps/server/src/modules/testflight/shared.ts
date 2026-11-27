@@ -5,11 +5,11 @@ import {
   type StoreConnectorInput,
   type StoreTestFlightFeedbackConnector,
 } from '@kiln/connectors';
+import { TESTFLIGHT_MAX_EVENTS_PER_KIND_PER_SYNC as MAX_EVENTS_PER_KIND_PER_SYNC } from '@kiln/core';
 import type { Database } from '@kiln/db';
 import { coded } from '../../i18n/problem.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
-import { TESTFLIGHT_MAX_EVENTS_PER_KIND_PER_SYNC as MAX_EVENTS_PER_KIND_PER_SYNC } from '@kiln/core';
 
 export { MAX_EVENTS_PER_KIND_PER_SYNC };
 

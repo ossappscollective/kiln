@@ -65,7 +65,12 @@ export type GraphicSet = {
   total: number;
 };
 
-export type GraphicLocale = { locale: string; sets: GraphicSet[]; /** The images of its displays (a total of `GraphicSet.total`). */ imageCount: number; /** Some set of the locale is staged. */ hasStaged: boolean };
+export type GraphicLocale = {
+  locale: string;
+  sets: GraphicSet[] /** The images of its displays (a total of `GraphicSet.total`). */;
+  imageCount: number /** Some set of the locale is staged. */;
+  hasStaged: boolean;
+};
 
 export type AddressBook = {
   thumb: (ref: string) => string;
@@ -116,7 +121,10 @@ export function buildGraphicSets(args: {
       cleared: false,
       storeCount: d.counts.merged,
       rows,
-      groups: d.groups.length > 1 ? d.counts.perGroup.map((g) => ({ target: g.target, count: g.count })) : [],
+      groups:
+        d.groups.length > 1
+          ? d.counts.perGroup.map((g) => ({ target: g.target, count: g.count }))
+          : [],
       grouped: d.groups.length > 1,
       max: d.limit.max ?? 0,
       stagedMax: d.limit.stagedMax,
@@ -205,4 +213,5 @@ export function moveBy(
  * staged set; the images of every group of the display count, because a push replaces all of them). Each store group is judged alone
  * elsewhere (`DisplaySet.overLimit`); this is about the set an add would stage.
  */
-export const canAddMore = (set: Pick<GraphicSet, 'rows' | 'stagedMax'>): boolean => set.rows.length < set.stagedMax;
+export const canAddMore = (set: Pick<GraphicSet, 'rows' | 'stagedMax'>): boolean =>
+  set.rows.length < set.stagedMax;

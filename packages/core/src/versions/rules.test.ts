@@ -76,5 +76,8 @@ test('storeVersionsOf: preparing and rejected are editable; in review, approved,
     { version: '7', status: 'live' },
     { version: '8', status: null },
   ]);
-  assert.deepEqual(rows.map((r) => r.editable), [true, true, true, true, false, false, false, false]);
+  assert.deepEqual(
+    rows.map((r) => r.editable),
+    [true, true, true, true, false, false, false, false],
+  );
 });

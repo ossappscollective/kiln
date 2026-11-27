@@ -8,8 +8,8 @@ import {
   clearAllCaches,
   emitCacheEvent,
   keyInScope,
-  registeredCaches,
   registerCache,
+  registeredCaches,
   registerMapCache,
 } from './cache-registry.ts';
 import { NOT_A_CACHE } from './not-a-cache.ts';
@@ -70,7 +70,11 @@ test('an event drops the caches that declared it, for the scope it names, and no
   });
   const told = emitCacheEvent('sync', { workspaceId: 'w1', appId: 'a1' });
   assert.ok(told.includes('t.scope_a') && !told.includes('t.scope_b'));
-  assert.deepEqual([...a.keys()].sort(), ['w1|a10', 'w1|a2', 'w2|a1'], 'only the app, not a10 or other workspaces');
+  assert.deepEqual(
+    [...a.keys()].sort(),
+    ['w1|a10', 'w1|a2', 'w2|a1'],
+    'only the app, not a10 or other workspaces',
+  );
   assert.equal(b.size, 1, 'a cache that did not declare sync keeps its entry');
   emitCacheEvent('sync', { workspaceId: 'w1' });
   assert.deepEqual([...a.keys()], ['w2|a1'], 'no app: the workspace');
@@ -86,7 +90,10 @@ test('keyInScope: shapes and separators', () => {
   assert.equal(keyInScope('w|repo', { workspaceId: 'w', appId: 'a' }, 'workspace'), true);
   assert.equal(keyInScope('v|repo', { workspaceId: 'w', appId: 'a' }, 'workspace'), false);
   assert.equal(keyInScope('anything', { workspaceId: 'w' }, 'all'), true);
-  assert.equal(keyInScope('w\0a\0fr', { workspaceId: 'w', appId: 'a' }, 'workspace_app', '\0'), true);
+  assert.equal(
+    keyInScope('w\0a\0fr', { workspaceId: 'w', appId: 'a' }, 'workspace_app', '\0'),
+    true,
+  );
 });
 
 test('a timedCache is on the list from its birth and each event empties it as declared', () => {
@@ -199,15 +206,22 @@ test('every timedCache( call in the source carries its declaration (name, owner,
     for (const m of text.matchAll(/\btimedCache\s*(<[^(]*>)?\s*\(/g)) {
       calls += 1;
       const args = argsOf(text, (m.index ?? 0) + m[0].length - 1);
-      if (args.length < 3) offenders.push(`${rel(file)}: timedCache( with ${args.length} arguments`);
+      if (args.length < 3)
+        offenders.push(`${rel(file)}: timedCache( with ${args.length} arguments`);
     }
   }
   assert.ok(calls >= 10, `the scan found ${calls} timedCache( calls: the pattern is broken`);
-  assert.deepEqual(offenders, [], 'a cache is born with timedCache(ttl, max, { name, owner, invalidatedBy, ... })');
+  assert.deepEqual(
+    offenders,
+    [],
+    'a cache is born with timedCache(ttl, max, { name, owner, invalidatedBy, ... })',
+  );
 });
 
 test('every NOT_A_CACHE entry says why it is not a cache', () => {
-  const bare = Object.entries(NOT_A_CACHE).filter(([, why]) => why.trim().length < 8).map(([id]) => id);
+  const bare = Object.entries(NOT_A_CACHE)
+    .filter(([, why]) => why.trim().length < 8)
+    .map(([id]) => id);
   assert.deepEqual(bare, [], 'NOT_A_CACHE needs a `why` for every Map');
 });
 
@@ -218,17 +232,23 @@ test('no module-level Map exists outside the registry unless it is listed as not
     if (['services/cache-registry.ts', 'server-guard.ts'].includes(rel(file))) continue;
     const text = stripComments(readFileSync(file, 'utf8'));
     // Also a Map inside a function that the server guard names (`const inflight = new Map()`): listed with a why, never required to register.
-    for (const m of text.matchAll(/^[ \t]+const (\w+)\s*=\s*new Map\b/gm)) found.add(`${rel(file)}:${m[1]}`);
+    for (const m of text.matchAll(/^[ \t]+const (\w+)\s*=\s*new Map\b/gm))
+      found.add(`${rel(file)}:${m[1]}`);
     for (const m of text.matchAll(/^(?:export )?const (\w+)\s*=\s*new Map\b/gm)) {
       const id = `${rel(file)}:${m[1]}`;
       found.add(id);
       // Registered through registerMapCache(map, ...), or by a registerCache({ ..., drop() { map.clear() } }) that empties it.
-      const blocks = text.split('registerCache({').slice(1).map((b) => b.slice(0, b.indexOf('\n});')));
+      const blocks = text
+        .split('registerCache({')
+        .slice(1)
+        .map((b) => b.slice(0, b.indexOf('\n});')));
       const registered =
         new RegExp(`registerMapCache\\(\\s*${m[1]}\\b`).test(text) ||
         blocks.some((b) => new RegExp(`\\b${m[1]}\\.(clear|delete)\\(`).test(b));
       if (!registered && !(id in NOT_A_CACHE))
-        offenders.push(`${id}: a module-level Map that is neither registered (registerMapCache) nor listed in NOT_A_CACHE`);
+        offenders.push(
+          `${id}: a module-level Map that is neither registered (registerMapCache) nor listed in NOT_A_CACHE`,
+        );
     }
   }
   assert.deepEqual(offenders, []);
@@ -241,12 +261,25 @@ test('no module-level Map exists outside the registry unless it is listed as not
 
 /** name -> events. Changing a cache's events means changing this table and the docs. */
 const EXPECTED: Record<string, readonly CacheEvent[]> = {
-  'publish.current_readiness': ['store_read', 'sync', 'publish', 'release_changed', 'build_changed', 'staged_changed'],
+  'publish.current_readiness': [
+    'store_read',
+    'sync',
+    'publish',
+    'release_changed',
+    'build_changed',
+    'staged_changed',
+  ],
   'listing.store_images_view': ['store_read', 'sync', 'publish', 'release_changed'],
   'listing.image_refs': ['store_read', 'sync', 'publish', 'release_changed'],
   'listing.image_thumbs': [],
   'listing.image_probes': [],
-  'listing.proposal_summary': ['sync', 'staged_changed', 'release_changed', 'build_changed', 'publish'],
+  'listing.proposal_summary': [
+    'sync',
+    'staged_changed',
+    'release_changed',
+    'build_changed',
+    'publish',
+  ],
   'listing.asset_repo_opened': [],
   'listing.asset_index': [],
   'builds.repo_artifacts': ['sync', 'build_changed'],
@@ -278,7 +311,11 @@ test('the registered caches are exactly the documented ones, with their events',
   );
   for (const [name, events] of Object.entries(EXPECTED)) {
     assert.ok(name in have, `${name} is not registered`);
-    assert.deepEqual([...(have[name] as readonly CacheEvent[])].sort(), [...events].sort(), `${name}: events`);
+    assert.deepEqual(
+      [...(have[name] as readonly CacheEvent[])].sort(),
+      [...events].sort(),
+      `${name}: events`,
+    );
   }
   // The four public-search caches of aso/net.ts are made by a factory (`createAsoSources`), so they exist only once one was made.
   const FACTORY_MADE = ['aso.searches', 'aso.lookups', 'aso.app_searches', 'aso.hint_lists'];
@@ -290,6 +327,8 @@ test('the registered caches are exactly the documented ones, with their events',
 
 test('docs/state-model.md names every registered cache and every event', () => {
   const docs = readFileSync(DOCS, 'utf8');
-  for (const name of Object.keys(EXPECTED)) assert.ok(docs.includes(`\`${name}\``), `${name} is not in docs/state-model.md`);
-  for (const event of cacheEvents) assert.ok(docs.includes(`\`${event}\``), `${event} is not in docs/state-model.md`);
+  for (const name of Object.keys(EXPECTED))
+    assert.ok(docs.includes(`\`${name}\``), `${name} is not in docs/state-model.md`);
+  for (const event of cacheEvents)
+    assert.ok(docs.includes(`\`${event}\``), `${event} is not in docs/state-model.md`);
 });

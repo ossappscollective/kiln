@@ -19,16 +19,20 @@ import { NOT_A_CACHE } from './services/not-a-cache.ts';
  */
 
 export type ServerRuleId = 'S1' | 'S2';
-export const SERVER_RULES: Readonly<Record<ServerRuleId, { name: string; message: string; instead: string }>> = {
+export const SERVER_RULES: Readonly<
+  Record<ServerRuleId, { name: string; message: string; instead: string }>
+> = {
   S1: {
     name: 'no-literal-limits',
     message: 'a limit, TTL or threshold is a literal number in server code',
-    instead: 'import it from @kiln/core (listing specs, limits, timings): one number, one owner, shared with the browser',
+    instead:
+      'import it from @kiln/core (listing specs, limits, timings): one number, one owner, shared with the browser',
   },
   S2: {
     name: 'no-cache-outside-registry',
     message: 'a cache (`new Map`, `timedCache`) outside the cache registry',
-    instead: 'create it through services/cache-registry.ts (`timedCache(ttl, max, declaration)` / `registerMapCache`) and declare its events',
+    instead:
+      'create it through services/cache-registry.ts (`timedCache(ttl, max, declaration)` / `registerMapCache`) and declare its events',
   },
 };
 
@@ -36,16 +40,36 @@ export const ROOT = fileURLToPath(new URL('./', import.meta.url));
 export const ALLOWLIST_FILE = join(ROOT, 'server-guard.allowlist.json');
 export const REGISTRY_FILES = ['services/cache-registry.ts', 'services/timed-cache.ts'];
 
-const LIMIT_LITERALS: readonly number[] = [8, 10, 30, 80, 100, 170, 500, 2000, 4000, 8192, 8 * 1024 * 1024];
+const LIMIT_LITERALS: readonly number[] = [
+  8,
+  10,
+  30,
+  80,
+  100,
+  170,
+  500,
+  2000,
+  4000,
+  8192,
+  8 * 1024 * 1024,
+];
 const TIMING_LITERALS: readonly number[] = [
   20_000, 30_000, 45_000, 60_000, 120_000, 300_000, 600_000, 900_000, 1_800_000, 3_600_000,
 ];
 const LIMITISH = /(?:max|limit|ttl|fresh|stuck|quiet|silent|cap|after)/i;
 /** S1 watches the places that judge store facts (counts, blockers, versions, freshness); an AI prompt budget or a retry delay is not one. */
-export const S1_SCOPE = /^(?:modules\/(?:listing|publish|planning|builds|testflight|timeline)\/(?!artifact-meta\/)|services\/(?!mail|credential|invitation|members|accounts|audit|events|event-types|local|clone|change-set))/;
-const COUNTISH = /(?:\.length|count|total|size|chars|bytes|max|limit|rows|files|images|screenshots)\b/i;
+export const S1_SCOPE =
+  /^(?:modules\/(?:listing|publish|planning|builds|testflight|timeline)\/(?!artifact-meta\/)|services\/(?!mail|credential|invitation|members|accounts|audit|events|event-types|local|clone|change-set))/;
+const COUNTISH =
+  /(?:\.length|count|total|size|chars|bytes|max|limit|rows|files|images|screenshots)\b/i;
 
-export type Violation = { file: string; rule: ServerRuleId; hash: string; snippet: string; line: number };
+export type Violation = {
+  file: string;
+  rule: ServerRuleId;
+  hash: string;
+  snippet: string;
+  line: number;
+};
 export type Group = Violation & { count: number };
 
 export const hashOf = (text: string) =>
@@ -90,7 +114,8 @@ function constant(n: ts.Expression): number | null {
 
 /** A module-level Map that is registered with the cache registry, or declared "not a cache" (with its reason) in services/not-a-cache.ts. */
 function accountedFor(file: string, name: string, source: string): boolean {
-  if (`${file}:${name}` in NOT_A_CACHE) return (NOT_A_CACHE[`${file}:${name}`] ?? '').trim().length >= 8;
+  if (`${file}:${name}` in NOT_A_CACHE)
+    return (NOT_A_CACHE[`${file}:${name}`] ?? '').trim().length >= 8;
   if (new RegExp(`registerMapCache\\(\\s*${name}\\b`).test(source)) return true;
   return source
     .split('registerCache({')
@@ -115,12 +140,16 @@ export function scanFile(file: string, source: string): Violation[] {
   const inScope = S1_SCOPE.test(file);
   const isLimit = (v: number | null, name: string) =>
     inScope &&
-    v !== null && (LIMIT_LITERALS.includes(v) || (TIMING_LITERALS.includes(v) && LIMITISH.test(name)));
+    v !== null &&
+    (LIMIT_LITERALS.includes(v) || (TIMING_LITERALS.includes(v) && LIMITISH.test(name)));
   const isRegistry = REGISTRY_FILES.includes(file);
   const visit = (n: ts.Node): void => {
     // `const MAX = 4000`, `{ maxChars: 4000 }`, `max = 500` (default)
     if (
-      (ts.isVariableDeclaration(n) || ts.isPropertyAssignment(n) || ts.isParameter(n) || ts.isPropertyDeclaration(n)) &&
+      (ts.isVariableDeclaration(n) ||
+        ts.isPropertyAssignment(n) ||
+        ts.isParameter(n) ||
+        ts.isPropertyDeclaration(n)) &&
       n.name !== undefined
     ) {
       const init = n.initializer;
@@ -143,7 +172,12 @@ export function scanFile(file: string, source: string): Violation[] {
         const r = constant(n.right);
         const lit = r ?? l;
         const other = r !== null ? n.left : n.right;
-        if (inScope && lit !== null && LIMIT_LITERALS.includes(lit) && COUNTISH.test(other.getText(sf)))
+        if (
+          inScope &&
+          lit !== null &&
+          LIMIT_LITERALS.includes(lit) &&
+          COUNTISH.test(other.getText(sf))
+        )
           add('S1', n.getText(sf), n);
       }
     }
@@ -151,13 +185,22 @@ export function scanFile(file: string, source: string): Violation[] {
     // `drop` empties it) or listed in services/not-a-cache.ts with a `why`. `timedCache(...)` IS the registered factory (its declaration
     // is mandatory, cache-registry.test.ts checks it), so a call of it is not a violation.
     if (!isRegistry) {
-      if (ts.isNewExpression(n) && (n.expression.getText(sf) === 'Map' || n.expression.getText(sf) === 'WeakMap')) {
+      if (
+        ts.isNewExpression(n) &&
+        (n.expression.getText(sf) === 'Map' || n.expression.getText(sf) === 'WeakMap')
+      ) {
         const decl = n.parent;
         const named =
-          (ts.isVariableDeclaration(decl) || ts.isPropertyDeclaration(decl) || ts.isPropertyAssignment(decl)) &&
+          (ts.isVariableDeclaration(decl) ||
+            ts.isPropertyDeclaration(decl) ||
+            ts.isPropertyAssignment(decl)) &&
           /cache|memo|inflight|recent|seen|lru/i.test(decl.name.getText(sf));
         let moduleLevel = true;
-        for (let p: ts.Node | undefined = n.parent; p !== undefined && !ts.isSourceFile(p); p = p.parent)
+        for (
+          let p: ts.Node | undefined = n.parent;
+          p !== undefined && !ts.isSourceFile(p);
+          p = p.parent
+        )
           if (ts.isFunctionLike(p) || ts.isClassLike(p)) moduleLevel = false;
         const variable = ts.isVariableDeclaration(decl) ? decl.name.getText(sf) : null;
         if ((named || moduleLevel) && !(variable !== null && accountedFor(file, variable, source)))
@@ -179,7 +222,8 @@ export function groupViolations(raws: readonly Violation[]): Group[] {
     else g.count += 1;
   }
   return [...map.values()].sort(
-    (a, b) => a.file.localeCompare(b.file) || a.rule.localeCompare(b.rule) || a.hash.localeCompare(b.hash),
+    (a, b) =>
+      a.file.localeCompare(b.file) || a.rule.localeCompare(b.rule) || a.hash.localeCompare(b.hash),
   );
 }
 
@@ -190,13 +234,23 @@ export function scanTree(root = ROOT): { groups: Group[]; files: number } {
   return { groups: groupViolations(raws), files: files.length };
 }
 
-export type AllowEntry = { file: string; rule: ServerRuleId; hash: string; snippet: string; count: number; reason: string };
+export type AllowEntry = {
+  file: string;
+  rule: ServerRuleId;
+  hash: string;
+  snippet: string;
+  count: number;
+  reason: string;
+};
 export type AllowlistFile = { $comment?: string; strict: boolean; entries: AllowEntry[] };
 
 export const loadAllowlist = (path = ALLOWLIST_FILE): AllowlistFile =>
-  existsSync(path) ? (JSON.parse(readFileSync(path, 'utf8')) as AllowlistFile) : { strict: false, entries: [] };
+  existsSync(path)
+    ? (JSON.parse(readFileSync(path, 'utf8')) as AllowlistFile)
+    : { strict: false, entries: [] };
 
-const keyOf = (e: { file: string; rule: string; hash: string }) => `${e.file}\u0000${e.rule}\u0000${e.hash}`;
+const keyOf = (e: { file: string; rule: string; hash: string }) =>
+  `${e.file}\u0000${e.rule}\u0000${e.hash}`;
 
 export function compare(
   groups: readonly Group[],
@@ -226,7 +280,11 @@ const DEFAULT_REASON: Readonly<Record<ServerRuleId, string>> = {
   S2: 'cache outside the registry: create it through services/cache-registry.ts',
 };
 
-export function nextAllowlist(groups: readonly Group[], list: AllowlistFile, mode: 'prune' | 'regenerate'): AllowlistFile {
+export function nextAllowlist(
+  groups: readonly Group[],
+  list: AllowlistFile,
+  mode: 'prune' | 'regenerate',
+): AllowlistFile {
   const old = new Map(list.entries.map((e) => [keyOf(e), e]));
   const entries: AllowEntry[] = [];
   for (const g of groups) {
@@ -241,11 +299,16 @@ export function nextAllowlist(groups: readonly Group[], list: AllowlistFile, mod
       reason: e?.reason ?? DEFAULT_REASON[g.rule],
     });
   }
-  return { ...(list.$comment !== undefined ? { $comment: list.$comment } : {}), strict: list.strict, entries };
+  return {
+    ...(list.$comment !== undefined ? { $comment: list.$comment } : {}),
+    strict: list.strict,
+    entries,
+  };
 }
 
 export function serializeAllowlist(list: AllowlistFile): string {
-  const head = list.$comment !== undefined ? `  "$comment": ${JSON.stringify(list.$comment)},\n` : '';
+  const head =
+    list.$comment !== undefined ? `  "$comment": ${JSON.stringify(list.$comment)},\n` : '';
   const rows = list.entries.map((e) => `    ${JSON.stringify(e)}`).join(',\n');
   return `{\n${head}  "strict": ${list.strict},\n  "entries": [\n${rows}\n  ]\n}\n`;
 }

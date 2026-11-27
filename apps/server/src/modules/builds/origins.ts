@@ -68,7 +68,8 @@ export async function loadOriginSources(
     "SELECT build_number, run_id FROM build_links WHERE workspace_id = ? AND app_id = ? AND platform = ? AND run_id <> ''",
     [input.workspaceId, app.id, app.platform],
   ))
-    if (!readNumbers.has(String(l.build_number))) links.set(String(l.build_number), String(l.run_id));
+    if (!readNumbers.has(String(l.build_number)))
+      links.set(String(l.build_number), String(l.run_id));
   if (read.length === 0 && links.size === 0)
     return { artifacts: [], store, listing: 'not_asked', ciLinked, readsEnabled };
 

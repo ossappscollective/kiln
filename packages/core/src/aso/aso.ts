@@ -14,8 +14,8 @@
  * UNVERIFIED in comments and in the ADR; the fit result carries them as `assumptions`.
  */
 
-import { normalizeLocaleCode } from '../listing-facts/locale.ts';
 import { APP_STORE_FIELD_SPECS } from '../listing/listing.ts';
+import { normalizeLocaleCode } from '../listing-facts/locale.ts';
 import { type Platform, supports } from '../platform.ts';
 import { type CoreText, coreText } from '../text.ts';
 

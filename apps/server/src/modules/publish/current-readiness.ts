@@ -6,6 +6,7 @@ import { type DraftContext, previewDraftPush } from './store-draft.ts';
 import { readStateForPlan, type SubmitContext } from './store-submit.ts';
 import { submitReadinessOf } from './submit-readiness.ts';
 
+export type { CurrentReadiness };
 /**
  * What stands in the way of a submit NOW, read from the store as it is now (docs/api/pending.md "Current readiness").
  *
@@ -20,8 +21,6 @@ import { submitReadinessOf } from './submit-readiness.ts';
  * `build_changed` (the build to submit changed) and `staged_changed` (the staged push is judged as the push would leave the draft).
  */
 export { CURRENT_READINESS_TTL_MS };
-
-export type { CurrentReadiness };
 
 const cache = new Map<string, { at: number; value: CurrentReadiness }>();
 const keyOf = (workspaceId: string, appId: string) => `${workspaceId}|${appId}`;

@@ -33,7 +33,11 @@ export function stagedImageSetsOf(view: StagedChangesView | null): StagedImageSe
     locale: a.locale,
     kind: a.slot.kind,
     device: a.slot.device,
-    files: a.files.map((f) => ({ width: f.width, height: f.height, name: f.path.split('/').pop() ?? f.path })),
+    files: a.files.map((f) => ({
+      width: f.width,
+      height: f.height,
+      name: f.path.split('/').pop() ?? f.path,
+    })),
     cleared: a.cleared === true,
     pushed: a.pushed,
   }));
@@ -95,8 +99,12 @@ export function deriveImagesFacts(input: {
   const { platform, channel, view, staged, urls } = input;
   const displays = view ? groupStoreImages(view) : [];
   const problems = view ? checkStoreImages(view) : [];
-  const unpushed = channel === 'live' ? [] : stagedImageSetsOf(staged).filter((s) => s.pushed !== true);
-  const predicted = view !== null && unpushed.length > 0 ? predictedImagesOf(view, unpushed, { pushed: 'ignore' }) : null;
+  const unpushed =
+    channel === 'live' ? [] : stagedImageSetsOf(staged).filter((s) => s.pushed !== true);
+  const predicted =
+    view !== null && unpushed.length > 0
+      ? predictedImagesOf(view, unpushed, { pushed: 'ignore' })
+      : null;
   const problemsAfter = predicted !== null ? predicted.problems : problems;
   const graphicSets = buildGraphicSets({
     platform,
@@ -107,7 +115,12 @@ export function deriveImagesFacts(input: {
   });
   const pullChoices: PullChoice[] = displays
     .filter((d) => d.counts.primary > 0)
-    .map((d) => ({ key: storeKeyOf(d.platform, d.locale, d.kind, d.device), display: d, count: d.counts.primary, others: d.counts.merged - d.counts.primary }));
+    .map((d) => ({
+      key: storeKeyOf(d.platform, d.locale, d.kind, d.device),
+      display: d,
+      count: d.counts.primary,
+      others: d.counts.merged - d.counts.primary,
+    }));
   const facts: DerivedImages = {
     view,
     readAt: view === null ? null : view.readAt,

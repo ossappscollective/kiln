@@ -74,7 +74,10 @@ export type DisplayComparison = {
 };
 
 /** The comparison of one display: the primary group against the repository, siblings listed as store-only. */
-export function compareDisplay(repo: readonly RepoSideFile[], display: DisplaySet | null): DisplayComparison {
+export function compareDisplay(
+  repo: readonly RepoSideFile[],
+  display: DisplaySet | null,
+): DisplayComparison {
   if (display === null) {
     const rows = compareRows(repo, null);
     return { rows, siblings: [], totals: compareTotals(rows), inSync: rows.length === 0 };
@@ -117,7 +120,13 @@ export type CompareSentence = {
   text: string;
 };
 
-const ORDER: AssetCompareStatus[] = ['identical', 'likely_same', 'differs', 'only_repo', 'only_store'];
+const ORDER: AssetCompareStatus[] = [
+  'identical',
+  'likely_same',
+  'differs',
+  'only_repo',
+  'only_store',
+];
 const WORDS: Record<AssetCompareStatus, (n: number) => string> = {
   identical: (n) => `${n} identical`,
   likely_same: (n) => `${n} probably the same`,
@@ -132,12 +141,23 @@ const WORDS: Record<AssetCompareStatus, (n: number) => string> = {
  */
 export function compareSentence(totals: AssetCompareTotals | null): CompareSentence {
   if (totals === null)
-    return { state: 'not_compared', parts: [], changes: [], needsUpdate: false, tone: 'neutral', text: '' };
-  const parts = ORDER.filter((s) => totals[s] > 0).map((status) => ({ status, count: totals[status] }));
+    return {
+      state: 'not_compared',
+      parts: [],
+      changes: [],
+      needsUpdate: false,
+      tone: 'neutral',
+      text: '',
+    };
+  const parts = ORDER.filter((s) => totals[s] > 0).map((status) => ({
+    status,
+    count: totals[status],
+  }));
   const changes = parts.filter((p) => p.status === 'differs' || p.status === 'only_repo');
   const text = parts.map((p) => WORDS[p.status](p.count)).join(', ');
   if (parts.length === 0)
     return { state: 'nothing', parts, changes, needsUpdate: false, tone: 'neutral', text };
-  if (changes.length > 0) return { state: 'changed', parts, changes, needsUpdate: true, tone: 'warn', text };
+  if (changes.length > 0)
+    return { state: 'changed', parts, changes, needsUpdate: true, tone: 'warn', text };
   return { state: 'match', parts, changes, needsUpdate: false, tone: 'ok', text };
 }

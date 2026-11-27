@@ -899,7 +899,9 @@ export class FakeAppleDraftApi {
       if (this.placementDeletes === 'ignored') return json(204);
       if (this.placementDeletes === 'refused')
         return json(409, {
-          errors: [{ status: '409', code: 'STATE_ERROR', title: 'The placement cannot be deleted' }],
+          errors: [
+            { status: '409', code: 'STATE_ERROR', title: 'The placement cannot be deleted' },
+          ],
         });
       this.placements.delete(placement.id);
       const key = `${placement.locId}\u0000${placement.group}`;

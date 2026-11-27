@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { crashSignature, type StoreBetaFeedback } from '@kiln/connectors';
-import type { Sql } from '@kiln/db';
 import { TESTFLIGHT_NOTE_MAX_CHARS as MAX_NOTE_CHARS } from '@kiln/core';
+import type { Sql } from '@kiln/db';
 
 export { MAX_NOTE_CHARS };
 

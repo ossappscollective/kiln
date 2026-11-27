@@ -14,6 +14,7 @@ import {
   type ReviewReplyConnectorFactory,
   type ReviewReplyContext,
 } from '../reviews/replies.ts';
+import { cartSummary, getCart } from './app-facts.ts';
 import {
   type CartContext,
   type CartRights,
@@ -21,7 +22,6 @@ import {
   discardCart,
   publishCart,
 } from './cart.ts';
-import { cartSummary, getCart } from './app-facts.ts';
 import { notWhilePublishing } from './publishing.ts';
 import {
   type DraftConnectorFactory,

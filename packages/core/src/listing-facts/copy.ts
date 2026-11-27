@@ -44,7 +44,14 @@ export type CopyIntent = 'shown' | 'editable' | 'live';
 
 /** Which consumer uses which intent. Data, so a test (and the docs table) can pin it; a consumer not listed asks before it picks one. */
 export const COPY_INTENT_CONSUMERS: Readonly<Record<CopyIntent, readonly string[]>> = {
-  shown: ['listing-grid', 'insights-listing-checks', 'aso-fit', 'aso-keywords', 'aso-terms', 'pull-to-repository'],
+  shown: [
+    'listing-grid',
+    'insights-listing-checks',
+    'aso-fit',
+    'aso-keywords',
+    'aso-terms',
+    'pull-to-repository',
+  ],
   editable: [
     'staged-baseline',
     'cart-before',
@@ -126,7 +133,11 @@ export function storeCopyView(
     for (const [code, fields] of entriesOf(channel)) add(code, fields, name);
   }
   const locales = Array.from(rows.values()).sort((a, b) =>
-    localeKey(a.locale) < localeKey(b.locale) ? -1 : localeKey(a.locale) > localeKey(b.locale) ? 1 : 0,
+    localeKey(a.locale) < localeKey(b.locale)
+      ? -1
+      : localeKey(a.locale) > localeKey(b.locale)
+        ? 1
+        : 0,
   );
   return {
     intent,

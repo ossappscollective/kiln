@@ -99,9 +99,7 @@ export function releasesOfVersion(
 ): ReleaseSummary[] {
   return releases
     .filter((r) => r.version === version)
-    .sort(
-      (a, b) => compareTracks(a.track, b.track) || compareBuildNumbers(b.build, a.build),
-    );
+    .sort((a, b) => compareTracks(a.track, b.track) || compareBuildNumbers(b.build, a.build));
 }
 
 /** Versions of an app that the store reports, newest first, with no repeats. */

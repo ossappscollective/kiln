@@ -1,4 +1,4 @@
-import { type ReviewSummary, REVIEW_CODES } from '@kiln/core';
+import { REVIEW_CODES, type ReviewSummary } from '@kiln/core';
 import { ApiError } from './api.ts';
 import { t } from './i18n/t.ts';
 import { stepUpMessage } from './step-up.ts';

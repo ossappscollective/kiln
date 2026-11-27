@@ -25,7 +25,8 @@ export type OverLimit = {
   extra: { key: string; position: number }[];
 };
 
-const idOf = (locale: string, kind: string, device: string | null) => `${locale}/${kind}/${device === null ? '' : device}`;
+const idOf = (locale: string, kind: string, device: string | null) =>
+  `${locale}/${kind}/${device === null ? '' : device}`;
 
 export function overLimitOf(
   problems: readonly AssetProblem[],
@@ -43,7 +44,8 @@ export function overLimitOf(
     const group = p.set === undefined ? null : p.set;
     const set = find(idOf(p.locale, p.kind, device));
     if (set === undefined) continue;
-    const rows = set.staged || group === null ? set.rows : set.rows.filter((r) => r.group === group);
+    const rows =
+      set.staged || group === null ? set.rows : set.rows.filter((r) => r.group === group);
     const mark = `${set.id}|${group ?? ''}`;
     if (seen[mark]) continue;
     seen[mark] = true;
@@ -58,7 +60,13 @@ export function overLimitOf(
     });
   }
   for (const set of sets) {
-    if (set.staged || set.total <= set.stagedMax || seen[`${set.id}|`] || out.some((o) => o.setId === set.id)) continue;
+    if (
+      set.staged ||
+      set.total <= set.stagedMax ||
+      seen[`${set.id}|`] ||
+      out.some((o) => o.setId === set.id)
+    )
+      continue;
     out.push({
       setId: set.id,
       locale: set.locale,

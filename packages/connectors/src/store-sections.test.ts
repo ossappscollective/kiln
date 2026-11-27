@@ -133,7 +133,10 @@ test('App Store: an extended read has categories, age rating, privacy, details a
   });
   assert.deepEqual(editable?.sections?.privacy, { choicesUrls: {} });
   // The App Store's primary locale is the default language (`GET /v1/apps/{id}`), as Google Play's `defaultLanguage`.
-  assert.deepEqual(live?.sections?.details, { copyright: '2026 Coffee Co', defaultLanguage: 'en-US' });
+  assert.deepEqual(live?.sections?.details, {
+    copyright: '2026 Coffee Co',
+    defaultLanguage: 'en-US',
+  });
   assert.equal(editable?.sections?.details?.defaultLanguage, 'en-US');
 
   // Media: counts, file names and asset states; per locale (the live version has en-US and de-DE).
@@ -263,7 +266,11 @@ test('App Store: without `extended` only the sections that come out of the same 
   const live = read.channels[0]?.sections;
   assert.deepEqual(Object.keys(live ?? {}).sort(), ['details', 'privacy']);
   assert.deepEqual(live?.privacy, { choicesUrls: { 'en-US': 'https://example.org/choices' } });
-  assert.equal(fake.calls.length, 7, 'the same six requests as before, and the app for its primary locale');
+  assert.equal(
+    fake.calls.length,
+    7,
+    'the same six requests as before, and the app for its primary locale',
+  );
   assert.ok(!fake.calls.some((c) => c.url.searchParams.has('include')));
 });
 
@@ -723,7 +730,12 @@ test('App Store: a refused read of the primary locale is a warning; the texts an
   const { fake, connector } = appleSetup();
   extendedRoutes(fake);
   fake.clear('GET', lx.APPLE_PRIMARY_LOCALE_PATH);
-  fake.on({ method: 'GET', match: lx.APPLE_PRIMARY_LOCALE_PATH, status: 403, json: fx.google403Forbidden });
+  fake.on({
+    method: 'GET',
+    match: lx.APPLE_PRIMARY_LOCALE_PATH,
+    status: 403,
+    json: fx.google403Forbidden,
+  });
   const read = await connector.readListing(APP);
   assert.equal(read.channels[0]?.sections?.details?.defaultLanguage, undefined);
   assert.deepEqual(read.channels[0]?.sections?.details, { copyright: '2026 Coffee Co' });

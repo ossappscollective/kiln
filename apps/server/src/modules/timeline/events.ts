@@ -3,11 +3,11 @@ import {
   dateToDay,
   isIsoDate,
   isManualEventKind,
+  TIMELINE_MAX_EVENTS_PER_APP as MAX_EVENTS_PER_APP,
   type ManualEventKind,
   manualEventKinds,
-  SECTION_LOCALE,
-  TIMELINE_MAX_EVENTS_PER_APP as MAX_EVENTS_PER_APP,
   TIMELINE_NOTE_MAX_CHARS as NOTE_MAX,
+  SECTION_LOCALE,
   type TimelineEvent,
   type TimelineEventKind,
 } from '@kiln/core';
@@ -15,7 +15,7 @@ import type { Sql } from '@kiln/db';
 import { z } from 'zod';
 import { listAppReleases, type ManagedApp } from '../../services/apps.ts';
 
-export { NOTE_MAX, MAX_EVENTS_PER_APP };
+export { MAX_EVENTS_PER_APP, NOTE_MAX };
 
 /**
  * Where the events of the timeline come from (docs/adr/0053-timeline-and-reports.md). Events Kiln knows by itself are READ from where they

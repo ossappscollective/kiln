@@ -57,9 +57,17 @@ export type BuildWithRules = BuildCandidate & { create: CreateVerdict | null };
 const factOf = (b: BuildCandidate): StoreBuildFact => ({
   buildNumber: b.buildNumber ?? '',
   version: b.version,
-  state: b.processingState === 'VALID' ? 'processed' : b.processingState === 'PROCESSING' ? 'processing' : 'invalid',
+  state:
+    b.processingState === 'VALID'
+      ? 'processed'
+      : b.processingState === 'PROCESSING'
+        ? 'processing'
+        : 'invalid',
   expired: b.expired,
-  uploadedAt: b.uploadedDate !== null && Number.isFinite(Date.parse(b.uploadedDate)) ? Date.parse(b.uploadedDate) : null,
+  uploadedAt:
+    b.uploadedDate !== null && Number.isFinite(Date.parse(b.uploadedDate))
+      ? Date.parse(b.uploadedDate)
+      : null,
   channel: 'testflight',
   tracks: [],
 });
@@ -67,7 +75,14 @@ const factOf = (b: BuildCandidate): StoreBuildFact => ({
 export function createVerdictOf(version: string, releases: readonly AppRelease[]): CreateVerdict {
   const check = createReleaseRules(version, storeVersionsOf(releases));
   if (check.ok)
-    return { version, creatable: true, refusal: null, reasons: [], editableVersion: null, newestFixed: null };
+    return {
+      version,
+      creatable: true,
+      refusal: null,
+      reasons: [],
+      editableVersion: null,
+      newestFixed: null,
+    };
   return {
     version,
     creatable: false,
@@ -110,7 +125,8 @@ export function withReleaseRules(
           message: `${name} is not newer than what is live${analysis.live !== null ? ` (${analysis.live.version}${analysis.live.build !== null ? `, build ${analysis.live.build}` : ''})` : ''}. It would not be an update for users.`,
         };
     }
-    const create = b.version !== null && b.version !== '' ? createVerdictOf(b.version, input.releases) : null;
+    const create =
+      b.version !== null && b.version !== '' ? createVerdictOf(b.version, input.releases) : null;
     // "Create the next version in App Store Connect first" was a dead end: say whether this app can create it, or why it cannot.
     if (eligibility.code === 'no_editable_version' && create !== null) {
       const name = b.buildNumber !== null ? `Build ${b.buildNumber}` : 'This build';

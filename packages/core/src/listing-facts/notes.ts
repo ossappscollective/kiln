@@ -1,7 +1,7 @@
 import type { ListingStore } from '../listing/listing.ts';
 import { measureField } from '../listing/listing.ts';
 import { localeGroupKey, localeKey, normalizeLocaleCode } from './locale.ts';
-import { RELEASE_NOTES_FIELD, normalizeStoreText, textLimitOf } from './text.ts';
+import { normalizeStoreText, RELEASE_NOTES_FIELD, textLimitOf } from './text.ts';
 
 /**
  * THE release notes ("what's new") of a release, merged over the FIVE places that hold them (docs/state-model.md, "Single owners (core)"):
@@ -75,7 +75,8 @@ export type NotesView = {
   over: string[];
 };
 
-const text = (v: string | null | undefined): string => (v ?? '').trim() === '' ? '' : (v as string);
+const text = (v: string | null | undefined): string =>
+  (v ?? '').trim() === '' ? '' : (v as string);
 
 export function notesView(
   store: ListingStore,
@@ -118,7 +119,9 @@ export function notesView(
     // or the repository's text, which are meant to say the same thing).
     const staged = candidates.some((c) => c.source === 'staged');
     const distinct = new Set(
-      candidates.filter((c) => !(staged && c.source === 'store')).map((c) => normalizeStoreText(c.text)),
+      candidates
+        .filter((c) => !(staged && c.source === 'store'))
+        .map((c) => normalizeStoreText(c.text)),
     );
     locales.push({
       locale: r.code,
@@ -131,9 +134,17 @@ export function notesView(
       conflict: distinct.size > 1,
     });
   });
-  locales.sort((a, b) => (localeKey(a.locale) < localeKey(b.locale) ? -1 : localeKey(a.locale) > localeKey(b.locale) ? 1 : 0));
+  locales.sort((a, b) =>
+    localeKey(a.locale) < localeKey(b.locale)
+      ? -1
+      : localeKey(a.locale) > localeKey(b.locale)
+        ? 1
+        : 0,
+  );
   const have = locales.filter((l) => l.from !== null);
-  const missing = locales.filter((l) => required.has(localeGroupKey(l.locale)) && l.from === null).map((l) => l.locale);
+  const missing = locales
+    .filter((l) => required.has(localeGroupKey(l.locale)) && l.from === null)
+    .map((l) => l.locale);
   const status: NotesView['status'] =
     have.length === 0 ? 'empty' : missing.length > 0 ? 'partial' : 'complete';
   return {

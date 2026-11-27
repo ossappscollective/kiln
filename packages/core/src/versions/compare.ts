@@ -38,7 +38,8 @@ export type ParsedVersion = {
 };
 
 const MAX_PARTS = 4;
-const VERSION = /^v?(\d+(?:\.\d+)*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z.-]+)?$/i;
+const VERSION =
+  /^v?(\d+(?:\.\d+)*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z.-]+)?$/i;
 
 /** The readable parts of a version string, or null when it is not a version (see the file comment). */
 export function parseVersion(value: string | null | undefined): ParsedVersion | null {
@@ -90,8 +91,16 @@ function compareParsed(x: ParsedVersion, y: ParsedVersion): Ordering {
 
 /** Natural text order: digit runs as numbers, the rest case-insensitive. Total. */
 export function naturalCompare(a: string, b: string): Ordering {
-  const x = a.trim().toLowerCase().match(/\d+|\D+/g) ?? [];
-  const y = b.trim().toLowerCase().match(/\d+|\D+/g) ?? [];
+  const x =
+    a
+      .trim()
+      .toLowerCase()
+      .match(/\d+|\D+/g) ?? [];
+  const y =
+    b
+      .trim()
+      .toLowerCase()
+      .match(/\d+|\D+/g) ?? [];
   const n = Math.min(x.length, y.length);
   for (let i = 0; i < n; i++) {
     const p = x[i] as string;
@@ -107,13 +116,17 @@ export function naturalCompare(a: string, b: string): Ordering {
   return sign(x.length - y.length);
 }
 
-const blank = (v: string | null | undefined): boolean => v === null || v === undefined || v.trim() === '';
+const blank = (v: string | null | undefined): boolean =>
+  v === null || v === undefined || v.trim() === '';
 
 /**
  * Orders two versions, for sorting: a TOTAL order (-1, 0, 1). Unreadable and empty values sort lowest. Use `tryCompareVersions` to
  * judge "newer than".
  */
-export function compareVersions(a: string | null | undefined, b: string | null | undefined): Ordering {
+export function compareVersions(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): Ordering {
   const x = parseVersion(a);
   const y = parseVersion(b);
   if (x !== null && y !== null) return compareParsed(x, y);
@@ -134,18 +147,17 @@ export function tryCompareVersions(
 }
 
 /** The same version written alike or not (`2.00.1` and `2.0.1`, `2.1` and `2.1.0`). Unreadable: the trimmed texts are equal. */
-export function sameVersion(
-  a: string | null | undefined,
-  b: string | null | undefined,
-): boolean {
+export function sameVersion(a: string | null | undefined, b: string | null | undefined): boolean {
   const c = tryCompareVersions(a, b);
   if (c !== null) return c === 0;
   return (a ?? '').trim() === (b ?? '').trim() && !blank(a);
 }
 
 /** Newest first, for `Array.sort`: `versions.sort(newestVersionFirst)`. */
-export const newestVersionFirst = (a: string | null | undefined, b: string | null | undefined): number =>
-  compareVersions(b, a);
+export const newestVersionFirst = (
+  a: string | null | undefined,
+  b: string | null | undefined,
+): number => compareVersions(b, a);
 
 // ---------------------------------------------------------------------------------------------
 // Build numbers
@@ -194,8 +206,10 @@ export function tryCompareBuildNumbers(
 }
 
 /** Newest first, for `Array.sort`. */
-export const newestBuildFirst = (a: string | null | undefined, b: string | null | undefined): number =>
-  compareBuildNumbers(b, a);
+export const newestBuildFirst = (
+  a: string | null | undefined,
+  b: string | null | undefined,
+): number => compareBuildNumbers(b, a);
 
 // ---------------------------------------------------------------------------------------------
 // Version and build together
@@ -220,7 +234,8 @@ export function tryCompareReleases(a: VersionBuild, b: VersionBuild): Ordering |
 }
 
 /** Newest first, for `Array.sort`. */
-export const newestReleaseFirst = (a: VersionBuild, b: VersionBuild): number => compareReleases(b, a);
+export const newestReleaseFirst = (a: VersionBuild, b: VersionBuild): number =>
+  compareReleases(b, a);
 
 // ---------------------------------------------------------------------------------------------
 // What the stores accept as a NEW version

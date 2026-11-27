@@ -2,13 +2,20 @@ import { type Platform, STORE_BUILDS_READ_TTL_MS, supports } from '@kiln/core';
 import type { Api } from '../api.ts';
 import type { BuildsList } from '../builds.ts';
 import { readFact, readKeys } from '../facts/invalidate.ts';
+import { navSignals } from '../nav-signals.svelte.ts';
 import type { EditableRelease, ReleaseCandidates } from '../release-candidates.ts';
 import type { NotesHistory } from '../release-notes.ts';
 import type { AppPipeline, PipelineSummary } from '../release-pipeline.ts';
 import { stagingError } from '../staged.ts';
 import type { CrashGroups, TestflightView } from '../testflight.ts';
-import { navSignals } from '../nav-signals.svelte.ts';
-import type { AppBuilds, AppDetail, AppSummary, PlanDetail, PlanSummary, ReleaseSummary } from '../types.ts';
+import type {
+  AppBuilds,
+  AppDetail,
+  AppSummary,
+  PlanDetail,
+  PlanSummary,
+  ReleaseSummary,
+} from '../types.ts';
 import type { StoreBuildFact } from './candidates.ts';
 import { storeBuildFactOf } from './facts.ts';
 
@@ -122,12 +129,7 @@ export const releaseFactsStore = {
     return out;
   },
   /** The model's read of a pipeline: never throws, returns '' when it worked, else a sentence. */
-  async loadPipeline(
-    api: Api,
-    workspaceId: string,
-    appId: string,
-    force = false,
-  ): Promise<string> {
+  async loadPipeline(api: Api, workspaceId: string, appId: string, force = false): Promise<string> {
     try {
       await releaseFactsStore.readPipeline(api, workspaceId, appId, { force });
       return '';
@@ -206,7 +208,8 @@ export const releaseFactsStore = {
       workspaceId,
       key: readKeys.candidates(appId, track === null ? '' : track.trim()),
       ...(options.force === undefined ? {} : { force: options.force }),
-      load: () => api.releaseCandidates(workspaceId, appId, track === null ? {} : { track: track.trim() }),
+      load: () =>
+        api.releaseCandidates(workspaceId, appId, track === null ? {} : { track: track.trim() }),
     });
   },
   /** The editable App Store version, or the draft release of a Google Play track. Throws like the api (`no_editable_version`). */
@@ -222,7 +225,8 @@ export const releaseFactsStore = {
       workspaceId,
       key: readKeys.editable(appId, track === null ? '' : track.trim()),
       ...(options.force === undefined ? {} : { force: options.force }),
-      load: () => api.releaseEditable(workspaceId, appId, track === null ? undefined : track.trim()),
+      load: () =>
+        api.releaseEditable(workspaceId, appId, track === null ? undefined : track.trim()),
     });
   },
 
@@ -284,7 +288,13 @@ export const releaseFactsStore = {
   ): Promise<{ history: NotesHistory }> {
     scope(workspaceId);
     const q = query ?? {};
-    const question = [q.platform ?? '', q.locale ?? '', q.limit ?? '', q.track ?? '', (q.codes ?? []).join(',')].join('|');
+    const question = [
+      q.platform ?? '',
+      q.locale ?? '',
+      q.limit ?? '',
+      q.track ?? '',
+      (q.codes ?? []).join(','),
+    ].join('|');
     return readFact('notesHistory', {
       workspaceId,
       key: readKeys.notesHistory(appId, question),
@@ -309,7 +319,12 @@ export const releaseFactsStore = {
     });
   },
   /** The crash groups of the TestFlight feedback of an app. Throws like the api. */
-  readTestflightCrashGroups(api: Api, workspaceId: string, appId: string, options: ReadOptions = {}): Promise<CrashGroups> {
+  readTestflightCrashGroups(
+    api: Api,
+    workspaceId: string,
+    appId: string,
+    options: ReadOptions = {},
+  ): Promise<CrashGroups> {
     scope(workspaceId);
     return readFact('testflight', {
       workspaceId,

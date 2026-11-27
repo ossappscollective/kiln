@@ -274,7 +274,11 @@ test('texts and graphics in review, the release in draft (the partly published i
 });
 
 test('the draft was pushed and the submit is blocked (OSS Document Scanner, 2026-11-26): said plainly, the way forward is to fix the blockers and submit', () => {
-  const draft = iosRelease({ version: '2.0.1', status: 'draft', rawState: 'PREPARE_FOR_SUBMISSION' });
+  const draft = iosRelease({
+    version: '2.0.1',
+    status: 'draft',
+    rawState: 'PREPARE_FOR_SUBMISSION',
+  });
   const input = facts({
     records: [IOS],
     pending: { [IOS.id]: { count: 0, blocking: 0 } },
@@ -329,7 +333,10 @@ test('a run that failed AND skipped for blockers is a plain failure, not "submit
   const run = failedRun('ios', {
     outcome: 'partial',
     steps: ['push_draft', 'submit'],
-    results: [failedStep({ type: 'push_draft' }), { ...blockedRun().results[1]!, reason: 'previous_step_not_applied' }],
+    results: [
+      failedStep({ type: 'push_draft' }),
+      { ...blockedRun().results[1]!, reason: 'previous_step_not_applied' },
+    ],
   });
   const s = deriveAppState(facts({ records: [IOS], lastRun: { [IOS.id]: run } }), 'ios');
   assert.equal(s.phase, 'publish_failed');
@@ -339,13 +346,22 @@ test('a run that failed AND skipped for blockers is a plain failure, not "submit
 });
 
 test('the submit is blocked because the version has no App Review contact: the model counts it like any other blocker and the way forward is the submit checklist', () => {
-  const draft = iosRelease({ version: '2.0.1', status: 'draft', rawState: 'PREPARE_FOR_SUBMISSION' });
+  const draft = iosRelease({
+    version: '2.0.1',
+    status: 'draft',
+    rawState: 'PREPARE_FOR_SUBMISSION',
+  });
   const input = facts({
     records: [IOS],
     pending: { [IOS.id]: { count: 0, blocking: 0 } },
     lastRun: {
       [IOS.id]: blockedRun('ios', [
-        { code: 'no_review_contact', message: 'The version has no App Review contact information (first name, last name, phone number and email address).', item: 'contact' },
+        {
+          code: 'no_review_contact',
+          message:
+            'The version has no App Review contact information (first name, last name, phone number and email address).',
+          item: 'contact',
+        },
       ]),
     },
     releases: { [IOS.id]: [draft] },
@@ -353,7 +369,10 @@ test('the submit is blocked because the version has no App Review contact: the m
   const s = deriveAppState(input, 'ios');
   assert.equal(s.phase, 'publish_failed');
   assert.equal(s.headline, 'Draft pushed, submit blocked');
-  assert.match(s.reason, /Submit for review did not run because: The version has no App Review contact information/);
+  assert.match(
+    s.reason,
+    /Submit for review did not run because: The version has no App Review contact information/,
+  );
   assert.equal(s.primaryAction.action, 'fix_blockers');
   assert.equal(s.primaryAction.label, 'Fix 1 blocker, then submit 2.0.1 for review');
   assert.equal(s.primaryAction.enabled, true);

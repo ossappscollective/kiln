@@ -1,11 +1,11 @@
 import {
-  ASSET_MAX_PULL_MS as MAX_PULL_MS,
   ASSET_SYNC_LIMITS,
   type AssetPlatform,
   type AssetSlot,
   type FileChange,
   groupStoreImages,
   IMESSAGE_PREFIX,
+  ASSET_MAX_PULL_MS as MAX_PULL_MS,
   storeImageKey,
   storeSetKey,
   supports,
@@ -83,7 +83,6 @@ export type PullReport = {
   notes: string[];
 };
 
-
 const sums = (a: string, b: string): boolean => {
   const x = a.toLowerCase();
   const y = b.toLowerCase();
@@ -139,7 +138,12 @@ export async function pullStoreImages(
   // its index in the group.
   type PullSet = {
     set: (typeof store.view.sets)[number];
-    files: { ref: string; position: number; index: number; file: (typeof store.view.sets)[number]['files'][number] }[];
+    files: {
+      ref: string;
+      position: number;
+      index: number;
+      file: (typeof store.view.sets)[number]['files'][number];
+    }[];
   };
   const setKeys = new Map<string, PullSet>();
   const imageKeys = new Map<string, { ref: string }>();
@@ -208,7 +212,8 @@ export async function pullStoreImages(
         wantFiles.has(storeImageKey(platform, set.locale, slot, f.position)),
     );
     if (positionsWanted.length === 0) continue;
-    const whole = everything || wantSets.has(setKey) || positionsWanted.length === pullSet.files.length;
+    const whole =
+      everything || wantSets.has(setKey) || positionsWanted.length === pullSet.files.length;
     const repoSet = repoSets.sets.get(`${set.locale}\0${set.kind}\0${set.device ?? ''}`);
     const current = (repoSet?.files ?? []).map((a) => ({ path: a.path, oid: a.oid }));
     const laid = layoutFor({

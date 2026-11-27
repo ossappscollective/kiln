@@ -216,16 +216,22 @@ const buildCandidateSchema = z.object({
         .nullable()
         .describe('The first refusal; null when creatable.'),
       reasons: z
-        .array(z.enum(['invalid_version', 'editable_version_exists', 'version_exists', 'not_higher']))
+        .array(
+          z.enum(['invalid_version', 'editable_version_exists', 'version_exists', 'not_higher']),
+        )
         .describe('Every refusal that applies.'),
       editableVersion: z
         .string()
         .nullable()
-        .describe('`editable_version_exists`: the version that can still be edited (attach the build there).'),
+        .describe(
+          '`editable_version_exists`: the version that can still be edited (attach the build there).',
+        ),
       newestFixed: z
         .string()
         .nullable()
-        .describe('`not_higher`: the newest version that cannot be edited; the new one has to be higher.'),
+        .describe(
+          '`not_higher`: the newest version that cannot be edited; the new one has to be higher.',
+        ),
     })
     .nullable()
     .describe('Null when the build has no marketing version.'),

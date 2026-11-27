@@ -1,4 +1,11 @@
-import { localeGroupKey, normalizeLocaleCode, PLATFORMS, type Platform, platformLabel, sortPlatforms } from '@kiln/core';
+import {
+  localeGroupKey,
+  normalizeLocaleCode,
+  PLATFORMS,
+  type Platform,
+  platformLabel,
+  sortPlatforms,
+} from '@kiln/core';
 import { formatList, formatNumber } from '../i18n/format.ts';
 import { k, t } from '../i18n/t.ts';
 import type { IconName } from '../icons.ts';
@@ -97,7 +104,8 @@ export const cellInfo = (status: CellStatus, storeOnly = false): CellInfo =>
       }
     : { ...INFO[status], label: t(INFO[status].label), short: t(INFO[status].short) };
 
-const cellLabel = (status: CellStatus, storeOnly = false): string => cellInfo(status, storeOnly).label;
+const cellLabel = (status: CellStatus, storeOnly = false): string =>
+  cellInfo(status, storeOnly).label;
 
 /** The statuses shown in the legend, in the order a person scans them. */
 export const LEGEND_ORDER: readonly CellStatus[] = [
@@ -462,7 +470,10 @@ export type ListingStatusLine = {
  * The one status line above the grid: "3 locales need attention, 1 with missing fields". The count of locales and the platforms are
  * the context line (`listingContext`), not repeated here.
  */
-export function listingStatusLine(rows: readonly MatrixRow[], storeOnly = false): ListingStatusLine {
+export function listingStatusLine(
+  rows: readonly MatrixRow[],
+  storeOnly = false,
+): ListingStatusLine {
   if (rows.length === 0)
     return { tone: 'info', text: t('listing:matrix.status.none'), attention: 0 };
   const counts = modeCounts(rows);

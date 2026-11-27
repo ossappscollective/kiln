@@ -49,9 +49,9 @@ import {
   toListing,
 } from './drift.ts';
 import { getLiveListing, type LiveChannel } from './live.ts';
-import { storeListingOf, storeTextsOf } from './store-view.ts';
 import { canonicalLocale, matchRepoLocale, newRepoLocale } from './locales.ts';
 import { type ListingSourceKind, listingSources, mergedListing } from './sources.ts';
+import { storeListingOf, storeTextsOf } from './store-view.ts';
 import { type ListingSelection, type ListingTarget, listListingTargets } from './targets.ts';
 
 /**

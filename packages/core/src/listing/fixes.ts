@@ -10,8 +10,8 @@
 
 import { APP_STORE_KEYWORD_BYTES, languageOf, matchWords } from '../aso/aso.ts';
 import { type CheckCode, type CheckIssue, checkListing } from '../insights/listing-checks.ts';
-import type { Platform } from '../platform.ts';
 import { textLimitOf } from '../listing-facts/text.ts';
+import type { Platform } from '../platform.ts';
 import { countBytes, type ListingStore, measureField } from './listing.ts';
 import { isStageableTextField } from './staged-changes.ts';
 
@@ -305,7 +305,10 @@ export function analyzeFixes(input: FixInput): FixAnalysis {
     } else if (issue.code === 'too_long') {
       const tidy = tidyText(text(field));
       const fits =
-        limit !== null && tidy !== text(field) && tidy !== '' && measureField({ unit }, tidy) <= limit;
+        limit !== null &&
+        tidy !== text(field) &&
+        tidy !== '' &&
+        measureField({ unit }, tidy) <= limit;
       if (fits && !stillFailing(input, field, tidy, ['too_long'])) {
         fixes.push({
           ...common,

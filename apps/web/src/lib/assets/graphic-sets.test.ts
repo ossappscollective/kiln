@@ -261,7 +261,11 @@ test('a set staged empty is listed with no row, as cleared, and keeps what the s
   assert.equal(set?.cleared, true);
   assert.deepEqual(set?.rows, []);
   assert.equal(set?.storeCount, 2);
-  assert.equal(buildGraphicSets({ platform: 'android', view: view([file(1)]), staged: null, urls })[0]?.sets[0]?.cleared, false);
+  assert.equal(
+    buildGraphicSets({ platform: 'android', view: view([file(1)]), staged: null, urls })[0]?.sets[0]
+      ?.cleared,
+    false,
+  );
 });
 
 test('a display the store keeps in two groups is one grid, one group after the other, and says which groups: never one count', () => {
@@ -270,18 +274,42 @@ test('a display the store keeps in two groups is one grid, one group after the o
     platform: 'ios',
     store: 'app_store',
     sets: [
-      { platform: 'ios', locale: 'en-US', kind: 'screenshot', device: 'ipad_13', deviceLabel: 'iPad', target: 'APP_IPAD_PRO_3GEN_129', files: [file(1, { ref: 'a1' }), file(2, { ref: 'a2' })] },
-      { platform: 'ios', locale: 'en-US', kind: 'screenshot', device: 'ipad_13', deviceLabel: 'iPad', target: 'APP_IPAD_PRO_129', files: [file(1, { ref: 'b1' }), file(2, { ref: 'b2' })] },
+      {
+        platform: 'ios',
+        locale: 'en-US',
+        kind: 'screenshot',
+        device: 'ipad_13',
+        deviceLabel: 'iPad',
+        target: 'APP_IPAD_PRO_3GEN_129',
+        files: [file(1, { ref: 'a1' }), file(2, { ref: 'a2' })],
+      },
+      {
+        platform: 'ios',
+        locale: 'en-US',
+        kind: 'screenshot',
+        device: 'ipad_13',
+        deviceLabel: 'iPad',
+        target: 'APP_IPAD_PRO_129',
+        files: [file(1, { ref: 'b1' }), file(2, { ref: 'b2' })],
+      },
     ],
   };
   const [loc] = buildGraphicSets({ platform: 'ios', view: two, staged: null, urls });
   const set = loc?.sets[0];
-  assert.deepEqual(set?.rows.map((r) => r.key), ['a1', 'a2', 'b1', 'b2']);
+  assert.deepEqual(
+    set?.rows.map((r) => r.key),
+    ['a1', 'a2', 'b1', 'b2'],
+  );
   assert.deepEqual(set?.groups, [
     { target: 'APP_IPAD_PRO_3GEN_129', count: 2 },
     { target: 'APP_IPAD_PRO_129', count: 2 },
   ]);
   // One group: no note to make.
-  const [one] = buildGraphicSets({ platform: 'android', view: view([file(1)]), staged: null, urls });
+  const [one] = buildGraphicSets({
+    platform: 'android',
+    view: view([file(1)]),
+    staged: null,
+    urls,
+  });
   assert.deepEqual(one?.sets[0]?.groups, []);
 });

@@ -120,7 +120,10 @@ export function predictedImagesOf(
     applied += 1;
     const key = displayKeyOf(s);
     const was = stored.filter((d) => d.key === key)[0];
-    const target = was !== undefined ? was.pushTarget : (s.target ?? `${s.kind}${s.device === null ? '' : `:${s.device}`}`);
+    const target =
+      was !== undefined
+        ? was.pushTarget
+        : (s.target ?? `${s.kind}${s.device === null ? '' : `:${s.device}`}`);
     const files = s.cleared === true ? [] : s.files;
     const images: PredictedImage[] = files.map((f) => ({
       width: f.width,
@@ -146,13 +149,15 @@ export function predictedImagesOf(
   const displays = order
     .map((k) => byKey.get(k) as PredictedDisplay)
     .filter((d) => d.count > 0 || d.touched === false)
-    .sort((x, y) => x.key < y.key ? -1 : x.key > y.key ? 1 : 0);
+    .sort((x, y) => (x.key < y.key ? -1 : x.key > y.key ? 1 : 0));
   const facts: AssetFacts[] = [];
   const measured = new Set<string>();
   for (const d of displays) {
     d.images.forEach((image, index) => {
       if (image.measured === true)
-        measured.add(imagePathOf({ locale: d.locale, kind: d.kind, device: d.device, position: index + 1 }));
+        measured.add(
+          imagePathOf({ locale: d.locale, kind: d.kind, device: d.device, position: index + 1 }),
+        );
       facts.push(
         assetFact({
           store,

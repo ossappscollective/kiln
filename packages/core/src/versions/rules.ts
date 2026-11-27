@@ -1,5 +1,5 @@
-import type { ReleaseFact } from './live.ts';
 import { isCreatableVersion, tryCompareVersions } from './compare.ts';
+import type { ReleaseFact } from './live.ts';
 
 /**
  * "May this version be created?": the SERVER's refusals, as one pure function the client asks BEFORE it offers a button
@@ -17,7 +17,11 @@ import { isCreatableVersion, tryCompareVersions } from './compare.ts';
  * Pure. ES2017.
  */
 
-export type CreateRefusal = 'invalid_version' | 'editable_version_exists' | 'version_exists' | 'not_higher';
+export type CreateRefusal =
+  | 'invalid_version'
+  | 'editable_version_exists'
+  | 'version_exists'
+  | 'not_higher';
 
 /** One version the store lists, as the rule reads it. `editable`: it can still be edited, so it is the one to use. */
 export type StoreVersionFact = { version: string | null; editable: boolean };
@@ -52,11 +56,16 @@ export function newestNonEditableVersion(versions: readonly StoreVersionFact[]):
  * as editable; the normalized status cannot tell, so the server's own read stays the authority and this is only used to decide whether
  * to OFFER the action.
  */
-export function storeVersionsOf(releases: readonly Pick<ReleaseFact, 'version' | 'status'>[]): StoreVersionFact[] {
+export function storeVersionsOf(
+  releases: readonly Pick<ReleaseFact, 'version' | 'status'>[],
+): StoreVersionFact[] {
   return releases.map((r) => ({
     version: r.version,
     editable:
-      r.status === 'draft' || r.status === 'build_chosen' || r.status === 'ready' || r.status === 'rejected',
+      r.status === 'draft' ||
+      r.status === 'build_chosen' ||
+      r.status === 'ready' ||
+      r.status === 'rejected',
   }));
 }
 
@@ -76,7 +85,10 @@ export function createReleaseRules(
   let newestFixed: string | null = null;
   if (creatable) {
     const exists = versions.some(
-      (v) => v.version !== null && isCreatableVersion(v.version) && tryCompareVersions(v.version, version) === 0,
+      (v) =>
+        v.version !== null &&
+        isCreatableVersion(v.version) &&
+        tryCompareVersions(v.version, version) === 0,
     );
     if (exists) reasons.push('version_exists');
     else {

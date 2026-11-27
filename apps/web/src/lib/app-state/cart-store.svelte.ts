@@ -72,11 +72,18 @@ function refreshOf(api: Api, workspaceId: string, appId: string): Promise<void> 
 function bind() {
   if (unsubscribe !== null) return;
   unsubscribe = onInvalidated((i) => {
-    if (i.event !== 'staged_changed' && i.event !== 'publish' && i.event !== 'store_read' && i.event !== 'sync') return;
+    if (
+      i.event !== 'staged_changed' &&
+      i.event !== 'publish' &&
+      i.event !== 'store_read' &&
+      i.event !== 'sync'
+    )
+      return;
     if (i.event === 'staged_changed' && i.reason === 'stage') return;
     for (const w of watchers.values()) {
       if (w.workspaceId !== i.workspaceId) continue;
-      if (i.appIds.length === 0 || i.appIds.indexOf(w.appId) >= 0) void refreshOf(w.api, w.workspaceId, w.appId);
+      if (i.appIds.length === 0 || i.appIds.indexOf(w.appId) >= 0)
+        void refreshOf(w.api, w.workspaceId, w.appId);
     }
   });
 }

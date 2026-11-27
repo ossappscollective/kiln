@@ -420,7 +420,10 @@ test('progress: what a long step is doing, as words with counts; nothing when it
   assert.equal(progressText(running({ detail: null })), null);
   assert.equal(
     progressText(
-      running({ currentStep: null, detail: { phase: 'uploading_images', done: 1, total: 2, ...at } }),
+      running({
+        currentStep: null,
+        detail: { phase: 'uploading_images', done: 1, total: 2, ...at },
+      }),
     ),
     null,
     'between steps the last words are stale',
@@ -434,7 +437,11 @@ test('quiet: the row says so when the server has not reported for a while, and n
     quietText(running({ heartbeatAt: beat }), beat + 130_000),
     'The server has not reported for 2:10. It may have been restarted.',
   );
-  assert.equal(quietText(running(), beat + 10 * MIN), null, 'a server without a beat: nothing to say');
+  assert.equal(
+    quietText(running(), beat + 10 * MIN),
+    null,
+    'a server without a beat: nothing to say',
+  );
 });
 
 test('stuck: after 15 minutes the row says it takes much longer than a publish should', () => {
@@ -465,8 +472,16 @@ test('the server ended the publish: an interrupted run that is not the one held 
   });
   assert.equal(endedByServer(null, ''), false);
   assert.equal(endedByServer(run('r1', 'interrupted'), ''), true);
-  assert.equal(endedByServer(run('r1', 'interrupted'), 'r1'), false, 'the ghost that was already there is not news');
-  assert.equal(endedByServer(run('r2', 'store_rejected'), 'r1'), false, 'another failure is the answer’s to tell');
+  assert.equal(
+    endedByServer(run('r1', 'interrupted'), 'r1'),
+    false,
+    'the ghost that was already there is not news',
+  );
+  assert.equal(
+    endedByServer(run('r2', 'store_rejected'), 'r1'),
+    false,
+    'another failure is the answer’s to tell',
+  );
 });
 
 test('loader: a mark the server does not confirm ends at once after the short grace, never in the middle of it', async () => {
@@ -476,7 +491,11 @@ test('loader: a mark the server does not confirm ends at once after the short gr
   h.loader.mark('w', 'a', ['release']);
   h.advance(OPTIMISTIC_GRACE_MS - 1_000);
   await h.loader.refresh('w');
-  assert.notEqual(h.loader.of('w', 'a'), null, 'inside the grace the request may still be on its way');
+  assert.notEqual(
+    h.loader.of('w', 'a'),
+    null,
+    'inside the grace the request may still be on its way',
+  );
   h.advance(2_000);
   await h.loader.refresh('w');
   assert.equal(h.loader.of('w', 'a'), null, 'the server says none: the mark is cleared');
@@ -506,7 +525,14 @@ test('loader: a claim the server stops reporting (interrupted, ended) leaves the
     completed: false,
     steps: ['push_draft'],
     results: [
-      { type: 'push_draft', status: 'failed', startedAt: 1, finishedAt: 2, error: 'interrupted', outcome: 'unknown' },
+      {
+        type: 'push_draft',
+        status: 'failed',
+        startedAt: 1,
+        finishedAt: 2,
+        error: 'interrupted',
+        outcome: 'unknown',
+      },
     ],
     by: null,
     dismissed: false,

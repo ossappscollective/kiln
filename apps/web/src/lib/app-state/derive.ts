@@ -27,8 +27,8 @@ import { type BlockersView, blockersViewOf } from './blockers.ts';
 import { candidateTrain } from './candidate-trains.ts';
 import {
   analyzeCandidates,
-  type CandidateAnalysis,
   buildsWithPipeline,
+  type CandidateAnalysis,
   pipelineIsObsolete,
   quietPipeline,
   releasesWithPipeline,
@@ -289,7 +289,8 @@ function recordContext(
     record,
     publishing,
     failure,
-    blockers: failure === null ? null : blockersViewOf(failure, facts.readiness?.[record.id], facts.now),
+    blockers:
+      failure === null ? null : blockersViewOf(failure, facts.readiness?.[record.id], facts.now),
     appPublishing,
     pending: {
       count: whole(p.count),
@@ -449,8 +450,10 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
       scopedIds.some((id) => item.id.indexOf(`${id}:`) === 0) &&
       !heldAttention(item) &&
       // "Release left unfinished" about a version that is left behind is not news.
-      !(item.id.slice(-':unfinished'.length) === ':unfinished' &&
-        leftBehind.has(item.id.slice(0, item.id.length - ':unfinished'.length))),
+      !(
+        item.id.slice(-':unfinished'.length) === ':unfinished' &&
+        leftBehind.has(item.id.slice(0, item.id.length - ':unfinished'.length))
+      ),
   );
   const canStart =
     can(facts.role, 'ci.dispatch') &&
@@ -683,8 +686,7 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
   } else if (phase === 'ready_to_submit') {
     // Nothing blocks the submit any more (a current reading of the store says so): the run stays as history in the failure block.
     const lead = failures[0] as (typeof failures)[number];
-    const version =
-      lead.blockers?.versionString ?? preparedVersion(facts.releases[lead.appId]);
+    const version = lead.blockers?.versionString ?? preparedVersion(facts.releases[lead.appId]);
     headline = t('state:ready.headline');
     reason = t('state:ready.reason');
     primaryAction = offerOf(
@@ -852,12 +854,8 @@ function failureReason(
     // A blocked submit names what blocks NOW when a reading of the store says so, not what the run recorded.
     const partly = partlyPublishedNow(f.run, f.platform, f.blockers);
     // A run whose submit was blocked says which blockers (the sentence has them); the failure of a step is not "unknown" then.
-    const cause = partly?.blocked
-      ? ''
-      : headlineReason(f.run) || t('state:failed.reasonUnknown');
-    const why = [partly?.sentence ?? '', cause]
-      .filter((x) => x !== '')
-      .join(' ');
+    const cause = partly?.blocked ? '' : headlineReason(f.run) || t('state:failed.reasonUnknown');
+    const why = [partly?.sentence ?? '', cause].filter((x) => x !== '').join(' ');
     lines.push(failures.length > 1 ? `${platformLabel(f.platform)}: ${why}` : why);
   }
   if (failures.some((f) => f.run.results.some((r) => r.outcome === 'unknown')))

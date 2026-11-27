@@ -13,10 +13,10 @@ import {
   type IdeaSource,
   type ListingFit,
   type ListingStore,
-  localeKey,
-  localesMatch,
   listingFit,
   listingStoreOf,
+  localeKey,
+  localesMatch,
   type MarketKeyword,
   mineIdeas,
   normalizeLocale,
@@ -120,7 +120,8 @@ export async function ownFields(
   const error = store.live.error;
   const view = store.copies.shown;
   const chosen =
-    pickCopy(view, locale) ?? view.locales.find((l) => localesMatch(l.locale, locale, { mode: 'language' }));
+    pickCopy(view, locale) ??
+    view.locales.find((l) => localesMatch(l.locale, locale, { mode: 'language' }));
   if (!chosen) return { found: null, readAt, error };
   const channel = store.live.channels.find((c) => c.channel === chosen.from);
   return {

@@ -1,7 +1,7 @@
 import {
-  compareVersions,
   APPLE_VERSION_LOCALIZATION_ATTRIBUTES,
   classifyAppleScreenshot,
+  compareVersions,
   normalizeReleaseValue,
   PLATFORM_META,
 } from '@kiln/core';
@@ -44,8 +44,8 @@ import {
   type DraftTextState,
   type StoreDraftConnector,
   type StoreImageReader,
-  type StoreImagesOptions,
   type StoreImageRecord,
+  type StoreImagesOptions,
   type StoreImagesRead,
   setMatches,
 } from '../store-draft-types.ts';
@@ -215,7 +215,9 @@ const deviceOfPlacement = (p: PlacementRef): string | null => {
   const asset = isRecord(a.imageAsset) ? a.imageAsset : {};
   const width = num(asset.width);
   const height = num(asset.height);
-  return width !== undefined && height !== undefined ? classifyAppleScreenshot(width, height) : null;
+  return width !== undefined && height !== undefined
+    ? classifyAppleScreenshot(width, height)
+    : null;
 };
 
 /** A placement belongs to the set of a slot when it is in the slot's placement group, or its image is for the slot's display. */
@@ -431,7 +433,9 @@ export class AppleDraftConnector
           (state === 'READY_FOR_SALE' || state === 'READY_FOR_DISTRIBUTION')
         ) {
           if (channel === 'editable')
-            notes.push('There is no editable version, so the images of the live version were read.');
+            notes.push(
+              'There is no editable version, so the images of the live version were read.',
+            );
           return { id, versionString: text(a.versionString) ?? null, state, editable: false };
         }
       }
@@ -1731,7 +1735,13 @@ export class AppleDraftConnector
     }
     // 5. Read the placements back: what the store lists now must be exactly the wanted set (a removal Apple has not carried out,
     // or a refused one, is told, never counted as done).
-    const differences = await this.#verifySet(localizationId, group, write.device, wantedOrder, plan);
+    const differences = await this.#verifySet(
+      localizationId,
+      group,
+      write.device,
+      wantedOrder,
+      plan,
+    );
     const outcome = differences.length === 0 ? 'applied' : 'applied_with_differences';
     this.#log?.(
       `appstore: set ${write.target} (${write.locale}) removed ${removed}, uploaded ${uploaded}, kept ${kept}, read back ${differences.length === 0 ? 'equal' : `${differences.length} differences`}`,

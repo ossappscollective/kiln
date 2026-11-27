@@ -173,7 +173,16 @@ type WithProblems = { problems: readonly { severity: string }[] };
 
 export function stagedFacts(view: StagedChangesView | null): StagedFacts {
   if (view === null)
-    return { release: 0, texts: 0, assets: 0, unpushedAssets: 0, total: 0, errors: 0, warnings: 0, unpushed: 0 };
+    return {
+      release: 0,
+      texts: 0,
+      assets: 0,
+      unpushedAssets: 0,
+      total: 0,
+      errors: 0,
+      warnings: 0,
+      unpushed: 0,
+    };
   const release = view.release ?? [];
   const all: WithProblems[] = [...view.text, ...view.assets, ...release];
   const count = (severity: string) =>

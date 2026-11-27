@@ -1,11 +1,6 @@
 import { type Platform, supports } from '../platform.ts';
 import { compareReleases, tryCompareReleases } from '../versions/compare.ts';
-import {
-  isObsolete,
-  liveOf,
-  type ReleaseFact,
-  topOfCodes,
-} from '../versions/live.ts';
+import { isObsolete, liveOf, type ReleaseFact, topOfCodes } from '../versions/live.ts';
 import type { ReleaseState } from './lifecycle.ts';
 
 /**

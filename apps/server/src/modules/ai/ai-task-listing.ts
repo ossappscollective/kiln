@@ -118,7 +118,6 @@ type FieldFacts = {
 };
 type Facts = { platform: Platform; locale: string; fields: FieldFacts[] };
 
-
 /** A keywords text as the stores want it: entries trimmed, empty and repeated ones dropped, joined with a comma. */
 export function normalizeKeywords(text: string): string[] {
   const seen = new Set<string>();

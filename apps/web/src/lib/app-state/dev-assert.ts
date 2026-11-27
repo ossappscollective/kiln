@@ -67,7 +67,8 @@ export function createMonitor(options: MonitorOptions): Monitor {
   let scheduled = false;
   let exposed = false;
 
-  const disagreeing = (shown: Map<string, ShownValue>): boolean => new Set([...shown.values()].map(canon)).size > 1;
+  const disagreeing = (shown: Map<string, ShownValue>): boolean =>
+    new Set([...shown.values()].map(canon)).size > 1;
 
   const read = (): ConsistencyReport => {
     const out: ConsistencyReport['latest'] = {};
@@ -89,7 +90,10 @@ export function createMonitor(options: MonitorOptions): Monitor {
         shown: [...shown].map(([surfaceId, value]) => ({ surfaceId, value })),
         tick,
       };
-      const signature = `${factKey}\u0000${conflict.shown.map((s) => `${s.surfaceId}=${canon(s.value)}`).sort().join('\u0000')}`;
+      const signature = `${factKey}\u0000${conflict.shown
+        .map((s) => `${s.surfaceId}=${canon(s.value)}`)
+        .sort()
+        .join('\u0000')}`;
       if (seen.has(signature)) continue; // the same disagreement is said once, not on every render
       seen.add(signature);
       conflicts.push(conflict);
@@ -108,7 +112,8 @@ export function createMonitor(options: MonitorOptions): Monitor {
         exposed = true;
         if (options.expose) options.expose(read);
         else if (typeof window !== 'undefined')
-          (window as unknown as { __kilnConsistency?: () => ConsistencyReport }).__kilnConsistency = read;
+          (window as unknown as { __kilnConsistency?: () => ConsistencyReport }).__kilnConsistency =
+            read;
       }
       const mine = thisTick.get(factKey) ?? new Map<string, ShownValue>();
       mine.set(surfaceId, value);

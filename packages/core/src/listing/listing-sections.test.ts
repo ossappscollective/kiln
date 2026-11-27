@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cleanSection, sectionFromText, sectionOfField, sectionToText } from './listing-sections.ts';
+import {
+  cleanSection,
+  sectionFromText,
+  sectionOfField,
+  sectionToText,
+} from './listing-sections.ts';
 
 test('the locales section keeps the store codes as they are: fr-FR and fr-CA stay two languages', () => {
   const text = sectionToText('locales', { codes: ['fr-FR', 'en-US', 'fr-CA', 'fr-FR'] });

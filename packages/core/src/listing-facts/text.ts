@@ -2,16 +2,16 @@ import {
   APP_STORE_COPYRIGHT_SPEC,
   APP_STORE_FIELD_SPECS,
   checkListingField,
-  measureField,
   type ListingFieldSpec,
   type ListingProblem,
   type ListingStore,
+  measureField,
   PLAY_CHANGELOG_SPEC,
   PLAY_FIELD_SPECS,
   validateLocaleText,
 } from '../listing/listing.ts';
-import { type Platform, listingStoreOf } from '../platform.ts';
 import { isStageableTextField } from '../listing/staged-changes.ts';
+import { listingStoreOf, type Platform } from '../platform.ts';
 
 /**
  * Listing TEXT facts: the limit of a field, how it is counted, whether it is required, and the one check (docs/state-model.md, "Single
@@ -107,7 +107,8 @@ export function requiredFieldsOf(
   for (const field of Object.keys(specs)) {
     const spec = specs[field] as ListingFieldSpec;
     if (!spec.required || spec.scope !== 'locale') continue;
-    if (options.stageableFor !== undefined && !isStageableTextField(options.stageableFor, field)) continue;
+    if (options.stageableFor !== undefined && !isStageableTextField(options.stageableFor, field))
+      continue;
     out.push({
       field,
       label: spec.label,
@@ -147,7 +148,13 @@ export function checkTextField(
     field: options.field ?? spec.id,
   };
   const effective = options.required === false ? { ...spec, required: false } : spec;
-  checkListingField(problems, effective, where, value === null ? undefined : value, options.fallback);
+  checkListingField(
+    problems,
+    effective,
+    where,
+    value === null ? undefined : value,
+    options.fallback,
+  );
   return problems;
 }
 
@@ -164,7 +171,14 @@ export function validateListingText(
   const problems: ListingProblem[] = [];
   const fallback = locales.default;
   for (const locale of Object.keys(locales).sort()) {
-    problems.push(...validateLocaleText(store, locale, locales[locale] ?? {}, store === 'app_store' ? fallback : undefined));
+    problems.push(
+      ...validateLocaleText(
+        store,
+        locale,
+        locales[locale] ?? {},
+        store === 'app_store' ? fallback : undefined,
+      ),
+    );
   }
   if (store === 'app_store')
     problems.push(

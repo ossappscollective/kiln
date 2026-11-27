@@ -12,7 +12,12 @@ import {
 } from './tracks.ts';
 
 test('Google names the tracks in one place', () => {
-  assert.deepEqual(PLAY_TRACKS, { internal: 'internal', alpha: 'alpha', beta: 'beta', production: 'production' });
+  assert.deepEqual(PLAY_TRACKS, {
+    internal: 'internal',
+    alpha: 'alpha',
+    beta: 'beta',
+    production: 'production',
+  });
   assert.deepEqual(PLAY_TRACK_ORDER, ['internal', 'alpha', 'beta', 'production']);
 });
 
@@ -35,7 +40,10 @@ test('predicates', () => {
   assert.equal(isProductionTrack('beta'), false);
   assert.equal(isInternalTrack('internal'), true);
   // the server's opt-in URL rule: neither internal nor production
-  assert.deepEqual(['internal', 'alpha', 'beta', 'production', 'qa'].filter((t) => isOptInTrack(t)), ['alpha', 'beta', 'qa']);
+  assert.deepEqual(
+    ['internal', 'alpha', 'beta', 'production', 'qa'].filter((t) => isOptInTrack(t)),
+    ['alpha', 'beta', 'qa'],
+  );
   assert.equal(isOptInTrack(null), false);
   assert.equal(sameTrack('Beta', 'beta'), true);
   assert.equal(sameTrack(null, 'beta'), false);

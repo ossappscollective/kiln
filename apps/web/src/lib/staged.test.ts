@@ -536,7 +536,9 @@ test('applied_with_differences is a partial result: the staged view is read agai
   const f = classifyPushFailure(
     apiError('applied_with_differences', 409, {
       completed: [{ type: 'text', locale: 'en-US', target: 'description', outcome: 'applied' }],
-      differences: [{ locale: 'en-US', target: 'APP_IPHONE_55', stillPresent: [{ id: 'pl-1', name: 'a.png' }] }],
+      differences: [
+        { locale: 'en-US', target: 'APP_IPHONE_55', stillPresent: [{ id: 'pl-1', name: 'a.png' }] },
+      ],
     }),
   );
   assert.equal(f.kind, 'partial');
@@ -660,10 +662,23 @@ test('the result of an App Store push that removed screenshots says it removed t
     pushedAt: 1,
     note: '',
   };
-  const r = resultText({ ...base, version: { id: 'v', versionString: '2.00.1', state: 'PREPARE_FOR_SUBMISSION' } });
+  const r = resultText({
+    ...base,
+    version: { id: 'v', versionString: '2.00.1', state: 'PREPARE_FOR_SUBMISSION' },
+  });
   assert.match(r, /3 files removed/);
-  assert.match(r, /Removed from the draft 2\.00\.1\. The live version keeps its screenshots until 2\.00\.1 is released\./);
-  assert.doesNotMatch(resultText({ ...base, counts: { ...base.counts, filesRemoved: 0 }, version: { id: 'v', versionString: '2.00.1', state: 'X' } }), /live version keeps/);
+  assert.match(
+    r,
+    /Removed from the draft 2\.00\.1\. The live version keeps its screenshots until 2\.00\.1 is released\./,
+  );
+  assert.doesNotMatch(
+    resultText({
+      ...base,
+      counts: { ...base.counts, filesRemoved: 0 },
+      version: { id: 'v', versionString: '2.00.1', state: 'X' },
+    }),
+    /live version keeps/,
+  );
 });
 
 test('release fields count in the tray, the preview text and the push gate', () => {

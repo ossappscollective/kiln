@@ -295,8 +295,14 @@ export function diffBadge(set: AssetDiffSet | null): { tone: StatusTone; text: s
  * `storePosition`, unique within a display; the server finds the image by its ref). NEVER the row's place in the comparison: store
  * positions continue across the sibling groups of a display, the comparison's places start at 1 in each. Null: nothing in the store here.
  */
-export function pullKeyOf(set: Pick<AssetDiffSet, 'locale' | 'kind' | 'device'>, row: Pick<AssetDiffSet['rows'][number], 'storePosition'>, platform: Platform): string | null {
-  return row.storePosition === null ? null : `${storeKeyOf(platform, set.locale, set.kind, set.device)}#${row.storePosition}`;
+export function pullKeyOf(
+  set: Pick<AssetDiffSet, 'locale' | 'kind' | 'device'>,
+  row: Pick<AssetDiffSet['rows'][number], 'storePosition'>,
+  platform: Platform,
+): string | null {
+  return row.storePosition === null
+    ? null
+    : `${storeKeyOf(platform, set.locale, set.kind, set.device)}#${row.storePosition}`;
 }
 
 /** The image keys of the rows that exist in the store and are not identical. A sibling group of a display (not `primary`) is never pulled. */

@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import type { ActorType } from '@kiln/core';
+import { WEBHOOK_MAX_DELIVERIES_LIMIT as MAX_DELIVERIES_LIMIT } from '@kiln/core';
 import type { Database, Row, Sql } from '@kiln/db';
 import { decryptSecret, encryptSecret } from '@kiln/vault';
 import { z } from 'zod';
@@ -16,7 +17,6 @@ import {
   type SendResult,
   sendPinned,
 } from './webhook-transport.ts';
-import { WEBHOOK_MAX_DELIVERIES_LIMIT as MAX_DELIVERIES_LIMIT } from '@kiln/core';
 
 export { MAX_DELIVERIES_LIMIT };
 
@@ -377,7 +377,6 @@ export async function rotateWebhookSecret(
   });
   return done ? { ok: true, secret } : { ok: false, status: 404, error: 'not_found' };
 }
-
 
 export async function listDeliveries(
   sql: Sql,

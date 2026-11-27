@@ -77,7 +77,8 @@ export const isLocaleOrDefault = (value: unknown): boolean =>
 export const localeKey = (code: string): string => code.trim().replace(/_/g, '-').toLowerCase();
 
 /** The language of a code (`pt-BR` is `pt`), or null. */
-export const languageOfLocale = (code: string): string | null => parseLocale(code)?.language ?? null;
+export const languageOfLocale = (code: string): string | null =>
+  parseLocale(code)?.language ?? null;
 
 // ---------------------------------------------------------------------------------------------
 // The mapping between the stores
@@ -87,7 +88,11 @@ export const languageOfLocale = (code: string): string | null => parseLocale(cod
  * spellings that mean the same (`nb`, `iw`, `in-ID`). Every row is one equivalence group: any member matches any other. Moved from the
  * server's `EQUIVALENT_GROUPS` (listing/locales.ts) so the web matrix merges `zh-Hans` and `zh-CN` into one row too.
  */
-export const LOCALE_EQUIVALENTS: readonly { apple: string; play: string; also?: readonly string[] }[] = [
+export const LOCALE_EQUIVALENTS: readonly {
+  apple: string;
+  play: string;
+  also?: readonly string[];
+}[] = [
   { apple: 'zh-Hans', play: 'zh-CN' },
   { apple: 'zh-Hant', play: 'zh-TW' },
   { apple: 'ja', play: 'ja-JP' },
@@ -260,12 +265,15 @@ export function baseLocaleOf(
   const list = locales.filter((l) => l !== DEFAULT_LOCALE_FOLDER);
   if (list.length === 0) return null;
   if (declared !== null && declared !== undefined && declared.trim() !== '') {
-    const hit = list.find((l) => localesMatch(l, declared)) ;
+    const hit = list.find((l) => localesMatch(l, declared));
     if (hit !== undefined) return { locale: hit, source: 'declared' };
   }
   const us = list.find((l) => localeKey(l) === 'en-us');
   if (us !== undefined) return { locale: us, source: 'english' };
-  const english = list.slice().sort().find((l) => languageOfLocale(l) === 'en');
+  const english = list
+    .slice()
+    .sort()
+    .find((l) => languageOfLocale(l) === 'en');
   if (english !== undefined) return { locale: english, source: 'english' };
   return { locale: list.slice().sort()[0] as string, source: 'first' };
 }

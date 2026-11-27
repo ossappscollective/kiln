@@ -1,13 +1,13 @@
+import type { AssetPlatform } from '../listing/asset-sync.ts';
 import {
+  primaryStoreSet,
   type StoreImageFile,
   type StoreImageSet,
   type StoreImagesView,
-  primaryStoreSet,
 } from '../listing/asset-sync.ts';
+import { assetStoreOf } from '../listing/staged-changes.ts';
 import { ASSET_KINDS, type AssetKind } from '../listing/store-asset-specs.ts';
 import { type ImageLimit, limitOf } from './limits.ts';
-import type { AssetPlatform } from '../listing/asset-sync.ts';
-import { assetStoreOf } from '../listing/staged-changes.ts';
 
 /**
  * The store's images grouped for DISPLAY, once (docs/state-model.md, "Single owners (core)"). The App Store keeps one display (iPad 13")
@@ -92,9 +92,7 @@ const byTarget = (a: StoreGroup, b: StoreGroup): number =>
  * The display sets of a store read, sorted by locale, kind, device (the order `summarizeAssets` uses). A set with no images is kept (an
  * empty display is a display). Never mutates its input.
  */
-export function groupStoreImages(
-  view: Pick<StoreImagesView, 'platform' | 'sets'>,
-): DisplaySet[] {
+export function groupStoreImages(view: Pick<StoreImagesView, 'platform' | 'sets'>): DisplaySet[] {
   const store = assetStoreOf(view.platform);
   const byKey = new Map<string, StoreImageSet[]>();
   const order: string[] = [];
@@ -124,7 +122,9 @@ export function groupStoreImages(
     const limit = limitOf(store, first.kind, first.device);
     const overLimit: DisplaySet['overLimit'] = [];
     if (limit.max !== null)
-      for (const g of groups) if (g.count > limit.max) overLimit.push({ group: g.target, count: g.count, max: limit.max });
+      for (const g of groups)
+        if (g.count > limit.max)
+          overLimit.push({ group: g.target, count: g.count, max: limit.max });
     out.push({
       key,
       platform: view.platform,
@@ -200,7 +200,9 @@ export type StoreSide = {
   }[];
 };
 
-export function storeSideOf(view: Pick<StoreImagesView, 'platform' | 'sets' | 'readAt'>): StoreSide {
+export function storeSideOf(
+  view: Pick<StoreImagesView, 'platform' | 'sets' | 'readAt'>,
+): StoreSide {
   const counts: StoreSide['counts'] = [];
   for (const d of groupStoreImages(view)) {
     if ((d.device ?? '').startsWith('imessage:')) continue;

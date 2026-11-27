@@ -11,15 +11,15 @@ import type { AssetsContext } from '../listing/asset-repo.ts';
 import { buildPriceContext, type PriceContext } from '../monetization/price-shared.ts';
 import { getPending, pendingSummary } from './app-facts.ts';
 import { type CartRoutesContext, cartContextOf } from './cart-routes.ts';
+import { readCurrentReadiness } from './current-readiness.ts';
 import {
   PENDING_DETAIL_KINDS,
   type PendingDetailKind,
   PUBLISH_STEPS,
   pendingItemDetail,
 } from './pending.ts';
-import { readCurrentReadiness } from './current-readiness.ts';
 import { dismissRun, listRuns, readLastPublish } from './publish-runs.ts';
-import { interruptPublish, reapDeadClaims, readPublishing } from './publishing.ts';
+import { interruptPublish, readPublishing, reapDeadClaims } from './publishing.ts';
 import {
   type DraftConnectorFactory,
   type DraftContext,
@@ -170,7 +170,8 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
     repo: ctx.repo,
     ...(ctx.draft ? { draft: ctx.draft } : {}),
     ...(ctx.reply ? { reply: ctx.reply } : {}),
-    price: ctx.price ?? buildPriceContext({ db, masterKey: ctx.masterKey, now: ctx.now }, undefined),
+    price:
+      ctx.price ?? buildPriceContext({ db, masterKey: ctx.masterKey, now: ctx.now }, undefined),
   });
   const draft: DraftContext = {
     db,
@@ -360,7 +361,9 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
       },
     );
     c.header('Cache-Control', 'no-store');
-    return done.ok ? c.json({ readiness: done.readiness, generatedAt: ctx.now() }) : respond(c, done);
+    return done.ok
+      ? c.json({ readiness: done.readiness, generatedAt: ctx.now() })
+      : respond(c, done);
   });
 
   // The latest runs of an app (newest first, at most five), with the reason each failed step gave.

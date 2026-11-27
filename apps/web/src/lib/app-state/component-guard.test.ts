@@ -4,19 +4,19 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import {
   compare,
-  EXEMPTIONS_FILE,
-  MAX_EXEMPTIONS,
-  serializeExemptions,
   componentFiles,
+  EXEMPTIONS_FILE,
   groupViolations,
   loadAllowlist,
+  MAX_EXEMPTIONS,
   parseSource,
   READ_FACT_ENDPOINTS,
   RULES,
   type RuleId,
+  SRC,
   scanFile,
   scanTree,
-  SRC,
+  serializeExemptions,
 } from '../../../scripts/component-guard/scan.ts';
 
 /**
@@ -52,13 +52,16 @@ test('no NEW component violation of R1-R7 (not in component-guard.allowlist.json
     0,
     `new violations:\n${lines.join('\n')}\n\nThe rules:\n${(Object.keys(RULES) as RuleId[])
       .map((r) => `  ${r}: ${RULES[r].message}. Instead: ${RULES[r].instead}`)
-      .join('\n')}\n\nDo NOT add the file to the allowlist: read the fact from the model (apps/web/src/lib/app-state/app-state-store.svelte.ts).`,
+      .join(
+        '\n',
+      )}\n\nDo NOT add the file to the allowlist: read the fact from the model (apps/web/src/lib/app-state/app-state-store.svelte.ts).`,
   );
 });
 
 test('every allowlist entry still matches (the list only shrinks)', () => {
   const lines = diff.stale.map(
-    ({ entry: e, actual }) => `  ${e.rule} ${e.file}  ${e.snippet}  (allowed ${e.count}, found ${actual})`,
+    ({ entry: e, actual }) =>
+      `  ${e.rule} ${e.file}  ${e.snippet}  (allowed ${e.count}, found ${actual})`,
   );
   assert.equal(
     lines.length,
@@ -70,16 +73,29 @@ test('every allowlist entry still matches (the list only shrinks)', () => {
 test('every allowlist entry names a known rule, a domain and a reason', () => {
   for (const e of list.entries) {
     assert.ok(e.rule in RULES, `unknown rule ${e.rule} in ${e.file}`);
-    assert.ok(['images', 'releases', 'listing', 'state'].includes(e.domain), `bad domain ${e.domain}`);
-    assert.ok(e.reason.length > 0 && e.count >= 1 && e.hash.length === 8, `bad entry ${e.file} ${e.rule}`);
+    assert.ok(
+      ['images', 'releases', 'listing', 'state'].includes(e.domain),
+      `bad domain ${e.domain}`,
+    );
+    assert.ok(
+      e.reason.length > 0 && e.count >= 1 && e.hash.length === 8,
+      `bad entry ${e.file} ${e.rule}`,
+    );
   }
-  assert.ok(!list.entries.some((e) => !componentFiles().includes(e.file)), 'an entry names a file that is gone');
+  assert.ok(
+    !list.entries.some((e) => !componentFiles().includes(e.file)),
+    'an entry names a file that is gone',
+  );
 });
 
 test('the endpoints R1 watches still exist in lib/api.ts (a renamed endpoint must not silently leave the rule)', () => {
   const api = readFileSync(join(SRC, 'lib/api.ts'), 'utf8');
   const missing = READ_FACT_ENDPOINTS.filter((name) => !new RegExp(`\\n    ${name}: `).test(api));
-  assert.deepEqual(missing, [], `R1 watches endpoints that lib/api.ts no longer defines: ${missing.join(', ')}`);
+  assert.deepEqual(
+    missing,
+    [],
+    `R1 watches endpoints that lib/api.ts no longer defines: ${missing.join(', ')}`,
+  );
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -107,7 +123,12 @@ test('R2 sees readCache, new Map, Date.now, setInterval and a module-level cache
   setInterval(() => {}, 1000);
 </script>`;
   const got = rulesOf('components/X.svelte', src);
-  for (const want of ['R2:module-level cache: viewCache', 'R2:readCache', 'R2:Date.now()', 'R2:setInterval(...)'])
+  for (const want of [
+    'R2:module-level cache: viewCache',
+    'R2:readCache',
+    'R2:Date.now()',
+    'R2:setInterval(...)',
+  ])
     assert.ok(got.includes(want), `${want} not in ${got.join(' | ')}`);
   assert.ok(got.some((g) => g.startsWith('R2:new Map')));
 });
@@ -176,7 +197,10 @@ test('a clean component raises nothing', () => {
 
 test('the allowlist comparison: a new violation, a bigger count and a stale entry fail; strict mode honours no entry', () => {
   const found = groupViolations(
-    scanFile('components/X.svelte', `<script lang="ts">\n  const a = Date.now(); const b = Date.now();\n</script>`).raws,
+    scanFile(
+      'components/X.svelte',
+      `<script lang="ts">\n  const a = Date.now(); const b = Date.now();\n</script>`,
+    ).raws,
   );
   assert.equal(found.length, 1);
   assert.equal(found[0]?.count, 2);
@@ -191,9 +215,15 @@ test('the allowlist comparison: a new violation, a bigger count and a stale entr
   };
   assert.deepEqual(compare(found, { strict: false, entries: [entry] }), { added: [], stale: [] });
   // a third Date.now() is new
-  assert.equal(compare(found, { strict: false, entries: [{ ...entry, count: 1 }] }).added.length, 1);
+  assert.equal(
+    compare(found, { strict: false, entries: [{ ...entry, count: 1 }] }).added.length,
+    1,
+  );
   // fewer found than allowed: the entry is stale
-  assert.equal(compare(found, { strict: false, entries: [{ ...entry, count: 3 }] }).stale.length, 1);
+  assert.equal(
+    compare(found, { strict: false, entries: [{ ...entry, count: 3 }] }).stale.length,
+    1,
+  );
   // an entry for something that is gone
   assert.equal(compare([], { strict: false, entries: [entry] }).stale.length, 1);
   // a violation that is not listed
@@ -221,7 +251,10 @@ test('heuristics: emptiness checks, lookup maps, accumulators and typed-code len
 
 test('guard-ok: honoured only with the rule AND a reason, only next to the hit, and only while it exempts something', () => {
   const hit = (comment: string) =>
-    scanFile('components/X.svelte', `<script lang="ts">\n  ${comment}\n  const now = Date.now();\n</script>`);
+    scanFile(
+      'components/X.svelte',
+      `<script lang="ts">\n  ${comment}\n  const now = Date.now();\n</script>`,
+    );
   const ok = hit('// guard-ok R2: the instant of a keystroke, not a drawn age');
   assert.deepEqual(ok.raws, []);
   assert.equal(ok.exemptions.length, 1);
@@ -246,8 +279,15 @@ test('guard-ok: honoured only with the rule AND a reason, only next to the hit, 
 });
 
 test(`inline exemptions: at most ${MAX_EXEMPTIONS}, each names its rule and a reason, and the generated report is current`, () => {
-  assert.ok(scan.exemptions.length <= MAX_EXEMPTIONS, `${scan.exemptions.length} exemptions: a fact is not an exemption, migrate it`);
-  for (const e of scan.exemptions) assert.ok(e.rule in RULES && e.reason.trim().length >= 10, `${e.file}:${e.line} needs a rule and a real reason`);
+  assert.ok(
+    scan.exemptions.length <= MAX_EXEMPTIONS,
+    `${scan.exemptions.length} exemptions: a fact is not an exemption, migrate it`,
+  );
+  for (const e of scan.exemptions)
+    assert.ok(
+      e.rule in RULES && e.reason.trim().length >= 10,
+      `${e.file}:${e.line} needs a rule and a real reason`,
+    );
   assert.equal(
     readFileSync(EXEMPTIONS_FILE, 'utf8'),
     serializeExemptions(scan.exemptions),
