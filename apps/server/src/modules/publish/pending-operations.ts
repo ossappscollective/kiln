@@ -286,6 +286,70 @@ const cartResultSchema = z.object({
   remaining: z.number().int().describe('Items still in the cart after this call.'),
 });
 
+const submitBlockerSchema = z.object({
+  code: z
+    .string()
+    .describe(
+      'A check of the submit: `missing_text`, `asset_spec`, `no_screenshots`, `no_locales`, `release_notes_too_long`, `no_build`, `build_expired`, `build_not_valid`, `already_submitted`, `no_version`, `release_not_manual`, `no_review_contact` (the App Review contact: first and last name, phone number, email address), `no_review_demo_account` (a demo account is required and its user name or password is blank).',
+    ),
+  message: z.string().describe('The sentence the submit itself would give (English).'),
+  params: z
+    .record(z.union([z.string(), z.number()]))
+    .optional()
+    .describe('The names and numbers of the sentence (`field`, `label`, `locale`, `count`, `max`; `missing` and `from` for the review information: the attributes that are blank, and the version it can be copied from).'),
+  locale: z.string().optional(),
+  item: z.string().optional().describe('The field, the set or the file the blocker is about.'),
+  fix: z.object({
+    kind: z
+      .enum(['listing', 'screenshots', 'notes', 'build', 'store', 'push', 'review'])
+      .describe(
+        'Where it is fixed: the listing text, the graphics, the release notes, the build, the store’s own console, by pushing the draft again, or the App Review Information (copied from the previous version here, or filled in App Store Connect).',
+      ),
+    href: z
+      .string()
+      .nullable()
+      .describe('The web address of that place (`#/portfolio/<app>/listing?platform=ios&view=text&locale=fr-FR`); null for the store’s console and for a push.'),
+  }),
+});
+
+const currentReadinessSchema = z.object({
+  appId: z.string(),
+  ready: z.boolean().describe('No blocker is certain now. Says nothing about `unknown`.'),
+  blockers: z.array(submitBlockerSchema),
+  unknown: z.array(z.string()),
+  predicted: z.boolean().describe('The staged push was merged into the store\u2019s draft.'),
+  versionString: z.string().nullable(),
+  storeReadAt: timestamp.describe('When the store was read (epoch ms).'),
+  cached: z.boolean(),
+});
+
+const currentReadinessField = currentReadinessSchema
+  .nullable()
+  .describe(
+    'What stands in the way of a submit NOW, when a reading of the store is still fresh (`getStoreSubmitReadiness`, kept 30 seconds); null when there is none. The blockers in `lastPublish` are those of the run (history): show these when this is not null.',
+  );
+
+const pendingCountsSchema = z.object({
+  count: z
+    .number()
+    .int()
+    .describe(
+      'THE pending count: the length of the app\u2019s cart (one item per staged text, graphics set and release field, plus staged prices and reply drafts). Equals `getPendingCartSummary` and `getAppPendingCart`. A draft that was pushed and waits for its submit is NOT in it (`awaitingSubmit`).',
+    ),
+  stagedUnpushed: z
+    .number()
+    .int()
+    .describe('The staged part of `count`: texts, graphics sets and release fields that a push would write.'),
+  awaitingSubmit: z
+    .number()
+    .int()
+    .describe('1 when a draft was pushed to the store and waits for its submit, else 0. Not in `count`.'),
+  awaitingRelease: z
+    .number()
+    .int()
+    .describe('Draft releases, approved versions and due rollout steps that wait for a person. Not in `count`.'),
+});
+
 const pendingTotalsSchema = z.object({
   items: z.number().int(),
   actionable: z.number().int(),
@@ -302,13 +366,14 @@ const pendingViewSchema = z.object({
       totals: pendingTotalsSchema,
     }),
   ),
-  totals: pendingTotalsSchema.extend({
+  totals: pendingTotalsSchema.extend(pendingCountsSchema.shape).extend({
     platforms: z.array(platform),
     nextSteps: z.array(publishStepEnum),
   }),
   lastSyncedAt: timestamp.nullable(),
   publishing: publishingSchema,
   lastPublish: lastFailedPublishSchema,
+  currentReadiness: currentReadinessField,
   generatedAt: timestamp,
 });
 
@@ -319,19 +384,26 @@ const pendingSummarySchema = z.object({
         appId: z.string(),
         id: z.string(),
         app: stagedAppSchema,
-        count: z.number().int().describe('Items that wait for a publish step.'),
+        ...pendingCountsSchema.shape,
         blocking: z.number().int().describe('Items with an error.'),
         waiting: z.number().int().describe('Informational items (in review).'),
         kinds: z.array(z.string()),
         nextSteps: z.array(publishStepEnum),
         publishing: publishingSchema,
         lastPublish: lastFailedPublishSchema,
+        currentReadiness: currentReadinessField,
       }),
     )
     .describe(
-      'Only apps with something pending or in review, or with a publish running (`count` can be 0 then).',
+      'Only apps with something pending, waiting for a submit or a release, or in review, or with a publish running (`count` can be 0 then).',
     ),
-  totals: z.object({ apps: z.number().int(), count: z.number().int(), blocking: z.number().int() }),
+  totals: z.object({
+    apps: z.number().int(),
+    count: z.number().int().describe('The sum of the apps\u2019 `count`: the cart count.'),
+    blocking: z.number().int(),
+    awaitingSubmit: z.number().int(),
+    awaitingRelease: z.number().int(),
+  }),
   generatedAt: timestamp,
 });
 
@@ -398,32 +470,6 @@ const planStepSchema = z.object({
     .nullable()
     .describe('The phrase the step’s own gate asks for. The batch phrase stands in for it.'),
   problems: z.array(pendingProblemSchema),
-});
-
-const submitBlockerSchema = z.object({
-  code: z
-    .string()
-    .describe(
-      'A check of the submit: `missing_text`, `asset_spec`, `no_screenshots`, `no_locales`, `release_notes_too_long`, `no_build`, `build_expired`, `build_not_valid`, `already_submitted`, `no_version`, `release_not_manual`, `no_review_contact` (the App Review contact: first and last name, phone number, email address), `no_review_demo_account` (a demo account is required and its user name or password is blank).',
-    ),
-  message: z.string().describe('The sentence the submit itself would give (English).'),
-  params: z
-    .record(z.union([z.string(), z.number()]))
-    .optional()
-    .describe('The names and numbers of the sentence (`field`, `label`, `locale`, `count`, `max`; `missing` and `from` for the review information: the attributes that are blank, and the version it can be copied from).'),
-  locale: z.string().optional(),
-  item: z.string().optional().describe('The field, the set or the file the blocker is about.'),
-  fix: z.object({
-    kind: z
-      .enum(['listing', 'screenshots', 'notes', 'build', 'store', 'push', 'review'])
-      .describe(
-        'Where it is fixed: the listing text, the graphics, the release notes, the build, the store’s own console, by pushing the draft again, or the App Review Information (copied from the previous version here, or filled in App Store Connect).',
-      ),
-    href: z
-      .string()
-      .nullable()
-      .describe('The web address of that place (`#/portfolio/<app>/listing?platform=ios&view=text&locale=fr-FR`); null for the store’s console and for a push.'),
-  }),
 });
 
 const planReadinessSchema = z
@@ -802,7 +848,7 @@ export const pendingOperations: Draft[] = [
     tags: ['pending'],
     summary: 'Which apps have pending changes, with counts and kinds',
     description:
-      'Same facts as `getAppPending`, one line per app that has something pending or in review (an app that is not listed has nothing). Stored state only. A token limited to some apps sees only those apps.',
+      'Same facts as `getAppPending` (both are views of one projection: `count` is the cart count, `awaitingSubmit` and `awaitingRelease` are named apart), one line per app that has something pending, waiting for a submit or a release, or in review (an app that is not listed has nothing). Stored state only. A token limited to some apps sees only those apps.',
     risk: 'read',
     access: { action: 'listing.read' },
     appScope: { kind: 'list' },
@@ -851,16 +897,7 @@ export const pendingOperations: Draft[] = [
       '200': {
         description: 'The current readiness.',
         schema: z.object({
-          readiness: z.object({
-            appId: z.string(),
-            ready: z.boolean().describe('No blocker is certain now. Says nothing about `unknown`.'),
-            blockers: z.array(submitBlockerSchema),
-            unknown: z.array(z.string()),
-            predicted: z.boolean().describe('The staged push was merged into the store\u2019s draft.'),
-            versionString: z.string().nullable(),
-            storeReadAt: timestamp.describe('When the store was read (epoch ms).'),
-            cached: z.boolean(),
-          }),
+          readiness: currentReadinessSchema,
           generatedAt: timestamp,
         }),
       },

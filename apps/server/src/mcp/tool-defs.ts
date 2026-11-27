@@ -308,7 +308,59 @@ const readTools: ToolDef[] = [
     op: 'getPendingSummary',
     params: {},
     input: strict({}),
-    description: 'Per app: how many pending items, how many are blocking, and the next steps.',
+    description:
+      'Per app: `count` (the pending count: the length of the cart, one item per staged text, graphics set and release field, plus prices and reply drafts), `stagedUnpushed`, `awaitingSubmit` (1: a draft was pushed and waits for its submit; not in `count`), `awaitingRelease`, how many are blocking, the next steps, a publish that runs, the run that failed, and the current readiness when a fresh reading exists.',
+  },
+  {
+    name: 'get_pending_cart_summary',
+    title: 'Cart count of every app',
+    kind: 'read',
+    op: 'getPendingCartSummary',
+    params: {},
+    input: strict({}),
+    description:
+      'How many items each app\u2019s pending cart holds (the number the web app shows on its top bar and sidebar), per kind. The same `count` as get_pending_overview.',
+  },
+  {
+    name: 'get_pending_cart',
+    title: 'The pending cart of an app',
+    kind: 'read',
+    op: 'getAppPendingCart',
+    params: { id: 'appId' },
+    input: strict({ appId }),
+    description:
+      'What was prepared here and not sent yet, one item per staged text, graphics set, release field, price change and reply draft, with why an item cannot be published now. Nothing is sent.',
+    untrusted: ['summary', 'before', 'title', 'excerpt', 'message'],
+    limits: { maxString: 1_000 },
+  },
+  {
+    name: 'get_publishing_status',
+    title: 'Which apps are publishing now',
+    kind: 'read',
+    op: 'getPendingPublishing',
+    params: {},
+    input: strict({}),
+    description:
+      'The apps with a batch publish running (steps, the step that runs, since when) and the apps whose latest publish did not complete, with the reason. Blockers in a failed run are what stood in the way WHEN IT RAN; get_publish_readiness says what stands in the way now.',
+    untrusted: ['message', 'detail', 'title'],
+  },
+  {
+    name: 'get_publish_readiness',
+    title: 'What blocks a submit now',
+    kind: 'read',
+    op: 'getStoreSubmitReadiness',
+    params: { id: 'appId' },
+    input: strict({
+      appId,
+      fresh: z
+        .boolean()
+        .optional()
+        .describe('Read the store again instead of using the 30 second reading.'),
+    }),
+    description:
+      'The blockers of a submit as the store is NOW (one read of the store, kept 30 seconds), not the ones a failed publish kept. Needs the submit right.',
+    query: (a) => ({ fresh: a.fresh === true ? 1 : undefined }),
+    untrusted: ['message'],
   },
   {
     name: 'get_listing',
@@ -351,6 +403,24 @@ const readTools: ToolDef[] = [
               fields: listingRows(fields, Boolean(a.locale)),
             })),
         })),
+    }),
+  },
+  {
+    name: 'get_store_listing',
+    title: 'Which locales the store listing has, and its base language',
+    kind: 'read',
+    op: 'getStoreListing',
+    params: { id: 'appId' },
+    query: () => ({ drift: '0' }),
+    input: strict({ appId }),
+    description:
+      'The locales of the store listing to show (the live page and the draft together), which copy holds each (live, editable), the base language (declared by the store, else English, else the first), and when the listing was last read. No texts: use get_listing for those.',
+    shape: (j: Json) => ({
+      readAt: j.readAt,
+      error: j.error,
+      locales: j.locales,
+      defaultLocale: j.defaultLocale,
+      held: (j.copies?.shown?.locales ?? []).map((l: Json) => ({ locale: l.locale, from: l.from, held: l.held })),
     }),
   },
   {

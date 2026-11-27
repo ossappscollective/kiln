@@ -18,11 +18,10 @@ import {
   type CartContext,
   type CartRights,
   cartItemDetail,
-  cartSummary,
   discardCart,
-  getCart,
   publishCart,
 } from './cart.ts';
+import { cartSummary, getCart } from './app-facts.ts';
 import { notWhilePublishing } from './publishing.ts';
 import {
   type DraftConnectorFactory,
@@ -86,11 +85,9 @@ const STAGED_PREFIXES = ['listing:', 'graphics:', 'release:'];
 const REPLY_PREFIXES = ['review_reply:'];
 const PRICE_PREFIX = 'price:';
 
-export function cartRoutes(ctx: CartRoutesContext) {
+/** The cart's context (the seams of the push, the reply send and the price writes). Also what the pending routes read the same cart through. */
+export function cartContextOf(ctx: CartRoutesContext): CartContext {
   const { db } = ctx;
-  const routes = new Hono<AppEnv>();
-  /** Refused with `409 publish_in_progress` while a batch publish of the app runs (publishing.ts). */
-  const notPublishing = notWhilePublishing({ db, now: ctx.now, claimTtlMs: ctx.publishClaimTtlMs });
   const draft: DraftContext = {
     db,
     masterKey: ctx.masterKey,
@@ -119,6 +116,15 @@ export function cartRoutes(ctx: CartRoutesContext) {
     staged: { db, now: ctx.now, assets: { repo: ctx.repo } },
     price: ctx.price,
   };
+  return cart;
+}
+
+export function cartRoutes(ctx: CartRoutesContext) {
+  const { db } = ctx;
+  const routes = new Hono<AppEnv>();
+  /** Refused with `409 publish_in_progress` while a batch publish of the app runs (publishing.ts). */
+  const notPublishing = notWhilePublishing({ db, now: ctx.now, claimTtlMs: ctx.publishClaimTtlMs });
+  const cart = cartContextOf(ctx);
 
   const needs = (action: Action) => async (c: Context<AppEnv>, next: Next) => {
     const role = await memberRole(db, ws(c), c.get('user').id);

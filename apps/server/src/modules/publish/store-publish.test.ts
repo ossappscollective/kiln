@@ -152,6 +152,10 @@ dbTest(
       items: 0,
       actionable: 0,
       blocking: 0,
+      count: 0,
+      stagedUnpushed: 0,
+      awaitingSubmit: 0,
+      awaitingRelease: 0,
       platforms: [],
       nextSteps: [],
     });
@@ -201,9 +205,16 @@ dbTest(
         summary.apps[0].blocking,
         summary.apps[0].kinds,
       ],
-      [app, 1, 0, ['listing_text']],
+      // The count is the cart's: one per staged text (two here), where the list folds them into ONE listing_text item.
+      [app, 2, 0, ['listing_text']],
     );
-    assert.deepEqual(summary.totals, { apps: 1, count: 1, blocking: 0 });
+    assert.deepEqual(summary.totals, {
+      apps: 1,
+      count: 2,
+      blocking: 0,
+      awaitingSubmit: 0,
+      awaitingRelease: 0,
+    });
     noStoreIo(t);
     const viewer = await t.addMember('viewer');
     assert.equal(
@@ -239,7 +250,11 @@ dbTest(
     assert.equal(after.totals.actionable, 2);
     assert.deepEqual(after.totals.nextSteps, ['submit', 'release']);
     const line = (await t.call(t.owner, 'GET', '/pending/summary')).body.apps[0];
-    assert.deepEqual([line.count, line.waiting], [2, 1]);
+    // A pushed draft is not in the count (the cart is empty): it is named apart, like the approved version that waits for its release.
+    assert.deepEqual(
+      [line.count, line.awaitingSubmit, line.awaitingRelease, line.waiting],
+      [0, 1, 1, 1],
+    );
   },
 );
 
@@ -425,7 +440,13 @@ dbTest(
     );
     const summary = await line();
     assert.deepEqual(
-      [summary.count, summary.waiting, summary.blocking, summary.kinds, summary.nextSteps],
+      [
+        summary.count + summary.awaitingSubmit + summary.awaitingRelease,
+        summary.waiting,
+        summary.blocking,
+        summary.kinds,
+        summary.nextSteps,
+      ],
       [
         view.totals.actionable,
         view.totals.items - view.totals.actionable,
@@ -484,7 +505,10 @@ dbTest(
       /with 2 version codes 197, 198, not released yet/,
     );
     const line = (await t.call(t.owner, 'GET', '/pending/summary')).body.apps[0];
-    assert.deepEqual([line.count, line.kinds, line.nextSteps], [1, ['draft_release'], ['release']]);
+    assert.deepEqual(
+      [line.count, line.awaitingRelease, line.kinds, line.nextSteps],
+      [0, 1, ['draft_release'], ['release']],
+    );
   },
 );
 

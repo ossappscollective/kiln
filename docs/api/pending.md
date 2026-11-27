@@ -51,10 +51,17 @@ there is no ETag (no summary in this API has one).
       "items": 2,
       "actionable": 2,
       "blocking": 0,
+      "count": 2,
+      "stagedUnpushed": 2,
+      "awaitingSubmit": 0,
+      "awaitingRelease": 0,
       "platforms": ["ios"],
       "nextSteps": ["push_draft", "release"]
     },
     "lastSyncedAt": 1700000000000,
+    "publishing": null,
+    "lastPublish": null,
+    "currentReadiness": null,
     "generatedAt": 1700000000000
   }
 }
@@ -72,10 +79,26 @@ there is no ETag (no summary in this API has one).
 - `state`: `staged`, `invalid` (an error blocks the push), `pushed`, `in_review`, `approved`, `due`.
 - `nextStep`: `push_draft`, `submit`, `release`, `rollout`, or `null` (informational). `totals.actionable` counts the items with a
   next step; `totals.blocking` the items with an `error` problem. `refs` hold ids (at most 200, `truncated` says more exist).
-- The summary (`GET /pending/summary`) and this view are built from the same items by the same rule, so `count`, `waiting` and `blocking`
-  of an app's summary line equal `totals.actionable`, `totals.items - totals.actionable` and `totals.blocking` of its view at the same
-  moment. The web app shows the banner and the chips from the newer of the two reads and reads the view again when the summary is
-  newer and says something else.
+- **One projection, one count.** The view, `GET /pending/summary`, `GET /pending/cart-summary`, `GET /apps/{id}/pending/cart`,
+  `GET /pending/publishing` and the alert `pending.stale` are views of ONE read of the stored state (`apps/server/src/modules/publish/app-facts.ts`,
+  `readAppFacts`); `state-contract.test.ts` keeps them equal. The numbers (`totals` of the view, each line of the summary):
+  - `count`: THE pending count: the length of the app's cart: one item per staged text, per staged graphics SET (never a row per file) and per
+    staged release field, plus staged prices and reply drafts. What a publish writes. The list above folds the texts of an app into ONE
+    `listing_text` item (`counts.changes` says how many): the list is rows to read, `count` is the number to show.
+  - `stagedUnpushed`: the staged part of `count` (a row is unpushed when it was never pushed or was edited after its push: `pushed_hash IS NULL OR
+    pushed_hash <> value_hash`, `isUnpushed` of `@kiln/core`).
+  - `awaitingSubmit`: `1` when a draft was pushed to the store and waits for its SUBMIT, else `0`. It is NOT in `count` (there is nothing to
+    publish for it). Every screen says it apart: "waiting to be submitted".
+  - `awaitingRelease`: draft releases, approved versions and due rollout steps that wait for a person. Not in `count`.
+  - `actionable`, `items`, `blocking` (of `totals` and of each platform): counts of the LIST rows (`actionable`: rows with a next step); do not use
+    them as the pending count. `blocking` is a quality of the same items. On a summary line `waiting` is `items - actionable` (informational rows).
+- **Changed (state domain, Wave 2):** `count` of a summary line and of `totals` of the summary used to be the number of list rows that wait for
+  a step (so 1 for three staged texts, and 1 for a pushed draft with an empty cart). It is now the cart count above, the same number as `cart-summary`
+  and the length of `GET /apps/{id}/pending/cart`; the pushed draft and the release steps moved to `awaitingSubmit` and `awaitingRelease`.
+  An app with only a pushed draft is still listed (with `count: 0, awaitingSubmit: 1`). Additive: `stagedUnpushed`, `awaitingSubmit`,
+  `awaitingRelease`, `currentReadiness` and, on the summary `totals`, `awaitingSubmit` and `awaitingRelease`.
+- `currentReadiness`: `null`, or the reading of `GET /apps/{id}/publish/readiness` when one is still fresh (kept 30 seconds). It starts no store read.
+  The blockers of `lastPublish` are those of the RUN (history): show `currentReadiness.blockers` when it is not null (see "Why a publish failed").
 - What is said about versions is as of the last store sync (`lastSyncedAt`). Never a staged text, a build or a credential.
 - `publishing` (additive): `null`, or `{ startedAt, steps, currentStep, stepStartedAt, by }` while a batch publish of this app runs: see [Publishing now](#publishing-now). The same field is on each line of `GET /pending/summary` and in `cart` of `GET /apps/{id}/pending/cart`.
 - `404 not_found` for an app that does not exist or is not visible (a token limited to other apps).
@@ -90,19 +113,25 @@ there is no ETag (no summary in this API has one).
       "id": "…",
       "app": { "id": "…", "name": "Weather", "platform": "ios", "store": "appstoreconnect" },
       "count": 2,
+      "stagedUnpushed": 2,
+      "awaitingSubmit": 0,
+      "awaitingRelease": 0,
       "blocking": 0,
       "waiting": 1,
       "kinds": ["listing_text", "in_review"],
-      "nextSteps": ["push_draft"]
+      "nextSteps": ["push_draft"],
+      "publishing": null,
+      "lastPublish": null,
+      "currentReadiness": null
     }
   ],
-  "totals": { "apps": 1, "count": 2, "blocking": 0 },
+  "totals": { "apps": 1, "count": 2, "blocking": 0, "awaitingSubmit": 0, "awaitingRelease": 0 },
   "generatedAt": 1700000000000
 }
 ```
 
-Only apps with something pending or in review are listed (an app that is not listed has nothing); sorted with blocking first, then
-by count and name. `count` is the items that wait for a step, `waiting` the informational ones. A token limited to some apps sees
+Only apps with something pending, waiting for a submit or a release, or in review are listed (an app that is not listed has nothing); sorted with blocking first, then
+by count and name. `count` is the cart count (see above), `awaitingSubmit` and `awaitingRelease` the steps that wait, `waiting` the informational rows. A token limited to some apps sees
 only those apps. An app with a publish running is listed even when it has nothing left pending (`count` 0), and its line carries `publishing`.
 
 ## The pending cart

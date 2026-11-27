@@ -1,4 +1,5 @@
 import type { Database, Row, Sql } from '@kiln/db';
+import { unpushedStagedItems } from '../publish/staged-unpushed.ts';
 import { type AlertData, type AlertTypeId, alertDef, redactAlertData } from './catalog.ts';
 import { listRuleViews, type RuleView } from './prefs.ts';
 import { raiseAlert } from './service.ts';
@@ -29,6 +30,25 @@ const apps = async (sql: Sql, workspaceId: string): Promise<Map<string, Row>> =>
       await sql.query('SELECT id, name, platform FROM apps WHERE workspace_id = ?', [workspaceId])
     ).map((r) => [String(r.id), r]),
   );
+
+/**
+ * Staged changes left waiting: the ITEMS a push would still write (one per text, per graphics set, per release field: the very rule of
+ * the cart, `modules/publish/staged-unpushed.ts`), whose oldest row is more than `days` old. Exported for the state contract test.
+ */
+export async function pendingStaleFound(
+  sql: Sql,
+  workspaceId: string,
+  at: number,
+  days: number,
+): Promise<Found[]> {
+  const items = await unpushedStagedItems(sql, { workspaceId, olderThan: at - days * DAY });
+  return items.map((i) => ({
+    appId: i.appId,
+    days,
+    count: i.count,
+    oldest: new Date(i.oldest).toISOString().slice(0, 10),
+  }));
+}
 
 const checks: Check[] = [
   {
@@ -73,20 +93,7 @@ const checks: Check[] = [
   },
   {
     type: 'pending.stale',
-    run: async (sql, ws, at, rule) => {
-      const days = rule.params.days ?? 7;
-      const rows = await sql.query(
-        `SELECT app_id, COUNT(*) AS n, MIN(created_at) AS oldest FROM staged_changes
-          WHERE workspace_id = ? AND pushed_at IS NULL AND created_at < ? GROUP BY app_id`,
-        [ws, at - days * DAY],
-      );
-      return rows.map((r) => ({
-        appId: String(r.app_id),
-        days,
-        count: Number(r.n),
-        oldest: new Date(Number(r.oldest)).toISOString().slice(0, 10),
-      }));
-    },
+    run: async (sql, ws, at, rule) => pendingStaleFound(sql, ws, at, rule.params.days ?? 7),
   },
   {
     type: 'analytics.sync_failing',

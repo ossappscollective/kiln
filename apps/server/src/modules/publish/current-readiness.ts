@@ -54,6 +54,19 @@ registerMapCache(cache, {
   keys: 'workspace_app',
 });
 
+/**
+ * The reading kept for this app, when one is still fresh: NO store read, nothing cached is created. The facts projection (`app-facts.ts`)
+ * carries it next to the blockers a run kept, so a surface that only has the stored state can still tell history from now.
+ */
+export function peekCurrentReadiness(
+  workspaceId: string,
+  appId: string,
+  now: number,
+): CurrentReadiness | null {
+  const hit = cache.get(keyOf(workspaceId, appId));
+  return hit && now - hit.at < CURRENT_READINESS_TTL_MS ? { ...hit.value, cached: true } : null;
+}
+
 /** For tests. */
 export const clearCurrentReadiness = (): void => cache.clear();
 

@@ -2,33 +2,42 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import type { Database } from '@kiln/db';
 import { dbTest } from '@kiln/db/testing';
+import { pendingStaleFound } from '../alerts/evaluator.ts';
 import { clearCurrentReadiness } from './current-readiness.ts';
 import { bootStaged, type StagedBoot } from './test-helpers.ts';
 
 /**
  * The server half of the consistency contract (docs/state-model.md "Consistency contract").
  *
- * The same stored state is read through every endpoint that states a shared fact about it, and the facts are compared:
+ * The same stored state is read through every endpoint that states a shared fact about it, and the facts are compared. All of them are
+ * views of ONE projection (`app-facts.ts`, `readAppFacts`); this test is what keeps them views:
  *
- * - `pendingCount`: how many things wait for the person.
- *     cartSummary     GET /pending/cart-summary           line.count             (cart items, one per staged text / set / field)
- *     cart            GET /apps/:id/pending/cart          items.length           (the same rows, per app)
- *     pendingSummary  GET /pending/summary                line.count             (actionable items; ONE listing_text item for all texts)
- *     pendingView     GET /apps/:id/pending               totals.actionable
- * - `stagedUnpushed`: how many staged things are not in a pushed draft.
- *     cart            cart items of kind listing|graphics|release   (hash differs from the pushed hash)
- *     pendingView     items of kind listing_text|asset_set|release_field
+ * - `pendingCount`: what a publish would write: the length of the cart (one item per staged text, per graphics SET, per release field).
+ *     cartSummary     GET /pending/cart-summary           line.count
+ *     cart            GET /apps/:id/pending/cart          items.length
+ *     pendingSummary  GET /pending/summary                line.count
+ *     pendingView     GET /apps/:id/pending               totals.count
+ * - `stagedUnpushed`: the staged part of it (`isUnpushed` of core: never pushed, or edited after its push).
+ *     cart            cart items of kind listing|graphics|release
+ *     pendingSummary  line.stagedUnpushed
+ *     pendingView     totals.stagedUnpushed
  *     stagedView      GET /apps/:id/staged                text, assets and release entries with pushed = false
- *     alerts          `pending.stale` SQL, modules/alerts/evaluator.ts   (rows with pushed_at IS NULL, a row per text and per file)
- * - `blockers`: the codes that stand in the way of a submit.
- *     publishing      GET /pending/publishing             lastPublish (blockers the LAST RUN kept)
+ *     alerts          `pending.stale` (alerts/evaluator.ts `pendingStaleFound`)   one item per text and per SET, never a row per file
+ * - `awaitingSubmit`: a draft was pushed and waits for its submit (NOT in pendingCount).
+ *     pendingSummary  line.awaitingSubmit
+ *     pendingView     totals.awaitingSubmit and the items of kind pushed_draft
+ * - `runBlockers`: the codes the LAST RUN kept (history), the same everywhere it is carried.
+ *     publishing      GET /pending/publishing             lastPublish
  *     pendingView     lastPublish of GET /apps/:id/pending
  *     pendingSummary  lastPublish of GET /pending/summary
- *     readiness       GET /apps/:id/publish/readiness     (the store as it is now; compared only where a run kept blockers)
+ * - `currentBlockers`: the codes that stand in the way of a submit NOW (the store as it is, read fresh just before).
+ *     readiness       GET /apps/:id/publish/readiness
+ *     pendingView     currentReadiness of GET /apps/:id/pending
+ *     pendingSummary  currentReadiness of GET /pending/summary
  *
- * Where the endpoints disagree the disagreement is listed in `state-contract.expected.json` with the reason. The test passes while
- * the list is exactly the current disagreements: a NEW one fails it, and so does one that STOPPED (delete its entry: the burn-down).
- * `KILN_CONTRACT_REGEN=1` prints the current list of the scenario that ran, in the file's format.
+ * Where the endpoints disagree the disagreement is listed in `state-contract.expected.json` with the reason (it is empty now: every
+ * endpoint of this domain is a view of the facts). The test passes while the list is exactly the current disagreements: a NEW one fails it,
+ * and so does one that STOPPED (delete its entry: the burn-down). `KILN_CONTRACT_REGEN=1` prints the current list of the scenario that ran.
  */
 
 const TEXT = 'A freshly written description that nobody else would ever write';
@@ -73,17 +82,15 @@ const codesOf = (blockers: { code: string }[] | undefined): string[] =>
 
 /** Every fact, from every endpoint that states it, for one app. */
 async function read(t: Boot, app: string): Promise<Facts> {
+  // The current reading first: the view and the summary carry the reading that is still fresh.
+  const readiness = (await get(t, `/apps/${app}/publish/readiness?fresh=1`)).readiness;
   const cartSummary = await get(t, '/pending/cart-summary');
   const cart = (await get(t, `/apps/${app}/pending/cart`)).cart;
   const summary = await get(t, '/pending/summary');
   const view = (await get(t, `/apps/${app}/pending`)).pending;
   const staged = (await get(t, `/apps/${app}/staged`)).staged;
   const publishing = await get(t, '/pending/publishing');
-  const readiness = (await get(t, `/apps/${app}/publish/readiness?fresh=1`)).readiness;
-  const unpushedRows = await t.db.query(
-    'SELECT COUNT(*) AS n FROM staged_changes WHERE app_id = ? AND pushed_at IS NULL',
-    [app],
-  );
+  const stale = await pendingStaleFound(t.db, t.workspaceId, Date.now() + 60_000, 0);
   const cartLine = cartSummary.apps.find((l: { appId: string }) => l.appId === app);
   const summaryLine = summary.apps.find((l: { appId: string }) => l.appId === app);
   const items = view.platforms.flatMap((p: { items: { kind: string }[] }) => p.items);
@@ -97,26 +104,34 @@ async function read(t: Boot, app: string): Promise<Facts> {
       cartSummary: cartLine?.count ?? 0,
       cart: cart.items.length,
       pendingSummary: summaryLine?.count ?? 0,
-      pendingView: view.totals.actionable,
+      pendingView: view.totals.count,
     },
     stagedUnpushed: {
       cart: cart.items.filter((i: { kind: string }) =>
         ['listing', 'graphics', 'release'].includes(i.kind),
       ).length,
-      pendingView: items.filter((i: { kind: string }) =>
-        ['listing_text', 'asset_set', 'release_field'].includes(i.kind),
-      ).length,
+      pendingSummary: summaryLine?.stagedUnpushed ?? 0,
+      pendingView: view.totals.stagedUnpushed,
       stagedView: [...staged.text, ...staged.assets, ...staged.release].filter(
         (r: { pushed: boolean }) => !r.pushed,
       ).length,
-      alerts: Number(unpushedRows[0]?.n ?? 0),
+      alerts: Number(stale.find((f) => f.appId === app)?.count ?? 0),
     },
-    blockers: {
+    awaitingSubmit: {
+      pendingSummary: summaryLine?.awaitingSubmit ?? 0,
+      pendingView: view.totals.awaitingSubmit,
+      pendingViewItems: items.filter((i: { kind: string }) => i.kind === 'pushed_draft').length,
+    },
+    runBlockers: {
       publishing: keptCodes(kept),
       pendingView: keptCodes(view.lastPublish),
       pendingSummary: keptCodes(summaryLine?.lastPublish),
-      // Only where a run left blockers behind is there a history to compare the store's answer of now with.
-      ...(kept === undefined ? {} : { readiness: codesOf(readiness.blockers) }),
+    },
+    currentBlockers: {
+      readiness: codesOf(readiness.blockers),
+      pendingView: codesOf(view.currentReadiness?.blockers),
+      // An app with nothing pending has no line in the summary: it says nothing about a reading.
+      ...(summaryLine ? { pendingSummary: codesOf(summaryLine.currentReadiness?.blockers) } : {}),
     },
   };
 }

@@ -1,11 +1,12 @@
 import { PLATFORMS, type Platform, type StagedProblem, type StoreId, supports } from '@kiln/core';
 import { type Database, nullableNumber, oneOf, type Sql } from '@kiln/db';
-import { getApp, listApps, type ManagedApp } from '../../services/apps.ts';
+import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
-import { storeFor } from '../reviews/sync.ts';
-import { type LastPublish, readLastPublish } from './publish-runs.ts';
-import { type Publishing, publishingOf, readPublishing } from './publishing.ts';
+import type { CurrentReadiness } from './current-readiness.ts';
+import type { LastPublish } from './publish-runs.ts';
+import type { Publishing } from './publishing.ts';
 import { buildStagedView } from './staged-changes.ts';
+import { UNPUSHED_SQL } from './staged-unpushed.ts';
 import { loadPush, type PushRecord } from './store-draft-record.ts';
 
 /**
@@ -82,6 +83,19 @@ export type PendingTotals = {
   blocking: number;
 };
 
+/**
+ * THE pending numbers (docs/state-model.md "The pending count"), the same on every endpoint that states them (`app-facts.ts`):
+ * `count` is the length of the CART (one item per staged text, set and release field, plus prices and reply drafts: what a publish
+ * writes); `stagedUnpushed` is the staged part of it; a draft that was pushed and waits for its submit is `awaitingSubmit` (0 or 1) and is NOT
+ * in `count`; `awaitingRelease` counts the draft releases, approved versions and rollout steps that wait for a person.
+ */
+export type PendingCounts = {
+  count: number;
+  stagedUnpushed: number;
+  awaitingSubmit: number;
+  awaitingRelease: number;
+};
+
 export type PendingPlatform = {
   platform: Platform;
   store: StoreId;
@@ -93,7 +107,11 @@ export type PendingView = {
   app: { id: string; name: string; platform: Platform; store: StoreId };
   /** One entry per platform of the app (an app has one platform today). */
   platforms: PendingPlatform[];
-  totals: PendingTotals & { platforms: Platform[]; nextSteps: PublishStep[] };
+  totals: PendingTotals &
+    PendingCounts & {
+      platforms: Platform[];
+      nextSteps: PublishStep[];
+    };
   /** The last store sync: what is said about versions is as of then. */
   lastSyncedAt: number | null;
   /**
@@ -108,6 +126,11 @@ export type PendingView = {
    * `dismissed` says a person hid it.
    */
   lastPublish: LastPublish | null;
+  /**
+   * What stands in the way of a submit NOW, when a reading of the store is still fresh (`GET /apps/{id}/publish/readiness`, kept 30 seconds);
+   * null when there is none. `lastPublish` blockers are the HISTORY of a run; these are current.
+   */
+  currentReadiness: CurrentReadiness | null;
   generatedAt: number;
 };
 
@@ -165,7 +188,7 @@ export async function loadPendingFacts(
 
   const unpushed = new Set<string>();
   for (const r of await sql.query(
-    `SELECT DISTINCT app_id FROM staged_changes WHERE workspace_id = ?${only} AND (pushed_hash IS NULL OR pushed_hash <> value_hash)`,
+    `SELECT DISTINCT app_id FROM staged_changes WHERE workspace_id = ?${only} AND ${UNPUSHED_SQL}`,
     args(workspaceId),
   )) {
     unpushed.add(String(r.app_id));
@@ -241,9 +264,9 @@ export async function loadPendingFacts(
 // ---------------------------------------------------------------------------------------------
 // The items of one app
 
-type StagedView = Awaited<ReturnType<typeof buildStagedView>>;
+export type StagedView = Awaited<ReturnType<typeof buildStagedView>>;
 
-function itemsOf(
+export function itemsOf(
   app: ManagedApp,
   facts: PendingFacts,
   staged: StagedView | undefined,
@@ -441,10 +464,10 @@ export function totalsOf(items: readonly PendingItem[]): PendingTotals {
   };
 }
 
-const nextStepsOf = (items: readonly PendingItem[]): PublishStep[] =>
+export const nextStepsOf = (items: readonly PendingItem[]): PublishStep[] =>
   PUBLISH_STEPS.filter((s) => items.some((i) => i.nextStep === s));
 
-const stagedViewFor = async (
+export const stagedViewFor = async (
   db: Database,
   workspaceId: string,
   app: ManagedApp,
@@ -574,134 +597,4 @@ export async function pendingItemDetail(
     detail.rolloutStep = { planVersion: s.planVersion, percent: s.percent, plannedAt: s.plannedAt };
   }
   return { ok: true, detail };
-}
-
-/** `GET /apps/{id}/pending`: the stored state only, no store is contacted. */
-export async function getPending(
-  db: Database,
-  input: { workspaceId: string; appId: string; now: number; claimTtlMs?: number | undefined },
-): Promise<{ ok: true; pending: PendingView } | Failure> {
-  const app = await getApp(db, input.workspaceId, input.appId);
-  if (!app) return failure(404, 'not_found');
-  const publishing = await publishingOf(db, {
-    workspaceId: input.workspaceId,
-    appId: app.id,
-    now: input.now,
-    ttlMs: input.claimTtlMs,
-  });
-  const lastPublish =
-    (await readLastPublish(db, { workspaceId: input.workspaceId, appIds: [app.id] })).get(app.id) ??
-    null;
-  const items = await pendingItemsOf(db, { workspaceId: input.workspaceId, app, now: input.now });
-  const totals = totalsOf(items);
-  return {
-    ok: true,
-    pending: {
-      app: { id: app.id, name: app.name, platform: app.platform, store: storeFor(app.platform) },
-      platforms: [{ platform: app.platform, store: storeFor(app.platform), items, totals }],
-      totals: {
-        ...totals,
-        platforms: items.length > 0 ? [app.platform] : [],
-        nextSteps: nextStepsOf(items),
-      },
-      lastSyncedAt: app.lastSyncedAt,
-      publishing,
-      lastPublish,
-      generatedAt: input.now,
-    },
-  };
-}
-
-export type PendingSummaryApp = {
-  /** Both `appId` and `id`, so a token limited to some apps is filtered by the usual rule. */
-  appId: string;
-  id: string;
-  app: { id: string; name: string; platform: Platform; store: StoreId };
-  /** Items that wait for a step. */
-  count: number;
-  /** Items with an error. */
-  blocking: number;
-  /** Informational items (in review): nothing to do. */
-  waiting: number;
-  kinds: PendingKind[];
-  nextSteps: PublishStep[];
-  /** A batch publish of this app is running now (see `PendingView.publishing`); null when none is. */
-  publishing: Publishing | null;
-  /** The latest publish of this app that did not complete (see `PendingView.lastPublish`); null when none. */
-  lastPublish: LastPublish | null;
-};
-
-export type PendingSummary = {
-  /** Only apps with something pending or in review; an app that is not listed has nothing. */
-  apps: PendingSummaryApp[];
-  totals: { apps: number; count: number; blocking: number };
-  generatedAt: number;
-};
-
-/** `GET /pending/summary`: one line per app that has something, from stored state, a fixed number of queries plus one staged view per app with unpushed items. */
-export async function pendingSummary(
-  db: Database,
-  input: {
-    workspaceId: string;
-    appIds?: readonly string[] | undefined;
-    now: number;
-    claimTtlMs?: number | undefined;
-  },
-): Promise<PendingSummary> {
-  const running = await readPublishing(db, {
-    workspaceId: input.workspaceId,
-    appIds: input.appIds,
-    now: input.now,
-    ttlMs: input.claimTtlMs,
-  });
-  const failed = await readLastPublish(db, {
-    workspaceId: input.workspaceId,
-    appIds: input.appIds,
-  });
-  const wanted = input.appIds === undefined ? undefined : new Set(input.appIds);
-  const apps = (await listApps(db, input.workspaceId)).filter(
-    (a) => wanted === undefined || wanted.has(a.id),
-  );
-  const facts = await loadPendingFacts(db, { workspaceId: input.workspaceId, now: input.now });
-  const lines: PendingSummaryApp[] = [];
-  for (const app of apps) {
-    const items = itemsOf(
-      app,
-      facts,
-      await stagedViewFor(db, input.workspaceId, app, facts, input.now),
-    );
-    const lastPublish = failed.get(app.id) ?? null;
-    const hasFailure = lastPublish !== null && !lastPublish.dismissed;
-    if (items.length === 0 && !running.has(app.id) && !hasFailure) continue;
-    const totals = totalsOf(items);
-    const actionable = items.filter((i) => i.nextStep !== null);
-    lines.push({
-      appId: app.id,
-      id: app.id,
-      app: { id: app.id, name: app.name, platform: app.platform, store: storeFor(app.platform) },
-      count: totals.actionable,
-      blocking: totals.blocking,
-      waiting: totals.items - totals.actionable,
-      kinds: PENDING_KINDS.filter((k) => actionable.some((i) => i.kind === k)),
-      nextSteps: nextStepsOf(items),
-      publishing: running.get(app.id) ?? null,
-      lastPublish,
-    });
-  }
-  lines.sort(
-    (a, b) =>
-      b.blocking - a.blocking ||
-      b.count - a.count ||
-      a.app.name.localeCompare(b.app.name) ||
-      a.appId.localeCompare(b.appId),
-  );
-  return {
-    apps: lines,
-    totals: {
-      apps: lines.filter((l) => l.count > 0).length,
-      count: lines.reduce((n, l) => n + l.count, 0),
-      blocking: lines.reduce((n, l) => n + l.blocking, 0),
-    },
-    generatedAt: input.now,
-  };
 }

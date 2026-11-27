@@ -144,10 +144,29 @@ Releases table (rows and "Ready to release"), the overview tile, the pipeline su
 ### The pending count
 
 ONE number: the length of the cart (`GET /pending/cart-summary`, the same function as `GET /apps/{id}/pending/cart`), summed over
-the records in scope. The top bar, the Next step card, the header strip, the sidebar badge, the app switcher, the Pending page's total
-and the drawer all show it. `blocking` (items with an error) comes from `GET /pending/summary` and is a quality of the same count,
-never a second count. "Staged but not pushed" in the attention list is dropped while changes are pending (it says the same thing in
-another number).
+the records in scope: one item per staged text, per staged graphics SET (never a row per file) and per staged release field, plus staged
+prices and reply drafts. The top bar, the Next step card, the header strip, the sidebar badge, the app switcher, the Pending page's headline
+and the drawer all show it, and so do `GET /pending/summary` (`count`), the per app view (`totals.count`) and the MCP tools: they are views of
+ONE server projection (`apps/server/src/modules/publish/app-facts.ts`, `readAppFacts`) that `state-contract.test.ts` keeps equal.
+`blocking` (items with an error) is a quality of the same count, never a second count. "Staged but not pushed" in the attention list is
+dropped while changes are pending (it says the same thing in another number). "Staged" is `isUnpushed` of core (`pushed_hash IS NULL OR
+pushed_hash <> value_hash`); its SQL twin is `UNPUSHED_SQL` (`modules/publish/staged-unpushed.ts`) and the alert `pending.stale` counts the same
+items, not rows with `pushed_at IS NULL`.
+
+Decisions (Wave 2, state domain), to review:
+
+- **A pushed draft is not "pending"; it is "waiting to be submitted".** After a push the cart is empty: there is nothing to publish, only a
+  submit. The draft is the separate fact `awaitingSubmit` (0 or 1 per app), worded "waiting to be submitted" on every surface that shows it (the
+  Pending page, the card, `/pending/summary`), and never added to the cart number. Before, the per app view and the summary counted it in
+  `count` (cart 0, view 1: "staged removal already pushed", "pending cart vs view" in the harness). Draft releases, approved versions and due
+  rollout steps are `awaitingRelease`, also apart.
+- **The list is not the count.** The Pending page lists three staged texts as ONE `listing_text` row (with "3 changes"): the list is for reading,
+  the headline and the badges are the cart count, from the model, not from summing the rows.
+- **Summary `count` changed meaning**: it was the number of list rows that wait for a step; it is the cart count (docs/api/pending.md "Changed").
+- **Blockers are history unless they come from a reading.** `lastPublish` keeps what blocked the run; the surfaces show `currentBlockers`
+  (the readiness reading) whenever there is one, and the run's list only labelled as history otherwise. The publish dialog and the failure detail no
+  longer show a run's list as if it were current. The server carries `currentReadiness` (the fresh reading, never a new store read) next to
+  `lastPublish` on the view and the summary line.
 
 ### Verdicts for every state-dependent action
 

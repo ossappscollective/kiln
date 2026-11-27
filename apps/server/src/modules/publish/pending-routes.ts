@@ -8,13 +8,14 @@ import { memberRole } from '../../services/accounts.ts';
 import type { Failure } from '../../services/repositories.ts';
 import { requireStepUp, stepUpCovers } from '../../services/step-up.ts';
 import type { AssetsContext } from '../listing/asset-repo.ts';
+import { buildPriceContext, type PriceContext } from '../monetization/price-shared.ts';
+import { getPending, pendingSummary } from './app-facts.ts';
+import { type CartRoutesContext, cartContextOf } from './cart-routes.ts';
 import {
-  getPending,
   PENDING_DETAIL_KINDS,
   type PendingDetailKind,
   PUBLISH_STEPS,
   pendingItemDetail,
-  pendingSummary,
 } from './pending.ts';
 import { readCurrentReadiness } from './current-readiness.ts';
 import { dismissRun, listRuns, readLastPublish } from './publish-runs.ts';
@@ -76,6 +77,9 @@ export type PendingRoutesContext = {
     /** One line to the server log per boundary of a batch (ids, step names and statuses only). */
     log?: (line: string) => void;
   };
+  /** The seams of the reply send and the price writes, only to read the cart through the same function as the cart route. */
+  reply?: CartRoutesContext['reply'];
+  price?: PriceContext;
   /** The same seams as the individual steps (fakes in tests), so the batch reaches the stores the way they do. */
   draft?: {
     enabled?: boolean;
@@ -157,6 +161,17 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
   const { db } = ctx;
   const routes = new Hono<AppEnv>();
   const assets: AssetsContext = { repo: ctx.repo };
+  // The pending numbers are read through the same projection as the cart (`app-facts.ts`): the seams below only decide what a cart item
+  // says it can do, never which items there are.
+  const facts = cartContextOf({
+    db,
+    masterKey: ctx.masterKey,
+    now: ctx.now,
+    repo: ctx.repo,
+    ...(ctx.draft ? { draft: ctx.draft } : {}),
+    ...(ctx.reply ? { reply: ctx.reply } : {}),
+    price: ctx.price ?? buildPriceContext({ db, masterKey: ctx.masterKey, now: ctx.now }, undefined),
+  });
   const draft: DraftContext = {
     db,
     masterKey: ctx.masterKey,
@@ -243,10 +258,9 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
 
   // Stored state only: no store and no repository is read, so these are cheap and need no switch.
   routes.get('/:workspaceId/apps/:id/pending', needs('listing.read'), async (c) => {
-    const done = await getPending(db, {
+    const done = await getPending(facts, {
       workspaceId: ws(c),
       appId: param(c, 'id'),
-      now: ctx.now(),
       claimTtlMs: ctx.publish?.claimTtlMs,
     });
     c.header('Cache-Control', 'no-store');
@@ -288,10 +302,9 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
 
   routes.get('/:workspaceId/pending/summary', needs('listing.read'), async (c) => {
     const tokenApps = c.get('token')?.appIds ?? undefined;
-    const summary = await pendingSummary(db, {
+    const summary = await pendingSummary(facts, {
       workspaceId: ws(c),
       ...(tokenApps ? { appIds: tokenApps as string[] } : {}),
-      now: ctx.now(),
       claimTtlMs: ctx.publish?.claimTtlMs,
     });
     c.header('Cache-Control', 'no-store');
