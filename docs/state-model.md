@@ -527,8 +527,8 @@ node --disable-warning=ExperimentalWarning src/server-guard-cli.ts --prune      
 ```
 
 The domain of an entry is where its owner works: `images`, `releases`, `listing`, or `state` (counts, pending, caches, store imports). Migrating
-a component to read a model fact removes its entries: run `--prune` and commit the smaller JSON together with the change. In Wave 3 the
-allowlists are emptied and `"strict": true` is set in `component-guard.allowlist.json`: then any entry is ignored and every violation fails.
+a component to read a model fact removes its entries: run `--prune` and commit the smaller JSON together with the change. The
+allowlists are now empty and `"strict": true` (see "Strict mode" below): any entry is ignored and every violation fails.
 Do not add an entry to make a test pass; if the code is right and the rule is wrong, change the rule in `scan.ts` and say why in the commit.
 
 State domain, what the burn-down uses (Wave 2):
@@ -540,6 +540,37 @@ State domain, what the burn-down uses (Wave 2):
   calls `clock.touch()` after a read; it never keeps `Date.now()` or a `setInterval`. The timer is cleaned up with the component.
 - R5 (own count): the model hands over the number (`appState.pendingCount`, `lineOf(...)`, `blockingCount`); a step line says whether the run
   recorded blockers (`hasBlockers`) instead of the screen testing the list.
+
+### Strict mode: the burn-down is complete
+
+Both allowlists are EMPTY and `"strict": true` (`component-guard.allowlist.json`, `server-guard.allowlist.json`); the tests assert it. There is
+no grandfathered violation: a rule hit fails the test, and the only way to keep one is an explicit, reasoned exemption (below). Do not add an
+entry to an allowlist, and do not turn `strict` off.
+
+**What the guards forbid**
+
+- Web (`scripts/component-guard/scan.ts`): R1 a component calls a fact endpoint (`api.apps`, `api.app`, `api.appPlans`, `api.syncActivity`,
+  `api.appBuilds`...): read through the model, or `lib/app-state/workspace-reads.ts` for the workspace lists. R2 a component keeps its own cache
+  (`new Map()` that lives as long as the component, a module cache) or clock (`Date.now()`, `setInterval`): use `useNow`, `usePoll`, `readNow`
+  (`clock.svelte.ts`) and `keyedInstances` (`keyed.ts`). R3 a literal store limit or a limit table. R4 version compare/pick. R5 a count over a
+  fact collection. R6 a direct listing/image read. R7 a low-level store import: components import `lib/app-state/*-facade.ts`
+  (`pending-facade`, `ai-facade`, `alerts-facade`, `tint-facade`, `connect-facade`), never `*-store`.
+- Server (`server-guard.ts`): S1 a literal limit, TTL or threshold (`maxChars: 4000`, `300_000`): it lives in `@kiln/core` (`timings.ts` for
+  durations, `server-limits.ts` for counts and sizes) and is imported by name. S2 a module-level `Map` that is neither registered
+  (`registerMapCache`) nor listed in `services/not-a-cache.ts` WITH a `why`. `timedCache(...)` is the registered factory.
+
+**How to add a surface or a fact**: see "How to add a surface" and "How to add a fact" above. In short: the fact gets one owner in core and one
+entry in the model (`appStateStore`); the surface reads it, and the surface is added to `surfaces.ts` so the consistency harness compares it
+with the others.
+
+**How to exempt, with a reason.** Only code that is NOT a fact: a layout check (`groups.length > 1` for a platform badge), the length of a
+free-text input, the instant of a keystroke. Write a line comment `guard-ok R5: <why this is not a fact>` on the line of the hit or the line
+above (in a template: an HTML comment on its own line above the element). The scanner honours it ONLY with a rule id AND a non-empty reason, only
+next to a hit of that rule, and reports a `guard-ok` that exempts nothing (stale) or has no reason (malformed) as a test failure. Every exemption
+is listed in the generated `component-guard.exemptions.json` (`node scripts/component-guard/cli.ts --report`), and the test fails above
+`MAX_EXEMPTIONS` (25): a fact is not an exemption, migrate it. A false positive of a heuristic is fixed in `scan.ts` (emptiness checks like
+`list.length === 0` and lookup maps are already skipped), not exempted. The server has no inline exemption: a Map that is not a cache goes in
+`services/not-a-cache.ts` with its `why`.
 
 `consistency.expected.json` and `state-contract.expected.json` work the same way: the test passes while the list is exactly the current
 disagreements. A NEW disagreement fails ("fix it, or add it with a note"), a disagreement that stops failing fails ("delete the entry"), and a
