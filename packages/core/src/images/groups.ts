@@ -180,3 +180,38 @@ export function findStoreImage(
 
 /** Every store image ref the display holds: what a removal may name (the union of its sibling groups). */
 export const refsOfDisplay = (display: DisplaySet): string[] => display.files.map((f) => f.ref);
+
+/**
+ * The counts the Assets tab shows next to the repository's, from the store view the caller already holds (it used to be computed on the
+ * server from a view that was at most 60 seconds old and sent with `GET /assets`, so the repository section said "not yet compared" while
+ * the Graphics section next to it showed the store's images). One entry per DISPLAY: `count` is the primary group (what a push writes and
+ * the repository comparison pairs with), `groups` lists every group when the display has more than one, so nothing is summed. iMessage
+ * apps are not compared with the repository and are left out.
+ */
+export type StoreSide = {
+  observedAt: number;
+  counts: {
+    locale: string;
+    kind: AssetKind;
+    device: string | null;
+    count: number;
+    target: string;
+    groups?: { target: string; count: number }[];
+  }[];
+};
+
+export function storeSideOf(view: Pick<StoreImagesView, 'platform' | 'sets' | 'readAt'>): StoreSide {
+  const counts: StoreSide['counts'] = [];
+  for (const d of groupStoreImages(view)) {
+    if ((d.device ?? '').startsWith('imessage:')) continue;
+    counts.push({
+      locale: d.locale,
+      kind: d.kind,
+      device: d.device,
+      count: d.counts.primary,
+      target: d.pushTarget,
+      ...(d.groups.length > 1 ? { groups: d.counts.perGroup } : {}),
+    });
+  }
+  return { observedAt: view.readAt, counts };
+}

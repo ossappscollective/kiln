@@ -89,12 +89,12 @@ of each locale, kind and device next to the most the store takes), `assets` (pat
 device, order, size in bytes and pixels, format, alpha, blob id, whether it was read), `problems`,
 `notes`, `specs` and `storeSide`.
 
-`storeSide` is `null` until a store read of the last minutes exists (nothing reads a store just to fill it). After
-`GET /assets/store`, `/assets/diff` or a pull, `GET /assets` carries `{ observedAt, counts[] }` (the number of images the
-store has per locale, kind and device), and the tab shows the counts next to each set. A display the App Store keeps in more than one
-placement group (iPad 13" / 12.9": `APP_IPAD_PRO_3GEN_129` and the legacy `APP_IPAD_PRO_129`) is ONE entry whose `count` is the group a push writes
-(`primaryStoreSet` in `@kiln/core`; else the fullest), with its `target` and, when there are several, `groups: [{ target, count }]`. The siblings are
-never added up and the last of them never stands for the display.
+`storeSide` is always `null` (the index is the repository only). The store's counts next to each set are computed from a store view
+(`GET /assets/store`) by `storeSideOf` of `@kiln/core` in whoever holds that view: `{ observedAt, counts[] }`, one entry per display. A display the
+App Store keeps in more than one placement group (iPad 13" / 12.9": `APP_IPAD_PRO_3GEN_129` and the legacy `APP_IPAD_PRO_129`) is ONE entry whose
+`count` is the group a push writes (`primaryStoreSet` in `@kiln/core`), with its `target` and, when there are several, `groups: [{ target, count }]`.
+The siblings are never added up and the last of them never stands for the display. (Before, `GET /assets` carried it from a store view at most a minute
+old, and the tab said "not yet compared" next to a Graphics section that showed the images.)
 
 Changes since the first version of the index: an icon file inside an Xcode `AppIcon.appiconset` is checked against the
 sizes of its slot in `Contents.json` and not as the 1024 px store icon (those were false errors), and an Apple

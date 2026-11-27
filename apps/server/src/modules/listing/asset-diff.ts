@@ -22,7 +22,7 @@ import type { AssetView } from './asset-index.ts';
 import type { AssetHandle, AssetsContext } from './asset-repo.ts';
 import { openAssets } from './asset-repo.ts';
 import { CHECKSUM_BUDGET_MS } from './compare-deadline.ts';
-import { getStoreImages, type StoreImagesContext, storeSideOf } from './store-images.ts';
+import { getStoreImages, type StoreImagesContext } from './store-images.ts';
 
 /**
  * The repository's graphics set against the store's (docs/adr/0012-assets-two-way-sync.md): per file, identical, probably the
@@ -236,4 +236,3 @@ async function readSums(
 }
 
 /** The store counts for `GET .../assets`: from the cached store read only, never a store request. */
-export { storeSideOf };

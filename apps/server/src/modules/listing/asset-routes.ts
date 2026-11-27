@@ -10,7 +10,6 @@ import { getApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { type Failure, failure, type RepoContext } from '../../services/repositories.ts';
 import { isCommitSha, openAssets } from './asset-repo.ts';
-import { peekStoreImages, storeSideOf } from './store-images.ts';
 export type AssetRoutesContext = {
   db: Database;
   now: () => number;
@@ -124,13 +123,8 @@ export function assetRoutes(ctx: AssetRoutesContext) {
     });
     if (!opened.ok) return respond(c, opened);
     c.header('Cache-Control', 'no-store');
-    // The store's counts of the last read that is still cached; no store request is made here.
-    const side = peekStoreImages(ws(c), app.id, ctx.now());
-    return c.json({
-      ...opened.handle.view,
-      ...(side ? { storeSide: storeSideOf(side) } : {}),
-      cached: opened.cached,
-    });
+    // The repository only. The store's counts next to it are `storeSideOf` (core) over the store view the browser holds.
+    return c.json({ ...opened.handle.view, cached: opened.cached });
   });
 
   routes.get('/:workspaceId/apps/:id/assets/file', needs('listing.read'), async (c) => {

@@ -442,9 +442,8 @@ export type AssetIndexView = {
     unverified: { id: string; text: string }[];
   };
   /**
-   * The store's own counts per locale, kind and device, from the last store read that is still cached
-   * (`GET .../assets/store`), or null. The index itself never reads a store, so it is null in the cached index and is added
-   * by the route (docs/api/assets.md).
+   * Reserved and always null: the index is the repository only. The store's counts next to it are computed from a store view
+   * (`GET .../assets/store`) by `storeSideOf` of `@kiln/core`, by whoever holds that view (docs/api/assets.md).
    */
   storeSide: {
     observedAt: number;

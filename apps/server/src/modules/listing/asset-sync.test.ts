@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import type { StoreImageRecord } from '@kiln/connectors';
-import { ASSET_SYNC_LIMITS, readImageHeader } from '@kiln/core';
+import { ASSET_SYNC_LIMITS, readImageHeader, storeSideOf } from '@kiln/core';
 import { dbTest } from '@kiln/db/testing';
 import { rgbaPng, rgbPng } from '../../png-test-helpers.ts';
 import { decodePng } from '../../services/png-codec.ts';
@@ -177,11 +177,7 @@ dbTest(
       apple(1, { locale: 'de-DE' }),
     ];
     const before = await t.call(t.owner, 'GET', `/apps/${app}/assets`);
-    assert.equal(
-      before.body.storeSide,
-      null,
-      'before any store read the index says "not compared"',
-    );
+    assert.equal(before.body.storeSide, null, 'the index is the repository only: the store counts come from the view (storeSideOf of core)');
     const res = await t.call(t.owner, 'GET', `/apps/${app}/assets/diff`);
     assert.equal(res.status, 200, res.text);
     const set = res.body.diff.sets.find(
@@ -206,15 +202,10 @@ dbTest(
       only_repo: 0,
       only_store: 2,
     });
-    const after = await t.call(t.owner, 'GET', `/apps/${app}/assets`);
-    assert.equal(
-      after.body.storeSide.counts.find(
-        (c: { locale: string; device: string }) =>
-          c.locale === 'en-US' && c.device === 'iphone_6_5',
-      ).count,
-      3,
-    );
-    assert.equal(typeof after.body.storeSide.observedAt, 'number');
+    const view = (await t.call(t.owner, 'GET', `/apps/${app}/assets/store`)).body.store;
+    const side = storeSideOf(view);
+    assert.equal(side.counts.find((c) => c.locale === 'en-US' && c.device === 'iphone_6_5')?.count, 3);
+    assert.equal(typeof side.observedAt, 'number');
   },
 );
 
@@ -1147,14 +1138,14 @@ dbTest(
         ['APP_IPAD_PRO_3GEN_129', 8],
       ],
     );
-    await t.call(t.owner, 'GET', `/apps/${app}/assets`);
-    const side = (await t.call(t.owner, 'GET', `/apps/${app}/assets`)).body.storeSide;
-    const entries = side.counts.filter((c: { device: string }) => c.device === 'ipad_13');
+    // The store counts of the Assets tab come from the view the caller holds (core), not from GET /assets.
+    const side = storeSideOf((await t.call(t.owner, 'GET', `/apps/${app}/assets/store`)).body.store);
+    const entries = side.counts.filter((c) => c.device === 'ipad_13');
     assert.equal(entries.length, 1, 'one count per display');
-    assert.equal(entries[0].count, 8, 'the group a push writes, not the sum (12) and not the last of the siblings (4)');
-    assert.equal(entries[0].target, 'APP_IPAD_PRO_3GEN_129');
+    assert.equal(entries[0]?.count, 8, 'the group a push writes, not the sum (12) and not the last of the siblings (4)');
+    assert.equal(entries[0]?.target, 'APP_IPAD_PRO_3GEN_129');
     assert.deepEqual(
-      entries[0].groups.map((g: { target: string; count: number }) => [g.target, g.count]).sort(),
+      (entries[0]?.groups ?? []).map((g) => [g.target, g.count]).sort(),
       [
         ['APP_IPAD_PRO_129', 4],
         ['APP_IPAD_PRO_3GEN_129', 8],
