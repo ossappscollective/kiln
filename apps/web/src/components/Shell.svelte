@@ -43,6 +43,7 @@
   import TintToggle from './ui/TintToggle.svelte';
   import { productName } from './ui/brand.ts';
   import { isIconName } from './ui/icons.ts';
+  import { reportShown } from '../lib/app-state/dev-assert.ts';
 
   let {
     api,
@@ -127,6 +128,16 @@
     const apps = navSignals.appsOf(workspaceId);
     const group = apps ? groupApps(apps).filter((g) => g.members.some((m) => m.id === appAddr.id))[0] : undefined;
     return group ? platformStatusLines(group.members, releaseFactsStore.releasesOf(workspaceId)) : [];
+  });
+  // What the status lines draw, told to the dev monitor (a line names the newest version of its platform).
+  $effect(() => {
+    const apps = appAddr && canApps ? navSignals.appsOf(workspaceId) : null;
+    const group = apps ? groupApps(apps).filter((g) => g.members.some((m) => m.id === appAddr?.id))[0] : undefined;
+    if (!group) return;
+    for (const line of appStatus) {
+      const rec = group.members.find((m) => m.platform === line.platform);
+      if (rec && line.version !== null) reportShown(`latestVersion:${rec.id}`, line.version, 'shellStatus');
+    }
   });
   const switcherList = $derived.by(() => {
     const apps = canApps ? navSignals.appsOf(workspaceId) : null;

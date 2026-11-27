@@ -47,6 +47,7 @@
   import AttentionList from './AttentionList.svelte';
   import NextStep from './NextStep.svelte';
   import { scopeFor } from '../../lib/app-state/derive.ts';
+  import { reportShown } from '../../lib/app-state/dev-assert.ts';
 
   let {
     api,
@@ -71,6 +72,22 @@
   // The release candidates of the records shown (the model's one answer; the card above reads the same): the tile of a platform with nothing in flight says what is ready.
   const modelRecords = $derived(all ?? members);
   const modelState = $derived(appStateStore.of({ workspaceId, role, records: modelRecords, scope: scopeFor(modelRecords, members), releases }));
+
+  // What the tiles draw, told to the dev monitor (one fact, one value on every screen that shows it).
+  $effect(() => {
+    for (const app of members) {
+      const list = releases[app.id];
+      if (list === undefined) continue;
+      const facts = releaseFactsOf(list, app.platform);
+      reportShown(`liveVersion:${app.id}`, facts.live?.version ?? null, 'appDashboardTiles');
+      reportShown(`latestVersion:${app.id}`, facts.latest?.version ?? null, 'appDashboardTiles');
+      const c = modelState.candidates.filter((x) => x.appId === app.id)[0];
+      if (c) {
+        reportShown(`candidate:${app.id}`, `${c.plan.candidate.version}#${c.plan.candidate.buildNumber}`, 'appDashboardTiles');
+        reportShown(`newestBuild:${app.id}`, `${c.plan.candidate.version}#${c.plan.candidate.buildNumber}`, 'appDashboardTiles');
+      }
+    }
+  });
 
   let newReviews = $state<Record<string, number | undefined>>({});
   let builds = $state<Record<string, AppBuild[] | undefined>>({});

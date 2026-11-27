@@ -21,6 +21,7 @@
   import PlatformBadge from './PlatformBadge.svelte';
   import ReleaseStatus from './ReleaseStatus.svelte';
   import SyncStatus from './SyncStatus.svelte';
+  import { reportShown } from '../../lib/app-state/dev-assert.ts';
 
   let {
     apps,
@@ -39,6 +40,17 @@
     locked: boolean;
     onsync: (app: AppSummary) => void;
   } = $props();
+
+  // What the table draws, told to the dev monitor.
+  $effect(() => {
+    for (const app of apps) {
+      const load = releases[app.id];
+      if (load?.state !== 'ready') continue;
+      const facts = releaseFactsOf(load.releases, app.platform);
+      reportShown(`liveVersion:${app.id}`, facts.live?.version ?? null, 'portfolioCard');
+      reportShown(`latestVersion:${app.id}`, facts.latest?.version ?? null, 'portfolioCard');
+    }
+  });
 </script>
 
 <div class="table-wrap">

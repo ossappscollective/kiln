@@ -67,6 +67,7 @@
   import TestFlightLinks from './TestFlightLinks.svelte';
   import { useNow } from '../../lib/app-state/clock.svelte.ts';
   import { createPoller } from '../../lib/poll.ts';
+  import { reportShown } from '../../lib/app-state/dev-assert.ts';
 
   let { api, workspaceId, role, app, refreshKey }: { api: Api; workspaceId: string; role: Role; app: AppSummary; refreshKey: number } = $props();
 
@@ -226,6 +227,15 @@
   });
 
   const rows = $derived(data ? rowsOf(data, eas?.builds ?? [], now) : []);
+  // The newest store build this page lists, told to the dev monitor (the model's candidate and the release step must name the same one).
+  $effect(() => {
+    if (!data) return;
+    let newest: (typeof data.store)[number] | null = null;
+    for (const b of data.store) if (b.uploadedAt !== null && (newest === null || b.uploadedAt > (newest.uploadedAt ?? 0))) newest = b;
+    if (newest === null) return;
+    reportShown(`newestBuild:${app.id}`, `${newest.version}#${newest.buildNumber}`, 'buildsPanel');
+    reportShown(`buildDate:${app.id}`, String(newest.uploadedAt), 'buildsPanel');
+  });
   // A build named in the address is always shown, whatever the filters hide.
   const shown = $derived(
     applyFilters(rows, focus ? { ...filters, hideExpired: false, hideOther: false, platform: 'all', source: 'all' } : filters),

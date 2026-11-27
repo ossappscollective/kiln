@@ -38,6 +38,7 @@
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import AttentionList from './AttentionList.svelte';
   import StartRelease from './StartRelease.svelte';
+  import { reportShown } from '../../lib/app-state/dev-assert.ts';
 
   let {
     api,
@@ -79,6 +80,14 @@
   const stateScope = $derived(scopeFor(records, members));
   const appState = $derived(appStateStore.of({ workspaceId, role, records, scope: stateScope, releases, attention }));
   const primary = $derived(appState.primaryAction);
+  // What the card draws about the builds, told to the dev monitor.
+  $effect(() => {
+    for (const c of appState.candidates) {
+      const shown = `${c.plan.candidate.version}#${c.plan.candidate.buildNumber}`;
+      reportShown(`candidate:${c.appId}`, shown, 'nextStep');
+      reportShown(`newestBuild:${c.appId}`, shown, 'nextStep');
+    }
+  });
   /** The failure that is only a blocked submit: what the run recorded and what blocks now (the model's `BlockersView`). */
   const blocked = $derived(appState.failures.find((f) => f.blockers !== null) ?? null);
   const startOffer = $derived([primary, ...appState.secondaryActions].find((a) => a.action === 'start_release') ?? null);

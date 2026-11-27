@@ -58,6 +58,7 @@
   import CreateVersion from './CreateVersion.svelte';
   import Skeleton from '../../ui/Skeleton.svelte';
   import { useNow } from '../../../lib/app-state/clock.svelte.ts';
+  import { reportShown } from '../../../lib/app-state/dev-assert.ts';
 
   let {
     api,
@@ -127,6 +128,18 @@
   });
 
   const applePart = $derived(candidates !== null && candidates.store === 'appstoreconnect' ? (candidates as AppleCandidates) : null);
+  // The newest build of the list, told to the dev monitor.
+  $effect(() => {
+    if (applePart === null) return;
+    let newest: { version: string | null; buildNumber: string | null; at: number } | null = null;
+    for (const b of applePart.builds) {
+      const at = b.uploadedDate === null ? Number.NaN : Date.parse(b.uploadedDate);
+      if (!Number.isNaN(at) && (newest === null || at > newest.at)) newest = { version: b.version, buildNumber: b.buildNumber, at };
+    }
+    if (newest === null) return;
+    reportShown(`newestBuild:${app.id}`, `${newest.version}#${newest.buildNumber}`, 'pipelineCard');
+    reportShown(`buildDate:${app.id}`, String(newest.at), 'pipelineCard');
+  });
   const playPart = $derived(candidates !== null && candidates.store === 'googleplay' ? (candidates as PlayCandidates) : null);
   const rows = $derived(applePart ? buildRows(applePart.builds, appBuilds) : []);
   const none = $derived(applePart ? noBuildSentence(applePart.builds, applePart.version?.versionString ?? null) : null);

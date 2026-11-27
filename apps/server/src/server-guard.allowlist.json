@@ -17,7 +17,6 @@
     {"file":"modules/builds/artifact-meta/plist.ts","rule":"S1","hash":"d14821f9","snippet":"input.length >= 8","count":1,"reason":"literal limit/threshold: move to @kiln/core (limits, timings) and import it"},
     {"file":"modules/builds/artifact-meta/plist.ts","rule":"S1","hash":"e10e1280","snippet":"MAX_INPUT = 8 * 1024 * 1024","count":1,"reason":"literal limit/threshold: move to @kiln/core (limits, timings) and import it"},
     {"file":"modules/builds/artifact-meta/plist.ts","rule":"S1","hash":"eff0087e","snippet":"bytes > 8","count":2,"reason":"literal limit/threshold: move to @kiln/core (limits, timings) and import it"},
-    {"file":"modules/builds/origins.ts","rule":"S2","hash":"e93c0630","snippet":"new Map<string, number>()","count":1,"reason":"cache outside the registry: create it through services/cache-registry.ts"},
     {"file":"modules/builds/service.ts","rule":"S1","hash":"adf54e7c","snippet":"LINK_TTL_MS = 10 * 60_000","count":1,"reason":"literal limit/threshold: move to @kiln/core (limits, timings) and import it"},
     {"file":"modules/builds/service.ts","rule":"S1","hash":"bbbfbf1a","snippet":"limit = 100","count":3,"reason":"literal limit/threshold: move to @kiln/core (limits, timings) and import it"},
     {"file":"modules/builds/service.ts","rule":"S1","hash":"db8195ec","snippet":"retryAfterSeconds = 10","count":1,"reason":"literal limit/threshold: move to @kiln/core (limits, timings) and import it"},

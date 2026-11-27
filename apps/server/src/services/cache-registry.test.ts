@@ -216,7 +216,6 @@ const NOT_A_CACHE: Record<string, string> = {
   'i18n/runtime.ts:rulesCache': 'Intl.PluralRules per locale: static data',
   'i18n/catalogs.ts:cache': 'message catalogs: static files',
   'modules/alerts/catalog.ts:byId': 'static lookup table',
-  'modules/listing/locales.ts:GROUP_OF': 'static lookup table built once from the locale list',
   'modules/ci/active.ts:inFlight': 'work in flight (single flight), empty when it ends',
   'modules/ci/active.ts:trouble': 'back-off memory of repositories that failed: a rate-limit state, not a read of a fact',
   'modules/builds/service.ts:inFlight': 'work in flight (single flight), empty when it ends',

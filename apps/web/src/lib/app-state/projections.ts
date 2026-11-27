@@ -302,7 +302,8 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'nextStep',
     components: ['components/app/NextStep.svelte'],
-    mirrors: ['lib/app-state/derive.ts:329 deriveAppState (model)', 'components/app/NextStep.svelte:86 blocked = appState.failures.find(...)'],
+    // The card reads the model (`deriveAppState`) and nothing else; the candidates load by themselves (`releaseFactsStore.ensureRecord`).
+    mirrors: [],
     project(w) {
       const s = appState(w);
       const out: Facts = {
@@ -382,11 +383,8 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'releasesTable',
     components: ['components/release/ReleaseTable.svelte', 'components/app/AppReleases.svelte'],
-    mirrors: [
-      'lib/releases-table.ts:381 liveRowKeys (liveOf over the rows)',
-      'lib/releases-table.ts:284 buildReleaseTable (sorts with its own compareReleases)',
-      'components/release/ReleaseTable.svelte:180 row.obsolete.liveVersion (the model)',
-    ],
+    // `liveRowKeys` is `liveOf` of @kiln/core, the rows sort with `compareVersions` of @kiln/core and the badge reads the model's obsolete list.
+    mirrors: [],
     project(w) {
       const s = appState(w);
       const members = inScope(w);
@@ -411,10 +409,8 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'releasesObsoleteBadge',
     components: ['components/release/ReleaseTable.svelte'],
-    mirrors: [
-      'components/release/ReleaseTable.svelte:180 row.obsolete.liveVersion ("Outdated: X is live": the model\'s live, drawn on a table that marks live by `status === "live"`)',
-      'lib/releases-table.ts:394 splitCurrent',
-    ],
+    // "Outdated: X is live" is the model's obsolete list (`row.obsolete.liveVersion`); `splitCurrent` keeps the row `liveOf` names.
+    mirrors: [],
     project(w) {
       const s = appState(w);
       const obsolete: Record<string, ObsoleteInfo> = {};

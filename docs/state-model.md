@@ -17,18 +17,18 @@ inconsistencies (a failed publish that the top bar, the Next step card and the p
 | `cartSummaryStore` (`cart-summary*.ts`)      | pending CART count per app record (stored changes, the "29")                                                      | `GET /pending/cart-summary`                                      |
 | `pendingStore` (`pending-store.svelte.ts`)   | pending VIEW per app (`lineOfView`: actionable / waiting / blocking), workspace summary (`lineFor`), batch switch | `GET /pending/summary`, `GET /apps/{id}/pending`, publish config |
 | `publishingStore` (`publishing*.ts`)         | publishing claims, the latest run that did not complete, dismissals                                               | `GET /pending/publishing`, `POST .../runs/{id}/dismiss`          |
-| `pipelineStore`                              | release pipeline per app (trains) and workspace summary (stalled releases)                                        | `GET /apps/{id}/release-pipeline`, summary                       |
+| `releaseFactsStore` (`app-state/`)           | release pipelines, store builds, candidates, editable release, notes history, plans, TestFlight, releases by app  | `GET /apps/{id}/release-pipeline`, summary, `builds`, `release-candidates`, ...           |
 | `stagedStore`, `submitStore`, `releaseStore` | staged content, "pushed draft waits for submit", store release state                                              | `.../staged`, `.../store-submit`, `.../store-release`            |
-| `navSignals`                                 | apps, releases by app, unanswered reviews, insight counts                                                         | several                                                          |
+| `navSignals`                                 | apps, unanswered reviews, insight counts                                                                          | several                                                          |
 | `cartButton`                                 | UI plumbing of the top bar button (count, visible, press) written by `PendingCart`                                | none (written by a component)                                    |
-| page reads                                   | `AppShell` release lists, `AppDashboard` builds, drift, plans, reviews                                            | per app                                                          |
+| page reads                                   | `AppShell` asks `releaseFactsStore.ensureRecord` for the records it shows, `AppDashboard` builds, drift, plans, reviews                                            | per app                                                          |
 
 ### Surfaces (before)
 
 | Surface                       | File                                                                                     | Count it showed                                            | Publishing / failure                                                   | Derived by itself                                              | Actions it enabled                             |
 | ----------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------- |
 | Top bar button                | `PendingCartButton`, `Shell`, `cart-button`                                              | rows of the per-app cart (`PendingCart.rows`)              | publishing only; NO failure                                            | `visible`, `busy`                                              | open drawer                                    |
-| Next step card                | `NextStep`, `next-step.ts`, `nextStepTrains`                                             | none (a link text from `lineFor`)                          | publishing banner only; NO failure                                     | trains from `pipelineStore`, `canStart`, `canPrepare`, `off()` | Start release, Prepare, train buttons, Promote |
+| Next step card                | `NextStep`, `next-step.ts`, `nextStepTrains`                                             | none (a link text from `lineFor`)                          | publishing banner only; NO failure                                     | trains from `releaseFactsStore`, `canStart`, `canPrepare`, `off()` | Start release, Prepare, train buttons, Promote |
 | Overview page                 | `AppDashboard` (`pending` prop from `AppShell`)                                          | `lineFor` count (actionable items)                         | none                                                                   | attention items incl. "staged not pushed" (a 3rd count)        | none                                           |
 | App header strip              | `AppShell` (`pendingBar`, `pendingPlacement`)                                            | `lineFor` count                                            | none                                                                   | bar text, placement                                            | link to pending                                |
 | Releases page                 | `AppReleases`, `NextStep`, `ReleaseTable`, `ReleaseRowDetail`                            | none                                                       | publishing on Promote in the detail only (the table link had no guard) | `promoteOption(s)` per row                                     | Promote (table link, detail button)            |
@@ -104,9 +104,9 @@ in `app-state/blockers.ts`, pure) and exposes `failure.blockers`: `{ state, curr
 `candidates.ts` is the ONE place that decides which build can be released next and which store versions are left behind. It is a pure
 function (`analyzeCandidates`) of the synced facts of a record: its store versions with their state (the releases), what is live, and the
 store builds (`app_builds`: version, build number, processing state, expired, uploaded). Both platforms read it, and so do the card, the
-Releases table (rows and "Ready to release"), the overview tile, the pipeline summary counts (`appStateStore.stalledApps`) and the notices.
+Releases table (rows and "Ready to release"), the overview tile, the pipeline summary counts (`appStateStore.unfinished(workspaceId)`) and the notices.
 
-- **Version compare** (`compareVersionStrings`): dotted numbers. `2.00.1` is `2.0.1`, `1.0` equals `1.0.0`, a 4-part `2.00.1.90` is after
+- **Version compare** (`compareVersions` / `tryCompareVersions` of `@kiln/core`): dotted numbers. `2.00.1` is `2.0.1`, `1.0` equals `1.0.0`, a 4-part `2.00.1.90` is after
   `2.00.1`, a leading `v` is ignored. Anything else (`2.0.0-beta`, empty) is UNKNOWN: it is neither older nor newer, it is never judged
   stale, and while something is live it is never a candidate. Build numbers compare the same way; an unknown live build never lets a
   same-version build count as newer.
@@ -136,10 +136,31 @@ Releases table (rows and "Ready to release"), the overview tile, the pipeline su
 - **Priority**: publishing, publish_failed and changes_pending stay above everything; the candidate comes with the release flow (it is the
   quiet second button of `changes_pending`, off while a publish runs or has failed, with the reason). The platform scope applies as for
   every flow: iOS shows iOS only; with Both the most urgent leads and names its platform; Android keeps Promote.
-- **Facts**: the loader reads the store rows of `GET /apps/{id}/builds/artifacts` once per record (`storeBuildsStore`, kept in the read cache
-  under `store-builds/<app>`; the Test builds page and the release step's build picker read the same endpoint DIRECTLY, with no cache shared
-  with the model, so they can be older or newer than the model's copy until they move onto it) in the same refresh as the pipelines; until they are read the model knows the newest build of the
-  release pipeline, and the version the pipeline names when the page did not load the releases. Nothing is added to the server.
+- **Facts**: the store rows come from ONE read, `GET /apps/{id}/builds/artifacts` (`store[]`, each with its `origin` joined once on the server
+  by `joinBuildOrigin`: version name, build date, where the build came from, and the reason when the date is missing). The web holds them in
+  `releaseFactsStore` (kept in the read cache under `store-builds/<app>`, family `storeBuilds`) and the model, the Test builds page, the
+  Publish summary, the build picker of the release step and the next release's train all read that copy: none reads the endpoint by itself.
+  The candidates (`release-candidates`) and the pipelines are loaded by `AppShell` for the records the page shows
+  (`releaseFactsStore.ensureRecord`), never by the Next step card; until the builds are read the model knows the newest build of the release
+  pipeline, and the version the pipeline names when the page did not load the releases.
+
+### The release facts store (web) and the build facts (server)
+
+- **`releaseFactsStore`** (`apps/web/src/lib/app-state/release-facts-store.svelte.ts`) is the only reader of the release endpoints: pipelines
+  and their summary, store builds, release candidates, the editable release, the notes history, the plans, the builds linked to CI runs,
+  the TestFlight list, and the releases of each app. It reads through `readFact(family, ...)` (`facts/invalidate.ts`), so a sync, a
+  publish, a release created or a build changed (`invalidate(event)`) makes the right families old and every screen reads again. The
+  `ReleaseStepper`, `NextStep`, `AppDashboard`, `Portfolio`, `Shell`, the Releases page, `TestBuilds`, `StepBuild` and the Board read nothing
+  else; `app-state-store.svelte.ts` derives from it (`unfinished(workspaceId)` is `unfinishedApps` of `candidates.ts`).
+- **Versions and builds** have one owner in `@kiln/core` (`versions/*`): `liveOf`, `compareVersions` / `tryCompareVersions`,
+  `compareBuildNumbers`, `sameVersion`, `buildNumberOfBuild` (the build number comes from the store's field, never from a translated
+  title), `analyzeCandidates`, `createReleaseRules` (what the store would refuse when a version is created), `promoteOptionsOf`,
+  `pipelineIsObsolete`, `PLAY_TRACKS` and `isProductionTrack`. A phased release is live. The server and the web call the same functions.
+- **Create-release dead ends** are told, not hidden: the candidates read carries a `create` verdict and an `eligibility` per build; the
+  next step card shows a blocked card (with the link to the editable version, or to attach the build to it) instead of a button that fails,
+  and the create form shows the store's refusal.
+- **Other owners of release vocabulary**: `RELEASE_URGENCY` / `urgencyOf` (`portfolio.ts`) is the one order of release states;
+  `APP_STORE_CONNECT_URL` (`store-links.ts`) the one address of App Store Connect; `useNow` (`app-state/clock.svelte.ts`) the one clock.
 
 ### The pending count
 
@@ -207,7 +228,7 @@ Every TTL, freshness window and liveness threshold that two parts depend on live
 | `CURRENT_READINESS_TTL_MS`                         | 30 s   | `GET publish/readiness`              | `READINESS_FRESH_MS` = same                           | readiness <= store view                                 |
 | `GRAPHICS_FRESH_MS`                                | 20 s   | -                                    | Graphics tab (`storeMediaCache`)                      | <= store view                                           |
 | `READ_CACHE_TTL_MS`                                | 60 s   | -                                    | `readCache` default                                   | = store view                                            |
-| `STORE_BUILDS_READ_TTL_MS`                         | 120 s  | -                                    | `storeBuildsStore`                                    | >= server build list; `build_changed`/`sync` drop it    |
+| `STORE_BUILDS_READ_TTL_MS`                         | 120 s  | -                                    | `releaseFactsStore`                                   | >= server build list; `build_changed`/`sync` drop it    |
 | `BUILD_LIST_TTL_MS` / `BUILD_PROBLEM_TTL_MS`       | 30/60 s | build artifacts, TestFlight groups  | -                                                     |                                                         |
 | `IMAGE_REF_TTL_MS`                                 | 15 min | image refs                           | -                                                     | >= store view; also dropped WITH the view's events      |
 | `NOTES_HISTORY_TTL_MS`, `PROPOSAL_SUMMARY_TTL_MS`  | 10 min | notes history, proposal summary      | -                                                     |                                                         |
@@ -449,7 +470,7 @@ Not done here, on purpose: moving a consumer onto an owner (Wave 2), and a guard
 | Candidates            | `app-state/candidates.test.ts`| version compare edge cases, live x prepared x TestFlight x publishing x failed x pending, the exact scenario of the 2026-11-26 report, scope     |
 
 If the wiring test fails: read state with `appStateStore.of(...)` (`apps/web/src/lib/app-state/app-state-store.svelte.ts`), never from
-`publishingStore`, `cartSummaryStore`, `pendingStore.summary`, `pipelineStore.app` or `nextStepTrains` directly. The release flow itself
+`publishingStore`, `cartSummaryStore`, `pendingStore.summary`, `releaseFactsStore.pipelineOf` or `nextStepTrains` directly. The release flow itself
 (`next-step.ts`, `release-trains.ts`, `play-promote.ts`, `candidates.ts`) is internal to the model: no file outside `lib/app-state/` may import
 them (wiring test, with the few address-parsing exceptions listed there with a reason).
 
