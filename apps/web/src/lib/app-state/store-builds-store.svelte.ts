@@ -1,3 +1,4 @@
+import { STORE_BUILDS_READ_TTL_MS } from '@kiln/core';
 import type { Api } from '../api.ts';
 import { readCache } from '../read-cache.ts';
 import type { StoreBuildFact } from './candidates.ts';
@@ -11,7 +12,7 @@ import { storeBuildFactOf } from './facts.ts';
  */
 let byApp = $state<Record<string, readonly StoreBuildFact[] | undefined>>({});
 const generation: Record<string, number> = {};
-const TTL_MS = 120_000;
+const TTL_MS = STORE_BUILDS_READ_TTL_MS;
 
 export const storeBuildsStore = {
   /** The builds of a record, or null until they are read. */

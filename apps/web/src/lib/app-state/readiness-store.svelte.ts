@@ -1,3 +1,4 @@
+import { READINESS_FRESH_MS } from '@kiln/core';
 import { type Api, ApiError } from '../api.ts';
 import type { ReadinessFact, ReadinessReading } from './blockers.ts';
 
@@ -7,7 +8,8 @@ import type { ReadinessFact, ReadinessReading } from './blockers.ts';
  * (the server keeps its own for the same time); `fresh` ("Check again", a sync, "Read again") asks the store again. A failed or refused
  * reading keeps the last good one and says why; it is never retried by itself inside the same 30 seconds.
  */
-export const READING_FRESH_MS = 30_000;
+/** `READINESS_FRESH_MS` of `@kiln/core`'s timings: derived from the server's own TTL for the same reading. */
+export const READING_FRESH_MS = READINESS_FRESH_MS;
 
 type Entry = { reading: ReadinessReading | null; error: string | null; at: number; checking: number };
 

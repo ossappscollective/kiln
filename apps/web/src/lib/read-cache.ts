@@ -1,3 +1,4 @@
+import { READ_CACHE_TTL_MS } from '@kiln/core';
 import { ApiError } from './api.ts';
 import { t } from './i18n/t.ts';
 
@@ -26,7 +27,8 @@ export type ReadCache = {
   pausedFor(workspaceId: string, group: string): number;
 };
 
-export const READ_TTL_MS = 60_000;
+/** `READ_CACHE_TTL_MS` of `@kiln/core`'s timings (the server's store view TTL: a page never holds a store read longer than the server does). */
+export const READ_TTL_MS = READ_CACHE_TTL_MS;
 
 export function createReadCache(now: () => number = Date.now): ReadCache {
   const kept = new Map<string, { at: number; value: unknown }>();

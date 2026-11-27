@@ -18,6 +18,7 @@
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../../lib/api.ts';
   import { fitToViewport } from '../../../lib/fit-viewport.ts';
+  import { invalidate } from '../../../lib/facts/invalidate.ts';
   import { readCache } from '../../../lib/read-cache.ts';
   import { t } from '../../../lib/i18n/t.ts';
   import type { PlatformScope } from '../../../lib/app-scope.ts';
@@ -464,7 +465,11 @@
             {chosenLines}
             stagedShare={stagedShare ? stagedShare.value : ''}
             inReview={pipeline?.pipeline.state === 'in_review'}
-            onreleased={() => void loadPipeline()}
+            onreleased={() => {
+              // The release started: the pipeline, the candidates and the store reads kept for the app are old (`invalidate` forgets them), then read.
+              void invalidate('release_created', { workspaceId, appId: app.id });
+              void loadPipeline();
+            }}
           />
         {:else}
           <Alert tone="info">{t('release-stepper:rs.noStep')}</Alert>

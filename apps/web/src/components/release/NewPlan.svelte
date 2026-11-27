@@ -7,6 +7,7 @@
 <script lang="ts">
   import type { PlanPlatform } from '@kiln/core';
   import type { Api } from '../../lib/api.ts';
+  import { invalidate } from '../../lib/facts/invalidate.ts';
   import { t } from '../../lib/i18n/t.ts';
   import { planErrorMessage, planPlatformChoices } from '../../lib/release.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -75,6 +76,8 @@
         ...(templateId ? { templateId } : {}),
       });
       toast.success(t('release:newPlan.toast', { version }));
+      // A plan is a release in the pipeline: what was kept of the app's releases is old.
+      void invalidate('release_created', { workspaceId, appId: app.id });
       oncreated(result.plan);
     } catch (e) {
       problem = planErrorMessage(e);

@@ -1,4 +1,4 @@
-import type { StoreImagesView } from '@kiln/core';
+import { GRAPHICS_FRESH_MS, type StoreImagesView } from '@kiln/core';
 
 /**
  * The last store graphics read of an app, kept for the whole session so that coming back to the Graphics tab shows them at once and
@@ -11,7 +11,7 @@ import type { StoreImagesView } from '@kiln/core';
  */
 export const MAX_ENTRIES = 24;
 /** Younger than this, a page that comes back does not ask again (the server reuses a read for a minute anyway). */
-export const FRESH_MS = 20_000;
+export const FRESH_MS = GRAPHICS_FRESH_MS;
 
 export type StoreCacheEntry = { view: StoreImagesView; at: number };
 
@@ -41,6 +41,8 @@ export type StoreCache = {
   set(key: string, view: StoreImagesView, at?: number): void;
   /** Drops the entries of an app (any platform) of a workspace: the store changed. */
   forgetApp(workspaceId: string, appId: string): void;
+  /** Drops every entry of a workspace (an event that names no app). */
+  forgetWorkspace(workspaceId: string): void;
   clear(): void;
   size(): number;
 };
@@ -70,6 +72,10 @@ export function createStoreCache(
     },
     forgetApp(workspaceId, appId) {
       const prefix = `${workspaceId}|${appId}|`;
+      for (const key of [...kept.keys()]) if (key.startsWith(prefix)) kept.delete(key);
+    },
+    forgetWorkspace(workspaceId) {
+      const prefix = `${workspaceId}|`;
       for (const key of [...kept.keys()]) if (key.startsWith(prefix)) kept.delete(key);
     },
     clear: () => kept.clear(),

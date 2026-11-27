@@ -1,4 +1,12 @@
-import { type Platform, platformMeta } from '@kiln/core';
+import {
+  PUBLISH_POLL_HIDDEN_MS,
+  PUBLISH_POLL_MAX_MS,
+  PUBLISH_POLL_VISIBLE_MS,
+  PUBLISH_SILENT_AFTER_MS,
+  PUBLISH_STUCK_AFTER_MS,
+  type Platform,
+  platformMeta,
+} from '@kiln/core';
 import { appAddress, type PlatformScope } from './app-scope.ts';
 import { timeAgo } from './format.ts';
 import { t } from './i18n/t.ts';
@@ -117,8 +125,11 @@ export function progressText(p: Pick<Publishing, 'detail' | 'currentStep'>): str
   }
 }
 
-/** After this long without a sign of life from the server the row says so (a beat is due every 20 seconds). */
-export const QUIET_AFTER_MS = 45_000;
+/**
+ * After this long without a sign of life from the server the row says so (a beat is due every `PUBLISH_HEARTBEAT_MS`). The SAME value as
+ * the server's `PUBLISH_SILENT_AFTER_MS` (`@kiln/core` timings): it used to be 45 seconds here and 60 there.
+ */
+export const QUIET_AFTER_MS = PUBLISH_SILENT_AFTER_MS;
 
 /** How long the server has been silent, when that is worth saying (a server that does not send a beat: nothing to say). */
 export const quietFor = (p: Pick<Publishing, 'heartbeatAt'>, now: number): number | null =>
@@ -131,7 +142,7 @@ export const quietText = (p: Pick<Publishing, 'heartbeatAt'>, now: number): stri
 };
 
 /** A publish that has run for longer than any batch is meant to (a step is cut at 8 minutes): the row says it looks stuck. */
-export const STUCK_AFTER_MS = 15 * 60_000;
+export const STUCK_AFTER_MS = PUBLISH_STUCK_AFTER_MS;
 export const looksStuck = (p: Pick<Publishing, 'startedAt'>, now: number): boolean =>
   now - p.startedAt >= STUCK_AFTER_MS;
 
@@ -187,9 +198,9 @@ export function appToShow(
 // ---------------------------------------------------------------------------------------------
 // Polling
 
-export const POLL_MS = 5_000;
-export const HIDDEN_POLL_MS = 30_000;
-export const MAX_POLL_MS = 60_000;
+export const POLL_MS = PUBLISH_POLL_VISIBLE_MS;
+export const HIDDEN_POLL_MS = PUBLISH_POLL_HIDDEN_MS;
+export const MAX_POLL_MS = PUBLISH_POLL_MAX_MS;
 
 /**
  * When to read again: `null` when no publish runs (nothing is polled; a focus or a stage reads once); every 5 seconds while one does;

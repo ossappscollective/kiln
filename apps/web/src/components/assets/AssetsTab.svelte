@@ -55,10 +55,9 @@
   } from '../../lib/assets/groups.ts';
   import { SYNC_ROLE_REASON, type EditorSet, canChangeAssets, setIdOf, storeKeyOf } from '../../lib/assets/sync.ts';
   import { assetsLead, otherCountsText, splitProblems } from '../../lib/assets/lead.ts';
-  import { readCache } from '../../lib/read-cache.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
   import { planFor, storeCacheKey, storeMediaCache } from '../../lib/assets/store-cache.ts';
-  import { onStagedChanged } from '../../lib/staged-sync.ts';
+  import { invalidate, onInvalidated } from '../../lib/facts/invalidate.ts';
   import { formatList } from '../../lib/i18n/format.ts';
   import { k, t } from '../../lib/i18n/t.ts';
   import { describeError } from '../../lib/portfolio.ts';
@@ -163,7 +162,7 @@
       // "Read again" asked the store: every number that was kept of its images is stale. The comparison of the release step is forgotten and
       // the counts next to the repository's (`storeSide`, the same read on the server) are read again, so one read of the draft feeds them all.
       if (done && fresh) {
-        readCache.forget(workspaceId, `assetdiff/${app.id}`);
+        void invalidate('store_read', { workspaceId, appId: app.id, keepGraphics: true, origin: 'graphics' });
         void api
           .appAssets(workspaceId, app.id)
           .then((next) => {
@@ -172,7 +171,7 @@
           .catch(() => {});
       }
       // "Read again" asked the store: what blocks a blocked submit is judged against the same fresh read (the server dropped its caches too).
-      if (done && fresh && recheck) void appStateStore.storeRead(api, workspaceId, app, { role, keepImages: true });
+      if (done && fresh && recheck) void appStateStore.storeRead(api, workspaceId, app, { role });
       if (settings) compareMedia = settings.settings.compareMedia;
     } catch (e) {
       if (mine !== storeGeneration) return;
@@ -251,15 +250,14 @@
     });
   });
 
-  // A publish changed what the store holds: drop what was kept and read it again.
+  // A publish, a sync, a new version or somebody else's store read changed what the store holds (`invalidate` dropped what was kept): read it again.
   $effect(() => {
     const appId = app.id;
-    const ws = workspaceId;
-    return onStagedChanged((detail) => {
-      if ((detail.reason !== 'publish' && detail.reason !== 'store_read') || detail.appId !== appId) return;
-      storeMediaCache.forgetApp(ws, appId);
+    return onInvalidated((i) => {
+      if (i.origin === 'graphics' || !i.appIds.includes(appId)) return;
+      if (i.event !== 'publish' && i.event !== 'store_read' && i.event !== 'sync' && i.event !== 'release_created') return;
       // A sync or "Check again" already told the model about the new reading: only the pictures are read again here.
-      void loadStore(true, detail.reason === 'publish');
+      void loadStore(true, i.event === 'publish');
     });
   });
 

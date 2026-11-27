@@ -9,6 +9,7 @@
   import { attentionCount, unansweredCount } from '../lib/nav-badges.ts';
   import { navSignals } from '../lib/nav-signals.svelte.ts';
   import { appStateStore } from '../lib/app-state/app-state-store.svelte.ts';
+  import { invalidate } from '../lib/facts/invalidate.ts';
   import { type ViewMode, readViewMode, saveViewMode } from '../lib/dashboard.ts';
   import {
     type BatchResult,
@@ -229,7 +230,7 @@
     if (outcome.ok) {
       patch(outcome.app);
       releases[app.id] = { state: 'ready', releases: outcome.releases };
-      void appStateStore.storeRead(api, workspaceId, outcome.app, { announce: true, role });
+      void invalidate('sync', { workspaceId, appId: outcome.app.id });
       toast.success(syncSummaryText(outcome.app.name, outcome.sync));
     } else {
       // The failure is stored on the app, and the server sends the app back with it.
@@ -286,7 +287,7 @@
         if (outcome.ok) {
           patch(outcome.app);
           releases[app.id] = { state: 'ready', releases: outcome.releases };
-          void appStateStore.storeRead(api, workspace, outcome.app, { announce: true, role });
+          void invalidate('sync', { workspaceId: workspace, appId: outcome.app.id });
           result.status = 'ok';
           result.message = syncDetail(outcome.sync);
           state.done += 1;

@@ -14,6 +14,7 @@
   import { type Role, can } from '@kiln/core';
   import { announcePublished } from '../../../lib/app-page.ts';
   import type { Api } from '../../../lib/api.ts';
+  import { invalidate } from '../../../lib/facts/invalidate.ts';
   import { carryLine } from '../../../lib/review-information.ts';
   import { confirmed } from '../../../lib/step-up-prompt.svelte.ts';
   import { stagedStore } from '../../../lib/staged-store.svelte.ts';
@@ -108,6 +109,7 @@
       announcement = text;
       toast.success(text);
       // The app reads its store again (the same announcement a publish makes) and the stepper looks for the version.
+      void invalidate('release_created', { workspaceId, appId: app.id });
       announcePublished(app.id);
       onread();
     } catch (e) {

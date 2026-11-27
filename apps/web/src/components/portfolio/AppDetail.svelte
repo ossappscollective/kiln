@@ -8,7 +8,7 @@
   import { t } from '../../lib/i18n/t.ts';
   import { can, type Role } from '@kiln/core';
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import { invalidate } from '../../lib/facts/invalidate.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import {
     appErrorMessage,
@@ -129,7 +129,7 @@
     if (outcome.ok) {
       app = outcome.app;
       releases = outcome.releases;
-      void appStateStore.storeRead(api, workspaceId, outcome.app, { announce: true, role });
+      void invalidate('sync', { workspaceId, appId: outcome.app.id });
       const text = syncSummaryText(appLabel(outcome.app), outcome.sync);
       toast.success(text);
       announcement = text;

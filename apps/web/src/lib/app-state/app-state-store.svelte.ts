@@ -1,8 +1,8 @@
 import { can, type Role, supports } from '@kiln/core';
 import type { Api } from '../api.ts';
 import type { AttentionItem } from '../app-attention.ts';
-import { storeMediaCache } from '../assets/store-cache.ts';
 import type { PlatformScope } from '../app-scope.ts';
+import { bindInvalidation, type Invalidation, invalidate, REFRESHES_MODEL } from '../facts/invalidate.ts';
 import { cartSummaryStore } from '../cart-summary.svelte.ts';
 import { type PendingRow, pendingRows, pendingTotals } from '../cart-summary.ts';
 import { type LastPublish, type PendingLine, staleViewIds } from '../pending.ts';
@@ -12,7 +12,6 @@ import { submitBlockedOnly } from '../publish-failure.ts';
 import type { Publishing } from '../publishing.ts';
 import { publishingStore } from '../publishing-store.svelte.ts';
 import type { PipelineSummary, PipelineSummaryApp } from '../release-pipeline.ts';
-import { announceStagedChanged, onStagedChanged } from '../staged-sync.ts';
 import type { AppSummary, ReleaseSummary } from '../types.ts';
 import { type BlockersView, blockersViewOf } from './blockers.ts';
 import { activeFailure, deriveAppState, deriveTopBar, promoteOfferFor } from './derive.ts';
@@ -115,6 +114,11 @@ function factsOf(input: StateInput): AppFacts {
     sourcesOf(input.workspaceId),
   );
 }
+
+/** The apps whose facts are to be read again, collected for a moment so a burst of syncs or publishes is one refresh (`react`). */
+type RefreshBatch = { ids: Set<string>; done: (() => void)[]; timer: ReturnType<typeof setTimeout> };
+const refreshBatches: Record<string, RefreshBatch | undefined> = {};
+const REFRESH_COLLECT_MS = 150;
 
 export const appStateStore = {
   /** The state of the app, derived from the facts. Reactive: it changes when any fact the stores hold changes. */
@@ -268,14 +272,20 @@ export const appStateStore = {
     void pendingStore.loadConfig(api, workspaceId);
     const releaseClaims = publishingStore.watch(api, workspaceId);
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const offStaged = onStagedChanged(() => {
-      cartSummaryStore.request(api, workspaceId);
-      // What blocks is read once for a burst of changes, a little after the count.
-      if (timer !== null) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = null;
-        void pendingStore.loadSummary(api, workspaceId);
-      }, 600);
+    // The ONE subscription to what changed (facts/invalidate.ts): a stage, a discard, a publish, a sync, a store read. The model reads its
+    // facts again for it; every other screen hears the same event through `onInvalidated`.
+    const offStaged = bindInvalidation(workspaceId, (i) => {
+      if (i.event === 'staged_changed') {
+        cartSummaryStore.request(api, workspaceId);
+        // What blocks is read once for a burst of changes, a little after the count.
+        if (timer !== null) clearTimeout(timer);
+        timer = setTimeout(() => {
+          timer = null;
+          void pendingStore.loadSummary(api, workspaceId);
+        }, 600);
+        return;
+      }
+      return appStateStore.react(api, i);
     });
     const back = () => {
       if (document.visibilityState !== 'visible') return;
@@ -381,28 +391,55 @@ export const appStateStore = {
    * app's readiness) and the answer is judged again: "Still 12 iPad 13" screenshots: remove 2" or "All clear". One click, one request.
    */
   async checkAgain(api: Api, workspaceId: string, appId: string): Promise<void> {
-    storeMediaCache.forgetApp(workspaceId, appId);
     await readinessStore.load(api, workspaceId, appId, { fresh: true });
-    // The Graphics tab, if it is open, reads the store again as well.
-    announceStagedChanged(appId, 'store_read');
+    // Every kept read of the store is old (the Graphics tab, if it is open, reads the store again as well).
+    await invalidate('store_read', { workspaceId, appId, origin: 'check_again' });
   },
 
   /**
-   * The store was read again by something else (a sync of the app, "Read again" of the graphics): the browser's kept graphics of the app are
-   * dropped and, when its last publish was a blocked submit, the readiness is read again. `announce` tells the Graphics tab to read.
+   * The store was read again by the Graphics tab ("Read again"; it has stored the fresh images itself and told `invalidate('store_read')`):
+   * when the app's last publish was a blocked submit, the readiness is read again against the same read. A sync does not come here: it
+   * calls `invalidate('sync')`, whose reaction (`refresh`) reads the readiness with everything else.
    */
   storeRead(
     api: Api,
     workspaceId: string,
     app: AppSummary,
-    options: { announce?: boolean; role?: Role; /** The caller has just stored the fresh graphics itself: keep them. */ keepImages?: boolean } = {},
+    options: { role?: Role } = {},
   ): Promise<void> {
-    if (options.keepImages !== true) storeMediaCache.forgetApp(workspaceId, app.id);
-    if (options.announce === true) announceStagedChanged(app.id, 'store_read');
     if (options.role !== undefined && !can(options.role, 'store.submit')) return Promise.resolve();
     return appStateStore.blockedRecords(workspaceId, [app]).length > 0
       ? readinessStore.load(api, workspaceId, app.id, { fresh: true })
       : Promise.resolve();
+  },
+
+  /**
+   * What the model does when something changed (`invalidate`, facts/invalidate.ts): a sync, a publish, a new release or a build read every
+   * fact again, once (`refresh`, with the apps the event names); a store read says nothing new to the model (its callers read the
+   * readiness themselves); a staged change has its own lighter reaction in `watch`.
+   */
+  react(api: Api, i: Invalidation): Promise<void> {
+    if (!REFRESHES_MODEL[i.event]) return Promise.resolve();
+    // A sync of twenty apps in a row (the portfolio) is one read of the workspace facts, not twenty: the apps are collected for a moment.
+    let batch = refreshBatches[i.workspaceId];
+    if (batch === undefined) {
+      const made: RefreshBatch = {
+        ids: new Set(),
+        done: [],
+        timer: setTimeout(() => {
+          delete refreshBatches[i.workspaceId];
+          const ids = [...made.ids];
+          appStateStore.refresh(api, i.workspaceId, ids).then(
+            () => made.done.forEach((f) => f()),
+            () => made.done.forEach((f) => f()),
+          );
+        }, REFRESH_COLLECT_MS),
+      };
+      batch = refreshBatches[i.workspaceId] = made;
+    }
+    for (const id of i.appIds) batch.ids.add(id);
+    const b = batch;
+    return new Promise<void>((resolve) => b.done.push(resolve));
   },
 
   /** A mutation is done (published, discarded, a sync ended): every fact is read again, once. */

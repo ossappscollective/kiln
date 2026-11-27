@@ -42,16 +42,18 @@ test('only the Graphics tab judges the store\'s images, with core\'s rule; nothi
   assert.match(read('lib/assets/over-limit.ts'), /p\.count <= p\.max/);
 });
 
-test('the comparison of the release step follows the one announcement that the store was read again', () => {
+test('the comparison of the release step follows the one invalidation that the store was read again', () => {
   const step = read('components/release/stepper/StepAssets.svelte');
-  assert.match(step, /onStagedChanged/);
-  assert.match(step, /detail\.reason !== 'store_read'/);
-  assert.match(step, /readCache\.forget\(ws, `assetdiff\/\$\{mine\}`\)/);
+  assert.match(step, /onInvalidated/);
+  assert.match(step, /i\.event !== 'store_read'/);
+  // `invalidate` forgets `assetdiff/` (facts/invalidate.ts); the step never forgets a key itself.
+  assert.doesNotMatch(step, /readCache\.forget/);
 });
 
-test('"Read again" of the Graphics tab forgets the comparison and reads the counts next to the repository\'s again', () => {
+test('"Read again" of the Graphics tab invalidates the store read (the comparison is forgotten there) and reads the counts next to the repository\'s again', () => {
   const tab = read('components/assets/AssetsTab.svelte');
-  assert.match(tab, /readCache\.forget\(workspaceId, `assetdiff\/\$\{app\.id\}`\)/);
+  assert.match(tab, /invalidate\('store_read', \{ workspaceId, appId: app\.id, keepGraphics: true, origin: 'graphics' \}\)/);
+  assert.doesNotMatch(tab, /readCache\.forget/);
   assert.match(tab, /storeSide: next\.storeSide/);
   assert.match(tab, /appStateStore\.storeRead\(/);
 });

@@ -11,7 +11,7 @@
   import type { Api } from '../../lib/api.ts';
   import { type ProposalSummary, proposalHint, proposalHintText } from '../../lib/asset-proposal-hint.ts';
   import { t } from '../../lib/i18n/t.ts';
-  import { onStagedChanged } from '../../lib/staged-sync.ts';
+  import { onInvalidated } from '../../lib/facts/invalidate.ts';
   import { createReadingsScope } from '../../lib/sync-scope.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Button from '../ui/Button.svelte';
@@ -54,8 +54,9 @@
   });
   $effect(() => {
     const id = app.id;
-    return onStagedChanged((d) => {
-      if (d.appId === id) read();
+    // What the summary depends on (the staged changes, the releases a sync read, the builds, the store) changed: read it again.
+    return onInvalidated((i) => {
+      if (i.appIds.length === 0 || i.appIds.includes(id)) read();
     });
   });
 </script>

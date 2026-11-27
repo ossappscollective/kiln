@@ -36,7 +36,8 @@
   import { PUBLISHED_EVENT } from '../../lib/app-page.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
-  import { batchAppIds, onStagedChanged } from '../../lib/staged-sync.ts';
+  import { invalidate, onInvalidated } from '../../lib/facts/invalidate.ts';
+  import { batchAppIds } from '../../lib/staged-sync.ts';
   import { canSubmit } from '../../lib/store-submit.ts';
   import { type AppGroup, groupApps, groupOf } from '../../lib/app-groups.ts';
   import { type AppSection, appAddress, resolveScope, visibleSections } from '../../lib/app-scope.ts';
@@ -220,7 +221,7 @@
       releases[app.id] = outcome.releases;
       toast.success(syncSummaryText(appLabel(outcome.app), outcome.sync));
       // The sync read the store: what was kept about its graphics (here and on the server) and the readiness behind a blocked submit are stale.
-      void appStateStore.storeRead(api, workspaceId, outcome.app, { announce: true, role });
+      void invalidate('sync', { workspaceId, appId: outcome.app.id });
     } else {
       // A failed sync is stored on the app, so the server sends the app back with the new message.
       if (outcome.app) records[app.id] = outcome.app;
@@ -259,6 +260,8 @@
       problem = problem ?? rest.problem;
     }
     if (mine !== generation) return;
+    // The rest of the sync (the listing, TestFlight, the CI runs) read builds and releases too: what was kept of them is old.
+    void invalidate('build_changed', { workspaceId, appIds: list.map((m) => m.id) });
     if (problem) toast.error(t('app:sync.problem', { message: problem }));
     // The queue works in the background: wait (at most a minute and a half) until this app has no feed being read and no job waiting.
     for (let i = 0; queued && i < 36 && mine === generation; i++) {
@@ -273,8 +276,8 @@
   }
 
   // Something was published from this app's "Review and publish all": read the store again and show the releases (where the new state is).
-  // The ONE listener of staged state (lib/staged-sync.ts): a stage, unstage, discard or publish anywhere (the cart, the listing, the graphics
-  // tab, a release page) makes this read the staged and pending state of those apps again; every screen reads the same stores.
+  // Hears the ONE invalidation (lib/facts/invalidate.ts): a stage, unstage, discard, publish, sync or store read anywhere (the cart, the listing,
+  // the graphics tab, a release page) makes this read the staged and pending state of those apps again; every screen reads the same stores.
   $effect(() => {
     const mine = () => members.map((m) => m.id);
     const batch = batchAppIds((appIds) => {
@@ -282,7 +285,10 @@
       const ids = appIds.filter((a) => known.includes(a));
       if (ids.length > 0) void pendingStore.refresh(api, workspaceId, ids, { submit: canSubmit(role) });
     });
-    const off = onStagedChanged((d) => batch.add(d.appId));
+    const off = onInvalidated((i) => {
+      if (i.workspaceId !== workspaceId || (i.event !== 'staged_changed' && i.event !== 'publish' && i.event !== 'store_read' && i.event !== 'sync')) return;
+      for (const id of i.appIds) batch.add(id);
+    });
     return () => {
       off();
       batch.cancel();

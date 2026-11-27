@@ -14,6 +14,7 @@
   import { credentialKindInfo, isCredentialKind } from '@kiln/core';
   import { tick } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { invalidate } from '../../lib/facts/invalidate.ts';
   import { repositoryName } from '../../lib/repositories.ts';
   import {
     MAX_IMPORT_BATCH,
@@ -223,6 +224,7 @@
     syncResults = results;
     syncCurrent = '';
     syncing = false;
+    void invalidate('sync', { workspaceId, appIds: createdApps.map((a) => a.id) });
     onchanged?.();
     await tick();
     syncStatus?.focus();

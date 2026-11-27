@@ -1,3 +1,4 @@
+import { APP_LIST_MAX_AGE_MS } from '@kiln/core';
 import { untrack } from 'svelte';
 import type { Api } from './api.ts';
 import { mergeLocales } from './app-header.ts';
@@ -12,7 +13,7 @@ import type { AppSummary, ReleaseSummary } from './types.ts';
  * A workspace change starts clean. A count that was never set is null: no badge.
  */
 
-const APPS_MAX_AGE_MS = 60_000;
+const APPS_MAX_AGE_MS = APP_LIST_MAX_AGE_MS;
 
 let workspace = $state('');
 let list = $state<AppSummary[] | null>(null);

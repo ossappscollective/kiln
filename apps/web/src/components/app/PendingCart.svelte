@@ -35,7 +35,7 @@
   } from '../../lib/pending-cart.ts';
   import { PUBLISHED_EVENT } from '../../lib/app-page.ts';
   import type { StepRequest } from '../../lib/pending.ts';
-  import { onStagedChanged } from '../../lib/staged-sync.ts';
+  import { onInvalidated } from '../../lib/facts/invalidate.ts';
   import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import { classifyPriceFailure } from '../../lib/prices.ts';
@@ -173,8 +173,10 @@
       if (document.visibilityState === 'visible') void refresh();
     };
     // A discard, an unstage or a publish anywhere (not only in this cart) reads the cart again.
-    const offStaged = onStagedChanged((d) => {
-      if (d.reason !== 'stage' && ids.includes(d.appId)) void refresh();
+    const offStaged = onInvalidated((i) => {
+      if (i.event !== 'staged_changed' && i.event !== 'publish' && i.event !== 'store_read' && i.event !== 'sync') return;
+      if (i.event === 'staged_changed' && i.reason === 'stage') return;
+      if (i.appIds.length === 0 || i.appIds.some((id) => ids.includes(id))) void refresh();
     });
     // "2 staged" on a locale row: open the drawer on that locale's items.
     const onOpen = (e: Event) => {

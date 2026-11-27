@@ -16,7 +16,7 @@
   import { compareState, statusLabel } from '../../../lib/asset-compare.ts';
   import { settle } from '../../../lib/bounded-read.ts';
   import { stagingError } from '../../../lib/staged.ts';
-  import { onStagedChanged } from '../../../lib/staged-sync.ts';
+  import { onInvalidated } from '../../../lib/facts/invalidate.ts';
   import { t } from '../../../lib/i18n/t.ts';
   import { readCache } from '../../../lib/read-cache.ts';
   import { assetsLine, stagedSetsLine } from '../../../lib/release-assets.ts';
@@ -83,14 +83,13 @@
     }
   });
 
-  // The store was read again (a sync, "Read again" of the Graphics tab, "Check again") or a push changed it: what this comparison kept of the
-  // store is stale, so it is forgotten and read again (the server's own read is already fresh then): one source of the store's images.
+  // The store was read again (a sync, "Read again" of the Graphics tab, "Check again"), a push changed it, or a version was created: what this
+  // comparison kept of the store is stale (`invalidate` already forgot it) and it is read again (the server's own read is already fresh then):
+  // one source of the store's images.
   $effect(() => {
     const mine = app.id;
-    const ws = workspaceId;
-    return onStagedChanged((detail) => {
-      if (detail.appId !== mine || (detail.reason !== 'store_read' && detail.reason !== 'publish')) return;
-      readCache.forget(ws, `assetdiff/${mine}`);
+    return onInvalidated((i) => {
+      if (!i.appIds.includes(mine) || (i.event !== 'store_read' && i.event !== 'publish' && i.event !== 'sync' && i.event !== 'release_created')) return;
       void read(false);
     });
   });

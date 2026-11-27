@@ -60,7 +60,8 @@
 
   async function read() {
     failed = false;
-    await appStateStore.refresh(api, workspaceId);
+    // Every app of the workspace: a refresh without app ids left the release pipelines and store builds as they were.
+    await appStateStore.refresh(api, workspaceId, (navSignals.appsOf(workspaceId) ?? []).map((a) => a.id));
     failed = !appStateStore.pendingKnown(workspaceId);
   }
 
