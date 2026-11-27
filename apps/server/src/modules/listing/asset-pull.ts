@@ -3,6 +3,7 @@ import {
   type AssetPlatform,
   type AssetSlot,
   type FileChange,
+  groupStoreImages,
   IMESSAGE_PREFIX,
   storeImageKey,
   storeSetKey,
@@ -130,24 +131,35 @@ export async function pullStoreImages(
       coded('listing.noRepositoryPull'),
     );
 
-  // Selection.
-  const setKeys = new Map<string, (typeof store.view.sets)[number]>();
-  const imageKeys = new Map<
-    string,
-    { set: (typeof store.view.sets)[number]; position: number; ref: string }
-  >();
-  for (const s of store.view.sets) {
-    if ((s.device ?? '').startsWith(IMESSAGE_PREFIX)) continue;
-    if (supports(platform, 'screenshotsByDevice') && s.kind !== 'screenshot') continue;
-    if (s.kind === 'preview' || s.kind === 'app_icon') continue;
-    const slot: AssetSlot = { kind: s.kind, device: s.device };
-    setKeys.set(storeSetKey(platform, s.locale, slot), s);
-    for (const f of s.files)
-      imageKeys.set(storeImageKey(platform, s.locale, slot, f.position), {
-        set: s,
-        position: f.position,
-        ref: f.ref,
-      });
+  // Selection. ONE set per DISPLAY (`groupStoreImages`): the PRIMARY group, the one a push writes to and the repository comparison
+  // pairs with. An iPad 13" display also sits in a legacy sibling group; its images are the same display, not other images to
+  // put in the repository (before: the LAST sibling of a display won and the primary group was skipped; a single image was found by
+  // the store's running position, which continues across groups, and used as the repository index). An image is selected by its
+  // `${setKey}#${store position}` (the row's `storePosition`, unique within a display) and found by its REF; its repository place is
+  // its index in the group.
+  type PullSet = {
+    set: (typeof store.view.sets)[number];
+    files: { ref: string; position: number; index: number; file: (typeof store.view.sets)[number]['files'][number] }[];
+  };
+  const setKeys = new Map<string, PullSet>();
+  const imageKeys = new Map<string, { ref: string }>();
+  for (const display of groupStoreImages(store.view)) {
+    if ((display.device ?? '').startsWith(IMESSAGE_PREFIX)) continue;
+    if (supports(platform, 'screenshotsByDevice') && display.kind !== 'screenshot') continue;
+    if (display.kind === 'preview' || display.kind === 'app_icon') continue;
+    const slot: AssetSlot = { kind: display.kind, device: display.device };
+    const key = storeSetKey(platform, display.locale, slot);
+    setKeys.set(key, {
+      set: display.primaryGroup.set,
+      files: display.primaryGroup.files.map((file, index) => ({
+        ref: file.ref,
+        position: file.position,
+        index,
+        file,
+      })),
+    });
+    for (const f of display.primaryGroup.files)
+      imageKeys.set(storeImageKey(platform, display.locale, slot, f.position), { ref: f.ref });
   }
   const wantSets = new Set(input.sets ?? []);
   const wantFiles = new Set(input.files ?? []);
@@ -186,16 +198,17 @@ export async function pullStoreImages(
   let unchanged = 0;
   const left: string[] = [];
 
-  for (const [setKey, set] of setKeys) {
+  for (const [setKey, pullSet] of setKeys) {
+    const set = pullSet.set;
     const slot: AssetSlot = { kind: set.kind, device: set.device };
-    const positionsWanted = set.files.filter(
+    const positionsWanted = pullSet.files.filter(
       (f) =>
         everything ||
         wantSets.has(setKey) ||
         wantFiles.has(storeImageKey(platform, set.locale, slot, f.position)),
     );
     if (positionsWanted.length === 0) continue;
-    const whole = everything || wantSets.has(setKey) || positionsWanted.length === set.files.length;
+    const whole = everything || wantSets.has(setKey) || positionsWanted.length === pullSet.files.length;
     const repoSet = repoSets.sets.get(`${set.locale}\0${set.kind}\0${set.device ?? ''}`);
     const current = (repoSet?.files ?? []).map((a) => ({ path: a.path, oid: a.oid }));
     const laid = layoutFor({
@@ -234,7 +247,7 @@ export async function pullStoreImages(
         );
         continue;
       }
-      if (!f.downloadable) {
+      if (!f.file.downloadable) {
         fail('no_address', 'The store gave no image address for this file.');
         continue;
       }
@@ -278,7 +291,7 @@ export async function pullStoreImages(
       } else if (supports(platform, 'screenshotsByDevice')) {
         unverified.push(key);
       }
-      fetched.set(f.position, {
+      fetched.set(f.index, {
         bytes: image.bytes,
         format: image.format,
         oid: gitBlobOid(image.bytes),
@@ -289,11 +302,11 @@ export async function pullStoreImages(
     let wanted: Wanted[];
     if (whole) {
       wanted = [];
-      for (const f of set.files) {
-        const got = fetched.get(f.position);
+      for (const f of pullSet.files) {
+        const got = fetched.get(f.index);
         if (!got) {
           // Not taken (or not asked for): keep what the repository has at this position, if anything.
-          const keep = current[f.position - 1];
+          const keep = current[f.index];
           if (keep && keep.oid !== null)
             wanted.push({ kind: 'existing', path: keep.path, oid: keep.oid });
           continue;
@@ -310,9 +323,9 @@ export async function pullStoreImages(
         .filter((c) => c.oid !== null)
         .map((c) => ({ kind: 'existing' as const, path: c.path, oid: c.oid as string }));
       for (const f of positionsWanted) {
-        const got = fetched.get(f.position);
+        const got = fetched.get(f.index);
         if (!got) continue;
-        const index = f.position - 1;
+        const index = f.index;
         if (index < wanted.length) {
           const here = wanted[index] as Wanted;
           if (here.kind === 'existing' && here.oid === got.oid) continue;
@@ -326,7 +339,7 @@ export async function pullStoreImages(
             message:
               'The repository has fewer images before this one; pull the images before it too.',
           });
-          fetched.delete(f.position);
+          fetched.delete(f.index);
         }
       }
     }

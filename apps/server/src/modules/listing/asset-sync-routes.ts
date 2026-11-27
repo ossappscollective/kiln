@@ -4,8 +4,11 @@ import {
   ASSET_SYNC_LIMITS,
   type AssetKind,
   can,
+  findDisplay,
   FIX_KINDS,
   type FixKind,
+  groupStoreImages,
+  refsOfDisplay,
   sniffImageFormat,
 } from '@kiln/core';
 import type { Database } from '@kiln/db';
@@ -531,15 +534,13 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
           if (!app) return undefined;
           const read = await getStoreImages(store, { workspaceId: ws(c), app, actor: actor(c) });
           if (!read.ok) return undefined;
-          const refs = new Set<string>();
-          for (const set of read.view.sets)
-            if (
-              set.locale === slot.locale &&
-              set.kind === slot.kind &&
-              set.device === slot.device
-            )
-              for (const f of set.files) refs.add(f.ref);
-          return refs;
+          // Every image of the display (all its groups): a removal may name any of them.
+          const display = findDisplay(groupStoreImages(read.view), {
+            locale: slot.locale,
+            kind: slot.kind as AssetKind,
+            device: slot.device,
+          });
+          return new Set(display === undefined ? [] : refsOfDisplay(display));
         },
       });
       return done.ok

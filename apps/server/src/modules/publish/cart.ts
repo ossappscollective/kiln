@@ -1,7 +1,13 @@
 import { createHash } from 'node:crypto';
-import type { Platform, StoreId } from '@kiln/core';
+import {
+  type AssetKind,
+  findDisplay,
+  groupStoreImages,
+  type Platform,
+  type StoreId,
+} from '@kiln/core';
 import type { Database } from '@kiln/db';
-import { getApp, listApps, type ManagedApp } from '../../services/apps.ts';
+import { getApp, type ManagedApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { getPolicy } from '../../services/step-up.ts';
@@ -32,8 +38,7 @@ import {
 } from '../reviews/replies.ts';
 import { storeFor } from '../reviews/sync.ts';
 import { metadataLock } from './metadata-lock.ts';
-import { loadPendingFacts } from './pending.ts';
-import { type Publishing, publishingOf } from './publishing.ts';
+import { loadPendingFacts, type PendingFacts } from './pending.ts';
 import { buildStagedView, type StagedContext, unstage } from './staged-changes.ts';
 import { applyDraftPush, DRAFT_ENV, type DraftContext, previewDraftPush } from './store-draft.ts';
 
@@ -170,7 +175,13 @@ async function authorsOf(db: Database, ids: readonly string[]): Promise<Map<stri
 /** The cart of an app, from stored state only: no store and no repository is read. */
 export async function loadCart(
   ctx: Pick<CartContext, 'db' | 'now' | 'draft' | 'reply' | 'price'>,
-  input: { workspaceId: string; app: ManagedApp; rights: CartRights },
+  input: {
+    workspaceId: string;
+    app: ManagedApp;
+    rights: CartRights;
+    /** The pending facts and the staged view the caller already loaded (`readAppFacts` reads them once for the app and passes them on). */
+    loaded?: { facts: PendingFacts; view: Awaited<ReturnType<typeof buildStagedView>> | undefined };
+  },
 ): Promise<LoadedCart> {
   const { db } = ctx;
   const { app, rights, workspaceId } = input;
@@ -184,9 +195,12 @@ export async function loadCart(
   const authorIds: string[] = [];
 
   // ----- staged listing texts, graphics and release fields (one push writes them all) -----
-  const facts = await loadPendingFacts(db, { workspaceId, appId: app.id, now: ctx.now() });
+  const facts =
+    input.loaded?.facts ??
+    (await loadPendingFacts(db, { workspaceId, appId: app.id, now: ctx.now() }));
   if (facts.unpushed.has(app.id)) {
-    const view = await buildStagedView({ db, now: ctx.now }, workspaceId, app);
+    const view =
+      input.loaded?.view ?? (await buildStagedView({ db, now: ctx.now }, workspaceId, app));
     const bundle = `push:${app.id}`;
     const staged: CartItem[] = [];
     const base = (kind: CartKind, rawId: string) => ({
@@ -225,15 +239,14 @@ export async function loadCart(
         ref: { locale: t.locale, field: t.field },
       });
     }
-    const lastStore = lastStoreImages(workspaceId, app.id);
+    // The store's side of a staged set is the DISPLAY it replaces (`groupStoreImages`: every group, never one group, never summed by hand).
+    const lastStoreView = lastStoreImages(workspaceId, app.id);
+    const lastDisplays = lastStoreView ? groupStoreImages(lastStoreView) : null;
     for (const a of view.assets.filter((x) => !x.pushed)) {
-      const before = lastStore
-        ? lastStore.sets
-            .filter(
-              (s) => s.locale === a.locale && s.kind === a.slot.kind && s.device === a.slot.device,
-            )
-            .reduce((n, s) => n + s.files.length, 0)
-        : null;
+      const display = lastDisplays
+        ? findDisplay(lastDisplays, { locale: a.locale, kind: a.slot.kind as AssetKind, device: a.slot.device })
+        : undefined;
+      const before = lastDisplays ? (display === undefined ? 0 : display.counts.merged) : null;
       raw.set(`graphics:${a.id}`, { kind: 'graphics', rawId: a.id });
       staged.push({
         ...base('graphics', a.id),
@@ -455,34 +468,6 @@ export async function loadCart(
   return { items, raw };
 }
 
-export async function getCart(
-  ctx: Pick<CartContext, 'db' | 'now' | 'draft' | 'reply' | 'price'>,
-  input: {
-    workspaceId: string;
-    appId: string;
-    rights: CartRights;
-    claimTtlMs?: number | undefined;
-  },
-): Promise<
-  { ok: true; items: CartItem[]; publishing: Publishing | null; generatedAt: number } | Failure
-> {
-  const app = await getApp(ctx.db, input.workspaceId, input.appId);
-  if (!app) return failure(404, 'not_found');
-  const { items } = await loadCart(ctx, {
-    workspaceId: input.workspaceId,
-    app,
-    rights: input.rights,
-  });
-  // A batch publish of this app that runs now (see `publishing.ts`): its items are being written, so the screens show them as such.
-  const publishing = await publishingOf(ctx.db, {
-    workspaceId: input.workspaceId,
-    appId: app.id,
-    now: ctx.now(),
-    ttlMs: input.claimTtlMs,
-  });
-  return { ok: true, items, publishing, generatedAt: ctx.now() };
-}
-
 // ---------------------------------------------------------------------------------------------
 // The preview of one item (docs/adr/0067-diff-and-preview.md): the full before and after the list only excerpts
 
@@ -605,13 +590,11 @@ export async function cartItemDetail(
           : `${base}/assets/file?path=${encodeURIComponent(f.path)}${f.commit ? `&commit=${encodeURIComponent(f.commit)}` : ''}`,
       }));
       const last = lastStoreImages(workspaceId, app.id);
+      const lastDisplay = last
+        ? findDisplay(groupStoreImages(last), { locale: a.locale, kind: a.slot.kind as AssetKind, device: a.slot.device })
+        : undefined;
       const before = last
-        ? last.sets
-            .filter(
-              (s) => s.locale === a.locale && s.kind === a.slot.kind && s.device === a.slot.device,
-            )
-            .flatMap((s) => s.files)
-            .sort((x, y) => x.position - y.position)
+        ? (lastDisplay === undefined ? [] : lastDisplay.files)
             .slice(0, DETAIL_IMAGES_MAX)
             .map((f) => ({
               position: f.position,
@@ -653,76 +636,6 @@ export async function cartItemDetail(
     };
   }
   return { ok: true, detail };
-}
-
-// ---------------------------------------------------------------------------------------------
-// The workspace-wide count (the nav badge): how many items every app's cart holds, no payload per item
-
-export type CartSummaryApp = {
-  /** Both `appId` and `id`, so a token limited to some apps is filtered by the usual rule. */
-  appId: string;
-  id: string;
-  app: { id: string; name: string; platform: Platform; store: StoreId };
-  /** Items in this app's cart (exactly the length of its `GET /apps/{id}/pending/cart`). */
-  count: number;
-  kinds: Partial<Record<CartKind, number>>;
-};
-export type CartSummary = {
-  /** Only apps with something in the cart. */
-  apps: CartSummaryApp[];
-  totals: { apps: number; count: number };
-  generatedAt: number;
-};
-
-/** Apps read per request at most (the cost is one cart per app that has anything; the rest of the apps cost no cart at all). */
-export const CART_SUMMARY_MAX_APPS = 200;
-
-/**
- * `GET /pending/cart-summary`: the count of every cart of the workspace, from stored state. Three small queries find the apps that
- * hold anything (a staged change, a staged price, a reply draft); only those have their cart built, by the very function behind the
- * app's own cart, so the numbers cannot drift. `appIds` limits the apps (a token limited to some apps).
- */
-export async function cartSummary(
-  ctx: Pick<CartContext, 'db' | 'now' | 'draft' | 'reply' | 'price'>,
-  input: { workspaceId: string; appIds?: readonly string[] | undefined; rights: CartRights },
-): Promise<CartSummary> {
-  const { db } = ctx;
-  const { workspaceId } = input;
-  const holding = new Set<string>();
-  for (const sql of [
-    'SELECT DISTINCT app_id FROM staged_changes WHERE workspace_id = ? AND (pushed_hash IS NULL OR pushed_hash <> value_hash)',
-    'SELECT DISTINCT app_id FROM staged_price_changes WHERE workspace_id = ?',
-    "SELECT DISTINCT app_id FROM review_reply_drafts WHERE workspace_id = ? AND status IN ('draft', 'failed', 'sending', 'unknown')",
-  ]) {
-    for (const r of await db.query(sql, [workspaceId])) holding.add(String(r.app_id));
-  }
-  const wanted = input.appIds === undefined ? undefined : new Set(input.appIds);
-  const candidates = (await listApps(db, workspaceId))
-    .filter((a) => holding.has(a.id) && (wanted === undefined || wanted.has(a.id)))
-    .slice(0, CART_SUMMARY_MAX_APPS);
-  const lines: CartSummaryApp[] = [];
-  for (const app of candidates) {
-    const { items } = await loadCart(ctx, { workspaceId, app, rights: input.rights });
-    if (items.length === 0) continue;
-    const kinds: Partial<Record<CartKind, number>> = {};
-    for (const i of items) kinds[i.kind] = (kinds[i.kind] ?? 0) + 1;
-    lines.push({
-      appId: app.id,
-      id: app.id,
-      app: { id: app.id, name: app.name, platform: app.platform, store: storeFor(app.platform) },
-      count: items.length,
-      kinds,
-    });
-  }
-  lines.sort(
-    (a, b) =>
-      b.count - a.count || a.app.name.localeCompare(b.app.name) || a.appId.localeCompare(b.appId),
-  );
-  return {
-    apps: lines,
-    totals: { apps: lines.length, count: lines.reduce((n, l) => n + l.count, 0) },
-    generatedAt: ctx.now(),
-  };
 }
 
 // ---------------------------------------------------------------------------------------------

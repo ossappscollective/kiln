@@ -1162,3 +1162,37 @@ dbTest(
     );
   },
 );
+
+dbTest(
+  'pull of a display held in two groups: the primary group is pulled (by the refs of its rows, not by the store position used as an index); the legacy sibling is never pulled',
+  async (db) => {
+    const ipad = (position: number, target: string, id: string) =>
+      apple(position, { device: 'ipad_13', target, id, width: 2048, height: 2732 });
+    const bodies: Record<string, Uint8Array> = {};
+    for (let p = 1; p <= 12; p++)
+      bodies[`/image/thumb/Pic${p}/2048x2732bb.png`] = rgbPng(2048, 2732, () => [p, p, p]);
+    const net = cdn(bodies);
+    const t = await boot(db, net);
+    const app = await t.addApp('ios');
+    t.stores.ios.imageRecords = [
+      // The legacy group is read first: its images are 1..4, the primary group's are 5..12 (the store's counter continues across groups).
+      ...Array.from({ length: 4 }, (_, i) => ipad(i + 1, 'APP_IPAD_PRO_129', `old${i + 1}`)),
+      ...Array.from({ length: 8 }, (_, i) => ipad(i + 5, 'APP_IPAD_PRO_3GEN_129', `new${i + 1}`)),
+    ];
+    const all = await t.call(t.owner, 'POST', `/apps/${app}/assets/pull`, {});
+    assert.equal(all.status, 200, all.text);
+    assert.equal(all.body.pull.written, 8, 'the 8 images of the primary group, not the 4 of the last-read sibling, not 12');
+    const fetched = net.seen.map((r) => r.url.pathname).filter((p) => p.includes('/Pic'));
+    assert.ok(fetched.every((p) => /Pic([5-9]|1[0-2])\//.test(p)), `only primary images were downloaded: ${fetched.join(' ')}`);
+    // A sibling image is not selectable (it has no counterpart in the repository); a primary image is, by its store position.
+    const sibling = await t.call(t.owner, 'POST', `/apps/${app}/assets/pull`, {
+      files: ['ios/en-US/screenshot:ipad_13#2'],
+    });
+    assert.equal(sibling.status, 422, sibling.text);
+    const first = await t.call(t.owner, 'POST', `/apps/${app}/assets/pull`, {
+      files: ['ios/en-US/screenshot:ipad_13#5'],
+    });
+    assert.equal(first.status, 200, first.text);
+    assert.equal(first.body.pull.written, 1, 'store position 5 is the FIRST image of the primary group: it goes to place 1 of the repository set');
+  },
+);

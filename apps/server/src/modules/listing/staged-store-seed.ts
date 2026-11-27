@@ -1,5 +1,12 @@
 import { createHash } from 'node:crypto';
-import { ASSET_SYNC_LIMITS, type AssetSlot, sniffImageFormat } from '@kiln/core';
+import {
+  ASSET_SYNC_LIMITS,
+  type AssetKind,
+  type AssetSlot,
+  findDisplay,
+  groupStoreImages,
+  sniffImageFormat,
+} from '@kiln/core';
 import { coded } from '../../i18n/problem.ts';
 import type { ManagedApp } from '../../services/apps.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
@@ -34,11 +41,15 @@ export function storeSeed(
       actor: input.actor,
     });
     if (!read.ok) return read;
-    const sets = read.view.sets.filter(
-      (s) =>
-        s.locale === input.locale && s.kind === input.slot.kind && s.device === input.slot.device,
-    );
-    const files = sets.flatMap((s) => s.files).sort((a, b) => a.position - b.position);
+    // The DISPLAY the staged set replaces (every group of it, the primary group first: `groupStoreImages`), not the images sorted by the
+    // store's running position, which interleaves sibling groups. A display held in 10 + 2 images seeds 12 and is `stagedFits: false`:
+    // it must be trimmed to the staged limit before it can be pushed (the screen offers it), each store group alone is fine.
+    const display = findDisplay(groupStoreImages(read.view), {
+      locale: input.locale,
+      kind: input.slot.kind as AssetKind,
+      device: input.slot.device,
+    });
+    const files = display === undefined ? [] : display.files;
     const entries: SetEntry[] = [];
     for (const file of files) {
       const got = await storeImageBytes(ctx, {
