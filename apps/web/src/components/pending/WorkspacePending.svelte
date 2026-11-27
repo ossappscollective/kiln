@@ -13,6 +13,7 @@
   import type { Api } from '../../lib/api.ts';
   import { appAddress } from '../../lib/app-scope.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import { reportShown } from '../../lib/app-state/dev-assert.ts';
   import { openSubmitChecklist } from '../../lib/app-state/panel.svelte.ts';
   import { KIND_LABEL, navSignals, pendingAcrossText } from '../../lib/app-state/pending-facade.ts';
   import { k, t } from '../../lib/i18n/t.ts';
@@ -36,6 +37,9 @@
   const known = $derived(appStateStore.pendingKnown(workspaceId));
   const rows = $derived(appStateStore.workspaceRows(workspaceId, navSignals.appsOf(workspaceId)));
   const totals = $derived(appStateStore.workspaceTotals(workspaceId, navSignals.appsOf(workspaceId)));
+  $effect(() => {
+    if (known && totals !== null) reportShown('pendingCount', totals.changes, 'workspacePending');
+  });
   /** The apps that publish right now, whatever is left in their carts (a publish can empty the cart before it ends). */
   const publishingApps = $derived(appStateStore.workspacePublishing(workspaceId, navSignals.appsOf(workspaceId)));
   /** Apps whose latest publish did not go through (and nobody hid it), with the reason; an app that publishes again shows its progress instead. */

@@ -14,6 +14,7 @@
   import { type Role } from '@kiln/core';
   import { type Api, ApiError } from '../../lib/api.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import { reportShown } from '../../lib/app-state/dev-assert.ts';
   import { cartStore } from '../../lib/app-state/cart-store.svelte.ts';
   import { PUBLISH_AGAIN_EVENT, stepsToRepeat } from '../../lib/app-state/actions.ts';
   import type { PlatformScope } from '../../lib/app-scope.ts';
@@ -86,6 +87,12 @@
   const failures = $derived(appState.failures);
   const shownRows = $derived(markBeingPublished(rows, new Set(publishing.map((p) => p.appId))));
   const count = $derived(appState.pendingCount);
+  $effect(() => {
+    if (!appState.pendingKnown) return;
+    reportShown('pendingCount', count, 'pendingCartDrawer');
+    // The rows of the carts: once every record's cart was read (not while one is being read), their number is the count.
+    if (ids.every((id) => cartStore.rows(workspaceId, id) !== null && !cartStore.loading(workspaceId, id))) reportShown('pendingCount', rows.length, 'pendingCartRows');
+  });
   // Each step that starts or ends changes what the cart holds (the pushed items leave it): read it again, once per change.
   let stepKey = '';
   $effect(() => {

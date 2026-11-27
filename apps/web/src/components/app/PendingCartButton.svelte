@@ -14,6 +14,7 @@
 -->
 <script lang="ts">
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import { reportShown } from '../../lib/app-state/dev-assert.ts';
   import { openPendingPanel } from '../../lib/app-state/panel.svelte.ts';
   import { cartButton } from '../../lib/app-state/pending-facade.ts';
   import { t } from '../../lib/i18n/t.ts';
@@ -33,6 +34,9 @@
   const ready = $derived(badge.kind === 'failed' && badge.ready === true);
   const count = $derived(badge.kind === 'idle' ? 0 : badge.count);
   const showCount = $derived(count > 0);
+  $effect(() => {
+    if (shown) reportShown('pendingCount', count, 'topBar');
+  });
   const label = $derived(busy ? t('publish:publishing.chip') : failed ? (ready ? t('state:topBar.ready') : blocked ? t('state:topBar.blocked') : t('state:topBar.failed')) : t('app:cart.fabLabel'));
 
   function press() {

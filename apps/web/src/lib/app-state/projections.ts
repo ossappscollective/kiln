@@ -229,15 +229,11 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'boardCard',
     components: ['components/dashboard/Board.svelte', 'components/dashboard/BoardCard.svelte'],
-    mirrors: ['components/dashboard/Board.svelte:113 appStateStore.lineOf(workspaceId, [card.appId]) (the model line of the record)'],
+    mirrors: ['components/dashboard/Board.svelte appStateStore.lineOf(workspaceId, [card.appId]) (the model line of the record, one per card)'],
     project(w) {
-      const out: Facts = {};
-      // One card per record: each shows the model's line for its own record (a count of 0 is not drawn).
-      for (const r of w.records) {
-        const line = lineOf(w, [r.id]);
-        if (line !== null && line.count > 0) out[`pendingCount:${r.id}`] = line.count;
-      }
-      return out;
+      // One card per record, each with the model's line of its own record (a count of 0 is not drawn): the cards add up to the workspace.
+      const total = w.records.reduce((n, r) => n + (lineOf(w, [r.id])?.count ?? 0), 0);
+      return total > 0 ? { pendingCount: total } : {};
     },
   },
   {

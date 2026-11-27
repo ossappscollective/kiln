@@ -12,6 +12,7 @@
   import type { Api } from '../../lib/api.ts';
   import { attentionItems, blockedCount, buildBoard } from '../../lib/dashboard.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import { reportShown } from '../../lib/app-state/dev-assert.ts';
   import { appLabel, type ReleaseLoad } from '../../lib/portfolio.ts';
   import type { AppSummary, PlanSummary } from '../../lib/types.ts';
   import Skeleton from '../ui/Skeleton.svelte';
@@ -64,6 +65,12 @@
 
   const board = $derived(buildBoard({ apps, releases, plans }));
   const placed = $derived(board.columns.reduce((n, c) => n + c.cards.length, 0));
+  $effect(() => {
+    // The cards add up to the workspace only when every app has its card (an app still loading draws none).
+    if (board.unplaced.length > 0 || !appStateStore.pendingKnown(workspaceId)) return;
+    const total = board.columns.reduce((n, c) => n + c.cards.reduce((m, card) => m + (appStateStore.lineOf(workspaceId, [card.appId])?.count ?? 0), 0), 0);
+    if (total > 0) reportShown('pendingCount', total, 'boardCard');
+  });
   const blocked = $derived(blockedCount(board));
   const attention = $derived(attentionItems(plans ?? []));
   const everyoneLoading = $derived(apps.length > 0 && board.unplaced.length === apps.length && board.unplaced.every((u) => u.reason === 'loading'));
