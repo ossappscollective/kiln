@@ -75,13 +75,12 @@ export type PlaySubmitConnectorOptions = Omit<StoreHttpOptions, 'store'> & {
 const DEFAULT_BASE = 'https://androidpublisher.googleapis.com';
 /** Image reads of one throw away edit that run at the same time (Google's quota is per minute, so a few, not all). */
 const READ_CONCURRENCY = 4;
-/** The image types read for the checks (screenshots of phones and tablets, icon, feature graphic); more when the push touched them. */
+/** Every image type the rules know (phone, 7", 10", TV, Wear screenshots, icon, feature graphic, TV banner): the same list `readStoreImages` reads. */
 const CHECKED_IMAGE_TYPES = [
-  'phoneScreenshots',
-  'sevenInchScreenshots',
-  'tenInchScreenshots',
+  ...PLAY_DEVICES.map((d) => d.dir),
   'icon',
   'featureGraphic',
+  'tvBanner',
 ] as const;
 
 const kindOf = (type: string): { kind: AssetKind; device: string | null } | undefined => {

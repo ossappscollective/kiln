@@ -326,23 +326,14 @@ export class AppleDraftConnector
   }
 
   /**
-   * READ ONLY, for the submit connector: the listing of a version (any state): every locale's texts (the fields of
-   * the version localization) and the facts of every screenshot placement group. Writes nothing.
+   * READ ONLY, for the submit connector: the texts of every locale of a version (any state: the fields of the version localization).
+   * The images are NOT read here: the submit reads them through `readStoreImages`, the same read the Graphics tab uses, so readiness and
+   * the Graphics tab cannot see different images. Writes nothing.
    */
   async readListing(versionId: string): Promise<
     {
       locale: string;
       text: Record<string, string | null>;
-      groups: {
-        group: string;
-        images: {
-          id: string;
-          checksum: string | null;
-          width: number | null;
-          height: number | null;
-          state: string | null;
-        }[];
-      }[];
     }[]
   > {
     const locs = await this.#localizations(versionId);
@@ -351,34 +342,7 @@ export class AppleDraftConnector
       const text_: Record<string, string | null> = {};
       for (const field of Object.keys(APPLE_VERSION_LOCALIZATION_ATTRIBUTES))
         text_[field] = text(ref.attributes[attr(field)]) ?? null;
-      const groups = new Map<
-        string,
-        {
-          id: string;
-          checksum: string | null;
-          width: number | null;
-          height: number | null;
-          state: string | null;
-        }[]
-      >();
-      for (const p of await this.#placements(ref.id)) {
-        const a = isRecord(p.image.attributes) ? p.image.attributes : {};
-        const asset = isRecord(a.imageAsset) ? a.imageAsset : {};
-        const list = groups.get(p.group) ?? [];
-        list.push({
-          id: p.id,
-          checksum: hashOfReference(text(a.referenceName)),
-          width: num(asset.width) ?? null,
-          height: num(asset.height) ?? null,
-          state: text(a.state) ?? null,
-        });
-        groups.set(p.group, list);
-      }
-      out.push({
-        locale,
-        text: text_,
-        groups: [...groups].map(([group, images]) => ({ group, images })),
-      });
+      out.push({ locale, text: text_ });
     }
     return out;
   }

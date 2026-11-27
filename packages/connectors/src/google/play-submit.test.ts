@@ -180,6 +180,22 @@ test('submitKey follows the tracks and the listing: a rollout that moved changes
   );
 });
 
+test('readSubmitState reads every image type the rules know: TV and Wear screenshots and the TV banner included', async () => {
+  const { connector } = setup((a) => {
+    a.listings.set('en-US', { language: 'en-US', title: 't', shortDescription: 's', fullDescription: 'f' });
+    a.setImages('en-US', 'tvScreenshots', [new Uint8Array([1]), new Uint8Array([2])]);
+    a.setImages('en-US', 'wearScreenshots', [new Uint8Array([3])]);
+    a.setImages('en-US', 'tvBanner', [new Uint8Array([4])]);
+  });
+  const state = await connector.readSubmitState(REQUEST);
+  const sets = (state.locales[0]?.assets ?? []).map((a) => [a.kind, a.device, a.target, a.images.length]);
+  assert.ok(sets.some((x) => x[1] === 'tv' && x[3] === 2), 'tv screenshots read');
+  assert.ok(sets.some((x) => x[1] === 'wear' && x[3] === 1), 'wear screenshots read');
+  assert.ok(sets.some((x) => x[0] === 'tv_banner' && x[3] === 1), 'tv banner read');
+  // Google gives no pixel size in the listing: a size is known only to the server (header measurement, a note), so none rule fires here
+  assert.ok(state.locales[0]?.assets.every((a) => a.images.every((i) => i.width === null && i.height === null)));
+});
+
 test('readSubmitState reads the image sets a few at a time, not one after the other, and keeps their order', async () => {
   const languages = ['en-US', 'de-DE', 'fr-FR', 'es-ES', 'it-IT', 'ja-JP'];
   const { api } = setup((a) => {

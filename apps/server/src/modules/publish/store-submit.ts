@@ -16,6 +16,7 @@ import {
   byFamily,
   type DraftContent,
   evaluateDraftContent,
+  readinessImagesOf,
   evaluateReviewInformation,
   needsStoreAppId,
   REVIEW_CODES,
@@ -518,6 +519,15 @@ export function evaluateChecks(input: {
   // knows (an image still being processed) is checked here.
   for (const finding of evaluateDraftContent(draftContentOf(ios, state.locales)))
     add(finding as SubmitCheck);
+  // Images no display of the store recognises are in no set (never a blocker): one warning, the same count the Graphics tab shows.
+  const unplaced = readinessImagesOf({ sets: [], unplaced: state.unplacedImages ?? 0 }).notice;
+  if (unplaced !== null)
+    add({
+      code: unplaced.code,
+      severity: 'warning',
+      message: unplaced.message,
+      params: { count: unplaced.count },
+    });
   for (const locale of state.locales)
     for (const set of locale.assets)
       for (const image of set.images)

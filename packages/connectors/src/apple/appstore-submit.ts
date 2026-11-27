@@ -1,5 +1,4 @@
 import {
-  classifyAppleScreenshot,
   missingContactFields,
   PLATFORM_META,
   type ReviewDetailFacts,
@@ -25,7 +24,6 @@ import {
   APPLE_SUBMITTED_VERSION_STATES,
   type StoreSubmitConnector,
   type SubmitApplyInput,
-  type SubmitAssetSet,
   SubmitDriftError,
   type SubmitLocale,
   SubmitOutcomeUnknownError,
@@ -37,6 +35,7 @@ import {
   AppStoreConnectTokenProvider,
   parseAppStoreConnectSecret,
 } from './apple-auth.ts';
+import { submitImagesOf } from '../store-submit-images.ts';
 import { AppleDraftConnector } from './appstore-draft.ts';
 import { AppleReviewDetailConnector } from './appstore-review-detail.ts';
 import { appleError } from './appstoreconnect.ts';
@@ -171,16 +170,18 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
     const alreadySubmitted = APPLE_SUBMITTED_VERSION_STATES.includes(version.state);
     const build = await this.#build(version.id);
     const listing = await this.#draft.readListing(version.id);
-    const locales: SubmitLocale[] = listing.map((l) => {
-      const assets: SubmitAssetSet[] = l.groups.map((g) => {
-        const first = g.images.find((i) => i.width !== null && i.height !== null);
-        const device = first
-          ? classifyAppleScreenshot(first.width as number, first.height as number)
-          : null;
-        return { kind: 'screenshot' as const, device, target: g.group, images: g.images };
-      });
-      return { locale: l.locale, text: l.text, assets };
-    });
+    // The images: the same read as the Graphics tab, through the one readiness decision (store-submit-images.ts).
+    // A version already in review has nothing to fix: its images are judged by nobody, so a version with no readable copy is not an error.
+    const images = submitImagesOf(
+      alreadySubmitted
+        ? await this.#draft.readStoreImages().catch(() => ({ images: [], unplaced: 0 }))
+        : await this.#draft.readStoreImages(),
+    );
+    const locales: SubmitLocale[] = listing.map((l) => ({
+      locale: l.locale,
+      text: l.text,
+      assets: images.byLocale.get(l.locale) ?? [],
+    }));
     const draft = alreadySubmitted ? null : await this.#draft.readDraft(request);
     // App Review Information: presence only. Not read for a version already in review (nothing to fix), and a failed read is "not known".
     const reviewDetail = alreadySubmitted ? null : await this.#review.readFacts(version.id);
@@ -192,6 +193,7 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
       version,
       build,
       alreadySubmitted,
+      unplacedImages: images.unplaced,
       openReviewSubmissions: await this.#openSubmissions(),
       tracks: [],
       locales,

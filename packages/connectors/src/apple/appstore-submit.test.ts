@@ -84,10 +84,9 @@ test('readSubmitState shows the version, its build, release type, every locale a
   assert.equal(state.locales[0]?.locale, 'en-US');
   assert.equal(state.locales[0]?.text.description, 'Old description');
   assert.equal(state.locales[0]?.text.promotional_text, null);
-  assert.deepEqual(
-    state.locales[0]?.assets.map((a) => [a.kind, a.device, a.target, a.images.length]),
-    [['screenshot', null, 'IPHONE_65_PROFILE', 1]],
-  );
+  // An image whose size no display recognises is in no set (one rule for readiness and the Graphics tab): counted once as unplaced.
+  assert.deepEqual(state.locales[0]?.assets, []);
+  assert.equal(state.unplacedImages, 1);
   assert.equal(state.draft?.text[0]?.value, 'Old description');
   assert.equal(state.draft?.assets[0]?.placementGroup, 'IPHONE_65_PROFILE');
   assert.deepEqual(api.writes(), []);

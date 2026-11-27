@@ -1,5 +1,5 @@
 import type { DraftSet } from '../listing/draft-readiness.ts';
-import type { StoreImagesView } from '../listing/asset-sync.ts';
+import type { AssetKind } from '../listing/store-asset-specs.ts';
 
 /**
  * How the store's images COUNT for readiness (docs/state-model.md, "Single owners (core)"): the DECISION that used to be made differently
@@ -31,19 +31,36 @@ export type ReadinessImageNotice = {
   message: string;
 };
 
-export type ReadinessImages = {
+/** What readiness needs of a store read: the Graphics view (`StoreImagesView`) satisfies it, and so does a connector's own grouping of its records. */
+export type ReadinessImagesInput<F extends { width: number | null; height: number | null }> = {
+  sets: readonly {
+    locale: string;
+    kind: AssetKind;
+    device: string | null;
+    target: string;
+    files: readonly F[];
+  }[];
+  unplaced: number;
+};
+
+export type ReadinessImages<I = { width: number | null; height: number | null }> = {
   /** Per locale, the sets in the shape of `DraftContent.locales[].assets` (one entry per store group). */
-  locales: { locale: string; assets: DraftSet[] }[];
+  locales: { locale: string; assets: (Omit<DraftSet, 'images'> & { images: I[] })[] }[];
   /** Images the store holds that could not be placed in any display. Never part of a set. */
   unplaced: number;
   /** The warning for `unplaced`, or null. */
   notice: ReadinessImageNotice | null;
 };
 
-export function readinessImagesOf(
-  view: Pick<StoreImagesView, 'sets' | 'unplaced'>,
-): ReadinessImages {
-  const byLocale = new Map<string, DraftSet[]>();
+export function readinessImagesOf<
+  F extends { width: number | null; height: number | null },
+  I = { width: number | null; height: number | null },
+>(
+  view: ReadinessImagesInput<F>,
+  pick: (file: F) => I = ((f: F) => ({ width: f.width, height: f.height })) as unknown as (file: F) => I,
+): ReadinessImages<I> {
+  type Set_ = ReadinessImages<I>['locales'][number]['assets'][number];
+  const byLocale = new Map<string, Set_[]>();
   const order: string[] = [];
   for (const set of view.sets) {
     let list = byLocale.get(set.locale);
@@ -56,12 +73,12 @@ export function readinessImagesOf(
       kind: set.kind,
       device: set.device,
       target: set.target,
-      images: set.files.map((f) => ({ width: f.width, height: f.height })),
+      images: set.files.map(pick),
     });
   }
   const unplaced = Math.max(0, view.unplaced);
   return {
-    locales: order.sort().map((locale) => ({ locale, assets: byLocale.get(locale) as DraftSet[] })),
+    locales: order.sort().map((locale) => ({ locale, assets: byLocale.get(locale) as Set_[] })),
     unplaced,
     notice:
       unplaced === 0
@@ -73,4 +90,25 @@ export function readinessImagesOf(
             message: `${unplaced} ${unplaced === 1 ? 'image has' : 'images have'} a size that no display of the store accepts: ${unplaced === 1 ? 'it is' : 'they are'} not counted in any set.`,
           },
   };
+}
+
+/**
+ * The records of a connector's store read (one per image, `position` the store's own) grouped into store sets (one per locale, kind, device
+ * and group; the files in the store's order). The connectors use it so that the submit read and the Graphics read group alike; the server
+ * view builder keeps its own (it also makes the refs).
+ */
+export function setsOfImageRecords<
+  R extends { locale: string; kind: AssetKind; device: string | null; target: string; position: number },
+>(records: readonly R[]): { locale: string; kind: AssetKind; device: string | null; target: string; files: R[] }[] {
+  const byId = new Map<string, { locale: string; kind: AssetKind; device: string | null; target: string; files: R[] }>();
+  for (const r of records.slice().sort((a, b) => a.position - b.position)) {
+    const id = `${r.locale}\0${r.kind}\0${r.device ?? ''}\0${r.target}`;
+    let set = byId.get(id);
+    if (set === undefined) {
+      set = { locale: r.locale, kind: r.kind, device: r.device, target: r.target, files: [] };
+      byId.set(id, set);
+    }
+    set.files.push(r);
+  }
+  return [...byId.values()];
 }

@@ -76,6 +76,8 @@ export type SubmitState = {
   } | null;
   /** App Store: the version is already in a review submission or past it. Google Play: always false (Play shows no review state). */
   alreadySubmitted: boolean;
+  /** Images the store holds that no display recognises (counted once, in no set; App Store only). Absent: not read (an older connector). */
+  unplacedImages?: number;
   /** App Store: unsubmitted review submissions found for the app (null: could not tell). Google Play: null. */
   openReviewSubmissions: number | null;
   /** Google Play: the tracks as the edit shows them (read only; a submit never writes one). App Store: empty. */
