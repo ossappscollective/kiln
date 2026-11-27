@@ -7,6 +7,7 @@ import type { PromoteOption } from '../play-promote.ts';
 import type { Publishing } from '../publishing.ts';
 import type { AppPipeline } from '../release-pipeline.ts';
 import type { AppSummary, ReleaseSummary } from '../types.ts';
+import type { BlockersView, ReadinessFact } from './blockers.ts';
 import type {
   CandidateAnalysis,
   CandidatePlan,
@@ -49,6 +50,11 @@ export type AppFacts = {
    * dismissed run and a run older than a publish that runs now.
    */
   lastRun: Readonly<Record<string, LastPublish | null | undefined>>;
+  /**
+   * By record id: the last reading of what blocks a submit NOW (`GET /apps/:id/publish/readiness`, judged by the pure rules of core), or
+   * undefined when none was asked for. The blockers a run kept are history; this is what the model shows as current (`blockers.ts`).
+   */
+  readiness?: Readonly<Record<string, ReadinessFact | null | undefined>> | undefined;
   /** By record id: the releases the store reported (for what can be promoted). */
   releases: Readonly<Record<string, readonly ReleaseSummary[] | undefined>>;
   /**
@@ -74,6 +80,11 @@ export const PHASES = [
   'publishing',
   'publish_failed',
   'changes_pending',
+  /**
+   * A publish pushed the draft and its submit was blocked, and a current reading of the store says nothing blocks it any more: the next
+   * step is to submit. The run is kept as history (the failure block says what it was) until it is submitted or dismissed.
+   */
+  'ready_to_submit',
   'release_needs_you',
   /** A version is being prepared for the newest build (attach it, then submit it). */
   'version_in_prep',
@@ -94,6 +105,8 @@ export const PRIMARY_ACTIONS = [
   'publish_again',
   /** The draft was pushed and its submit is blocked: opens the submit checklist (SubmitReady) with the blockers, to fix them and submit. */
   'fix_blockers',
+  /** The draft was pushed, its submit was blocked and nothing blocks it now: opens the submit checklist to submit that version. */
+  'submit_now',
   'attach_build',
   'open_release',
   'prepare_release',
@@ -153,7 +166,7 @@ export type TopBarBadge =
   | { kind: 'idle' }
   | { kind: 'pending'; count: number; blocking: boolean }
   | { kind: 'publishing'; count: number; appId: string; elsewhere: boolean }
-  | { kind: 'failed'; count: number; appId: string; blocked?: boolean };
+  | { kind: 'failed'; count: number; appId: string; blocked?: boolean; ready?: boolean };
 
 export type PlatformState = {
   platform: Platform;
@@ -235,8 +248,17 @@ export type AppState = {
   pendingKnown: boolean;
   /** The records in scope whose publish runs now. */
   publishing: { appId: string; platform: Platform; name: string; entry: Publishing }[];
-  /** The failures to show, in scope, one per record. */
-  failures: { appId: string; platform: Platform; name: string; run: LastPublish }[];
+  /**
+   * The failures to show, in scope, one per record. `blockers` is set for a run whose draft was pushed and only its submit was blocked:
+   * what the run recorded (history) apart from what blocks now (current), see `BlockersView`.
+   */
+  failures: {
+    appId: string;
+    platform: Platform;
+    name: string;
+    run: LastPublish;
+    blockers: BlockersView | null;
+  }[];
   /** The release flow, or null while a phase above it (publishing, failed) speaks or when it has nothing of its own to say. */
   flow: Flow | null;
   /** The rest of "Needs attention" that the card does not already say (always the attention list, whatever the phase). */

@@ -15,6 +15,7 @@ import {
   blockedStep,
   headlineReason,
   partlyPublished,
+  partlyPublishedNow,
   submitBlockedOnly,
 } from '../publish-failure.ts';
 import type { Publishing } from '../publishing.ts';
@@ -22,6 +23,7 @@ import { detailText, headlineText, disabledReason as publishingReason } from '..
 import type { Train } from '../release-trains.ts';
 import { reviewUrl } from '../store-links.ts';
 import type { AppSummary, ReleaseSummary } from '../types.ts';
+import { type BlockersView, blockersViewOf } from './blockers.ts';
 import { candidateTrain } from './candidate-trains.ts';
 import {
   analyzeCandidates,
@@ -142,6 +144,8 @@ type RecordContext = {
   publishing: Publishing | null;
   /** The failure of this record. */
   failure: LastPublish | null;
+  /** For a failure that is only a blocked submit: what the run said apart from what blocks now (null for any other failure). */
+  blockers: BlockersView | null;
   /**
    * The first publish that runs on ANY record of the app, in scope or not: a record's actions are held back by its own publish and by
    * its siblings' (one batch writes the app's store state; nothing may write beside it, whatever platform the page shows). A failure
@@ -279,11 +283,13 @@ function recordContext(
 ): RecordContext {
   const publishing = facts.publishing[record.id] ?? null;
   const p = facts.pending[record.id] ?? noPending;
+  const failure = activeFailure(facts.lastRun[record.id], publishing);
   return {
     role: facts.role,
     record,
     publishing,
-    failure: activeFailure(facts.lastRun[record.id], publishing),
+    failure,
+    blockers: failure === null ? null : blockersViewOf(failure, facts.readiness?.[record.id], facts.now),
     appPublishing,
     pending: { count: whole(p.count), blocking: whole(p.blocking) },
     publishBatchEnabled: facts.publishBatchEnabled,
@@ -316,7 +322,7 @@ const toneOf = (
 ): AppState['tone'] => {
   if (phase === 'publish_failed') return 'bad';
   if (phase === 'changes_pending') return 'warn';
-  if (phase === 'publishing') return 'info';
+  if (phase === 'publishing' || phase === 'ready_to_submit') return 'info';
   return step === null ? 'neutral' : step.tone;
 };
 
@@ -346,7 +352,11 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
       platform: c.record.platform,
       name: c.record.name,
       run: c.failure as LastPublish,
+      blockers: c.blockers,
     }));
+  /** A failure that is only a blocked submit whose blockers are all fixed now (a current reading says so): history, not a problem. */
+  const fixedNow = (f: { blockers: BlockersView | null }): boolean => f.blockers?.state === 'ready';
+  const open = failures.filter((f) => !fixedNow(f));
   const pendingCount = contexts.reduce((n, c) => n + c.pending.count, 0);
   const blockingCount = contexts.reduce((n, c) => n + c.pending.blocking, 0);
   const pendingKnown = facts.pendingKnown;
@@ -451,8 +461,9 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
   // ---- Phase
   let phase: Phase;
   if (publishing.length > 0) phase = 'publishing';
-  else if (failures.length > 0) phase = 'publish_failed';
+  else if (open.length > 0) phase = 'publish_failed';
   else if (pendingCount > 0) phase = 'changes_pending';
+  else if (failures.length > 0) phase = 'ready_to_submit';
   else {
     phase = flowPhase(step, pendingKnown);
   }
@@ -462,6 +473,7 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
   if (
     phase !== 'publishing' &&
     phase !== 'publish_failed' &&
+    phase !== 'ready_to_submit' &&
     (step.kind === 'train' || step.kind === 'attention')
   ) {
     const rows: FlowRow[] = step.rows.map((row) => {
@@ -620,20 +632,25 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
     reason = `${detailText(lead.entry, facts.now)} ${t('publish:publishing.pendingOff')}`;
     primaryAction = showPending(t('publish:publishing.showPending'), lead.appId);
   } else if (phase === 'publish_failed') {
-    const lead = failures[0] as (typeof failures)[number];
+    const lead = open[0] as (typeof open)[number];
     // A publish that was applied in part is said so: part of the app is in the store, part is not (not a plain failure where nothing changed).
-    const blocked = failures.find((f) => submitBlockedOnly(f.run));
+    const blocked = open.find((f) => submitBlockedOnly(f.run));
     headline = blocked
       ? t('state:failed.blockedHeadline')
-      : failures.some((f) => partlyPublished(f.run, f.platform) !== null)
+      : open.some((f) => partlyPublished(f.run, f.platform) !== null)
         ? t('state:failed.partlyHeadline')
         : t('state:failed.headline');
-    reason = failureReason(failures, pendingCount);
+    reason = failureReason(open, pendingCount);
     if (blocked) {
       // The draft is in the store and the submit is blocked: the next step is to fix what blocks it, then submit that version. The
       // primary action opens the submit checklist (SubmitReady) with the blockers; showing the pending changes is the other way in.
-      const count = blockedStep(blocked.run)?.blockers.length ?? 0;
-      const version = preparedVersion(facts.releases[blocked.appId]);
+      // The count is what blocks NOW when a reading of the store says so; else what the run recorded.
+      const count =
+        blocked.blockers?.state === 'blocked'
+          ? blocked.blockers.current.length
+          : (blockedStep(blocked.run)?.blockers.length ?? 0);
+      const version =
+        blocked.blockers?.versionString ?? preparedVersion(facts.releases[blocked.appId]);
       primaryAction = offerOf(
         'fix_blockers',
         version === null
@@ -651,6 +668,22 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
         }),
       ];
     }
+  } else if (phase === 'ready_to_submit') {
+    // Nothing blocks the submit any more (a current reading of the store says so): the run stays as history in the failure block.
+    const lead = failures[0] as (typeof failures)[number];
+    const version =
+      lead.blockers?.versionString ?? preparedVersion(facts.releases[lead.appId]);
+    headline = t('state:ready.headline');
+    reason = t('state:ready.reason');
+    primaryAction = offerOf(
+      'submit_now',
+      version === null
+        ? t('state:action.submitNowNoVersion')
+        : t('state:action.submitNow', { version }),
+      verdicts.submit,
+      { appId: lead.appId },
+    );
+    secondaryActions = [showPending(t('publish:publishing.showPending'), lead.appId)];
   } else if (phase === 'changes_pending') {
     headline = t('state:pending.headline', { count: pendingCount });
     reason =
@@ -678,11 +711,15 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
   const platformStates: PlatformState[] = contexts.map((c) => {
     let p: Phase;
     if (c.publishing !== null) p = 'publishing';
-    else if (c.failure !== null) p = 'publish_failed';
+    else if (c.failure !== null && c.blockers?.state !== 'ready') p = 'publish_failed';
     else if (c.pending.count > 0) p = 'changes_pending';
+    else if (c.failure !== null) p = 'ready_to_submit';
     else
       p =
-        phase === 'publishing' || phase === 'publish_failed' || phase === 'changes_pending'
+        phase === 'publishing' ||
+        phase === 'publish_failed' ||
+        phase === 'changes_pending' ||
+        phase === 'ready_to_submit'
           ? 'idle'
           : phase;
     return {
@@ -713,6 +750,8 @@ export function deriveAppState(facts: AppFacts, scope: PlatformScope): AppState 
       appId: (failures[0] as (typeof failures)[number]).appId,
       // Only said when true: a plain failure keeps the badge it always had.
       ...(failures.every((f) => submitBlockedOnly(f.run)) ? { blocked: true } : {}),
+      // Every blocker is fixed now (a current reading of the store says so): "Ready to submit" instead of "Submit blocked".
+      ...(failures.every((f) => fixedNow(f)) ? { ready: true } : {}),
     };
   else if (pendingCount > 0)
     badge = { kind: 'pending', count: pendingCount, blocking: blockingCount > 0 };
@@ -789,12 +828,13 @@ function preparedVersion(releases: readonly ReleaseSummary[] | undefined): strin
 }
 
 function failureReason(
-  failures: readonly { platform: Platform; run: LastPublish }[],
+  failures: readonly { platform: Platform; run: LastPublish; blockers?: BlockersView | null }[],
   pendingCount: number,
 ): string {
   const lines: string[] = [];
   for (const f of failures) {
-    const partly = partlyPublished(f.run, f.platform);
+    // A blocked submit names what blocks NOW when a reading of the store says so, not what the run recorded.
+    const partly = partlyPublishedNow(f.run, f.platform, f.blockers);
     // A run whose submit was blocked says which blockers (the sentence has them); the failure of a step is not "unknown" then.
     const cause = partly?.blocked
       ? ''

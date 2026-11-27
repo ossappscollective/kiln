@@ -82,10 +82,12 @@
   const stateScope = $derived(scopeFor(records, members));
   const appState = $derived(appStateStore.of({ workspaceId, role, records, scope: stateScope, releases, attention }));
   const primary = $derived(appState.primaryAction);
+  /** The failure that is only a blocked submit: what the run recorded and what blocks now (the model's `BlockersView`). */
+  const blocked = $derived(appState.failures.find((f) => f.blockers !== null) ?? null);
   const startOffer = $derived([primary, ...appState.secondaryActions].find((a) => a.action === 'start_release') ?? null);
   const startButton = $derived<'primary' | 'secondary' | 'none'>(startOffer === null ? 'none' : startOffer === primary ? 'primary' : 'secondary');
   const prepareHref = $derived(members[0] ? releaseStepHref(members[0].id, scope, 'build') : '');
-  const kind = $derived(appState.phase === 'publishing' ? 'publishing' : appState.phase === 'publish_failed' ? 'failed' : 'pending');
+  const kind = $derived(appState.phase === 'publishing' ? 'publishing' : appState.phase === 'publish_failed' || appState.phase === 'ready_to_submit' ? 'failed' : 'pending');
   const elsewhereNames = $derived(formatList(appState.elsewhere.platforms.map((p) => platformLabel(p))));
   const elsewhereHref = $derived(appAddress(records[0]?.id ?? '', 'pending', appState.elsewhere.platforms[0] ?? null));
 
@@ -94,10 +96,11 @@
     if (offer.action === 'show_pending') openPendingPanel(kind, offer.appId ?? '', stateScope);
     else if (offer.action === 'publish_again' && offer.appId !== null) requestPublishAgain(offer.appId);
     else if (offer.action === 'fix_blockers' && offer.appId !== null) openSubmitChecklist(offer.appId, stateScope);
+    else if (offer.action === 'submit_now' && offer.appId !== null) openSubmitChecklist(offer.appId, stateScope);
     else if (offer.action === 'prepare_release') onprepare?.();
   }
   const opensPanel = (offer: ActionOffer) =>
-    offer.action === 'show_pending' || offer.action === 'publish_again' || offer.action === 'fix_blockers' || (offer.action === 'prepare_release' && offer.href === null && onprepare !== undefined);
+    offer.action === 'show_pending' || offer.action === 'publish_again' || offer.action === 'fix_blockers' || offer.action === 'submit_now' || (offer.action === 'prepare_release' && offer.href === null && onprepare !== undefined);
 
   $effect(() => {
     const rest = appState.rest;
@@ -148,6 +151,14 @@
         {#if appState.flow?.step.waiting}<Badge tone={appState.flow.step.waiting.who === 'you' ? 'warn' : 'neutral'}>{appState.flow.step.waiting.text}</Badge>{/if}
       </h2>
       {#if appState.reason !== ''}<p class="muted" data-testid="next-step-reason">{appState.reason}</p>{/if}
+      {#if blocked && (appState.phase === 'publish_failed' || appState.phase === 'ready_to_submit')}
+        <!-- Where the blockers were computed: the run kept them (history), a reading of the store says what blocks now. One click reads again. -->
+        <p class="readiness muted" data-testid="next-step-readiness" data-state={blocked.blockers?.state}>
+          <span data-testid="next-step-readiness-where">{blocked.blockers?.state === 'unverified' ? blocked.blockers.runLabel : blocked.blockers?.readLabel}</span>
+          {#if blocked.blockers && blocked.blockers.summary !== ''}<span aria-hidden="true">·</span> <strong role="status" aria-live="polite" data-testid="next-step-readiness-summary">{blocked.blockers.summary}</strong>{/if}
+          {#if can(role, 'store.submit')}<Button size="sm" variant="ghost" icon="refresh" loading={blocked.blockers?.checking === true} onclick={() => void appStateStore.checkAgain(api, workspaceId, blocked.appId)} data-testid="next-step-check-again">{blocked.blockers?.checking === true ? t('state:blockers.checking') : t('state:blockers.checkAgain')}</Button>{/if}
+        </p>
+      {/if}
       {#if appState.flow && appState.flow.rows.length > 0}<p class="muted">{t('app:nextStep.eachStore')}</p>{/if}
     </div>
     <div class="actions">
@@ -297,6 +308,15 @@
   .elsewhere {
     margin: var(--space-3) 0 0;
     font-size: var(--text-sm);
+  }
+
+  .readiness {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-sm, 0.875rem);
   }
 
   .eyebrow {

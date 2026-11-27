@@ -1,4 +1,5 @@
 import { type Platform, platformMeta, supports } from '@kiln/core';
+import type { BlockersView } from './app-state/blockers.ts';
 import { codedText, paramsOf } from './error-text.ts';
 import { formatList } from './i18n/format.ts';
 import { k, t } from './i18n/t.ts';
@@ -126,6 +127,7 @@ const BLOCKER_FIX: Readonly<Record<string, string>> = {
   image_not_ready: k('publish:failure.blocked.fix.imageNotReady'),
   no_screenshots: k('publish:failure.blocked.fix.noScreenshots'),
   asset_spec: k('publish:failure.blocked.fix.assetSpec'),
+  too_many_screenshots: k('publish:failure.blocked.fix.tooManyScreenshots'),
   generic: k('publish:failure.blocked.fix.generic'),
 };
 
@@ -144,8 +146,14 @@ const FIXED_IN_STORE: readonly string[] = [
 ];
 
 /** How to fix the blocker of this code: the sentence of a known code, else the generic one. */
-const fixOf = (code: string): string => {
-  const known = BLOCKER_FIX[code] === undefined ? 'generic' : code;
+const fixOf = (code: string, message = ''): string => {
+  // Too many screenshots in one set is not a wrong size: the way out is to remove the extra ones.
+  const known =
+    code === 'asset_spec' && /screenshots per device size/.test(message)
+      ? 'too_many_screenshots'
+      : BLOCKER_FIX[code] === undefined
+        ? 'generic'
+        : code;
   return t(BLOCKER_FIX[known]);
 };
 
@@ -167,7 +175,7 @@ export function blockerLines(step: Pick<RunStep, 'blockers'>): BlockerLine[] {
   return (step.blockers ?? []).map((b: RunBlocker) => ({
     code: safeCode(b.code),
     message: clip(cleanText(b.message), 300).text,
-    fix: fixOf(b.code),
+    fix: fixOf(b.code, b.message),
     url: FIXED_IN_STORE.indexOf(b.code) >= 0 ? APP_STORE_CONNECT_APPS_URL : null,
   }));
 }
@@ -286,6 +294,8 @@ export function failureReport(input: {
   appName: string;
   platform: Platform;
   run: LastPublish;
+  /** What blocks the submit NOW against what the run recorded (the model's `BlockersView`): the report keeps them apart. */
+  blockers?: BlockersView | null | undefined;
 }): string {
   const { run } = input;
   const lines: string[] = [
@@ -306,6 +316,9 @@ export function failureReport(input: {
         const why = blockers.length > 0 ? ` - ${blockersSentence(blockers)}` : '';
         lines.push(`   Reason: ${safeCode(step.reason)}${why}`);
       }
+      // With a current reading the run's own list is HISTORY: said so, with its time, and the current list follows at the end.
+      if (blockers.length > 0 && input.blockers != null)
+        lines.push(`   Recorded by this run at ${iso(run.finishedAt)} (history, not necessarily true now):`);
       blockers.forEach((b) => {
         lines.push(`   Blocker: ${b.code}: ${b.message}`);
         lines.push(`      Fix: ${b.fix}${b.url ? ` (${b.url})` : ''}`);
@@ -332,6 +345,21 @@ export function failureReport(input: {
       }
     }
   });
+  const now = input.blockers;
+  if (now != null) {
+    lines.push('');
+    if (now.state === 'unverified') {
+      lines.push('Blockers now: not checked since this run (the store was not read again).');
+    } else {
+      lines.push(
+        `Blockers now (store read ${iso(now.readAt ?? run.finishedAt)}): ${now.state === 'ready' ? 'none, everything that blocked the submit is fixed' : String(now.current.length)}`,
+      );
+      now.current.forEach((b) => {
+        lines.push(`   Blocker: ${b.code}: ${b.message}`);
+        lines.push(`      Fix: ${b.fix}${b.url ? ` (${b.url})` : ''}`);
+      });
+    }
+  }
   return `${lines.join('\n')}\n`;
 }
 
@@ -432,6 +460,32 @@ export function partlyPublished(
   )
     sentence = `${sentence} ${t('publish:failure.partly.releaseDraft', { store })}`;
   return { applied, notDone, sentence, blocked };
+}
+
+/**
+ * `partlyPublished` for a run held against a current reading of the store: when the run's blockers are fixed the sentence says so, and
+ * when some still stand it names THOSE (not the ones the run recorded). Without a reading (`unverified`) it is the run's own sentence.
+ */
+export function partlyPublishedNow(
+  run: Pick<LastPublish, 'results'>,
+  platform: Platform,
+  view: BlockersView | null | undefined,
+): PartlyPublished | null {
+  const partly = partlyPublished(run, platform);
+  if (partly === null || partly.blocked === null || view == null || view.state === 'unverified')
+    return partly;
+  const store = platformMeta(platform).storeName;
+  return {
+    ...partly,
+    sentence:
+      view.state === 'ready'
+        ? t('publish:failure.partly.fixed', { store })
+        : t('publish:failure.partly.blockedNow', {
+            store,
+            step: STEP_NAME[partly.blocked.type],
+            blockers: blockersSentence(view.current),
+          }),
+  };
 }
 
 /** The failed step of a run was refused because changes were already in review (`changes_in_review`). */

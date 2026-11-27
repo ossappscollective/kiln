@@ -9,10 +9,11 @@
 -->
 <script lang="ts">
   import type { Role } from '@kiln/core';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { appAddress } from '../../lib/app-scope.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import { openSubmitChecklist } from '../../lib/app-state/panel.svelte.ts';
   import { KIND_LABEL, pendingAcrossText } from '../../lib/cart-summary.ts';
   import { k, t } from '../../lib/i18n/t.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
@@ -41,6 +42,11 @@
   /** Apps whose latest publish did not go through (and nobody hid it), with the reason; an app that publishes again shows its progress instead. */
   const failedApps = $derived(appStateStore.workspaceFailures(workspaceId, navSignals.appsOf(workspaceId)));
   const publishingKeys = $derived(new Set(publishingApps.map((p) => p.app.id)));
+  // A blocked submit is judged against what the store holds now (the run's own blockers are history): read once while the page shows it.
+  $effect(() => {
+    const apps = failedApps.map((f) => f.app);
+    untrack(() => appStateStore.ensureReadiness(api, workspaceId, role, apps));
+  });
   let failed = $state(false);
   /** Products whose changes are listed (read lazily when first opened); collapsed by default. */
   let open = $state<ReadonlySet<string>>(new Set());
@@ -89,7 +95,7 @@
     <div class="publishing-now" data-testid="workspace-publish-failed">
       <strong>{f.app.name}</strong>
       <FailureAnchor appId={f.app.id}>
-        <PublishFailure run={f.run} appName={f.app.name} platform={f.app.platform} ondismiss={() => appStateStore.dismissFailure(api, workspaceId, f.app.id)} />
+        <PublishFailure run={f.run} appName={f.app.name} platform={f.app.platform} blockers={f.blockers} oncheck={() => void appStateStore.checkAgain(api, workspaceId, f.app.id)} onsubmit={() => openSubmitChecklist(f.app.id)} ondismiss={() => appStateStore.dismissFailure(api, workspaceId, f.app.id)} />
       </FailureAnchor>
     </div>
   {/each}

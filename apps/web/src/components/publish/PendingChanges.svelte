@@ -48,6 +48,7 @@
   import { itemKey, needsCart, thumbsOf } from '../../lib/pending-preview.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import { openSubmitChecklist } from '../../lib/app-state/panel.svelte.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { canStage, stagingError } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
@@ -430,7 +431,7 @@
   {/each}
   {#each lastFailures as f (f.appId)}
     <FailureAnchor appId={f.appId}>
-      <PublishFailure run={f.run} appName={f.name} platform={f.platform} ondismiss={() => appStateStore.dismissFailure(api, workspaceId, f.appId)} onpushsubmit={() => reopenAsPushSubmit(f.appId)} onreplace={() => reopenAsReplace(f.appId)} />
+      <PublishFailure run={f.run} appName={f.name} platform={f.platform} blockers={f.blockers} oncheck={() => void appStateStore.checkAgain(api, workspaceId, f.appId)} onsubmit={() => openSubmitChecklist(f.appId)} ondismiss={() => appStateStore.dismissFailure(api, workspaceId, f.appId)} onpushsubmit={() => reopenAsPushSubmit(f.appId)} onreplace={() => reopenAsReplace(f.appId)} />
     </FailureAnchor>
   {/each}
 

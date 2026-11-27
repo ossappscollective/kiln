@@ -159,6 +159,7 @@ import {
 import type { PendingItemDetail } from './pending-preview.ts';
 import type { PlayCheckAnswer, PlayCheckBody } from './play-check.ts';
 import type { PublishingList } from './publishing.ts';
+import type { PublishReadiness } from './publish-readiness.ts';
 import type { HealthView, RatingsView } from './ratings/ratings.ts';
 import type { EditableRelease, ReleaseCandidates } from './release-candidates.ts';
 import type { NotesHistory } from './release-notes.ts';
@@ -2101,6 +2102,15 @@ export function createApi(options: ApiOptions = {}) {
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/publish/runs/${encodeURIComponent(runId)}/dismiss`,
         {},
+      ),
+    /**
+     * What blocks a submit NOW (docs/api/pending.md "Current readiness"): one read of the store judged by the pure rules of core. `fresh` asks the
+     * store again and drops every cache of what it holds (the "Check again" button); else the server may answer from its 30 second cache.
+     */
+    publishReadiness: (workspaceId: string, appId: string, fresh = false) =>
+      request<{ readiness: PublishReadiness; generatedAt: number }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/publish/readiness${fresh ? '?fresh=1' : ''}`,
       ),
     storePublishConfig: (workspaceId: string) =>
       request<PublishConfig>('GET', `${workspace(workspaceId)}/store-publish/config`),

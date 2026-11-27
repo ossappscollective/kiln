@@ -6,6 +6,7 @@ import type { LastPublish, PendingLine, PendingSummary } from '../pending.ts';
 import type { Publishing } from '../publishing.ts';
 import type { AppPipeline } from '../release-pipeline.ts';
 import type { AppSummary, ReleaseSummary } from '../types.ts';
+import type { ReadinessFact } from './blockers.ts';
 import type { StoreBuildFact } from './candidates.ts';
 import type { AppFacts, PendingFacts } from './types.ts';
 
@@ -17,6 +18,7 @@ import type { AppFacts, PendingFacts } from './types.ts';
  *   blocking        <- the pending summary (`GET /pending/summary`), never more than the count
  *   publishing      <- the claims (`GET /pending/publishing`)
  *   last run        <- the same read (`lastPublish`), minus what a person hid
+ *   readiness       <- `GET /apps/{id}/publish/readiness` (what blocks a submit NOW; the run's own blockers are history), null until asked
  *   pipelines       <- `GET /apps/{id}/release-pipeline`
  *   store builds    <- the store rows of `GET /apps/{id}/builds/artifacts` (TestFlight, version codes): the candidates' source; null until read
  *   store versions  <- the releases the app page loaded (`GET /apps/{id}`), by record
@@ -32,6 +34,8 @@ export type FactSources = {
   pipeline: (appId: string) => Pick<AppPipeline, 'app' | 'pipeline'> | null;
   /** The store builds of a record (TestFlight rows), or null while they are not read (the model then knows the pipeline's newest build). */
   builds?: ((appId: string) => readonly StoreBuildFact[] | null) | undefined;
+  /** The last reading of what blocks a submit now, or null when none was asked for (the run's own blockers are shown as history then). */
+  readiness?: ((appId: string) => ReadinessFact | null) | undefined;
   publishBatchEnabled: boolean | null;
 };
 
@@ -68,6 +72,7 @@ export function assembleFacts(input: FactInput, src: FactSources): AppFacts {
   const lastRun: Record<string, LastPublish | null> = {};
   const pipelines: Record<string, Pick<AppPipeline, 'app' | 'pipeline'> | null> = {};
   const builds: Record<string, readonly StoreBuildFact[] | null> = {};
+  const readiness: Record<string, ReadinessFact | null> = {};
   for (const r of input.records) {
     const count = countOf(src.cart, r.id);
     pending[r.id] = { count, blocking: blockingOf(src.pendingSummary, r.id, count) };
@@ -75,6 +80,7 @@ export function assembleFacts(input: FactInput, src: FactSources): AppFacts {
     lastRun[r.id] = src.failure(r.id);
     pipelines[r.id] = src.pipeline(r.id);
     builds[r.id] = src.builds ? src.builds(r.id) : null;
+    readiness[r.id] = src.readiness ? src.readiness(r.id) : null;
   }
   return {
     role: input.role,
@@ -86,6 +92,7 @@ export function assembleFacts(input: FactInput, src: FactSources): AppFacts {
     releases: input.releases ?? {},
     pipelines,
     builds,
+    readiness,
     attention: input.attention ?? [],
     publishBatchEnabled: src.publishBatchEnabled,
     now: input.now,

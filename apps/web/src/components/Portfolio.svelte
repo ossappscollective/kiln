@@ -229,6 +229,7 @@
     if (outcome.ok) {
       patch(outcome.app);
       releases[app.id] = { state: 'ready', releases: outcome.releases };
+      void appStateStore.storeRead(api, workspaceId, outcome.app, { announce: true, role });
       toast.success(syncSummaryText(outcome.app.name, outcome.sync));
     } else {
       // The failure is stored on the app, and the server sends the app back with it.
@@ -285,6 +286,7 @@
         if (outcome.ok) {
           patch(outcome.app);
           releases[app.id] = { state: 'ready', releases: outcome.releases };
+          void appStateStore.storeRead(api, workspace, outcome.app, { announce: true, role });
           result.status = 'ok';
           result.message = syncDetail(outcome.sync);
           state.done += 1;

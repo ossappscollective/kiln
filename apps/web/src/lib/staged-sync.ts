@@ -5,7 +5,8 @@
 
 export const STAGED_CHANGED_EVENT = 'kiln:staged-changed';
 
-export type StagedChangeReason = 'stage' | 'unstage' | 'discard' | 'publish';
+/** `store_read`: nothing staged changed, the store was read again (a sync, "Check again"), so what was kept of it is stale. */
+export type StagedChangeReason = 'stage' | 'unstage' | 'discard' | 'publish' | 'store_read';
 export type StagedChangedDetail = { appId: string; reason: StagedChangeReason };
 
 type Target = Pick<EventTarget, 'dispatchEvent'>;

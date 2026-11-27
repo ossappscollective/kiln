@@ -271,7 +271,14 @@ export type StoreFacts = {
 };
 
 /** One thing that stood in the way of a step that was not run: the code of the check, the server's sentence, where it is about. */
-export type RunBlocker = { code: string; message: string; locale?: string; item?: string };
+export type RunBlocker = {
+  code: string;
+  message: string;
+  locale?: string;
+  item?: string;
+  /** The numbers and names of the sentence (a count blocker: `count`, `max`, `device`, `set`); only a CURRENT reading carries them. */
+  params?: Record<string, string | number>;
+};
 
 /** One step of a kept run: its status and, for a failure, the code, the HTTP status and what the store said. */
 export type RunStep = {

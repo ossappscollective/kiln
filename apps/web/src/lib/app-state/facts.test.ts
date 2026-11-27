@@ -168,3 +168,18 @@ test('a store row of the Builds page becomes the build fact: only what decides a
     tracks: [],
   });
 });
+
+test('facts: the reading of what blocks a submit comes from the readiness source, per record, null when nothing was asked', () => {
+  const fact = {
+    reading: { ready: true, blockers: [], unknown: [], versionString: '2.0.1', storeReadAt: NOW },
+    checking: false,
+    error: null,
+  };
+  const f = assembleFacts(
+    input,
+    sources({ cart: cart({}), readiness: (id: string) => (id === IOS.id ? fact : null) }),
+  );
+  assert.deepEqual(f.readiness?.[IOS.id], fact);
+  assert.equal(f.readiness?.[ANDROID.id], null);
+  assert.equal(assembleFacts(input, sources({ cart: cart({}) })).readiness?.[IOS.id], null);
+});

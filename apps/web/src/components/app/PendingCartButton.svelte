@@ -29,9 +29,11 @@
   const failed = $derived(badge.kind === 'failed');
   /** The draft was pushed and only its submit is blocked: not "Publish failed", but what to do next. */
   const blocked = $derived(badge.kind === 'failed' && badge.blocked === true);
+  /** Every blocker is fixed now (a reading of the store says so): the draft can be submitted. */
+  const ready = $derived(badge.kind === 'failed' && badge.ready === true);
   const count = $derived(badge.kind === 'idle' ? 0 : badge.count);
   const showCount = $derived(count > 0);
-  const label = $derived(busy ? t('publish:publishing.chip') : failed ? (blocked ? t('state:topBar.blocked') : t('state:topBar.failed')) : t('app:cart.fabLabel'));
+  const label = $derived(busy ? t('publish:publishing.chip') : failed ? (ready ? t('state:topBar.ready') : blocked ? t('state:topBar.blocked') : t('state:topBar.failed')) : t('app:cart.fabLabel'));
 
   function press() {
     if (badge.kind === 'publishing') openPendingPanel('publishing', badge.appId);
@@ -50,8 +52,8 @@
     aria-haspopup={busy || failed ? undefined : 'dialog'}
     aria-expanded={busy || failed ? undefined : cartButton.expanded}
     aria-busy={busy}
-    aria-label={busy ? t('publish:publishing.buttonAria') : failed ? (blocked ? t('state:topBar.blockedAria') : t('state:topBar.failedAria')) : t('app:cart.openAria', { count })}
-    title={busy ? t('publish:publishing.buttonTitle') : failed ? (blocked ? t('state:topBar.blockedTitle') : t('state:topBar.failedTitle')) : t('app:cart.buttonTitle')}
+    aria-label={busy ? t('publish:publishing.buttonAria') : failed ? (ready ? t('state:topBar.readyAria') : blocked ? t('state:topBar.blockedAria') : t('state:topBar.failedAria')) : t('app:cart.openAria', { count })}
+    title={busy ? t('publish:publishing.buttonTitle') : failed ? (ready ? t('state:topBar.readyTitle') : blocked ? t('state:topBar.blockedTitle') : t('state:topBar.failedTitle')) : t('app:cart.buttonTitle')}
     data-testid="pending-cart-button"
     data-state={badge.kind}
     data-app-tint={tintStyle && !failed ? '' : undefined}
@@ -62,7 +64,7 @@
     <span class="label">{label}</span>
     {#if showCount}<span class="count" aria-hidden="true">{count}</span>{/if}
     <!-- read out once when a publish starts, ends or fails, never every few seconds -->
-    <span class="visually-hidden" aria-live="polite" data-testid="pending-cart-live">{busy ? t('publish:publishing.chip') : failed ? (blocked ? t('state:topBar.blocked') : t('state:topBar.failed')) : ''}</span>
+    <span class="visually-hidden" aria-live="polite" data-testid="pending-cart-live">{busy ? t('publish:publishing.chip') : failed ? (ready ? t('state:topBar.ready') : blocked ? t('state:topBar.blocked') : t('state:topBar.failed')) : ''}</span>
   </button>
 {/if}
 

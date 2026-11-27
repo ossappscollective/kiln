@@ -106,6 +106,12 @@
     appStateStore.setOpenApp({ workspaceId, role, records: members, scope: resolved.scope, onPendingPage: section === 'pending' });
     return () => appStateStore.setOpenApp(null);
   });
+  // A publish that pushed the draft and had only its submit blocked keeps the blockers of THAT moment: the store is read once, so the card, the
+  // top bar and the failure block say what blocks now (and the run stays as history). Followed through the claims; nothing is read otherwise.
+  $effect(() => {
+    appStateStore.blockedRecords(workspaceId, members);
+    untrack(() => appStateStore.ensureReadiness(api, workspaceId, role, members));
+  });
   const scopeShown = $derived(showsScope(section, members.length));
 
   // The header row of a versioned page: its pickers, from data already loaded here and by the pages.
@@ -213,6 +219,8 @@
       records[app.id] = outcome.app;
       releases[app.id] = outcome.releases;
       toast.success(syncSummaryText(appLabel(outcome.app), outcome.sync));
+      // The sync read the store: what was kept about its graphics (here and on the server) and the readiness behind a blocked submit are stale.
+      void appStateStore.storeRead(api, workspaceId, outcome.app, { announce: true, role });
     } else {
       // A failed sync is stored on the app, so the server sends the app back with the new message.
       if (outcome.app) records[app.id] = outcome.app;

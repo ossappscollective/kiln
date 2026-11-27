@@ -55,6 +55,7 @@
   } from '../../lib/assets/groups.ts';
   import { SYNC_ROLE_REASON, type EditorSet, canChangeAssets, setIdOf, storeKeyOf } from '../../lib/assets/sync.ts';
   import { assetsLead, otherCountsText, splitProblems } from '../../lib/assets/lead.ts';
+  import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
   import { planFor, storeCacheKey, storeMediaCache } from '../../lib/assets/store-cache.ts';
   import { onStagedChanged } from '../../lib/staged-sync.ts';
   import { formatList } from '../../lib/i18n/format.ts';
@@ -138,7 +139,7 @@
 
   // Stale while revalidate: the last read of this app and platform is kept for the session (lib/assets/store-cache.ts), so coming back
   // shows it at once and asks again in the background; a failed read keeps what is shown. A publish drops it.
-  async function loadStore(fresh: boolean) {
+  async function loadStore(fresh: boolean, recheck = true) {
     if (!allowed) return;
     const mine = ++storeGeneration;
     const channel = storeChannel;
@@ -158,6 +159,8 @@
         storeView = done.store;
         storeMediaCache.set(key, done.store);
       }
+      // "Read again" asked the store: what blocks a blocked submit is judged against the same fresh read (the server dropped its caches too).
+      if (done && fresh && recheck) void appStateStore.storeRead(api, workspaceId, app, { role, keepImages: true });
       if (settings) compareMedia = settings.settings.compareMedia;
     } catch (e) {
       if (mine !== storeGeneration) return;
@@ -241,9 +244,10 @@
     const appId = app.id;
     const ws = workspaceId;
     return onStagedChanged((detail) => {
-      if (detail.reason !== 'publish' || detail.appId !== appId) return;
+      if ((detail.reason !== 'publish' && detail.reason !== 'store_read') || detail.appId !== appId) return;
       storeMediaCache.forgetApp(ws, appId);
-      void loadStore(true);
+      // A sync or "Check again" already told the model about the new reading: only the pictures are read again here.
+      void loadStore(true, detail.reason === 'publish');
     });
   });
 

@@ -17,6 +17,21 @@ export type PlanReadiness = {
   submit: SubmitReadiness & { predicted: boolean; checkedAt: number };
 };
 
+/** What `GET /apps/:id/publish/readiness` answers (docs/api/pending.md "Current readiness"): what blocks a submit NOW, read from the store. */
+export type PublishReadiness = {
+  appId: string;
+  ready: boolean;
+  blockers: SubmitBlocker[];
+  unknown: string[];
+  /** The staged push was merged into the store's draft. */
+  predicted: boolean;
+  versionString: string | null;
+  /** When the store was read (epoch ms). */
+  storeReadAt: number;
+  /** The server answered from its 30 second cache. */
+  cached: boolean;
+};
+
 /** How to fix each blocker, before anything is pushed. An unknown code gets the generic sentence. */
 type FixCode =
   | 'missing_text'

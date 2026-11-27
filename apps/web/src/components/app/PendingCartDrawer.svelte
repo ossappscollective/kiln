@@ -25,6 +25,7 @@
   import { timeAgo } from '../../lib/format.ts';
   import type { Publishing } from '../../lib/publishing.ts';
   import { appStateStore } from '../../lib/app-state/app-state-store.svelte.ts';
+  import { openSubmitChecklist } from '../../lib/app-state/panel.svelte.ts';
   import FailureAnchor from '../app-state/FailureAnchor.svelte';
   import type { GuardedAction, Verdict } from '../../lib/app-state/types.ts';
   import {
@@ -257,7 +258,7 @@
         {/each}
         {#each failures as f (f.appId)}
           <FailureAnchor appId={f.appId}>
-            <PublishFailure run={f.run} appName={f.name} platform={f.platform} ondismiss={() => appStateStore.dismissFailure(api, workspaceId, f.appId)} />
+            <PublishFailure run={f.run} appName={f.name} platform={f.platform} blockers={f.blockers} oncheck={() => void appStateStore.checkAgain(api, workspaceId, f.appId)} onsubmit={() => openSubmitChecklist(f.appId)} ondismiss={() => appStateStore.dismissFailure(api, workspaceId, f.appId)} />
           </FailureAnchor>
         {/each}
         {#if report}

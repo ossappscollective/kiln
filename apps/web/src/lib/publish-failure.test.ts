@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { BlockersView } from './app-state/blockers.ts';
 import type { LastPublish, RunStep } from './pending.ts';
 import { resultRow } from './pending.ts';
 import {
@@ -14,6 +15,7 @@ import {
   inReviewActions,
   isInReview,
   partlyPublished,
+  partlyPublishedNow,
   reasonOf,
   runSummary,
   SAID_SHOWN,
@@ -491,4 +493,60 @@ test('a submit blocked because the App Review contact is missing: its sentence, 
   assert.equal(submit.blockers[1]!.url, 'https://appstoreconnect.apple.com/apps');
   assert.notEqual(submit.blockers[0]!.fix, submit.blockers[1]!.fix);
   assert.match(blockersSentence(submit.blockers), /contact information is incomplete/);
+});
+
+const COUNT = {
+  code: 'asset_spec',
+  message: 'At most 10 screenshots per device size. en-US iPad 13" / 12.9" (APP_IPAD_PRO_3GEN_129): 12 found.',
+  locale: 'en-US',
+};
+const viewOf = (state: BlockersView['state'], current: BlockersView['current']): BlockersView => ({
+  state,
+  current,
+  run: [],
+  resolved: [],
+  runAt: 197_000,
+  readAt: state === 'unverified' ? null : 300_000,
+  runLabel: '',
+  readLabel: '',
+  summary: '',
+  checking: false,
+  error: null,
+  versionString: '2.0.1',
+});
+
+test('too many screenshots in one set: the advice is to remove screenshots, not to replace an image', () => {
+  const [b] = blockerLines({ blockers: [COUNT] });
+  assert.match(b!.fix, /Remove the extra screenshots/);
+  // Another asset_spec problem keeps the generic asset advice.
+  const [other] = blockerLines({ blockers: [{ code: 'asset_spec', message: 'Screenshot is 100x100.' }] });
+  assert.doesNotMatch(other!.fix, /Remove the extra screenshots/);
+});
+
+test('partlyPublishedNow: fixed blockers say so, standing ones are named instead of the run\'s, no reading keeps the run\'s sentence', () => {
+  const r = run([pushed, blockedSubmit(TWO)], { platform: 'ios' });
+  const own = partlyPublished(r, 'ios')!.sentence;
+  assert.equal(partlyPublishedNow(r, 'ios', null)!.sentence, own);
+  assert.equal(partlyPublishedNow(r, 'ios', viewOf('unverified', []))!.sentence, own);
+  assert.match(partlyPublishedNow(r, 'ios', viewOf('ready', []))!.sentence, /everything that blocked the submit is fixed now/);
+  const now = partlyPublishedNow(r, 'ios', viewOf('blocked', blockerLines({ blockers: [TWO[1]!] })))!.sentence;
+  assert.match(now, /Description is empty in fr-FR/);
+  assert.doesNotMatch(now, /No build is attached/);
+});
+
+test('failureReport with a current reading keeps the run\'s list as history and adds what blocks now', () => {
+  const r = run([pushed, blockedSubmit([COUNT])], { platform: 'ios', steps: ['push_draft', 'submit'] });
+  const plain = failureReport({ appName: 'OSS Document Scanner', platform: 'ios', run: r });
+  assert.doesNotMatch(plain, /Blockers now/);
+  const ready = failureReport({ appName: 'OSS Document Scanner', platform: 'ios', run: r, blockers: viewOf('ready', []) });
+  assert.match(ready, /history, not necessarily true now/);
+  assert.match(ready, /Blockers now \(store read .*\): none, everything that blocked the submit is fixed/);
+  const still = failureReport({
+    appName: 'OSS Document Scanner',
+    platform: 'ios',
+    run: r,
+    blockers: viewOf('blocked', blockerLines({ blockers: [COUNT] })),
+  });
+  assert.match(still, /Blockers now \(store read .*\): 1\n   Blocker: asset_spec/);
+  assert.match(failureReport({ appName: 'A', platform: 'ios', run: r, blockers: viewOf('unverified', []) }), /not checked since this run/);
 });

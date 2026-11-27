@@ -12,12 +12,17 @@
   confirmation and the step-up, and nothing is sent before. "Wait for the review to finish, then publish again" and "Open Play
   Console" are always shown for that refusal). A run that applied a step and then failed says "Partly published: ..." with what is
   where.
+  A run whose draft was pushed and only its submit blocked comes with `blockers` (the model's BlockersView: the run's blockers are HISTORY, a
+  reading of the store says what blocks NOW). This block only draws it: what blocks now (with when the store was read), what the run recorded
+  then (kept apart, labelled with its age), "Check again" (oncheck: one click, a spinner, then "Still 12 iPad 13" screenshots: remove 2" or
+  "All clear"), and when nothing blocks any more "Submit now" (onsubmit) and "Dismiss".
 -->
 <script lang="ts">
   import type { Platform } from '@kiln/core';
   import { t } from '../../lib/i18n/t.ts';
   import type { LastPublish } from '../../lib/pending.ts';
-  import { clip, failureActions, failureReport, inReviewActions, partlyPublished, runSummary, stepLines } from '../../lib/publish-failure.ts';
+  import type { BlockersView } from '../../lib/app-state/blockers.ts';
+  import { clip, failureActions, failureReport, inReviewActions, partlyPublishedNow, runSummary, stepLines } from '../../lib/publish-failure.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -31,6 +36,9 @@
     compact = false,
     onpushsubmit = undefined,
     onreplace = undefined,
+    blockers = null,
+    oncheck = undefined,
+    onsubmit = undefined,
   }: {
     run: LastPublish;
     appName: string;
@@ -39,19 +47,23 @@
     compact?: boolean | undefined;
     onpushsubmit?: (() => void) | undefined;
     onreplace?: (() => void) | undefined;
+    blockers?: BlockersView | null | undefined;
+    oncheck?: (() => void) | undefined;
+    onsubmit?: (() => void) | undefined;
   } = $props();
 
   const uid = $props.id();
   const summary = $derived(runSummary(run));
   const lines = $derived(stepLines(run));
-  const report = $derived(failureReport({ appName, platform, run }));
+  const view = $derived(blockers);
+  const report = $derived(failureReport({ appName, platform, run, blockers: view }));
   const actions = $derived(failureActions(run, platform));
-  const partly = $derived(partlyPublished(run, platform));
+  const partly = $derived(partlyPublishedNow(run, platform, view));
   const inReview = $derived(inReviewActions(run, platform));
   let open = $state<Record<string, boolean>>({});
 </script>
 
-<Alert tone="error" {ondismiss}>
+<Alert tone={view?.state === 'ready' ? 'warn' : 'error'} {ondismiss}>
   <div class="failure" data-testid="publish-last-failed">
     {#if !compact}<strong>{t('publish:failure.heading')}</strong>{/if}
     {#if partly}<p class="partly" data-testid="publish-partly"><strong>{partly.sentence}</strong></p>{/if}
@@ -65,15 +77,55 @@
           </div>
           {#if line.note !== ''}<p class="small muted">{line.note}</p>{/if}
           {#if line.blockers.length > 0}
-            <!-- The submit did not run because of these (the store's checks): what is wrong, how to fix it, and where. -->
-            <ul class="blockers" data-testid="publish-blockers" aria-label={t('publish:failure.blocked.aria')}>
-              {#each line.blockers as b, i (`${b.code}-${i}`)}
-                <li class="blocker" data-code={b.code}>
-                  <p class="blocker-message">{b.message}</p>
-                  <p class="small muted blocker-fix"><span class="said-label">{t('publish:failure.blocked.how')}</span> {b.fix}{#if b.url !== null} <a class="link-button" href={b.url} target="_blank" rel="noreferrer noopener">{t('publish:failure.blocked.openStore')}</a>{/if}</p>
-                </li>
-              {/each}
-            </ul>
+            {#if view}
+              <!-- The model's answer: what blocks NOW apart from what the run recorded THEN. -->
+              <div class="readiness" data-testid="publish-readiness" data-state={view.state}>
+                <p class="small muted readiness-where" data-testid="publish-readiness-where">{view.state === 'unverified' ? view.runLabel : view.readLabel}</p>
+                {#if view.state === 'unverified'}
+                  <p class="small muted">{t('state:blockers.unverified')}</p>
+                {:else if view.state === 'ready'}
+                  <p class="readiness-ok" data-testid="publish-readiness-ok"><strong>{t('state:blockers.fixedNow')}</strong></p>
+                {/if}
+                {#if view.state !== 'ready'}
+                  <ul class="blockers" data-testid="publish-blockers" aria-label={t('publish:failure.blocked.aria')}>
+                    {#each (view.state === 'blocked' ? view.current : line.blockers) as b, i (`${b.code}-${i}`)}
+                      <li class="blocker" data-code={b.code}>
+                        <p class="blocker-message">{b.message}</p>
+                        <p class="small muted blocker-fix"><span class="said-label">{t('publish:failure.blocked.how')}</span> {b.fix}{#if b.url !== null} <a class="link-button" href={b.url} target="_blank" rel="noreferrer noopener">{t('publish:failure.blocked.openStore')}</a>{/if}</p>
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+                {#if oncheck || onsubmit || ondismiss}
+                  <div class="actions" data-testid="publish-readiness-actions">
+                    {#if view.state === 'ready' && onsubmit}<Button size="sm" variant="primary" onclick={onsubmit} data-testid="publish-submit-now">{t('state:blockers.submitNow')}</Button>{/if}
+                    {#if oncheck}<Button size="sm" variant="secondary" icon="refresh" loading={view.checking} disabled={view.checking} onclick={oncheck} data-testid="publish-check-again">{view.checking ? t('state:blockers.checking') : t('state:blockers.checkAgain')}</Button>{/if}
+                    {#if view.state === 'ready' && ondismiss}<Button size="sm" variant="ghost" onclick={ondismiss} data-testid="publish-dismiss-run">{t('state:blockers.dismiss')}</Button>{/if}
+                  </div>
+                {/if}
+                <p class="small readiness-summary" role="status" aria-live="polite" data-testid="publish-readiness-summary">{#if view.checking}{t('state:blockers.checking')}{:else if view.error !== null}{t('state:blockers.readFailed', { message: view.error })}{:else}{view.summary}{/if}</p>
+                {#if view.state !== 'unverified'}
+                  <details class="history" data-testid="publish-blockers-history">
+                    <summary>{t('state:blockers.history')} ({view.runLabel}){#if view.resolved.length > 0} · {t('state:blockers.resolvedCount', { count: view.resolved.length })}{/if}</summary>
+                    <ul class="blockers history-list" aria-label={t('state:blockers.historyAria')}>
+                      {#each view.run as b, i (`${b.code}-${i}`)}
+                        <li class="blocker" data-code={b.code}><p class="blocker-message">{b.message}</p></li>
+                      {/each}
+                    </ul>
+                  </details>
+                {/if}
+              </div>
+            {:else}
+              <!-- The submit did not run because of these (the store's checks): what is wrong, how to fix it, and where. -->
+              <ul class="blockers" data-testid="publish-blockers" aria-label={t('publish:failure.blocked.aria')}>
+                {#each line.blockers as b, i (`${b.code}-${i}`)}
+                  <li class="blocker" data-code={b.code}>
+                    <p class="blocker-message">{b.message}</p>
+                    <p class="small muted blocker-fix"><span class="said-label">{t('publish:failure.blocked.how')}</span> {b.fix}{#if b.url !== null} <a class="link-button" href={b.url} target="_blank" rel="noreferrer noopener">{t('publish:failure.blocked.openStore')}</a>{/if}</p>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
           {/if}
           {#if line.reason}
             {@const r = line.reason}
@@ -205,6 +257,27 @@
   .blocker p {
     margin: 0;
     overflow-wrap: anywhere;
+  }
+
+  .readiness {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-1);
+  }
+
+  .readiness p {
+    margin: 0;
+  }
+
+  .history {
+    font-size: var(--text-sm, 0.875rem);
+    color: var(--muted);
+  }
+
+  .history-list {
+    margin-top: var(--space-2);
+    border-left-color: var(--border, var(--muted));
   }
 
   .blocker-message {

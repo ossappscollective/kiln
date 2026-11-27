@@ -1,17 +1,20 @@
-import { type Role, supports } from '@kiln/core';
+import { can, type Role, supports } from '@kiln/core';
 import type { Api } from '../api.ts';
 import type { AttentionItem } from '../app-attention.ts';
+import { storeMediaCache } from '../assets/store-cache.ts';
 import type { PlatformScope } from '../app-scope.ts';
 import { cartSummaryStore } from '../cart-summary.svelte.ts';
 import { type PendingRow, pendingRows, pendingTotals } from '../cart-summary.ts';
 import { type LastPublish, type PendingLine, staleViewIds } from '../pending.ts';
 import { pendingStore } from '../pending-store.svelte.ts';
 import { pipelineStore } from '../pipeline-store.svelte.ts';
+import { submitBlockedOnly } from '../publish-failure.ts';
 import type { Publishing } from '../publishing.ts';
 import { publishingStore } from '../publishing-store.svelte.ts';
 import type { PipelineSummary, PipelineSummaryApp } from '../release-pipeline.ts';
-import { onStagedChanged } from '../staged-sync.ts';
+import { announceStagedChanged, onStagedChanged } from '../staged-sync.ts';
 import type { AppSummary, ReleaseSummary } from '../types.ts';
+import { type BlockersView, blockersViewOf } from './blockers.ts';
 import { activeFailure, deriveAppState, deriveTopBar, promoteOfferFor } from './derive.ts';
 import {
   analyzeCandidates,
@@ -20,6 +23,7 @@ import {
   stallLeftBehind,
 } from './candidates.ts';
 import { assembleFacts, type FactSources, lineOfRecords } from './facts.ts';
+import { readinessStore } from './readiness-store.svelte.ts';
 import { storeBuildsStore } from './store-builds-store.svelte.ts';
 import type {
   AppFacts,
@@ -94,6 +98,7 @@ function sourcesOf(workspaceId: string): FactSources {
     failure: (appId) => publishingStore.failureOf(workspaceId, appId),
     pipeline: (appId) => pipelineStore.app(appId),
     builds: (appId) => storeBuildsStore.of(appId),
+    readiness: (appId) => readinessStore.of(workspaceId, appId),
     publishBatchEnabled: pendingStore.config(workspaceId)?.enabled ?? null,
   };
 }
@@ -213,15 +218,16 @@ export const appStateStore = {
   workspaceFailures(
     workspaceId: string,
     apps: readonly AppSummary[] | null,
-  ): { app: AppSummary; run: LastPublish }[] {
-    const out: { app: AppSummary; run: LastPublish }[] = [];
+  ): { app: AppSummary; run: LastPublish; blockers: BlockersView | null }[] {
+    const out: { app: AppSummary; run: LastPublish; blockers: BlockersView | null }[] = [];
+    const now = Date.now();
     for (const id of publishingStore.failedIds(workspaceId)) {
       const app = (apps ?? []).find((a) => a.id === id);
       const run = activeFailure(
         publishingStore.failureOf(workspaceId, id),
         publishingStore.of(workspaceId, id),
       );
-      if (app && run) out.push({ app, run });
+      if (app && run) out.push({ app, run, blockers: blockersViewOf(run, readinessStore.of(workspaceId, id), now) });
     }
     return out;
   },
@@ -339,6 +345,66 @@ export const appStateStore = {
         void storeBuildsStore.load(api, workspaceId, r.id, force);
   },
 
+  /**
+   * The records whose last publish pushed the draft and only had its submit blocked (the blockers it kept are history: a reading of the
+   * store says what blocks now). Reactive: it follows the claims.
+   */
+  blockedRecords(workspaceId: string, records: readonly AppSummary[]): AppSummary[] {
+    return records.filter((r) => {
+      const run = activeFailure(
+        publishingStore.failureOf(workspaceId, r.id),
+        publishingStore.of(workspaceId, r.id),
+      );
+      return run !== null && submitBlockedOnly(run);
+    });
+  },
+
+  /**
+   * A screen that shows a blocked submit is shown: the store is read once (the server keeps a reading 30 seconds) so what the run kept is
+   * judged against what the store holds now. A role that may not submit is not asked (it sees the run's blockers as history).
+   */
+  ensureReadiness(
+    api: Api,
+    workspaceId: string,
+    role: Role,
+    records: readonly AppSummary[],
+  ): void {
+    if (!can(role, 'store.submit')) return;
+    for (const r of appStateStore.blockedRecords(workspaceId, records)) {
+      const run = publishingStore.failureOf(workspaceId, r.id);
+      void readinessStore.load(api, workspaceId, r.id, { notBefore: run?.finishedAt ?? 0 });
+    }
+  },
+
+  /**
+   * "Check again": the store is read again now, every cache of what it holds is dropped (the server's, the browser's graphics, this
+   * app's readiness) and the answer is judged again: "Still 12 iPad 13" screenshots: remove 2" or "All clear". One click, one request.
+   */
+  async checkAgain(api: Api, workspaceId: string, appId: string): Promise<void> {
+    storeMediaCache.forgetApp(workspaceId, appId);
+    await readinessStore.load(api, workspaceId, appId, { fresh: true });
+    // The Graphics tab, if it is open, reads the store again as well.
+    announceStagedChanged(appId, 'store_read');
+  },
+
+  /**
+   * The store was read again by something else (a sync of the app, "Read again" of the graphics): the browser's kept graphics of the app are
+   * dropped and, when its last publish was a blocked submit, the readiness is read again. `announce` tells the Graphics tab to read.
+   */
+  storeRead(
+    api: Api,
+    workspaceId: string,
+    app: AppSummary,
+    options: { announce?: boolean; role?: Role; /** The caller has just stored the fresh graphics itself: keep them. */ keepImages?: boolean } = {},
+  ): Promise<void> {
+    if (options.keepImages !== true) storeMediaCache.forgetApp(workspaceId, app.id);
+    if (options.announce === true) announceStagedChanged(app.id, 'store_read');
+    if (options.role !== undefined && !can(options.role, 'store.submit')) return Promise.resolve();
+    return appStateStore.blockedRecords(workspaceId, [app]).length > 0
+      ? readinessStore.load(api, workspaceId, app.id, { fresh: true })
+      : Promise.resolve();
+  },
+
   /** A mutation is done (published, discarded, a sync ended): every fact is read again, once. */
   async refresh(api: Api, workspaceId: string, appIds: readonly string[] = []): Promise<void> {
     await Promise.all([
@@ -349,6 +415,16 @@ export const appStateStore = {
       ...appIds
         .filter((id) => storeBuildsStore.of(id) !== null)
         .map((id) => storeBuildsStore.load(api, workspaceId, id, true)),
+      // What blocks a blocked submit is read again with everything else (the run's own list is history).
+      ...appIds
+        .filter((id) => {
+          const run = activeFailure(
+            publishingStore.failureOf(workspaceId, id),
+            publishingStore.of(workspaceId, id),
+          );
+          return run !== null && submitBlockedOnly(run) && readinessStore.of(workspaceId, id) !== null;
+        })
+        .map((id) => readinessStore.load(api, workspaceId, id, { fresh: true })),
     ]);
   },
 
