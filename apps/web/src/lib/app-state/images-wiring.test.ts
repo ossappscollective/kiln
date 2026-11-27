@@ -95,7 +95,7 @@ test('"Read again" asks the store once: the comparison is forgotten and what blo
   const store = read('lib/app-state/store-images-store.svelte.ts');
   assert.match(
     store,
-    /invalidate\('store_read', \{ workspaceId, appId: app\.id, keepGraphics: true, origin: 'graphics' \}\)/,
+    /invalidate\('store_read', \{\s*workspaceId,\s*appId: app\.id,\s*keepGraphics: true,\s*origin: 'graphics',?\s*\}\)/,
   );
   assert.match(store, /appStateStore\.storeRead\(/);
   assert.doesNotMatch(store, /readCache\.forget/);
