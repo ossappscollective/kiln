@@ -1,5 +1,5 @@
 import type { Platform, StoreId } from '@kiln/core';
-import { releaseNotesLimit } from '@kiln/core';
+import { isLocaleCode, localeKey, releaseNotesLimit } from '@kiln/core';
 import { k, t } from './i18n/t.ts';
 import type { TestNotes } from './release-candidates.ts';
 
@@ -12,9 +12,6 @@ import type { TestNotes } from './release-candidates.ts';
 
 /** The longest "what is new": App Store 4000, Google Play 500 (a limit no official page states: only a warning). */
 export const noteLimit = (platform: Platform): number => releaseNotesLimit(platform);
-
-export const normalizeLocale = (locale: string): string =>
-  locale.trim().toLowerCase().replace(/_/g, '-');
 
 // ---------------------------------------------------------------------------------------------
 // History (`GET /apps/{id}/release/notes-history`)
@@ -144,12 +141,12 @@ export function reuseOptions(
   current: string,
   date: (at: number) => string,
 ): ReuseOption[] {
-  const want = normalizeLocale(locale);
+  const want = localeKey(locale);
   const limit = noteLimit(platform);
   const out: ReuseOption[] = [];
   for (const note of history.notes) {
-    const mine = note.uses.filter((u) => normalizeLocale(u.locale) === want);
-    if (mine.length === 0 && note.locales.map(normalizeLocale).indexOf(want) < 0) continue;
+    const mine = note.uses.filter((u) => localeKey(u.locale) === want);
+    if (mine.length === 0 && note.locales.map(localeKey).indexOf(want) < 0) continue;
     const lines = (mine.length > 0 ? mine : note.uses).map((u) => useLine(u, date));
     out.push({
       text: note.text,
@@ -228,7 +225,7 @@ export function useTestFlightNotes(drafts: Drafts, notes: TestNotes | undefined)
   if (!notes?.read) return { drafts, filled, skipped };
   const keys = Object.keys(drafts);
   for (const n of notes.locales) {
-    const key = keys.filter((k) => normalizeLocale(k) === normalizeLocale(n.locale))[0];
+    const key = keys.filter((k) => localeKey(k) === localeKey(n.locale))[0];
     if (key === undefined) {
       skipped.push(n.locale);
       continue;
@@ -294,13 +291,13 @@ export function promoteNotesFill(input: {
   platform: Platform;
 }): PromoteNotesFill {
   const known = (list: readonly string[], locale: string): string | undefined =>
-    list.filter((l) => normalizeLocale(l) === normalizeLocale(locale))[0];
+    list.filter((l) => localeKey(l) === localeKey(locale))[0];
   const found = new Map<string, { locale: string; text: string }>();
   for (const note of input.history.notes) {
     const text = clean(note.text);
     if (text === '') continue;
     for (const locale of note.locales) {
-      const key = normalizeLocale(locale);
+      const key = localeKey(locale);
       if (!found.has(key)) found.set(key, { locale, text });
     }
   }
@@ -452,5 +449,4 @@ export const stateLabel = (state: LocaleState): string =>
         : t('release:notes.stateLabel.new');
 
 /** A locale code the server accepts for notes (`en-US`, `de`, `pt_BR`). */
-export const isNoteLocale = (value: string): boolean =>
-  /^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8}){0,3}$/.test(value.trim()) && value.trim().length <= 35;
+export const isNoteLocale = (value: string): boolean => isLocaleCode(value);

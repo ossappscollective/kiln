@@ -1,4 +1,4 @@
-import { type Action, can } from '@kiln/core';
+import { type Action, can, isLocaleOrDefault } from '@kiln/core';
 import type { Database } from '@kiln/db';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
@@ -52,8 +52,6 @@ const respond = (c: Context<AppEnv>, f: Failure) => {
   return c.json(f.body, f.status);
 };
 
-const LOCALE = /^[A-Za-z0-9_-]{1,35}$/;
-
 /** A pull body is a list of fields and locales: a few kilobytes at most. */
 const listingSettingsBody = z
   .object({ compareRepo: z.boolean().optional(), compareMedia: z.boolean().optional() })
@@ -62,7 +60,7 @@ const listingSettingsBody = z
 const PULL_BODY_LIMIT = 64 * 1024;
 const MAX_PULL_LOCALES = 100;
 const MAX_PULL_ITEMS = 1000;
-const localeCode = z.string().regex(LOCALE, 'Not a locale code.');
+const localeCode = z.string().refine(isLocaleOrDefault, 'Not a locale code.');
 const folderText = z.string().max(400);
 const pullBody = z
   .object({
@@ -196,7 +194,7 @@ export function listingRoutes(ctx: ListingRoutesContext) {
     const issues: { path: string; message: string }[] = [];
     const locale = c.req.query('locale');
     const field = c.req.query('field');
-    if (locale !== undefined && !LOCALE.test(locale)) {
+    if (locale !== undefined && !isLocaleOrDefault(locale)) {
       issues.push({ path: 'locale', message: 'A locale such as en-US.' });
     }
     if (field !== undefined && !isListingField(app.platform, field)) {

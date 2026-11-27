@@ -1,6 +1,6 @@
 import type { NotesHistoryRead } from '@kiln/connectors';
 import type { StoreId } from '@kiln/core';
-import { NOTES_HISTORY_TTL_MS as TTL, storeOf } from '@kiln/core';
+import { localeKey, NOTES_HISTORY_TTL_MS as TTL, storeOf } from '@kiln/core';
 import type { Sql } from '@kiln/db';
 import { readNotesHistoryOf, type StoreConnectContext } from '../modules/publish/store-draft.ts';
 import type { ManagedApp } from './apps.ts';
@@ -76,7 +76,6 @@ const cache = timedCache<NotesHistoryRead>(NOTES_HISTORY_TTL_MS, 200, {
 });
 export const clearNotesHistoryCache = () => cache.clear();
 
-const norm = (locale: string) => locale.toLowerCase().replace(/_/g, '-');
 /** Texts are the same when they differ only in line ends and the space around them. */
 const keyOf = (text: string) => text.replace(/\r\n?/g, '\n').trim();
 
@@ -106,7 +105,7 @@ export async function notesHistory(
   );
   const store = storeOf(app.platform);
   const wantedLocale =
-    input.locale === undefined || input.locale === '' ? undefined : norm(input.locale);
+    input.locale === undefined || input.locale === '' ? undefined : localeKey(input.locale);
 
   const wantedTrack =
     input.track === undefined || input.track === '' ? undefined : input.track.toLowerCase();
@@ -160,7 +159,7 @@ export async function notesHistory(
   };
   for (const e of read?.entries ?? []) {
     // The connector narrows by language already; a store that did not is narrowed here too.
-    if (wantedLocale !== undefined && norm(e.locale) !== wantedLocale) continue;
+    if (wantedLocale !== undefined && localeKey(e.locale) !== wantedLocale) continue;
     if (wantedTrack !== undefined) {
       if ((e.track ?? '').toLowerCase() !== wantedTrack) continue;
       if (wantedCodes !== undefined && !(e.versionCodes ?? []).some((c) => wantedCodes.includes(c)))
@@ -232,7 +231,7 @@ async function planNotes(sql: Sql, workspaceId: string, appId: string, locale: s
     [workspaceId, appId],
   );
   return rows
-    .filter((r) => locale === undefined || norm(String(r.locale)) === locale)
+    .filter((r) => locale === undefined || localeKey(String(r.locale)) === locale)
     .map((r) => ({
       locale: String(r.locale),
       text: String(r.text),

@@ -1,5 +1,5 @@
-import { EXPO_LOCALES, isLocaleDir } from '@kiln/connectors';
-import type { Platform } from '@kiln/core';
+import { EXPO_LOCALES } from '@kiln/connectors';
+import { equivalentLocaleKeys, isRepoLocaleFolder, localeKey, matchLocale, type Platform } from '@kiln/core';
 
 /**
  * Locale codes between the store and the repository, as pure functions.
@@ -19,55 +19,14 @@ import type { Platform } from '@kiln/core';
  * left to a person.
  */
 
-/** The key two codes are compared by: lower case, `-` as separator. */
-export const canonicalLocale = (code: string): string =>
-  code.trim().replace(/_/g, '-').toLowerCase();
-
 /**
- * Groups of canonical codes that name the same language in the two stores. Every group is
- * symmetric: any member matches any other.
+ * The key two codes are compared by: lower case, `-` as separator. THE locale module of core owns it (`localeKey`); the equivalence table
+ * (`LOCALE_EQUIVALENTS`) lives there too, so the web matrix and this repository matching read the same one.
  */
-const EQUIVALENT_GROUPS: readonly (readonly string[])[] = [
-  ['zh-hans', 'zh-cn'],
-  ['zh-hant', 'zh-tw'],
-  ['ja', 'ja-jp'],
-  ['ko', 'ko-kr'],
-  ['it', 'it-it'],
-  ['ru', 'ru-ru'],
-  ['tr', 'tr-tr'],
-  ['pl', 'pl-pl'],
-  ['sv', 'sv-se'],
-  ['da', 'da-dk'],
-  ['fi', 'fi-fi'],
-  ['no', 'no-no', 'nb', 'nb-no'],
-  ['cs', 'cs-cz'],
-  ['el', 'el-gr'],
-  ['hu', 'hu-hu'],
-  ['he', 'he-il', 'iw', 'iw-il'],
-  ['hi', 'hi-in'],
-  ['ar-sa', 'ar'],
-  ['ms', 'ms-my'],
-  ['id', 'id-id', 'in-id'],
-  ['th', 'th-th'],
-  ['vi', 'vi-vn'],
-  ['uk', 'uk-ua'],
-  ['ro', 'ro-ro'],
-  ['sk', 'sk-sk'],
-  ['hr', 'hr-hr'],
-  ['ca', 'ca-es'],
-  ['nl-nl', 'nl'],
-  ['es-mx', 'es-419'],
-];
-
-const GROUP_OF = new Map<string, readonly string[]>();
-for (const group of EQUIVALENT_GROUPS) for (const code of group) GROUP_OF.set(code, group);
+export const canonicalLocale = localeKey;
 
 /** The canonical codes that mean the same as `code` (itself first). */
-export function equivalentLocales(code: string): string[] {
-  const key = canonicalLocale(code);
-  const group = GROUP_OF.get(key);
-  return group ? [key, ...group.filter((c) => c !== key)] : [key];
-}
+export const equivalentLocales = equivalentLocaleKeys;
 
 export type LocaleMatch =
   | { kind: 'match'; repoLocale: string; how: 'exact' | 'normalized' | 'equivalent' }
@@ -76,20 +35,20 @@ export type LocaleMatch =
 
 /**
  * The repository's locale folder that holds the store's locale, if there is one. `repoLocales` are
- * the codes as the repository has them (never the `default` fallback folder).
+ * the codes as the repository has them (never the `default` fallback folder). The rules are core's `matchLocale` without the language
+ * fallback: the same text, the same key, a known equivalent of the other store; nothing else.
  */
 export function matchRepoLocale(storeLocale: string, repoLocales: readonly string[]): LocaleMatch {
-  const exact = repoLocales.find((r) => r === storeLocale);
-  if (exact !== undefined) return { kind: 'match', repoLocale: exact, how: 'exact' };
-  const key = canonicalLocale(storeLocale);
-  const same = repoLocales.filter((r) => canonicalLocale(r) === key);
-  if (same.length === 1) return { kind: 'match', repoLocale: same[0] as string, how: 'normalized' };
-  if (same.length > 1) return { kind: 'ambiguous', candidates: [...same].sort() };
-  const wanted = new Set(equivalentLocales(storeLocale));
-  const near = repoLocales.filter((r) => wanted.has(canonicalLocale(r)));
-  if (near.length === 1) return { kind: 'match', repoLocale: near[0] as string, how: 'equivalent' };
-  if (near.length > 1) return { kind: 'ambiguous', candidates: [...near].sort() };
-  return { kind: 'none' };
+  const found = matchLocale(storeLocale, repoLocales);
+  if (found.kind === 'match') {
+    // `language` is only produced with `languageFallback`, which is off here.
+    return {
+      kind: 'match',
+      repoLocale: found.locale,
+      how: found.how === 'language' ? 'equivalent' : found.how,
+    };
+  }
+  return found;
 }
 
 export type NewLocale =
@@ -109,7 +68,8 @@ export function newRepoLocale(
   source: 'fastlane' | 'expo-store-config',
 ): NewLocale {
   const code = storeLocale.trim().replace(/_/g, '-');
-  if (!isLocaleDir(code)) return { ok: false, reason: 'invalid' };
+  // A store writes its language in lower case (`fr-FR`): `FR` is something a repository folder may be called, not a code to create.
+  if (!isRepoLocaleFolder(code) || !/^[a-z]/.test(code)) return { ok: false, reason: 'invalid' };
   if (source === 'expo-store-config' && !EXPO_LOCALES.includes(code)) {
     // The EAS schema writes the code as it is listed there; a case difference is repaired.
     const listed = EXPO_LOCALES.find((l) => canonicalLocale(l) === canonicalLocale(code));

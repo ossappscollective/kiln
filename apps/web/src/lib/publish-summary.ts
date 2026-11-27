@@ -1,6 +1,7 @@
 import {
   type AssetKind,
   kindHasDevice,
+  localesMatch,
   type Platform,
   platformMeta,
   deviceLabel as storeDeviceLabel,
@@ -312,9 +313,6 @@ function graphicsParts(push: DraftPreview): string[] {
   return parts;
 }
 
-const sameLocale = (a: string, b: string): boolean =>
-  a.trim().replace(/_/g, '-').toLowerCase() === b.trim().replace(/_/g, '-').toLowerCase();
-
 /**
  * The release notes to show: the preview of the default language of the app when the push has a text for it, else the first language
  * with a text, said plainly ("the first language is shown") when the default language is not known or has no text here.
@@ -328,7 +326,7 @@ export function notesDetail(
   const wanted = defaultLocale === undefined || defaultLocale === null ? '' : defaultLocale.trim();
   const filled = entries.filter((n) => n.text.trim() !== '');
   const ofDefault =
-    wanted === '' ? undefined : filled.filter((n) => sameLocale(n.locale, wanted))[0];
+    wanted === '' ? undefined : filled.filter((n) => localesMatch(n.locale, wanted))[0];
   const picked = ofDefault ?? filled[0];
   let hint: string | null = null;
   if (picked !== undefined && ofDefault === undefined) {

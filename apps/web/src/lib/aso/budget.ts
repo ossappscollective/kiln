@@ -7,6 +7,7 @@ import {
   type FitFields,
   type FitKeyword,
   type ListingBudget,
+  localeKey,
   type StagedChangesView,
   supports,
   type WasteReason,
@@ -94,15 +95,13 @@ export function fieldsFromDrift(
   return overlayStaged(platform, locale, base, view);
 }
 
-const tag = (locale: string): string => locale.replace(/_/g, '-').toLowerCase();
-
 /** The tracked keywords of exactly this locale, for the budget. Another locale of the same language is not guessed. */
 export function keywordsForLocale(
   keywords: readonly Pick<AsoKeyword, 'id' | 'term' | 'priority' | 'locale'>[],
   locale: string,
 ): FitKeyword[] {
   return keywords
-    .filter((k) => tag(k.locale) === tag(locale))
+    .filter((k) => localeKey(k.locale) === localeKey(locale))
     .map((k) => ({ id: k.id, term: k.term, priority: k.priority }));
 }
 
@@ -113,7 +112,7 @@ export function countriesForLocale(
 ): string[] {
   const out: string[] = [];
   for (const k of keywords)
-    if (tag(k.locale) === tag(locale) && out.indexOf(k.country) < 0) out.push(k.country);
+    if (localeKey(k.locale) === localeKey(locale) && out.indexOf(k.country) < 0) out.push(k.country);
   return out.sort();
 }
 

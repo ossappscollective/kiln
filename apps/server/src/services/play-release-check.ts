@@ -7,7 +7,7 @@ import {
   StoreRateLimitError,
   secretStrings,
 } from '@kiln/connectors';
-import { normalizeReleaseValue, supports, versionCodesOf } from '@kiln/core';
+import { isLocaleCode, normalizeReleaseValue, supports, versionCodesOf } from '@kiln/core';
 import type { Database } from '@kiln/db';
 import { type Coding, coded, codingOf } from '../i18n/problem.ts';
 import type {
@@ -72,7 +72,6 @@ export type PlayCheckView = {
 };
 
 const TRACK = /^[A-Za-z0-9][A-Za-z0-9_:.-]{0,99}$/;
-const LOCALE = /^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8}){0,2}$/;
 const invalid = (code: string, message: string, field: string, coding?: Coding): Failure =>
   failure(422, code, message, { field, ...coding });
 
@@ -138,7 +137,7 @@ export function playCheckRequestOf(
   const notes: { locale: string; text: string }[] = [];
   const seen = new Set<string>();
   for (const note of input.notes ?? []) {
-    if (!LOCALE.test(note.locale))
+    if (!isLocaleCode(note.locale))
       return invalid('invalid_locale', 'A language code looks like en-US.', 'notes');
     const key = note.locale.replace(/_/g, '-').toLowerCase();
     if (seen.has(key))

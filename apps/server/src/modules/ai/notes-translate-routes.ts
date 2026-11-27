@@ -1,4 +1,4 @@
-import { type Action, can, canToken } from '@kiln/core';
+import { type Action, can, canToken, localeKey } from '@kiln/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -34,7 +34,6 @@ export const translateNotesBody = z
   .strict();
 
 const ws = (c: Context<AppEnv>) => c.req.param('workspaceId') ?? '';
-const norm = (value: string) => value.trim().toLowerCase().replace(/_/g, '-');
 
 /**
  * Translating the "what is new" text of a release (docs/api/releases-write.md, docs/adr/0028-release-notes-translation.md). One request
@@ -77,11 +76,11 @@ export function releaseNotesTranslateRoutes(ctx: ReleaseNotesTranslateRoutesCont
       const issues: { path: string; message: string }[] = [];
       if (text.trim() === '')
         issues.push({ path: 'text', message: 'Write the text to translate.' });
-      const seen = new Set<string>([norm(sourceLocale)]);
+      const seen = new Set<string>([localeKey(sourceLocale)]);
       const targets: string[] = [];
       for (const t of body.data.targetLocales) {
-        if (seen.has(norm(t))) continue;
-        seen.add(norm(t));
+        if (seen.has(localeKey(t))) continue;
+        seen.add(localeKey(t));
         targets.push(t.trim().replace(/_/g, '-'));
       }
       if (targets.length === 0)

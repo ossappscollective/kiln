@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import type { StoreListing } from '@kiln/connectors';
 import { dbTest } from '@kiln/db/testing';
-import { bootListing, EN_US, iosSections, playListing } from './test-helpers.ts';
+import { bootListing, EN_US, playListing } from './test-helpers.ts';
 
 // `GET /apps/:id/listing/store`: the one read of the store side. The scenarios are the audit's: an iOS app with a live 1.0 and a draft 1.1
 // that holds a locale (fr-FR) the live copy does not, an App Store primary locale, and the intents (shown, editable, live).
@@ -108,7 +108,7 @@ dbTest('Google Play declares its default language; the store read says so too', 
   const id = await t.addAndroid();
   t.stores.android.listing = playListing(
     { 'en-US': { title: 'Acme', short_description: 'Short', full_description: 'Full description text.' }, 'zh-CN': { title: '应用' } },
-    { details: { defaultLanguage: 'zh-CN' }, media: iosSections().media },
+    { details: { defaultLanguage: 'zh-CN' } },
   );
   await t.sync(id);
   const body = (await t.call(t.owner, 'GET', `/apps/${id}/listing/store?drift=0`)).body;

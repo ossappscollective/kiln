@@ -1,4 +1,4 @@
-import { aiProviderInfo, can, type Role, translationProviderInfo } from '@kiln/core';
+import { aiProviderInfo, can, localeKey, type Role, translationProviderInfo } from '@kiln/core';
 import {
   type AiConfig,
   aiErrorMessage,
@@ -9,7 +9,7 @@ import {
 } from './ai/ai.ts';
 import { ApiError } from './api.ts';
 import { k, t } from './i18n/t.ts';
-import { type Drafts, normalizeLocale } from './release-notes.ts';
+import type { Drafts } from './release-notes.ts';
 import { translationErrorMessage } from './reviews/translation.ts';
 import type { TranslationConfig } from './settings.ts';
 
@@ -234,7 +234,7 @@ export const languagesWithText = (texts: Drafts, locales: readonly string[]): st
 /** The language to translate from by default: the first one that has text (not `skip`, the language being written). */
 export function defaultSource(texts: Drafts, locales: readonly string[], skip = ''): string | null {
   const found = languagesWithText(texts, locales).filter(
-    (l) => skip === '' || normalizeLocale(l) !== normalizeLocale(skip),
+    (l) => skip === '' || localeKey(l) !== localeKey(skip),
   )[0];
   return found ?? null;
 }
@@ -265,7 +265,7 @@ export function translatePlan(
 ): TranslatePlan {
   const text = clean(texts[source] ?? '');
   const wanted = only ?? locales;
-  const targets = wanted.filter((l) => normalizeLocale(l) !== normalizeLocale(source));
+  const targets = wanted.filter((l) => localeKey(l) !== localeKey(source));
   const replaces = targets.filter((l) => clean(texts[l] ?? '') !== '').length;
   const chunks: string[][] = [];
   for (let i = 0; i < targets.length; i += NOTES_TRANSLATE_MAX_TARGETS)
@@ -324,7 +324,7 @@ export function applyTranslations(
     usageWarning: null,
   };
   const mine = (locale: string): string | undefined =>
-    targets.filter((target) => normalizeLocale(target) === normalizeLocale(locale))[0];
+    targets.filter((target) => localeKey(target) === localeKey(locale))[0];
   const settled: Record<string, boolean> = {};
   for (const answer of answers) {
     if (!answer.ok) {
@@ -345,7 +345,7 @@ export function applyTranslations(
       const chars = (r.texts[key] as string).length;
       if (chars > r.limit) out.over.push({ locale, chars, limit: r.limit });
       const codes = Object.keys(r.warnings).filter(
-        (k) => normalizeLocale(k) === normalizeLocale(key),
+        (k) => localeKey(k) === localeKey(key),
       )[0];
       if (codes !== undefined && (r.warnings[codes] as string[]).length > 0)
         out.warnings.push({ locale, codes: r.warnings[codes] as string[] });

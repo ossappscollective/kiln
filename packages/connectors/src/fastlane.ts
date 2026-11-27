@@ -3,6 +3,7 @@ import {
   type AppStoreField,
   type AppStoreListing,
   DEFAULT_LOCALE,
+  isRepoLocaleFolder,
   type FileChange,
   type Listing,
   type ListingStore,
@@ -85,11 +86,12 @@ const APP_STORE_FIELD_SET: ReadonlySet<string> = new Set(APP_STORE_FIELDS);
 const PLAY_FIELD_SET: ReadonlySet<string> = new Set(PLAY_FIELDS);
 
 /**
- * A folder name that can be a store locale. Deliberately loose (`en`, `en-US`, `zh-Hans`,
- * `es-419`): the stores' own lists were not checked, so this only rules out other folders.
+ * A folder name that can be a store locale: `en`, `en-US`, `zh-Hans`, `es-419`, and the spellings people write (`fr_FR`, `FR`, `Fr-fr`).
+ * Deliberately loose: the stores' own lists were not checked, so this only rules out other folders. The ONE locale module of core decides
+ * (`isRepoLocaleFolder`); this used to be a lower-case regex that did not see `fr_FR` or `FR` folders.
  */
 export function isLocaleDir(name: string): boolean {
-  return name !== 'ios' && /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(name);
+  return isRepoLocaleFolder(name);
 }
 
 // ---------------------------------------------------------------------------------------------

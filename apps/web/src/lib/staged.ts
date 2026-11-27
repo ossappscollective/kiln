@@ -3,6 +3,7 @@ import {
   type AssetProblem,
   assetSlotSupport,
   can,
+  isLocaleCode,
   type Platform,
   PUSHABLE_IMAGE_FORMATS,
   platformMeta,
@@ -274,11 +275,8 @@ export const setTitle = (set: Pick<StagedAssetView, 'locale' | 'label'>): string
 // ---------------------------------------------------------------------------------------------
 // Staging a text
 
-const LOCALE = /^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8}){0,3}$/;
-
-/** The locale codes the server can stage (a store locale such as en-US); the project folder and `default` are not. */
-export const isStageableLocale = (locale: string): boolean =>
-  locale.length <= 35 && LOCALE.test(locale);
+/** The locale codes the server can stage (a store locale such as en-US); the project folder and `default` are not. The ONE validator of core. */
+export const isStageableLocale = (locale: string): boolean => isLocaleCode(locale);
 
 export const isStageableTextField = (platform: Platform, field: string): boolean =>
   STAGEABLE_TEXT_FIELDS[platform].indexOf(field) !== -1;

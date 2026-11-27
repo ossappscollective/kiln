@@ -34,6 +34,7 @@ import {
   type StagedReleaseFieldView,
   type StagedSource,
   type StagedTextView,
+  isLocaleCode,
   limitOf,
   slotKey,
   slotLimitProblem,
@@ -166,9 +167,9 @@ export async function loadStagedRows(
 // ---------------------------------------------------------------------------------------------
 // Slots
 
-const LOCALE = /^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8}){0,3}$/;
+/** A locale code a text can be staged for: the ONE locale validator of core (any case, `-` or `_`). */
 export const isStageableLocale = (value: string): boolean =>
-  value.length <= STAGED_LIMITS.maxLocaleChars && LOCALE.test(value);
+  value.length <= STAGED_LIMITS.maxLocaleChars && isLocaleCode(value);
 
 /** The store's own name of a set (App Store display type, Google Play image type), or undefined. */
 export function storeTargetOf(

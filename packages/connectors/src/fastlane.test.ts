@@ -278,3 +278,15 @@ test('the model validates: the sample listing is within every limit', () => {
   );
   assert.ok(problems.some((p) => p.locale === 'de-DE' && p.field === 'description'));
 });
+
+test('a folder written fr_FR, FR or Fr-fr is a locale folder, like fr-FR (audit listing F10)', () => {
+  const snap = readListing({
+    [`${IOS}/en-US/name.txt`]: 'Trail Notes\n',
+    [`${IOS}/fr_FR/name.txt`]: 'Carnet de sentiers\n',
+    [`${IOS}/DE/name.txt`]: 'Wegnotizen\n',
+    [`${IOS}/ios/name.txt`]: 'not a locale\n',
+  });
+  const locales = Object.keys(snap.listing.appStore?.locales ?? {}).sort();
+  assert.deepEqual(locales, ['DE', 'en-US', 'fr_FR']);
+  assert.equal(snap.listing.appStore?.locales.fr_FR?.name, 'Carnet de sentiers');
+});

@@ -1,5 +1,5 @@
 import type { JsonSchema } from '@kiln/connectors';
-import { type AiProvider, byFamily, sameLanguage, storeShortName } from '@kiln/core';
+import { type AiProvider, byFamily, isLocaleCode, localeKey, sameLanguage, storeShortName } from '@kiln/core';
 import type { Database } from '@kiln/db';
 import { coded } from '../../i18n/problem.ts';
 import type { ManagedApp } from '../../services/apps.ts';
@@ -37,8 +37,7 @@ export const NOTES_TRANSLATE_LIMITS = { maxChars: 4000, maxTargets: 40 } as cons
 export const NOTES_TASK = { id: 'release_notes_translate', version: 1 } as const;
 
 /** A language tag for notes: `en-US`, `de`, `pt_BR`. Same rule as the screen. */
-export const isNoteLocale = (value: string): boolean =>
-  /^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8}){0,3}$/.test(value.trim()) && value.trim().length <= 35;
+export const isNoteLocale = (value: string): boolean => isLocaleCode(value);
 
 /** The longest "what is new" of the store of this platform. */
 export const noteLimitOf = (platform: ManagedApp['platform']): number =>
@@ -180,7 +179,6 @@ const aiSchema = (count: number): JsonSchema => ({
   additionalProperties: false,
 });
 
-const norm = (locale: string) => locale.trim().toLowerCase().replace(/_/g, '-');
 
 async function translateMachine(
   ctx: NotesTranslateContext,
@@ -315,7 +313,7 @@ async function translateAi(
           ?.translations ?? [];
       for (const t of batch) {
         const row = rows.filter(
-          (r) => typeof r.locale === 'string' && norm(r.locale) === norm(t),
+          (r) => typeof r.locale === 'string' && localeKey(r.locale) === localeKey(t),
         )[0];
         const text = typeof row?.text === 'string' ? cleanModelText(row.text) : '';
         if (text === '') base.failed[t] = 'The model did not write a text for this language.';

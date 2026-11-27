@@ -1,3 +1,4 @@
+import { isLocaleCode } from '@kiln/core';
 import { callTool, type ToolContext, type ToolOutcome } from './tools.ts';
 
 /**
@@ -11,7 +12,7 @@ import { callTool, type ToolContext, type ToolOutcome } from './tools.ts';
  */
 
 const ID = '[A-Za-z0-9._:-]{1,100}';
-const LOCALE = '[A-Za-z]{2,3}(?:[_-][A-Za-z0-9]{2,8}){0,2}';
+const LOCALE = '[A-Za-z0-9_-]{2,35}';
 const OVERVIEW = new RegExp(`^kiln://apps/(${ID})/(overview|release-state)$`);
 const LISTING = new RegExp(`^kiln://apps/(${ID})/listing/(${LOCALE})$`);
 
@@ -103,7 +104,7 @@ export function planFor(uri: string): Plan | undefined {
         ];
   }
   const listing = LISTING.exec(uri);
-  if (listing)
+  if (listing && isLocaleCode(listing[2]))
     return [
       { part: 'listing', tool: 'get_listing', args: { appId: listing[1], locale: listing[2] } },
     ];

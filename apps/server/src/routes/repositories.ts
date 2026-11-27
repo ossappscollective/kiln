@@ -1,4 +1,4 @@
-import { type Action, can } from '@kiln/core';
+import { type Action, can, isLocaleOrDefault } from '@kiln/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -111,7 +111,7 @@ const refreshBody = z.object({
 
 // A locale folder (`en-US`, `de`) or the fastlane `default` folder. No slashes, so a key can never
 // point outside the metadata folder.
-const localeKey = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,19}$/, 'Not a locale code.');
+const localeKey = z.string().refine(isLocaleOrDefault, 'Not a locale code.');
 const text = z.string().max(100_000);
 
 // Counts are capped as well as sizes: the stores have under 100 locales, a listing has a few dozen

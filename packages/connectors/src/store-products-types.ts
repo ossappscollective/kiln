@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { StoreId } from '@kiln/core';
+import { localesMatch, normalizeLocaleCode, type StoreId } from '@kiln/core';
 import { StoreError } from './errors.ts';
 
 /**
@@ -337,16 +337,13 @@ export function productHash(product: StoreProduct): string {
   );
 }
 
-/** A locale as both stores write it: letters, digits and hyphens (`en-US`, `es-419`, `zh-Hans`, `pt_BR` is read as `pt-BR`). */
+/** A locale as both stores write it (`en-US`, `es-419`, `zh-Hans`; `pt_BR` is read as `pt-BR`): the core normalizer, undefined when it is no code. */
 export function cleanLocale(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined;
-  const v = value.trim().replace(/_/g, '-');
-  return /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$/.test(v) ? v : undefined;
+  return normalizeLocaleCode(value) ?? undefined;
 }
 
-/** Locales are compared case-insensitively: `en-us` is `en-US`. */
-export const sameLocale = (a: string, b: string): boolean =>
-  a.replace(/_/g, '-').toLowerCase() === b.replace(/_/g, '-').toLowerCase();
+/** Locales are compared case-insensitively (`en-us` is `en-US`): the core `exact` match. */
+export const sameLocale = (a: string, b: string): boolean => localesMatch(a, b, { mode: 'exact' });
 
 /** A product id of either store: Apple's letters, digits, `_` and `.`; Google Play's lowercase letters, digits, `_` and `.`. */
 export const isStoreProductId = (value: unknown): value is string =>
