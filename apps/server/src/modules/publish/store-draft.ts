@@ -79,6 +79,7 @@ import {
   textEntry,
 } from './store-draft-record.ts';
 import { storeBody } from './store-failure.ts';
+import { dropStoreReadCaches, onStoreMayHaveChanged } from './store-read-events.ts';
 
 /**
  * Writing staged listing text and graphics into a store as a DRAFT: a STORE WRITE. The design copies
@@ -163,12 +164,9 @@ export const defaultDraftConnectorFactory: DraftConnectorFactory =
       }),
   });
 
-/** Called with (workspaceId, appId) when a draft push succeeded, so caches of what the store holds can be dropped. */
-const draftPushListeners = new Set<(workspaceId: string, appId: string) => void>();
-export const onDraftPushed = (fn: (workspaceId: string, appId: string) => void): void => {
-  draftPushListeners.add(fn);
-};
-
+/** Called with (workspaceId, appId) when a draft push succeeded, so caches of what the store holds can be dropped (`store-read-events.ts`). */
+export const onDraftPushed = onStoreMayHaveChanged;
+export { dropStoreReadCaches };
 export type DraftContext = {
   db: Database;
   masterKey: Buffer;
@@ -1417,7 +1415,7 @@ async function succeed(
   );
   const counts = countsOf(s.steps);
   // The store changed: whoever caches a read of it (the store graphics) drops it.
-  for (const listener of draftPushListeners) listener(input.workspaceId, s.app.id);
+  dropStoreReadCaches(input.workspaceId, s.app.id);
   await ctx.db.transaction(async (tx) => {
     await markPushed(tx, input.workspaceId, s.app.id, s.prepared, s.steps, at);
     if (released && s.release && track && codes.length > 0) {
@@ -1779,7 +1777,7 @@ export async function applyDraftPush(
     if (error instanceof DraftPartialError) {
       const at = ctx.now();
       // Part of the store changed: whoever caches a read of it (the store graphics) drops it.
-      for (const listener of draftPushListeners) listener(input.workspaceId, app.id);
+      dropStoreReadCaches(input.workspaceId, app.id);
       await markPushed(db, input.workspaceId, app.id, p, error.completed, at);
       const mapped = mapStoreError(error.cause, connection.secret);
       await audit(ctx, input, app, accepted, {
@@ -1827,7 +1825,7 @@ export async function applyDraftPush(
       // Every request was accepted but the store, read back, does not hold what was asked (a removal that did not happen, or shows late).
       // That is not "applied": the sets that differ stay staged (markPushed skips them), the rest is marked done, and nothing is submitted.
       const at = ctx.now();
-      for (const listener of draftPushListeners) listener(input.workspaceId, app.id);
+      dropStoreReadCaches(input.workspaceId, app.id);
       await markPushed(db, input.workspaceId, app.id, p, done.steps, at);
       const items = differing.map((st) => ({
         locale: st.locale,

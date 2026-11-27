@@ -16,6 +16,7 @@ import {
   pendingItemDetail,
   pendingSummary,
 } from './pending.ts';
+import { readCurrentReadiness } from './current-readiness.ts';
 import { dismissRun, listRuns, readLastPublish } from './publish-runs.ts';
 import { interruptPublish, reapDeadClaims, readPublishing } from './publishing.ts';
 import {
@@ -331,6 +332,22 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
         .map(([appId, lastPublish]) => ({ appId, lastPublish })),
       generatedAt: ctx.now(),
     });
+  });
+
+  // What stands in the way of a submit NOW (the blockers a run kept are true of the moment it ran): one fresh read of the store, judged by
+  // the pure rules of the plan and the submit. Kept 30 seconds; `?fresh=1` (the "Check again" button) asks the store again and drops every cache of it.
+  routes.get('/:workspaceId/apps/:id/publish/readiness', needs('store.submit'), async (c) => {
+    const done = await readCurrentReadiness(
+      { draft, submit },
+      {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        actor: actor(c),
+        fresh: c.req.query('fresh') === '1' || c.req.query('fresh') === 'true',
+      },
+    );
+    c.header('Cache-Control', 'no-store');
+    return done.ok ? c.json({ readiness: done.readiness, generatedAt: ctx.now() }) : respond(c, done);
   });
 
   // The latest runs of an app (newest first, at most five), with the reason each failed step gave.

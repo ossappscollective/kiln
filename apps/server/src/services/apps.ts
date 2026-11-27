@@ -37,6 +37,7 @@ import { deleteProposalStates } from '../modules/listing/asset-proposal.ts';
 import { deleteListingData, syncListing } from '../modules/listing/live.ts';
 import { recordAppliedChangeSets } from '../modules/listing/repo.ts';
 import { deleteAppRuns } from '../modules/publish/publish-runs.ts';
+import { dropStoreReadCaches } from '../modules/publish/store-read-events.ts';
 import { deleteReviewData } from '../modules/reviews/service.ts';
 import { deleteAppAppearance } from './app-appearance.ts';
 import { deleteAppIcon } from './app-icon-store.ts';
@@ -1102,6 +1103,9 @@ async function runSync(
   }
 
   const at = ctx.now();
+  // A sync is the person's "read the store again": whatever was cached about what the app's store holds (the graphics, the current readiness
+  // behind a blocked submit) is stale now, so the next reader asks the store instead of repeating an old answer.
+  dropStoreReadCaches(workspaceId, app.id);
   const outcome = await db.transaction(async (tx) => {
     // The app may have been deleted while the store was being read.
     const [still] = await tx.query('SELECT id FROM apps WHERE id = ? AND workspace_id = ?', [

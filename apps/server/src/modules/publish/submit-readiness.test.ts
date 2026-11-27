@@ -73,7 +73,7 @@ dbTest(
         'Description is empty in fr-FR.',
         'Keywords is empty in fr-FR.',
         'Support URL is empty in fr-FR.',
-        'At most 10 screenshots per device size. en-US iPad 13" / 12.9": 12 found.',
+        'At most 10 screenshots per device size. en-US iPad 13" / 12.9" (APP_IPAD_PRO_3GEN_129): 12 found.',
       ],
     );
     assert.equal(

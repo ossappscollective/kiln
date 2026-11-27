@@ -837,6 +837,36 @@ export const pendingOperations: Draft[] = [
     },
   },
   {
+    id: 'getStoreSubmitReadiness',
+    method: 'get',
+    path: `${W}/apps/{id}/publish/readiness`,
+    tags: ['pending'],
+    summary: 'What stands in the way of a submit NOW (the blockers a run kept are only true of the moment it ran)',
+    description:
+      'Needs `store.submit` and `KILN_STORE_SUBMIT_ENABLED=true` (`409 store_submit_disabled`). READS the store once (the version, the build, every locale with its texts and its sets of screenshots, the App Review Information) and the staged push when something is staged, and judges them with the same pure rules as the plan and the submit (`blockers`: the same shape as the plan\u2019s readiness). Screenshots are counted per store set (an App Store placement group), never summed across the 13-inch and 12.9-inch sets of one display. A run that was blocked keeps the blockers of its own moment (`lastPublish.results[].blockers`): this is the answer to "and now?". Kept for 30 seconds (`cached: true`); `?fresh=1` asks the store again and drops every cache of what the store holds for the app (the graphics read too). Writes nothing. Not part of `GET /pending/publishing`, which is polled and reads no store.',
+    risk: 'read',
+    access: { action: 'store.submit' },
+    appScope: { kind: 'param', name: 'id' },
+    responses: {
+      '200': {
+        description: 'The current readiness.',
+        schema: z.object({
+          readiness: z.object({
+            appId: z.string(),
+            ready: z.boolean().describe('No blocker is certain now. Says nothing about `unknown`.'),
+            blockers: z.array(submitBlockerSchema),
+            unknown: z.array(z.string()),
+            predicted: z.boolean().describe('The staged push was merged into the store\u2019s draft.'),
+            versionString: z.string().nullable(),
+            storeReadAt: timestamp.describe('When the store was read (epoch ms).'),
+            cached: z.boolean(),
+          }),
+          generatedAt: timestamp,
+        }),
+      },
+    },
+  },
+  {
     id: 'listStorePublishRuns',
     method: 'get',
     path: `${W}/apps/{id}/publish/runs`,

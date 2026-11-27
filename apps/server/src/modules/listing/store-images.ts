@@ -15,6 +15,7 @@ import type { ManagedApp } from '../../services/apps.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { type DraftContext, onDraftPushed, readStoreImagesOf } from '../publish/store-draft.ts';
+import { dropStoreReadCaches } from '../publish/store-read-events.ts';
 import {
   type Downloaded,
   type DownloadFailure,
@@ -338,6 +339,10 @@ export async function getStoreImages(
   if (!input.fresh) {
     const hit = peekStoreImages(input.workspaceId, input.app.id, now, channel);
     if (hit) return { ok: true, view: hit, cached: true };
+  } else {
+    // "Read again": the person asked the store, so no cache of what it holds for this app may answer for it afterwards (the current
+    // readiness behind a blocked submit reads the same store and is dropped with the images).
+    dropStoreReadCaches(input.workspaceId, input.app.id);
   }
   const wait = ctx.limiter.take(input.workspaceId);
   if (wait > 0)
